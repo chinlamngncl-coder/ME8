@@ -5217,6 +5217,7 @@
     <!-- mob-me8-restore-8wc-v2-ops: v2 inline ops boot + ME8 enterprise glue; VC via vc-lazy -->
     <script src="/vendor/jsmpeg.min.js"></script>
     <script src="/js/i18n.js?v=20260702-restore-8wc-v2"></script>
+    <script src="/js/session-bus.js?v=20260702-settings-session-sync"></script>
     <script src="/js/mobility-map-gis.js?v=20260630-add-za"></script>
     <script src="/js/map-offline-tiles.js?v=20260628-cn-offline"></script>
     <script src="/js/display-names.js"></script>
@@ -5228,7 +5229,7 @@
     <script src="/js/password-policy-ui.js"></script>
     <script src="/js/tab-lifecycle.js?v=20260702-restore-8wc-v2"></script>
     <script src="/js/server-setup.js?v=20260702-admin-action-bus"></script>
-    <script src="/js/settings-hub.js?v=20260702-admin-action-bus"></script>
+    <script src="/js/settings-hub.js?v=20260702-settings-session-sync"></script>
     <script src="/js/tech-diagnostics.js?v=20260702-restore-8wc-v2"></script>
     <script src="/js/usb-maintenance.js?v=20260609-usb2"></script>
     <script src="/js/lab-security.js?v=20260618-copy"></script>
@@ -5587,7 +5588,10 @@
             if (typeof fixIdleSlotCallButtons === 'function') fixIdleSlotCallButtons();
         });
 
-        fetch('/api/auth/session').then(function (r) { return r.json(); }).then(function (data) {
+        var sessionLoad = (global.SessionBus && SessionBus.get)
+            ? SessionBus.get()
+            : fetch('/api/auth/session').then(function (r) { return r.json(); });
+        sessionLoad.then(function (data) {
             if (data && data.ok && data.permissions && window.setDashboardPermissions) {
                 window.setDashboardPermissions(data.permissions, data.role, data.username);
             }

@@ -324,6 +324,11 @@
 
     function init() {
         bindUi();
+        if (global.SessionBus && SessionBus.get) {
+            SessionBus.get().then(function (data) {
+                if (data) applySession(data);
+            }).catch(function () { /* ignore */ });
+        }
     }
 
     global.SettingsHub = {
