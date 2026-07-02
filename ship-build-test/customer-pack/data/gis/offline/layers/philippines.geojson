@@ -1,0 +1,13 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Philippines (starter extent)", "kind": "country_extent" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[116.9, 4.6], [126.7, 4.6], [126.7, 20.8], [116.9, 20.8], [116.9, 4.6]]]
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "customerName": "Example Agency",
+  "lanIp": "10.0.0.50",
+  "licensePath": "C:\\path\\to\\vendor-signed\\platform-license.json",
+  "videoConference": false,
+  "sku": "ME8-Core",
+  "notes": "Ubitron internal only — used by scripts/me8-ship/BUILD-ME8-CUSTOMER.ps1"
+}

@@ -1,0 +1,56 @@
+'use strict';
+
+/** Second-pass translation fixes (Live view rename, map legend, storage hints). */
+module.exports = {
+  ko: {
+    'commandWall.title': '실시간 보기',
+    'nav.commandWall': '실시간 보기',
+    'view.popoutAriaCommandWall': '실시간 보기 팝아웃',
+    'commandWall.pageTitle': '실시간 보기 — Mobility Axiom',
+    'commandWall.metaPopout': '명단에서 패널로 단말을 끌어다 놓으세요 · 자동으로 라이브 시작',
+    'map.legend.offlineLast': '오프라인 (마지막 위치)',
+    'nav.techAdmin': '기술 관리',
+    'video.popoutMatrix': '매트릭스 팝아웃',
+  },
+  th: {
+    'commandWall.title': 'มุมมองสด',
+    'nav.commandWall': 'มุมมองสด',
+    'view.popoutAriaCommandWall': 'เปิดมุมมองสดแยกหน้าต่าง',
+    'commandWall.pageTitle': 'มุมมองสด — Mobility Axiom',
+    'commandWall.metaPopout': 'ลากอุปกรณ์จากรายชื่อไปยังแผงใดก็ได้ · เริ่ม live อัตโนมัติ',
+    'map.legend.offlineLast': 'ออฟไลน์ (ตำแหน่งล่าสุด)',
+    'nav.techAdmin': 'ผู้ดูแลเทคนิค',
+    'video.popoutMatrix': 'เปิด Matrix',
+    'video.config': 'ตั้งค่า',
+  },
+  id: {
+    'commandWall.title': 'Tampilan live',
+    'nav.commandWall': 'Tampilan live',
+    'view.popoutAriaCommandWall': 'Pop out tampilan live',
+    'commandWall.pageTitle': 'Tampilan live — Mobility Axiom',
+    'commandWall.metaPopout': 'Seret perangkat dari roster ke panel mana pun · mulai live otomatis',
+    'map.legend.offlineLast': 'Offline (lokasi terakhir)',
+    'nav.techAdmin': 'Admin teknis',
+    'video.popoutMatrix': 'Pop out matrix',
+  },
+  fil: {
+    'commandWall.title': 'Live view',
+    'nav.commandWall': 'Live view',
+    'view.popoutAriaCommandWall': 'I-pop out ang live view',
+    'commandWall.pageTitle': 'Live view — Mobility Axiom',
+    'commandWall.metaPopout': 'I-drag ang device mula sa roster papunta sa anumang panel · auto-start live',
+    'map.legend.offlineLast': 'Offline (huling lokasyon)',
+    'nav.techAdmin': 'Admin ng teknikal',
+    'video.popoutMatrix': 'Pop out matrix',
+  },
+  en: {
+    'commandWall.title': 'Command Wall',
+    'nav.commandWall': 'Command Wall',
+    'view.popoutAriaCommandWall': 'Pop out Command Wall',
+    'commandWall.pageTitle': 'Command Wall — Mobility Axiom',
+    'commandWall.metaPopout': 'Drag devices from the roster into any panel · auto-starts live',
+    'map.legend.offlineLast': 'Offline (last location)',
+    'nav.techAdmin': 'Tech admin',
+    'nav.evidenceDocking': 'Evidence & Docking',
+  },
+};

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mobility Axiom — คู่มือการตั้งค่า</title>
+  <style>
+body { font-family: "Segoe UI", system-ui, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1.5rem 3rem; line-height: 1.55; color: #1e293b; }
+h1 { font-size: 1.75rem; border-bottom: 2px solid #0f172a; padding-bottom: 0.35rem; }
+h2 { font-size: 1.25rem; margin-top: 1.75rem; color: #0f172a; }
+h3 { font-size: 1.05rem; margin-top: 1.25rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+th, td { border: 1px solid #cbd5e1; padding: 0.45rem 0.65rem; text-align: left; vertical-align: top; }
+th { background: #f1f5f9; }
+code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
+ul, ol { padding-left: 1.4rem; }
+@media print { body { max-width: none; margin: 0; } }
+</style>
+</head>
+<body>
+<h1>Mobility Axiom — คู่มือการตั้งค่า</h1>
+<p><strong>สำหรับ:</strong> IT ผู้ดูแลระบบ ติดตั้ง<br><strong>อ่านคู่กับ:</strong> <strong>Quick Guide</strong> · <strong>คู่มือผู้ใช้</strong></p>
+<p>อธิบายการตั้งค่าเซิร์ฟเวอร์ ลงทะเบียน BWC ผู้ใช้ ที่เก็บข้อมูล ไฟร์วอลล์ และ VC ทีละขั้นตอน</p>
+<hr>
+<h2>สารบัญ</h2>
+<ol>
+<li><a href="#1-%E0%B8%81%E0%B9%88%E0%B8%AD%E0%B8%99%E0%B9%80%E0%B8%A3%E0%B8%B4%E0%B9%88%E0%B8%A1">ก่อนเริ่ม</a></li>
+<li><a href="#2-%E0%B9%80%E0%B8%9B%E0%B8%B4%E0%B8%94-server-config">เปิด Server Config</a></li>
+<li><a href="#3-network--deployment">Network &amp; deployment</a></li>
+<li><a href="#4-%E0%B8%A5%E0%B8%87%E0%B8%97%E0%B8%B0%E0%B9%80%E0%B8%9A%E0%B8%B5%E0%B8%A2%E0%B8%99-bwc">ลงทะเบียน BWC</a></li>
+<li><a href="#5-map-groups">Map groups</a></li>
+<li><a href="#6-dashboard-auth">Dashboard Auth</a></li>
+<li><a href="#7-%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B9%80%E0%B8%81%E0%B9%87%E0%B8%9A%E0%B8%AB%E0%B8%A5%E0%B8%B1%E0%B8%81%E0%B8%90%E0%B8%B2%E0%B8%99">ที่เก็บหลักฐาน</a></li>
+<li><a href="#8-video-conference">Video Conference</a></li>
+<li><a href="#9-centre-summary-ai">Centre Summary AI</a></li>
+<li><a href="#10-%E0%B9%84%E0%B8%9F%E0%B8%A3%E0%B9%8C%E0%B8%A7%E0%B8%AD%E0%B8%A5%E0%B8%A5%E0%B9%8C%E0%B9%81%E0%B8%A5%E0%B8%B0%E0%B8%9E%E0%B8%AD%E0%B8%A3%E0%B9%8C%E0%B8%95">ไฟร์วอลล์และพอร์ต</a></li>
+<li><a href="#11-%E0%B9%83%E0%B8%9A%E0%B8%AD%E0%B8%99%E0%B8%B8%E0%B8%8D%E0%B8%B2%E0%B8%95%E0%B8%97%E0%B8%94%E0%B8%A5%E0%B8%AD%E0%B8%87">ใบอนุญาตทดลอง</a></li>
+<li><a href="#12-%E0%B8%A3%E0%B8%AB%E0%B8%B1%E0%B8%AA%E0%B8%9C%E0%B9%88%E0%B8%B2%E0%B8%99%E0%B9%81%E0%B8%A5%E0%B8%B0-audit">รหัสผ่านและ audit</a></li>
+<li><a href="#13-%E0%B8%A3%E0%B8%B2%E0%B8%A2%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%95%E0%B8%A3%E0%B8%A7%E0%B8%88%E0%B8%AA%E0%B8%AD%E0%B8%9A">รายการตรวจสอบ</a></li>
+</ol>
+<hr>
+<h2>1. ก่อนเริ่ม</h2>
+<table>
+<thead>
+<tr>
+<th>รายการ</th>
+<th>ต้องมี</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>PC เซิร์ฟเวอร์</td>
+<td>Windows 10/11 64-bit แนะนำ IP คงที่</td>
+</tr>
+<tr>
+<td>แพ็ก</td>
+<td>แตกไฟล์ รัน <code>Install-Mobility.bat</code> ครั้งเดียว</td>
+</tr>
+<tr>
+<td>Docker Desktop</td>
+<td>ติดตั้งและรัน (สำหรับ VC)</td>
+</tr>
+<tr>
+<td>BWC</td>
+<td>เปิดเครื่อง เครือข่าย SIP เข้าถึงได้</td>
+</tr>
+<tr>
+<td>เครือข่าย</td>
+<td>LAN เดียวกัน ปุ่มกดกล้องใช้ <strong>IPv4 เท่านั้น</strong></td>
+</tr>
+</tbody></table>
+<p>ไม่ต้องติดตั้ง Node แยก — มีใน <code>Mobility-Axiom\tools\node\</code></p>
+<hr>
+<h2>2. เปิด Server Config</h2>
+<ol>
+<li>เข้า <strong>super admin</strong> (ทดลอง: <code>global</code>)</li>
+<li>แท็บ <strong>Settings</strong> → <strong>Server Config</strong></li>
+<li>เมนูซ้าย: <strong>Network &amp; deployment</strong> | <strong>BWCs</strong> | <strong>Map groups</strong> | <strong>Dashboard Auth</strong></li>
+</ol>
+<p>บัญชี <strong>Operator</strong> <strong>อ่านอย่างเดียว</strong></p>
+<hr>
+<h2>3. Network &amp; deployment</h2>
+<h3>3.1 Deployment</h3>
+<p>เลือก <strong>LAN server</strong> → <strong>Save server settings</strong></p>
+<h3>3.2 LAN network (สำคัญ)</h3>
+<ol>
+<li><strong>BWC SIP server IP</strong> = <strong>IPv4</strong> ของ PC (เช่น <code>192.168.1.10</code>) — ไม่ใช่ชื่อโฮสต์</li>
+<li>จดพอร์ต HTTP <code>3888</code> และวิดีโอ WS <code>3889</code></li>
+<li><strong>Save server settings</strong></li>
+</ol>
+<h3>3.3 BWC camera register</h3>
+<p>ตั้ง Platform ID, Realm, Password → คัดลอก <strong>Type on BWC</strong> ไปหน้าจอ SIP แต่ละกล้อง</p>
+<hr>
+<h2>4. ลงทะเบียน BWC</h2>
+<p><strong>แท็บ:</strong> <strong>BWCs</strong></p>
+<ol>
+<li><strong>Add row</strong> → <strong>Device ID</strong> (ตรงกับกล้อง) → <strong>Officer</strong> → <strong>Map group</strong> (ถ้ามี)</li>
+<li><strong>Save BWC list</strong></li>
+</ol>
+<p><strong>หน้าจอ SIP กล้อง:</strong></p>
+<table>
+<thead>
+<tr>
+<th>ช่อง</th>
+<th>ค่า</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SIP server</td>
+<td>IPv4 เซิร์ฟเวอร์</td>
+</tr>
+<tr>
+<td>Port</td>
+<td>5060</td>
+</tr>
+<tr>
+<td>Platform ID / Realm / Password</td>
+<td>ตรง Server Config</td>
+</tr>
+<tr>
+<td>Device ID</td>
+<td>ตรงแถวใน BWC list</td>
+</tr>
+</tbody></table>
+<p>รอ ~30 วินาที → <strong>Operations</strong> → <strong>Online</strong></p>
+<p>แพ็กทดลอง: <code>FM_SEED_BWC_ID=</code> ว่าง — ไม่มีอุปกรณ์สาธิต</p>
+<hr>
+<h2>5. Map groups</h2>
+<p>สร้างกลุ่มชื่อและสี → กำหนดในแท็บ BWCs → ใช้สีหมุด วิดีโอวอลล์ PTT</p>
+<hr>
+<h2>6. Dashboard Auth</h2>
+<p><strong>Operator:</strong> อนุญาต Operations/Evidence/Command Wall/VC — ห้ามแก้ Server Config → <strong>Save</strong> ที่แถว</p>
+<p><strong>Super admin:</strong> เพิ่มแถว → <strong>Save</strong></p>
+<hr>
+<h2>7. ที่เก็บหลักฐาน</h2>
+<p>โฟลเดอร์ FTP บันทึกสด ดัชนีหลักฐาน → <strong>Save storage</strong> → <strong>Scan FTP for evidence</strong></p>
+<p>NAS: ต่อกับ Windows ก่อน</p>
+<p>ทางเลือก: <strong>Auto-record server video on SOS alarm</strong></p>
+<hr>
+<h2>8. Video Conference</h2>
+<ol>
+<li>Docker Desktop</li>
+<li><code>Install-Mobility.bat</code> — LiveKit</li>
+<li><strong>Video Conference → Settings</strong> — WebSocket สำหรับมือถือ (เช่น <code>ws://192.168.1.10:7880</code>)</li>
+</ol>
+<p>แจก <code>MobilityConference-1.5.6.apk</code></p>
+<hr>
+<h2>9. Centre Summary AI</h2>
+<p>โมเดลใน <code>Mobility-Axiom\vendor\llm\</code> (~2 GB) ไม่ดาวน์โหลดที่ไซต์ ครั้งแรก <strong>Ask</strong> โหลด 1–2 นาที</p>
+<hr>
+<h2>10. ไฟร์วอลล์และพอร์ต</h2>
+<table>
+<thead>
+<tr>
+<th>พอร์ต</th>
+<th>บริการ</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>3888</td>
+<td>Dashboard HTTP</td>
+</tr>
+<tr>
+<td>3889</td>
+<td>Live video WebSocket</td>
+</tr>
+<tr>
+<td>5060</td>
+<td>SIP</td>
+</tr>
+<tr>
+<td>7880</td>
+<td>LiveKit</td>
+</tr>
+<tr>
+<td>40130+ UDP</td>
+<td>RTP</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>11. ใบอนุญาตทดลอง</h2>
+<p>5 BWC · 10 ผู้ใช้แดชบอร์ด · 1 ปี (ตามไฟล์ใบอนุญาต)</p>
+<hr>
+<h2>12. รหัสผ่านและ audit</h2>
+<p><strong>Dashboard Auth</strong> → รหัสใหม่ → <strong>Save</strong> · <strong>Audit Trail</strong> → กรอง → <strong>Export CSV</strong></p>
+<hr>
+<h2>13. รายการตรวจสอบ</h2>
+<table>
+<thead>
+<tr>
+<th>ขั้นตอน</th>
+<th>ผ่าน</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Install-Mobility.bat ไม่มี error</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Docker ทำงาน</td>
+<td>☐</td>
+</tr>
+<tr>
+<td><code>http://localhost:3888</code> เปิดได้</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>LAN IP = IPv4 ของ PC</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>BWC บันทึกแล้ว</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>SIP กล้องตรงกัน</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Online ภายใน 60 วินาที</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>หมุดมีวิดีโอสด</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>PTT ได้ยินเสียง</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>สแกน FTP OK</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>VC Join Room OK</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>ทดสอบ Operator อ่านอย่างเดียว</td>
+<td>☐</td>
+</tr>
+</tbody></table>
+<p>ล้มเหลว → คู่มือผู้ใช้ §18 และ <code>VIEW-LOG.bat</code></p>
+
+
+</body>
+</html>

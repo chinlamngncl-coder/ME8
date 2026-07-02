@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark">
+    <title>Authenticator setup — Mobility Axiom</title>
+    <style>
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; min-height: 100%;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(160deg, #0f172a 0%, #1e293b 45%, #0f172a 100%);
+            color: #e2e8f0; display: flex; align-items: center; justify-content: center; padding: 24px;
+        }
+        .login-card { width: 100%; max-width: 460px; background: rgba(30,41,59,.95); border: 1px solid #475569; border-radius: 12px; padding: 28px 24px; }
+        .setup-hint { font-size: 13px; color: #94a3b8; line-height: 1.5; margin: 0 0 14px; }
+        label { display: block; margin-bottom: 14px; font-size: 12px; color: #94a3b8; }
+        .login-input { display: block; width: 100%; margin-top: 6px; padding: 10px 12px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #e2e8f0; font-size: 14px; }
+        #enroll-error { display: none; margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; background: rgba(127,29,29,.35); border: 1px solid #b91c1c; color: #fecaca; font-size: 13px; }
+        button[type="submit"], .btn-primary { width: 100%; margin-top: 8px; padding: 11px 16px; border: none; border-radius: 8px; background: #2563eb; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+        button:disabled { opacity: .6; cursor: wait; }
+        #enroll-qr { display: block; margin: 12px auto; border-radius: 8px; background: #fff; padding: 8px; }
+        #enroll-backup-list { font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.8; color: #e2e8f0; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; }
+        .step[hidden] { display: none !important; }
+        .logout-link { margin-top: 16px; text-align: center; font-size: 12px; }
+        .logout-link button { background: none; border: none; color: #60a5fa; cursor: pointer; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h1 style="margin:0 0 8px;font-size:18px" data-i18n="totpEnroll.title">Set up authenticator</h1>
+        <p id="enroll-error" role="alert"></p>
+
+        <div id="step-start" class="step">
+            <p class="setup-hint" data-i18n="totpEnroll.startHint">Super admin must use an authenticator app (Microsoft Authenticator, Google Authenticator, etc.). Works offline — no internet needed for codes.</p>
+            <form id="enroll-start-form">
+                <label><span data-i18n="totpEnroll.password">Your password</span>
+                    <input type="password" id="enroll-password" class="login-input" autocomplete="current-password" required>
+                </label>
+                <button type="submit" class="btn-primary" data-i18n="totpEnroll.start">Show QR code</button>
+            </form>
+        </div>
+
+        <div id="step-scan" class="step" hidden>
+            <p class="setup-hint" data-i18n="totpEnroll.scanHint">Scan this QR in your authenticator app, then enter the 6-digit code.</p>
+            <img id="enroll-qr" alt="QR code" width="220" height="220">
+            <p class="setup-hint"><span data-i18n="totpEnroll.manualSecret">Manual key:</span> <code id="enroll-secret"></code></p>
+            <form id="enroll-confirm-form">
+                <label><span data-i18n="totpEnroll.code">6-digit code</span>
+                    <input type="text" id="enroll-code" class="login-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
+                </label>
+                <button type="submit" class="btn-primary" data-i18n="totpEnroll.confirm">Confirm and enable</button>
+            </form>
+        </div>
+
+        <div id="step-backup" class="step" hidden>
+            <p class="setup-hint" data-i18n="totpEnroll.backupHint">Save these backup codes once. Each works one time if you lose your phone.</p>
+            <div id="enroll-backup-list"></div>
+            <button type="button" id="enroll-finish" class="btn-primary" data-i18n="totpEnroll.finish">Continue to dashboard</button>
+        </div>
+
+        <p class="logout-link"><button type="button" id="enroll-logout" data-i18n="mustChangePassword.logout">Sign out</button></p>
+    </div>
+    <script src="/js/i18n.js"></script>
+    <script src="/js/password-policy-ui.js"></script>
+    <script src="/js/enroll-totp.js?v=20260701-totp"></script>
+</body>
+</html>

@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mobility Axiom — 사용자 매뉴얼 (운영자 가이드)</title>
+  <style>
+body { font-family: "Segoe UI", system-ui, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1.5rem 3rem; line-height: 1.55; color: #1e293b; }
+h1 { font-size: 1.75rem; border-bottom: 2px solid #0f172a; padding-bottom: 0.35rem; }
+h2 { font-size: 1.25rem; margin-top: 1.75rem; color: #0f172a; }
+h3 { font-size: 1.05rem; margin-top: 1.25rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+th, td { border: 1px solid #cbd5e1; padding: 0.45rem 0.65rem; text-align: left; vertical-align: top; }
+th { background: #f1f5f9; }
+code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
+ul, ol { padding-left: 1.4rem; }
+@media print { body { max-width: none; margin: 0; } }
+</style>
+</head>
+<body>
+<h1>Mobility Axiom — 사용자 매뉴얼 (운영자 가이드)</h1>
+<p><strong>대상:</strong> 디스패처, 감독관, 증거 담당자, 관제실 운영자.<br><strong>관련 문서:</strong> <strong>빠른 시작 가이드</strong>(설치) · <strong>구성 매뉴얼</strong>(서버/BWC) · <strong>README.txt</strong></p>
+<p>이 가이드는 대시보드의 <strong>모든 탭</strong>, <strong>주요 버튼</strong>, <strong>단계별 워크플로</strong>를 설명합니다. UI 라벨은 선택한 언어와 일치합니다.</p>
+<hr>
+<h2>목차</h2>
+<ol>
+<li><a href="#1-%EC%8B%9C%EC%8A%A4%ED%85%9C-%EA%B8%B0%EB%8A%A5">시스템 기능</a></li>
+<li><a href="#2-%EB%A1%9C%EA%B7%B8%EC%9D%B8-%EC%96%B8%EC%96%B4-%EB%A1%9C%EA%B7%B8%EC%95%84%EC%9B%83">로그인, 언어, 로그아웃</a></li>
+<li><a href="#3-%ED%97%A4%EB%8D%94-%EB%B0%94">헤더 바</a></li>
+<li><a href="#4-operations-%ED%83%AD-%EB%A0%88%EC%9D%B4%EC%95%84%EC%9B%83">Operations 탭 레이아웃</a></li>
+<li><a href="#5-device-summary%ED%95%A8%EB%8C%80-%ED%91%9C">Device Summary(함대 표)</a></li>
+<li><a href="#6-sos">SOS</a></li>
+<li><a href="#7-ptt-%EA%B7%B8%EB%A3%B9-%EB%B0%8F-%EB%A9%94%EC%8B%9C%EC%A7%80">PTT 그룹 및 메시지</a></li>
+<li><a href="#8-%EC%A7%80%EB%8F%84">지도</a></li>
+<li><a href="#9-%EC%A7%80%EC%98%A4%ED%8E%9C%EC%8B%B1">지오펜싱</a></li>
+<li><a href="#10-%EB%B9%84%EB%94%94%EC%98%A4-%EC%9B%946%ED%8C%A8%EB%84%90">비디오 월(6패널)</a></li>
+<li><a href="#11-evidence--docking">Evidence &amp; Docking</a></li>
+<li><a href="#12-command-wall">Command Wall</a></li>
+<li><a href="#13-centre-summary">Centre Summary</a></li>
+<li><a href="#14-video-conference">Video Conference</a></li>
+<li><a href="#15-settings-%EB%B0%8F-audit-trail">Settings 및 Audit Trail</a></li>
+<li><a href="#16-%EC%82%AC%EC%9A%A9%EC%9E%90-%EC%97%AD%ED%95%A0">사용자 역할</a></li>
+<li><a href="#17-%EC%9B%8C%ED%81%AC%ED%94%8C%EB%A1%9C-%EC%98%88%EC%8B%9C">워크플로 예시</a></li>
+<li><a href="#18-%EB%AC%B8%EC%A0%9C-%ED%95%B4%EA%B2%B0">문제 해결</a></li>
+</ol>
+<hr>
+<h2>1. 시스템 기능</h2>
+<table>
+<thead>
+<tr>
+<th>기능</th>
+<th>UI 위치</th>
+<th>할 수 있는 일</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>실시간 GPS 지도</td>
+<td>Operations → 지도</td>
+<td>요원 위치, SOS, 녹화 상태</td>
+</tr>
+<tr>
+<td>BWC 라이브 영상</td>
+<td>지도 핀 패널, 비디오 월, Command Wall</td>
+<td>다중 스트림(Operations 기본 6)</td>
+</tr>
+<tr>
+<td>음성/PTT</td>
+<td>함대 표, 지도 핀, PTT 그룹</td>
+<td>1:1 또는 그룹 무전</td>
+</tr>
+<tr>
+<td>SOS</td>
+<td>헤더 배너, SOS 로그, 지도</td>
+<td>알람, 보고서, 폴더보내기</td>
+</tr>
+<tr>
+<td>BWC 문자</td>
+<td>Operations → Messages</td>
+<td>온라인 카메라에 텍스트</td>
+</tr>
+<tr>
+<td>증거 라이브러리</td>
+<td>Evidence 탭</td>
+<td>도크 업로드, 서버 녹화, 사건 파일 검색</td>
+</tr>
+<tr>
+<td>화상 회의</td>
+<td>Video Conference 탭</td>
+<td>휴대폰·PC·BWC 라이브 공유</td>
+</tr>
+<tr>
+<td>관리</td>
+<td>Settings → Server Config</td>
+<td>네트워크, BWC 목록, 운영자</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>2. 로그인, 언어, 로그아웃</h2>
+<h3>2.1 첫 로그인</h3>
+<ol>
+<li>브라우저 열기(Chrome 또는 Edge 권장).</li>
+<li><code>http://&lt;서버-IP&gt;:3888</code> 접속(같은 PC: <code>http://localhost:3888</code>).</li>
+<li><strong>사용자명</strong>·<strong>비밀번호</strong> 입력(체험: <code>global</code> / <code>global123</code>).</li>
+<li><strong>Sign in</strong> 클릭.</li>
+</ol>
+<h3>2.2 언어 변경</h3>
+<ul>
+<li><strong>로그인 화면:</strong> 드롭다운에서 언어 선택.</li>
+<li><strong>로그인 후:</strong> 헤더 오른쪽 <strong>Language</strong> 드롭다운.</li>
+<li>APAC: 영어, 한국어, 태국어, 인도네시아어, 필리핀어.</li>
+</ul>
+<h3>2.3 비밀번호 변경(슈퍼 관리자)</h3>
+<ol>
+<li><strong>Settings</strong> → <strong>Server Config</strong>.</li>
+<li><strong>Dashboard Auth</strong> 열기.</li>
+<li>사용자 행에서 새 비밀번호 → <strong>Save</strong>.</li>
+</ol>
+<h3>2.4 로그아웃</h3>
+<ol>
+<li><strong>Settings</strong> 탭.</li>
+<li>왼쪽 패널 <strong>Sign out</strong>.</li>
+<li>공용 PC에서는 반드시 로그아웃.</li>
+</ol>
+<hr>
+<h2>3. 헤더 바</h2>
+<table>
+<thead>
+<tr>
+<th>컨트롤</th>
+<th>위치</th>
+<th>기능</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Mobility Axiom</strong> 로고</td>
+<td>왼쪽 상단</td>
+<td>브랜드</td>
+</tr>
+<tr>
+<td><strong>Voice mute</strong> 🔊</td>
+<td>오른쪽</td>
+<td>SOS/알림 음성 음소거</td>
+</tr>
+<tr>
+<td><strong>Repeat</strong></td>
+<td>오른쪽</td>
+<td>마지막 음성 알림 반복</td>
+</tr>
+<tr>
+<td><strong>Language</strong></td>
+<td>오른쪽</td>
+<td>UI 언어 변경</td>
+</tr>
+<tr>
+<td><strong>SOS 배너</strong></td>
+<td>헤더 아래(SOS 시)</td>
+<td>장치명, 시간, 조치</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>4. Operations 탭 레이아웃</h2>
+<p>로그인 후 기본 화면.</p>
+<h3>4.1 세 영역</h3>
+<table>
+<thead>
+<tr>
+<th>영역</th>
+<th>내용</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>왼쪽 사이드바</strong></td>
+<td>Device Summary, SOS 로그, PTT 그룹, Messages, Storage</td>
+</tr>
+<tr>
+<td><strong>중앙</strong></td>
+<td>지도 + 도구 모음</td>
+</tr>
+<tr>
+<td><strong>오른쪽</strong></td>
+<td>라이브 비디오 6패널</td>
+</tr>
+</tbody></table>
+<h3>4.2 사이드바 접기</h3>
+<p>사이드바와 지도 사이 <strong>◀</strong> 클릭.</p>
+<h3>4.3 상단 도구(Operations 시)</h3>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>동작</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Auto-rotate</strong></td>
+<td>6패널 자동 순환</td>
+</tr>
+<tr>
+<td><strong>Popout Matrix</strong></td>
+<td>다른 모니터 전체 화면</td>
+</tr>
+<tr>
+<td><strong>Config</strong></td>
+<td>비디오 월 할당</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>5. Device Summary(함대 표)</h2>
+<p><strong>위치:</strong> Operations → <strong>Device Summary</strong>.</p>
+<h3>5.1 검색·필터</h3>
+<ol>
+<li><strong>Search</strong> — 요원명 또는 장치 ID.</li>
+<li><strong>Filter:</strong> All / Online only / Offline only.</li>
+</ol>
+<h3>5.2 열 설명</h3>
+<table>
+<thead>
+<tr>
+<th>열</th>
+<th>사용법</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Pin</strong></td>
+<td>클릭 — 지도 핀+플로팅 영상 토글</td>
+</tr>
+<tr>
+<td><strong>PTT</strong></td>
+<td><strong>길게 누름</strong> — 1:1 음성</td>
+</tr>
+<tr>
+<td><strong>Call</strong></td>
+<td>클릭 — 음성 통화</td>
+</tr>
+<tr>
+<td><strong>GPS</strong></td>
+<td>클릭 — 경로/추적</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>요원명·장치 ID</td>
+</tr>
+<tr>
+<td><strong>Status</strong></td>
+<td>Online / Offline</td>
+</tr>
+</tbody></table>
+<h3>5.3 일괄 작업</h3>
+<ul>
+<li><strong>Open All (Up to 6)</strong> — 최대 6대 지도에 표시</li>
+<li><strong>Clear map pins</strong> — 모든 핀 패널 제거</li>
+</ul>
+<h3>5.4 한 요원 모니터링</h3>
+<ol>
+<li>표에서 찾기 → <strong>Online</strong> 확인.</li>
+<li><strong>Pin</strong> 클릭 → 지도 줌, 영상 열림.</li>
+<li><strong>PTT</strong> 길게 눌러 통화.</li>
+</ol>
+<hr>
+<h2>6. SOS</h2>
+<h3>6.1 활성 SOS</h3>
+<ol>
+<li>헤더 아래 <strong>빨간 배너</strong>.</li>
+<li>지도 <strong>SOS 위치로 줌</strong>.</li>
+<li><strong>Pin</strong>·<strong>PTT</strong>·<strong>SOS 로그</strong> 행으로 상세 확인.</li>
+</ol>
+<p><strong>디스패처 조치:</strong></p>
+<ol>
+<li>필요 시 <strong>응답 반경</strong>(200–1000 m) — 지도 빨간 원.</li>
+<li><strong>Pin</strong>으로 알람 요원 실시간 영상 확인.</li>
+<li><strong>Acknowledge</strong> — §6.1b(체크된 근처 요원으로 PTT 팀), 또는 배너 <strong>PTT team</strong>.</li>
+<li><strong>PTT TEAM · ON</strong> 시 월/핀에서 <strong>PTT 길게</strong> — 전체 팀 음성.</li>
+<li><strong>SOS 로그</strong> 행에서 상세 보고서.</li>
+</ol>
+<h3>6.1b 응답 반경 및 SOS PTT 팀</h3>
+<table>
+<thead>
+<tr>
+<th>배너</th>
+<th>동작</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>반경 칩</strong></td>
+<td>200–1000 m — 지도상 “근처” 단위</td>
+</tr>
+<tr>
+<td><strong>요약 줄</strong></td>
+<td>근처 요원 이름·거리</td>
+</tr>
+<tr>
+<td><strong>PTT team</strong></td>
+<td>지금 PTT 그룹 푸시(알람 요원 + 반경 내 온라인); 알람 유지</td>
+</tr>
+<tr>
+<td><strong>Acknowledge</strong></td>
+<td>로그에 알람 종료; 아래 절차</td>
+</tr>
+</tbody></table>
+<p><strong>권장 — Acknowledge 시 자동 PTT 팀:</strong> 배너 <strong>Acknowledge</strong> → 근처 요원 <strong>기본 체크</strong>(제외 시 체크 해제) → 메모 후 <strong>Submit</strong> → <strong>PTT team ON</strong> 토스트 → 알람 요원 월/핀에서 <strong>PTT 길게</strong>(전체 팀, 음성만).</p>
+<p><strong>수동:</strong> 알람이 열린 상태에서 <strong>PTT team</strong> 클릭 후 동일하게 PTT.</p>
+<p><strong>참고:</strong> 도우미는 <strong>온라인</strong>이고 반경 내(GPS). 팀 없이 로그만 하려면 Ack에서 <strong>전체 체크 해제</strong>. 서버 PTT 활성화 필요(Configuration Manual).</p>
+<h3>6.2 SOS 로그</h3>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>동작</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>행 클릭</td>
+<td>사건 대화상자 + 지도 이동</td>
+</tr>
+<tr>
+<td><strong>Open incident files</strong></td>
+<td>서버 SOS 폴더</td>
+</tr>
+<tr>
+<td><strong>Download CSV</strong></td>
+<td>로그보내기</td>
+</tr>
+</tbody></table>
+<p>민감 보고서는 <strong>PIN</strong> 입력 후 <strong>Unlock</strong>.</p>
+<hr>
+<h2>7. PTT 그룹 및 메시지</h2>
+<h3>7.1 PTT 그룹</h3>
+<ol>
+<li><strong>맵 그룹</strong> 선택 또는 표에서 <strong>2대 이상</strong> 체크.</li>
+<li><strong>Join group PTT</strong> → <strong>Ungroup all</strong>로 해제.</li>
+</ol>
+<h3>7.2 Messages</h3>
+<p>온라인 BWC 클릭 → 메시지 입력 → <strong>Send</strong>. UI 24시간, 서버 30일 보관.</p>
+<hr>
+<h2>8. 지도</h2>
+<ul>
+<li>드래그: 이동, 휠: 줌.</li>
+<li><strong>Pin</strong> 클릭 또는 함대 <strong>Pin</strong> — 플로팅 패널(영상, <strong>PTT</strong>, 최소화/확대).</li>
+<li>도구 모음: <strong>Wall Map</strong>, <strong>Snapshot</strong>, SD/서버 녹화, 지오펜싱.</li>
+</ul>
+<hr>
+<h2>9. 지오펜싱</h2>
+<ol>
+<li>반경(미터) 입력 → <strong>Set geofencing</strong>.</li>
+<li>BWC 선택 → 지도에서 위치 → <strong>Save geofence</strong>.</li>
+<li><strong>Clear geofencing</strong>으로 제거.</li>
+</ol>
+<hr>
+<h2>10. 비디오 월(6패널)</h2>
+<ul>
+<li><strong>Auto-rotate</strong>, <strong>Popout Matrix</strong>, <strong>Config</strong>(6패널별 장치/그룹/CSV), 패널 <strong>Stop</strong>.</li>
+</ul>
+<hr>
+<h2>11. Evidence &amp; Docking</h2>
+<p><strong>하위 탭:</strong> Overview · Docking Stations · Evidence Library · Case Files · Route &amp; GPS · Storage</p>
+<ol>
+<li><strong>Evidence Library</strong> — <strong>Refresh</strong>, 검색, <strong>Detail</strong> 미리보기, <strong>Download</strong>.</li>
+<li><strong>Docking Stations</strong> — <strong>Register dock</strong>, 베이 상태.</li>
+<li><strong>Case Files</strong> — <strong>New case file</strong>, <strong>Create from SOS</strong>, 증거 연결.</li>
+<li><strong>Route &amp; GPS</strong> — 장치·기간 선택 재생.</li>
+<li><strong>Storage</strong>(관리자) — 경로 저장 → <strong>Scan FTP</strong>.</li>
+</ol>
+<hr>
+<h2>12. Command Wall</h2>
+<p><strong>Live wall:</strong> Roster에서 <strong>드래그</strong> → 패널에 놓기 → 레이아웃 1/4/9/16/32 → <strong>Rotate</strong> → <strong>Spotlight</strong> → <strong>Clear wall</strong>.</p>
+<p><strong>Display room:</strong> <strong>4-Monitor SOS Room</strong> 멀티 모니터 프리셋.</p>
+<hr>
+<h2>13. Centre Summary</h2>
+<p>KPI, SOS 차트, 저장소, 시스템 상태, <strong>AI assistant</strong> → <strong>Ask</strong>. <strong>Refresh</strong>.</p>
+<hr>
+<h2>14. Video Conference</h2>
+<p>Docker 필요. <strong>Live</strong> → 방 이름 → <strong>Join Room</strong>. 레이아웃(Gallery, Speaker 등), <strong>Share screen</strong>, BWC <strong>Add to Room</strong>. APK: MobilityConference-1.5.6.apk.</p>
+<hr>
+<h2>15. Settings 및 Audit Trail</h2>
+<p><strong>Server Config</strong>, 라이프사이클 카드(Onboarding, Assets 등), <strong>Audit Trail</strong>(날짜 필터 → <strong>Apply</strong> → <strong>Export CSV</strong>), <strong>Sign out</strong>.</p>
+<hr>
+<h2>16. 사용자 역할</h2>
+<table>
+<thead>
+<tr>
+<th>역할</th>
+<th>Server Config</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Super admin</td>
+<td>전체 편집</td>
+</tr>
+<tr>
+<td>Operator</td>
+<td>읽기 전용</td>
+</tr>
+<tr>
+<td>Custom</td>
+<td>Dashboard Auth에서 설정</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>17. 워크플로 예시</h2>
+<p><strong>교대 시작:</strong> Start Mobility.bat → Operations → 온라인 수 → Settings IP 확인.</p>
+<p><strong>사건:</strong> Pin → PTT → 필요 시 서버 녹화.</p>
+<p><strong>SOS:</strong> 배너 → 반경 설정 → <strong>Acknowledge</strong>(근처 체크 유지) 또는 <strong>PTT team</strong> → <strong>PTT</strong> 길게(전체 팀) → 로그 → Evidence <strong>Create from SOS</strong>.</p>
+<p><strong>TV 월:</strong> Command Wall 16 → Rotate 30초.</p>
+<hr>
+<h2>18. 문제 해결</h2>
+<table>
+<thead>
+<tr>
+<th>증상</th>
+<th>조치</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>전체 Offline</td>
+<td>구성 매뉴얼 — 네트워크·Type on BWC</td>
+</tr>
+<tr>
+<td>영상 없음</td>
+<td>방화벽 3889, Pin 확인</td>
+</tr>
+<tr>
+<td>PTT 무음</td>
+<td>버튼 길게 누르기</td>
+</tr>
+<tr>
+<td>SOS PTT 한 대만</td>
+<td>팀 미구성</td>
+</tr>
+<tr>
+<td>Ack 목록에 근처 없음</td>
+<td>GPS 없음/오프라인</td>
+</tr>
+<tr>
+<td>VC 실패</td>
+<td>Docker 실행, Install-Mobility.bat</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>문서 안내</h2>
+<table>
+<thead>
+<tr>
+<th>필요 시</th>
+<th>문서</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>설치</td>
+<td><strong>빠른 시작 가이드</strong></td>
+</tr>
+<tr>
+<td>서버/BWC</td>
+<td><strong>구성 매뉴얼</strong></td>
+</tr>
+<tr>
+<td>일상 운영</td>
+<td><strong>이 사용자 매뉴얼</strong></td>
+</tr>
+</tbody></table>
+
+
+</body>
+</html>

@@ -1,0 +1,136 @@
+{
+  "demo2Regions": [
+    "sg",
+    "ph",
+    "id",
+    "th",
+    "kr",
+    "cn-shanghai",
+    "cn-jiangsu",
+    "cn-guangzhou",
+    "cn-shenzhen",
+    "za-jhb",
+    "za-cpt"
+  ],
+  "countries": {
+    "sg": ["sg"],
+    "ph": ["ph"],
+    "id": ["id"],
+    "th": ["th"],
+    "kr": ["kr"],
+    "cn": ["cn-shanghai", "cn-jiangsu", "cn-guangzhou", "cn-shenzhen"],
+    "za": ["za-jhb", "za-cpt"]
+  },
+  "regions": {
+    "sg": {
+      "country": "sg",
+      "name": "Singapore",
+      "west": 103.6,
+      "south": 1.15,
+      "east": 104.1,
+      "north": 1.48,
+      "minZ": 3,
+      "maxZ": 14
+    },
+    "ph": {
+      "country": "ph",
+      "name": "Manila metro",
+      "west": 120.85,
+      "south": 14.45,
+      "east": 121.05,
+      "north": 14.65,
+      "minZ": 3,
+      "maxZ": 13
+    },
+    "id": {
+      "country": "id",
+      "name": "Jakarta metro",
+      "west": 106.75,
+      "south": -6.35,
+      "east": 106.95,
+      "north": -6.1,
+      "minZ": 3,
+      "maxZ": 13
+    },
+    "th": {
+      "country": "th",
+      "name": "Bangkok metro",
+      "west": 100.45,
+      "south": 13.65,
+      "east": 100.65,
+      "north": 13.85,
+      "minZ": 3,
+      "maxZ": 13
+    },
+    "kr": {
+      "country": "kr",
+      "name": "Seoul metro",
+      "west": 126.85,
+      "south": 37.45,
+      "east": 127.15,
+      "north": 37.65,
+      "minZ": 3,
+      "maxZ": 13
+    },
+    "cn-shanghai": {
+      "country": "cn",
+      "name": "Shanghai metro",
+      "west": 121.1,
+      "south": 30.9,
+      "east": 121.9,
+      "north": 31.45,
+      "minZ": 3,
+      "maxZ": 13
+    },
+    "cn-jiangsu": {
+      "country": "cn",
+      "name": "Nanjing metro (Jiangsu)",
+      "west": 118.55,
+      "south": 31.85,
+      "east": 119.05,
+      "north": 32.15,
+      "minZ": 3,
+      "maxZ": 13
+    },
+    "cn-guangzhou": {
+      "country": "cn",
+      "name": "Guangzhou metro",
+      "west": 113.1,
+      "south": 22.95,
+      "east": 113.55,
+      "north": 23.35,
+      "minZ": 3,
+      "maxZ": 13
+    },
+    "cn-shenzhen": {
+      "country": "cn",
+      "name": "Shenzhen metro",
+      "west": 113.85,
+      "south": 22.45,
+      "east": 114.35,
+      "north": 22.75,
+      "minZ": 3,
+      "maxZ": 13
+    },
+    "za-jhb": {
+      "country": "za",
+      "name": "Johannesburg metro",
+      "west": 27.95,
+      "south": -26.35,
+      "east": 28.15,
+      "north": -26.05,
+      "minZ": 3,
+      "maxZ": 13
+    },
+    "za-cpt": {
+      "country": "za",
+      "name": "Cape Town metro",
+      "west": 18.35,
+      "south": -34.2,
+      "east": 18.65,
+      "north": -33.85,
+      "minZ": 3,
+      "maxZ": 13
+    }
+  }
+}

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mobility Axiom — Quick Guide</title>
+  <style>
+body { font-family: "Segoe UI", system-ui, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1.5rem 3rem; line-height: 1.55; color: #1e293b; }
+h1 { font-size: 1.75rem; border-bottom: 2px solid #0f172a; padding-bottom: 0.35rem; }
+h2 { font-size: 1.25rem; margin-top: 1.75rem; color: #0f172a; }
+h3 { font-size: 1.05rem; margin-top: 1.25rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+th, td { border: 1px solid #cbd5e1; padding: 0.45rem 0.65rem; text-align: left; vertical-align: top; }
+th { background: #f1f5f9; }
+code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
+ul, ol { padding-left: 1.4rem; }
+@media print { body { max-width: none; margin: 0; } }
+</style>
+</head>
+<body>
+<h1>Mobility Axiom — Quick Guide</h1>
+<h2>What you need on this PC</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Required?</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Windows 10/11 (64-bit)</td>
+<td>Yes</td>
+<td>Administrator rights for Docker</td>
+</tr>
+<tr>
+<td><strong>Node.js</strong></td>
+<td><strong>No</strong></td>
+<td><strong>Included</strong> in <code>Mobility-Axiom\tools\node\</code></td>
+</tr>
+<tr>
+<td><strong>Docker Desktop</strong></td>
+<td>Yes (VC only)</td>
+<td><a href="https://www.docker.com/products/docker-desktop/">Download</a></td>
+</tr>
+<tr>
+<td>Internet</td>
+<td>First install only</td>
+<td>Docker image pull; <strong>map tiles are offline</strong></td>
+</tr>
+</tbody></table>
+<h2>Install (once)</h2>
+<ol>
+<li><strong>Unzip</strong> the full <strong>CN Trial Mobility</strong> folder (e.g. <code>C:\CN-Trial\</code>).</li>
+<li><strong>Install Docker Desktop</strong> — start it (whale icon steady).</li>
+<li>Double-click <strong><code>Install-Mobility.bat</code></strong> in the pack root.</li>
+<li>Double-click <strong><code>Start Mobility.bat</code></strong> each time you use Mobility.</li>
+</ol>
+<p><strong>Do not</strong> run <code>npm install</code> — libraries are pre-built in the pack.</p>
+<h2>First login</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>URL</td>
+<td>http://<server-ip>:3888</td>
+</tr>
+<tr>
+<td>Username</td>
+<td>global</td>
+</tr>
+<tr>
+<td>Password</td>
+<td>global123</td>
+</tr>
+</tbody></table>
+<p>Language: <strong>English</strong> or <strong>中文（简体）</strong> on login page.</p>
+<h2>Map</h2>
+<p>This pack includes <strong>offline map tiles</strong> (Beijing area). No internet needed for the basemap.</p>
+<h2>BWC online (short)</h2>
+<ol>
+<li><strong>Settings → Server Config → Network</strong> — set server IPv4.</li>
+<li><strong>Settings → Server Config → BWCs</strong> — add Device ID + officer name.</li>
+<li>On BWC SIP screen — use <strong>Type on BWC</strong> values (IPv4 only).</li>
+</ol>
+<h2>Video Conference</h2>
+<p>Install <strong>MobilityConference-1.5.6.apk</strong> on Android. Docker must be running.</p>
+
+
+</body>
+</html>

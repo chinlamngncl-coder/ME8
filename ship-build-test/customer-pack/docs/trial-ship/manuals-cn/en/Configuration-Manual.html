@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mobility Axiom — Configuration Manual</title>
+  <style>
+body { font-family: "Segoe UI", system-ui, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1.5rem 3rem; line-height: 1.55; color: #1e293b; }
+h1 { font-size: 1.75rem; border-bottom: 2px solid #0f172a; padding-bottom: 0.35rem; }
+h2 { font-size: 1.25rem; margin-top: 1.75rem; color: #0f172a; }
+h3 { font-size: 1.05rem; margin-top: 1.25rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+th, td { border: 1px solid #cbd5e1; padding: 0.45rem 0.65rem; text-align: left; vertical-align: top; }
+th { background: #f1f5f9; }
+code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
+ul, ol { padding-left: 1.4rem; }
+@media print { body { max-width: none; margin: 0; } }
+</style>
+</head>
+<body>
+<h1>Mobility Axiom — Configuration Manual</h1>
+<p><strong>Audience:</strong> IT staff, super admins, installers.<br><strong>Pair with:</strong> <strong>Quick Guide</strong> (install) · <strong>User Manual</strong> (daily operations)</p>
+<p>This manual covers <strong>server setup</strong>, <strong>BWC camera registration</strong>, <strong>operators</strong>, <strong>storage</strong>, <strong>firewall</strong>, and <strong>video conference</strong> configuration — with numbered steps.</p>
+<hr>
+<h2>Table of contents</h2>
+<ol>
+<li><a href="#1-before-you-start">Before you start</a></li>
+<li><a href="#2-open-server-config">Open Server Config</a></li>
+<li><a href="#3-network--deployment-tab">Network &amp; deployment tab</a></li>
+<li><a href="#4-register-bwcs">Register BWCs (BWCs tab)</a></li>
+<li><a href="#5-map-groups">Map groups</a></li>
+<li><a href="#6-dashboard-auth">Dashboard Auth (operators)</a></li>
+<li><a href="#7-evidence-storage">Evidence storage paths</a></li>
+<li><a href="#8-video-conference">Video Conference (Docker / LiveKit)</a></li>
+<li><a href="#9-centre-summary-ai">Centre Summary AI</a></li>
+<li><a href="#10-firewall">Firewall &amp; ports</a></li>
+<li><a href="#11-trial-license">Trial license limits</a></li>
+<li><a href="#12-passwords--audit">Change passwords &amp; audit</a></li>
+<li><a href="#13-verification-checklist">Post-setup verification checklist</a></li>
+</ol>
+<hr>
+<h2>1. Before you start</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Requirement</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Server PC</td>
+<td>Windows 10/11 64-bit, LAN IP static recommended</td>
+</tr>
+<tr>
+<td>Mobility pack</td>
+<td>Unzipped; <code>Install-Mobility.bat</code> completed once</td>
+</tr>
+<tr>
+<td>Docker Desktop</td>
+<td>Installed and running (Video Conference only)</td>
+</tr>
+<tr>
+<td>BWC cameras</td>
+<td>Powered on, SIM/data or Wi‑Fi, SIP screen accessible</td>
+</tr>
+<tr>
+<td>Network</td>
+<td>Server and BWCs on routable LAN; <strong>IPv4 only</strong> on camera keypad</td>
+</tr>
+</tbody></table>
+<p><strong>Do not</strong> install separate Node.js — the pack includes <code>Mobility-Axiom\tools\node\</code>.</p>
+<hr>
+<h2>2. Open Server Config</h2>
+<ol>
+<li>Sign in as <strong>super admin</strong> (trial: <code>global</code>).</li>
+<li>Click <strong>Settings</strong> tab.</li>
+<li>Left panel → <strong>Server Config</strong>.</li>
+<li>You see left nav: <strong>Network &amp; deployment</strong> | <strong>BWCs</strong> | <strong>Map groups</strong> | <strong>Dashboard Auth</strong>.</li>
+</ol>
+<p><strong>Operator accounts:</strong> Server Config is <strong>read-only</strong> — ask super admin for changes.</p>
+<p><strong>Read-only banner:</strong> Yellow bar explains you cannot save.</p>
+<hr>
+<h2>3. Network &amp; deployment tab</h2>
+<p>Inside <strong>Network &amp; deployment</strong>, section nav on the right:</p>
+<h3>3.1 Deployment</h3>
+<ol>
+<li><strong>Deployment mode:</strong> choose <strong>LAN server</strong> for on-prem trial.</li>
+<li><strong>Tenant / customer name:</strong> optional label on reports.</li>
+<li>Scroll to bottom → <strong>Save server settings</strong>.</li>
+</ol>
+<h3>3.2 LAN network (critical for BWC online)</h3>
+<ol>
+<li>Open <strong>LAN network</strong> section.</li>
+<li>Set <strong>BWC SIP server IP</strong> = this PC&#39;s <strong>IPv4</strong> (e.g. <code>192.168.1.10</code>) — <strong>not a hostname</strong>.</li>
+<li>Note <strong>HTTP port</strong> (default <code>3888</code>) and <strong>video WebSocket port</strong> (default <code>3889</code>).</li>
+<li><strong>Save server settings</strong>.</li>
+</ol>
+<h3>3.3 BWC camera register (SIP)</h3>
+<ol>
+<li>Open <strong>BWC camera register</strong> section.</li>
+<li>Set <strong>Platform ID</strong>, <strong>Realm</strong>, <strong>Password</strong> — defaults work for trial; change for production.</li>
+<li>Copy values from <strong>Type on BWC</strong> block — you will type these on each camera SIP screen.</li>
+</ol>
+<h3>3.4 Protocol</h3>
+<p>Same SIP password and realm for every BWC. Do not mix per-device passwords unless advanced setup.</p>
+<h3>3.5 Operator access</h3>
+<p>Set URLs shown to operators; optional HTTPS notes for production.</p>
+<h3>3.6 Site timezone</h3>
+<p>Set correct timezone for logs and evidence timestamps.</p>
+<h3>3.7 Storage link</h3>
+<p>Shortcut to evidence path settings (see §7).</p>
+<hr>
+<h2>4. Register BWCs</h2>
+<p><strong>Tab:</strong> <strong>BWCs</strong> (left nav in Server Config).</p>
+<h3>4.1 Add each camera</h3>
+<p>For every physical BWC:</p>
+<ol>
+<li>Click <strong>Add row</strong> (or empty row).</li>
+<li><strong>Device ID</strong> — exact ID from camera label / SIP menu (e.g. <code>34020000001320000001</code>).</li>
+<li><strong>Officer</strong> — nickname shown on map and fleet table.</li>
+<li><strong>Map group</strong> — optional colour group for pins and PTT.</li>
+<li>Click <strong>Save BWC list</strong> at bottom.</li>
+</ol>
+<h3>4.2 Type on BWC (camera SIP screen)</h3>
+<p>On each camera&#39;s SIP configuration menu, enter:</p>
+<table>
+<thead>
+<tr>
+<th>Camera field</th>
+<th>Enter this</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SIP server / registrar</td>
+<td>Server <strong>IPv4</strong> from Network tab</td>
+</tr>
+<tr>
+<td>Port</td>
+<td><code>5060</code> (default)</td>
+</tr>
+<tr>
+<td>Platform ID</td>
+<td>From Server Config</td>
+</tr>
+<tr>
+<td>Realm</td>
+<td>From Server Config</td>
+</tr>
+<tr>
+<td>Password</td>
+<td>From Server Config</td>
+</tr>
+<tr>
+<td>Device ID</td>
+<td><strong>Same</strong> as row in BWC list</td>
+</tr>
+</tbody></table>
+<p><strong>Rules:</strong></p>
+<ul>
+<li>Use <strong>numbers and dots only</strong> for server address — no DNS names on camera keypad.</li>
+<li>Device ID on camera <strong>must match</strong> Mobility list exactly.</li>
+</ul>
+<h3>4.3 Verify online</h3>
+<ol>
+<li>Save BWC list → wait ~30 seconds.</li>
+<li><strong>Operations</strong> → Device Summary → <strong>Online</strong>.</li>
+<li>If Offline → see §13 troubleshooting.</li>
+</ol>
+<h3>4.4 Trial empty fleet</h3>
+<p>Pack sets <code>FM_SEED_BWC_ID=</code> empty — no demo device. You start with zero until you add rows.</p>
+<hr>
+<h2>5. Map groups</h2>
+<p><strong>Tab:</strong> <strong>Map groups</strong>.</p>
+<ol>
+<li>Create groups with name and colour (e.g. &quot;Team A&quot; = blue).</li>
+<li>Assign each BWC row to a group in BWCs tab.</li>
+<li>Used for: pin colour, video wall rotation, PTT groups.</li>
+</ol>
+<hr>
+<h2>6. Dashboard Auth</h2>
+<p><strong>Tab:</strong> <strong>Dashboard Auth</strong>.</p>
+<h3>6.1 Create operator (read-only dispatcher)</h3>
+<ol>
+<li>Add row: username, password.</li>
+<li>Role: <strong>Operator</strong> or custom toggles.</li>
+<li>Enable: Operations, Evidence view, Command Wall, VC — disable Server Config edit.</li>
+<li>Click <strong>Save</strong> on that row.</li>
+</ol>
+<h3>6.2 Create additional super admin</h3>
+<ol>
+<li>Add row with <strong>Super admin</strong> role.</li>
+<li>Save row.</li>
+</ol>
+<h3>6.3 Permission toggles (custom)</h3>
+<p>Per-user checkboxes control each tab and export capabilities. Always click <strong>Save</strong> on the row after changes.</p>
+<hr>
+<h2>7. Evidence storage</h2>
+<p><strong>Paths:</strong> Server Config → Storage sections, or <strong>Evidence → Storage</strong> sub-tab.</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>FTP upload folder</td>
+<td>Docking station uploads</td>
+</tr>
+<tr>
+<td>Live capture folder</td>
+<td>Server-side live recordings</td>
+</tr>
+<tr>
+<td>Evidence index</td>
+<td>SQLite catalog on server (metadata)</td>
+</tr>
+</tbody></table>
+<p><strong>Steps:</strong></p>
+<ol>
+<li>Browse or type folder on server disk (e.g. <code>D:\MobilityEvidence\ftp</code>).</li>
+<li><strong>Save storage</strong>.</li>
+<li><strong>Scan FTP for evidence</strong> — indexes files into Library.</li>
+</ol>
+<p><strong>NAS/SAN:</strong> IT must mount volume on Windows first; then point Mobility at mount letter.</p>
+<p><strong>SOS auto-record:</strong> Enable <strong>Auto-record server video on SOS alarm</strong> in evidence settings if required.</p>
+<hr>
+<h2>8. Video Conference</h2>
+<h3>8.1 Docker / LiveKit</h3>
+<ol>
+<li>Install Docker Desktop.</li>
+<li>Run <code>Install-Mobility.bat</code> — starts LiveKit container.</li>
+<li>Verify: Video Conference tab connects.</li>
+</ol>
+<h3>8.2 VC Settings (in app)</h3>
+<p><strong>Video Conference → Settings</strong> sub-tab:</p>
+<ul>
+<li><strong>Phone / browser video URL</strong> — WebSocket URL phones use (e.g. <code>ws://192.168.1.10:7880</code>).</li>
+<li>Set to server LAN IP if cellular clients cannot reach <code>127.0.0.1</code>.</li>
+</ul>
+<h3>8.3 Android app</h3>
+<p>Distribute <code>MobilityConference-1.5.6.apk</code> — server URL = dashboard URL.</p>
+<hr>
+<h2>9. Centre Summary AI</h2>
+<ul>
+<li>Model file bundled: <code>Mobility-Axiom\vendor\llm\</code> (~2 GB).</li>
+<li>No download on site (<code>FM_LLM_AUTO_DOWNLOAD=0</code>).</li>
+<li>First <strong>Ask</strong> may take 1–2 minutes to load model into RAM.</li>
+<li>Super admin only.</li>
+</ul>
+<hr>
+<h2>10. Firewall &amp; ports</h2>
+<p>Allow on server host and perimeter:</p>
+<table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Protocol</th>
+<th>Service</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>3888</td>
+<td>TCP</td>
+<td>Dashboard HTTP</td>
+</tr>
+<tr>
+<td>3889</td>
+<td>TCP</td>
+<td>Live video WebSocket</td>
+</tr>
+<tr>
+<td>3890</td>
+<td>TCP</td>
+<td>Audio WebSocket</td>
+</tr>
+<tr>
+<td>5060</td>
+<td>UDP/TCP</td>
+<td>SIP (BWC registration)</td>
+</tr>
+<tr>
+<td>7880</td>
+<td>TCP</td>
+<td>LiveKit HTTP</td>
+</tr>
+<tr>
+<td>7881</td>
+<td>TCP</td>
+<td>LiveKit RTC</td>
+</tr>
+<tr>
+<td>40130–40200</td>
+<td>UDP</td>
+<td>RTP media (range may vary)</td>
+</tr>
+<tr>
+<td>21</td>
+<td>TCP</td>
+<td>FTP dock (if enabled)</td>
+</tr>
+<tr>
+<td>20000–20100</td>
+<td>TCP</td>
+<td>FTP passive (default range)</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>11. Trial license</h2>
+<p>Trial pack includes <code>storage/platform-license.json</code>:</p>
+<ul>
+<li><strong>5 BWC</strong> · <strong>10 dashboard users</strong> · <strong>1 year</strong> (per issued license).</li>
+<li>Exceeding limits blocks new registrations — contact vendor to extend.</li>
+</ul>
+<hr>
+<h2>12. Passwords &amp; audit</h2>
+<h3>Change super admin password</h3>
+<p>Settings → Server Config → Dashboard Auth → your row → new password → <strong>Save</strong>.</p>
+<h3>Audit Trail</h3>
+<p>Settings → <strong>Audit Trail</strong> — filter exports for compliance.</p>
+<hr>
+<h2>13. Verification checklist</h2>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Pass?</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Install-Mobility.bat</code> completed without error</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Docker running (whale icon steady)</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Dashboard opens <code>http://localhost:3888</code></td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Server Config → LAN IP = PC IPv4</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Each BWC row added and saved</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Camera SIP matches <strong>Type on BWC</strong></td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Fleet shows <strong>Online</strong> within 60s</td>
+<td>☐</td>
+</tr>
+<tr>
+<td><strong>Pin</strong> shows live video</td>
+<td>☐</td>
+</tr>
+<tr>
+<td><strong>PTT</strong> heard on BWC</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Evidence FTP path saved + scan works</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>VC <strong>Join Room</strong> works in browser</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Operator test account login read-only</td>
+<td>☐</td>
+</tr>
+</tbody></table>
+<p>If any step fails, note exact error and check User Manual §18 + server logs (<code>VIEW-LOG.bat</code> in Mobility-Axiom folder).</p>
+
+
+</body>
+</html>

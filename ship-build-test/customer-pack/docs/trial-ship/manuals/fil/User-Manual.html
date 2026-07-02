@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="fil">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mobility Axiom — Manwal ng User (Gabay ng Operator)</title>
+  <style>
+body { font-family: "Segoe UI", system-ui, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1.5rem 3rem; line-height: 1.55; color: #1e293b; }
+h1 { font-size: 1.75rem; border-bottom: 2px solid #0f172a; padding-bottom: 0.35rem; }
+h2 { font-size: 1.25rem; margin-top: 1.75rem; color: #0f172a; }
+h3 { font-size: 1.05rem; margin-top: 1.25rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+th, td { border: 1px solid #cbd5e1; padding: 0.45rem 0.65rem; text-align: left; vertical-align: top; }
+th { background: #f1f5f9; }
+code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
+ul, ol { padding-left: 1.4rem; }
+@media print { body { max-width: none; margin: 0; } }
+</style>
+</head>
+<body>
+<h1>Mobility Axiom — Manwal ng User (Gabay ng Operator)</h1>
+<p><strong>Para sa:</strong> Dispatcher, supervisor, staff ng ebidensya, control-room operator.<br><strong>Kaugnay na docs:</strong> <strong>Quick Guide</strong> (install) · <strong>Configuration Manual</strong> (server/BWC) · <strong>README.txt</strong></p>
+<p>Ipinapaliwanag ng gabay na ito ang <strong>bawat tab</strong>, <strong>bawat pangunahing button</strong>, at <strong>hakbang-hakbang na workflow</strong> sa dashboard. Ang mga label sa UI ay nasa wikang pinili mo; sa manwal na ito ginagamit din ang English na pangalan ng tab kung iyon ang nakikita sa dropdown (hal. <strong>Operations</strong>, <strong>Settings</strong>).</p>
+<hr>
+<h2>Talaan ng nilalaman</h2>
+<ol>
+<li><a href="#1-ano-ang-ginagawa-ng-sistema">Ano ang ginagawa ng sistema</a></li>
+<li><a href="#2-mag-sign-in-wika-mag-sign-out">Mag-sign in, wika, mag-sign out</a></li>
+<li><a href="#3-header-bar">Header bar (itaas ng bawat screen)</a></li>
+<li><a href="#4-layout--tab-na-operations">Layout — tab na Operations</a></li>
+<li><a href="#5-device-summary-fleet-table">Device Summary (fleet table)</a></li>
+<li><a href="#6-sos">SOS — banner, log, ulat</a></li>
+<li><a href="#7-ptt-groups-at-messages">PTT groups at Messages</a></li>
+<li><a href="#8-mapa">Mapa — pins, panels, toolbar</a></li>
+<li><a href="#9-geofencing">Geofencing — hakbang-hakbang</a></li>
+<li><a href="#10-video-wall">Video wall (6 panels)</a></li>
+<li><a href="#11-evidence--docking">Evidence &amp; Docking — lahat ng sub-tab</a></li>
+<li><a href="#12-command-wall">Command Wall</a></li>
+<li><a href="#13-centre-summary">Centre Summary</a></li>
+<li><a href="#14-video-conference">Video Conference</a></li>
+<li><a href="#15-settings-at-audit-trail">Settings at Audit Trail</a></li>
+<li><a href="#16-mga-role-ng-user">Mga role ng user</a></li>
+<li><a href="#17-workflow-cookbook">Workflow cookbook (mga senaryo sa shift)</a></li>
+<li><a href="#18-troubleshooting">Troubleshooting</a></li>
+</ol>
+<hr>
+<h2>1. Ano ang ginagawa ng sistema</h2>
+<table>
+<thead>
+<tr>
+<th>Kakayahan</th>
+<th>Saan sa UI</th>
+<th>Ano ang magagawa mo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Live GPS mapa</td>
+<td>Operations → mapa</td>
+<td>Lokasyon ng officer, SOS, status ng recording</td>
+</tr>
+<tr>
+<td>Live BWC video</td>
+<td>Map pin panel, video wall, Command Wall</td>
+<td>Manood ng maraming stream; 6 sa Operations</td>
+</tr>
+<tr>
+<td>Voice / PTT</td>
+<td>Fleet table, map pin, PTT groups</td>
+<td>One-to-one o group na push-to-talk</td>
+</tr>
+<tr>
+<td>SOS</td>
+<td>Header banner, SOS log, mapa</td>
+<td>Alarm, ulat, export ng folder</td>
+</tr>
+<tr>
+<td>Text sa BWC</td>
+<td>Operations → Messages</td>
+<td>Magpadala ng text sa online na camera</td>
+</tr>
+<tr>
+<td>Evidence library</td>
+<td>Tab na Evidence</td>
+<td>Hanapin ang upload mula sa dock, server record, case files</td>
+</tr>
+<tr>
+<td>Video conference</td>
+<td>Tab na Video Conference</td>
+<td>Room na may phone, PC, live BWC share</td>
+</tr>
+<tr>
+<td>Admin</td>
+<td>Settings → Server Config</td>
+<td>Network, listahan ng BWC, operators (super admin)</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>2. Mag-sign in, wika, mag-sign out</h2>
+<h3>2.1 Unang login</h3>
+<ol>
+<li>Buksan ang browser (Chrome o Edge inirerekomenda).</li>
+<li>Pumunta sa <code>http://&lt;server-ip&gt;:3888</code> (trial sa parehong PC: <code>http://localhost:3888</code>).</li>
+<li>Ilagay ang <strong>Username</strong> at <strong>Password</strong> (trial: <code>global</code> / <code>global123</code>).</li>
+<li>I-click ang <strong>Sign in</strong>.</li>
+</ol>
+<h3>2.2 Palitan ang wika</h3>
+<ul>
+<li><strong>Sa login:</strong> piliin ang wika bago mag-sign in.</li>
+<li><strong>Pagkatapos login:</strong> dropdown na <strong>Language</strong> sa kanang itaas ng header.</li>
+<li>APAC trial: English, Korean, Thai, Indonesian, Filipino.</li>
+</ul>
+<p>Lahat ng menu, button, at hint ay agad na nagpapalit.</p>
+<h3>2.3 Palitan ang password (super admin)</h3>
+<ol>
+<li>Tab na <strong>Settings</strong> → <strong>Server Config</strong>.</li>
+<li>Buksan ang <strong>Dashboard Auth</strong> (kaliwang nav sa loob ng Server Config).</li>
+<li>Hanapin ang iyong row → bagong password → <strong>Save</strong> sa row na iyon.</li>
+</ol>
+<h3>2.4 Mag-sign out</h3>
+<ol>
+<li>Tab na <strong>Settings</strong>.</li>
+<li>Kaliwang panel → <strong>Sign out</strong>.</li>
+<li>Babalik sa login page. Laging mag-sign out sa shared PC.</li>
+</ol>
+<hr>
+<h2>3. Header bar</h2>
+<p>Nakikita sa bawat tab.</p>
+<table>
+<thead>
+<tr>
+<th>Control</th>
+<th>Lokasyon</th>
+<th>Ginagawa</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Logo <strong>Mobility Axiom</strong></td>
+<td>Kaliwang itaas</td>
+<td>Brand lang</td>
+</tr>
+<tr>
+<td><strong>Voice mute</strong> 🔊</td>
+<td>Kanang itaas</td>
+<td>I-mute/i-unmute ang boses ng SOS at alert</td>
+</tr>
+<tr>
+<td><strong>Repeat</strong></td>
+<td>Kanang itaas</td>
+<td>Ulitin ang huling voice alert</td>
+</tr>
+<tr>
+<td><strong>Language</strong></td>
+<td>Kanang itaas</td>
+<td>Palitan ang wika ng UI</td>
+</tr>
+<tr>
+<td><strong>SOS banner</strong></td>
+<td>Ilalim ng header kapag may SOS</td>
+<td>Pulang strip: pangalan ng device, oras — kapag may bukas na SOS</td>
+</tr>
+</tbody></table>
+<p><strong>Tip:</strong> Kung walang naririnig na alert, siguraduhing naka-off ang mute (hindi natatakpan ang icon).</p>
+<hr>
+<h2>4. Layout — tab na Operations</h2>
+<p>Ang <strong>Operations</strong> ang <strong>default na home screen</strong> pagkatapos mag-login.</p>
+<h3>4.1 Tatlong column</h3>
+<table>
+<thead>
+<tr>
+<th>Bahagi</th>
+<th>Nilalaman</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Kaliwang sidebar</strong></td>
+<td>Device Summary, SOS log, PTT groups, Messages, Storage</td>
+</tr>
+<tr>
+<td><strong>Gitna</strong></td>
+<td>Interactive na mapa + toolbar ng mapa</td>
+</tr>
+<tr>
+<td><strong>Kanan</strong></td>
+<td>Anim na live video wall panel</td>
+</tr>
+</tbody></table>
+<h3>4.2 Itago ang sidebar</h3>
+<p>I-click ang <strong>◀</strong> sa makitid na gutter sa pagitan ng sidebar at mapa para mas malaki ang mapa. I-click muli para ipakita.</p>
+<h3>4.3 Top nav (kapag naka-Operations)</h3>
+<table>
+<thead>
+<tr>
+<th>Control</th>
+<th>Aksyon</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Auto-rotate</strong></td>
+<td>Checkbox — awtomatikong mag-ikot ng camera sa 6 panel</td>
+</tr>
+<tr>
+<td><strong>Popout Matrix</strong></td>
+<td>Full-screen video matrix sa ibang monitor</td>
+</tr>
+<tr>
+<td><strong>Config</strong></td>
+<td>Dialog para i-assign ang camera sa bawat panel</td>
+</tr>
+</tbody></table>
+<h3>4.4 Command Wall awareness strip</h3>
+<p>Kung bukas ang Command Wall sa ibang window, maaaring lumabas ang <strong>Open Command Wall →</strong> — i-click para lumipat sa tab na iyon.</p>
+<hr>
+<h2>5. Device Summary (fleet table)</h2>
+<p><strong>Lokasyon:</strong> Operations → kaliwang sidebar → <strong>Device Summary</strong>.</p>
+<p><strong>Summary line:</strong> hal. <code>3 online · 5 devices</code>.</p>
+<h3>5.1 Search at filter</h3>
+<ol>
+<li><strong>Search</strong> — type ang pangalan ng officer o device ID.</li>
+<li><strong>Filter:</strong> <strong>All</strong> / <strong>Online only</strong> / <strong>Offline only</strong>.</li>
+</ol>
+<h3>5.2 Mga column — ano ang i-click</h3>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Paano gamitin</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Pin</strong></td>
+<td>I-click — toggle ang map pin + floating live video. I-click muli para alisin.</td>
+</tr>
+<tr>
+<td><strong>PTT</strong></td>
+<td><strong>Hawakan</strong> — makipag-usap sa BWC na ito lang (walang video).</td>
+</tr>
+<tr>
+<td><strong>Call</strong></td>
+<td>I-click — voice call sa BWC.</td>
+</tr>
+<tr>
+<td><strong>GPS</strong></td>
+<td>I-click — buksan ang route / track view.</td>
+</tr>
+<tr>
+<td><em>(checkbox)</em></td>
+<td>I-tick — para sa PTT groups (2+ online).</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>Pangalan ng officer at device ID.</td>
+</tr>
+<tr>
+<td><strong>Status</strong></td>
+<td><strong>Online</strong> o <strong>Offline</strong>.</td>
+</tr>
+</tbody></table>
+<h3>5.3 Bulk actions</h3>
+<table>
+<thead>
+<tr>
+<th>Button</th>
+<th>Aksyon</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Open All (Up to 6)</strong></td>
+<td>I-pin ang hanggang 6 online device sa mapa</td>
+</tr>
+<tr>
+<td><strong>Clear map pins</strong></td>
+<td>Alisin lahat ng floating pin panel</td>
+</tr>
+</tbody></table>
+<h3>5.4 Workflow — subaybayan ang isang officer</h3>
+<ol>
+<li>Hanapin sa table (gamitin ang search kung kailangan).</li>
+<li>Siguraduhing <strong>Online</strong>.</li>
+<li>I-click ang <strong>Pin</strong> → mag-zoom ang mapa; bubukas ang live video.</li>
+<li>Para magsalita: <strong>hawakan ang PTT</strong> sa row o sa map pin panel.</li>
+<li>Para itigil ang video sa mapa: i-click muli ang <strong>Pin</strong> o isara ang panel.</li>
+</ol>
+<h3>5.5 Walang laman ang table</h3>
+<p><strong>No devices yet</strong> — walang nakarehistro na BWC. Kailangan idagdag ng super admin sa <strong>Settings → Server Config → BWCs</strong> (tingnan ang Configuration Manual).</p>
+<hr>
+<h2>6. SOS</h2>
+<h3>6.1 Aktibong SOS — banner sa header</h3>
+<p>Kapag nag-SOS ang BWC:</p>
+<ol>
+<li>Lumalabas ang <strong>pulang banner</strong> sa ilalim ng header.</li>
+<li>Karaniwang <strong>nag-zoom</strong> ang mapa sa lokasyon.</li>
+<li>Ang pin ay may <strong>SOS</strong> status chip.</li>
+<li>Maaaring tumunog ang voice alert (maliban kung naka-mute).</li>
+</ol>
+<p><strong>Gawain ng dispatcher:</strong></p>
+<ol>
+<li>Itakda ang <strong>response radius</strong> (200–1000 m) kung kailangan — pulang bilog sa mapa para sa malalapit na unit.</li>
+<li>I-click ang <strong>Pin</strong> kung hindi pa bukas — kumpirmahin ang live video sa alarm officer.</li>
+<li><strong>Acknowledge</strong> — tingnan ang §6.1b (PTT team mula sa naka-check na malalapit na unit), <strong>o</strong> i-click ang <strong>PTT team</strong> sa banner.</li>
+<li><strong>Hawakan ang PTT</strong> sa wall panel o map pin para makausap ang <strong>buong team</strong> kapag <strong>PTT TEAM · ON</strong>.</li>
+<li>Buksan ang row sa <strong>SOS log</strong> para sa buong ulat.</li>
+</ol>
+<h3>6.1b Response radius at SOS PTT team</h3>
+<table>
+<thead>
+<tr>
+<th>Kontrol sa banner</th>
+<th>Aksyon</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Radius chips</strong></td>
+<td>200 / 300 / 400 / 500 / 1000 m — sino ang “malapit” sa mapa</td>
+</tr>
+<tr>
+<td><strong>Summary line</strong></td>
+<td>Pangalan at distansya ng malalapit na unit</td>
+</tr>
+<tr>
+<td><strong>PTT team</strong></td>
+<td>I-push ang PTT group ngayon (alarm officer + online sa radius); bukas pa ang alarm</td>
+</tr>
+<tr>
+<td><strong>Acknowledge</strong></td>
+<td>Isara ang alarm sa log; tingnan ang mga hakbang sa ibaba</td>
+</tr>
+</tbody></table>
+<p><strong>Inirerekomenda — Acknowledge na may auto PTT team:</strong></p>
+<ol>
+<li>I-click ang <strong>Acknowledge</strong> sa banner.</li>
+<li>Sa dialog, <strong>default na naka-check ang malalapit na unit</strong> — alisin ang check kung ayaw isama sa team.</li>
+<li>Opsiyonal na tala → <strong>Submit / close</strong>.</li>
+<li>Hintayin ang toast <strong>PTT team ON — …</strong> (kailangan ng kahit isang naka-check na online helper bukod sa alarm officer).</li>
+<li><strong>Hawakan ang PTT</strong> sa wall panel o map pin ng alarm officer — maririnig ng lahat ng naka-check (audio lang).</li>
+</ol>
+<p><strong>Manual PTT team (bukas pa ang alarm):</strong> I-click ang <strong>PTT team</strong> sa banner sa halip na hakbang 1–3, pagkatapos hawakan ang PTT tulad sa hakbang 5.</p>
+<p><strong>Paalala:</strong> Dapat <strong>online</strong> at nasa radius ang mga helper (GPS sa mapa). Alisin lahat ng check kung log lang ang kailangan. Dapat naka-enable ang PTT sa server (Configuration Manual).</p>
+<h3>6.2 Panel na SOS log</h3>
+<p><strong>Lokasyon:</strong> Operations → kaliwang sidebar → <strong>SOS log</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Elemento</th>
+<th>Aksyon</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Chart</td>
+<td>Bilang ng SOS kamakailan</td>
+</tr>
+<tr>
+<td>Mga row</td>
+<td>I-click → detalye ng insidente + focus sa mapa</td>
+</tr>
+<tr>
+<td><strong>Open incident files</strong></td>
+<td>Buksan ang folder ng SOS packages sa server</td>
+</tr>
+<tr>
+<td><strong>Download CSV</strong></td>
+<td>I-export ang log</td>
+</tr>
+<tr>
+<td><strong>Clear list</strong> / <strong>Reload list</strong></td>
+<td>I-refresh ang listahan sa screen (hindi binubura ang server files)</td>
+</tr>
+</tbody></table>
+<h3>6.3 Dialog ng SOS incident</h3>
+<p>Pagkatapos i-click ang row:</p>
+<table>
+<thead>
+<tr>
+<th>Button</th>
+<th>Aksyon</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Open in new tab</strong></td>
+<td>Buong HTML report sa bagong tab</td>
+</tr>
+<tr>
+<td><strong>Close</strong></td>
+<td>Isara ang dialog</td>
+</tr>
+<tr>
+<td><strong>Server folder (admin)</strong></td>
+<td>Buksan ang raw folder sa server</td>
+</tr>
+</tbody></table>
+<p>Minsan kailangan ng <strong>PIN</strong> bago makita ang sensitibong ulat — ilagay ang PIN ng ahensya → <strong>Unlock</strong>.</p>
+<hr>
+<h2>7. PTT groups at Messages</h2>
+<h3>7.1 PTT groups</h3>
+<p><strong>Lokasyon:</strong> Operations → box na <strong>PTT groups</strong>.</p>
+<p><strong>Layunin:</strong> Isang PTT channel para sa maraming BWC.</p>
+<p><strong>Hakbang:</strong></p>
+<ol>
+<li><strong>Opsyon A:</strong> Piliin ang <strong>map group</strong> sa dropdown.</li>
+<li><strong>Opsyon B:</strong> I-tick ang <strong>2+ online</strong> device sa fleet table.</li>
+<li>Suriin ang <strong>Members</strong> — <strong>×</strong> para i-exclude, <strong>+</strong> para isama.</li>
+<li>I-click ang <strong>Join group PTT</strong>.</li>
+<li><strong>Hawakan ang PTT</strong> sa alinmang miyembro para mag-broadcast sa grupo.</li>
+<li><strong>Ungroup all</strong> pagkatapos ng insidente.</li>
+</ol>
+<h3>7.2 Messages</h3>
+<p><strong>Lokasyon:</strong> Operations → <strong>Messages</strong>.</p>
+<ol>
+<li>Lista ng <strong>online</strong> BWC — i-click ang pangalan para buksan ang thread.</li>
+<li>Mag-type → <strong>Send</strong>.</li>
+<li><strong>Clear thread</strong> — linisin ang view (maaaring manatili sa server hanggang 30 araw).</li>
+</ol>
+<hr>
+<h2>8. Mapa</h2>
+<h3>8.1 Pin sa mapa</h3>
+<ul>
+<li><strong>Online</strong> BWC na may GPS = may kulay na pin.</li>
+<li><strong>SOS</strong> = naka-highlight; maaaring auto-zoom.</li>
+<li><strong>I-click ang pin</strong> = buksan/focus ang floating panel.</li>
+<li>Maraming pin: i-drag ang <strong>header</strong> kung naka-stack.</li>
+</ul>
+<p><strong>Floating pin panel:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Bahagi</th>
+<th>Gamit</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Live video</td>
+<td>Stream mula sa camera</td>
+</tr>
+<tr>
+<td><strong>PTT</strong></td>
+<td>Hawakan para magsalita</td>
+</tr>
+<tr>
+<td>Minimize / Expand</td>
+<td>Palitan ang laki</td>
+</tr>
+<tr>
+<td>Status badges</td>
+<td>Online, SOS, REC, SRV REC, Fall, Patrol</td>
+</tr>
+<tr>
+<td>Close (×)</td>
+<td>Isara panel; maaaring magpatuloy sa video wall sa kanan</td>
+</tr>
+</tbody></table>
+<h3>8.2 Toolbar ng mapa</h3>
+<ol>
+<li>Piliin muna ang <strong>online BWC</strong> sa dropdown.</li>
+<li>Gamitin ang action buttons.</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Button</th>
+<th>Resulta</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Wall Map</strong></td>
+<td>Mapa lang sa ibang window</td>
+</tr>
+<tr>
+<td><strong>Snapshot</strong></td>
+<td>Still image mula sa camera</td>
+</tr>
+<tr>
+<td><strong>Start/Stop SD record</strong></td>
+<td>Remote SD card</td>
+</tr>
+<tr>
+<td><strong>Record to server / Stop</strong></td>
+<td>Server-side recording</td>
+</tr>
+<tr>
+<td><strong>Set/Clear geofencing</strong></td>
+<td>Tingnan §9</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>9. Geofencing</h2>
+<h3>9.1 Mag-set ng geofence</h3>
+<ol>
+<li>Ilagay ang <strong>radius</strong> sa metres sa toolbar.</li>
+<li>I-click ang <strong>Set geofencing</strong>.</li>
+<li>Piliin ang target BWC (online).</li>
+<li>I-drag ang orange centre o white edge sa mapa, o i-click ang mapa.</li>
+<li>I-click ang <strong>Save geofence</strong>.</li>
+<li>Toast kapag pumasok/lumabas ang BWC sa zone.</li>
+</ol>
+<h3>9.2 Mag-clear ng geofence</h3>
+<ol>
+<li><strong>Clear geofencing</strong> → piliin ang BWC → kumpirmahin.</li>
+</ol>
+<hr>
+<h2>10. Video wall</h2>
+<p><strong>Lokasyon:</strong> Operations → kanang column (6 panel).</p>
+<table>
+<thead>
+<tr>
+<th>Control</th>
+<th>Aksyon</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Auto-rotate</strong></td>
+<td>Top nav checkbox</td>
+</tr>
+<tr>
+<td><strong>Popout Matrix</strong></td>
+<td>Full-screen sa ibang monitor</td>
+</tr>
+<tr>
+<td><strong>Config</strong></td>
+<td>I-assign ang bawat panel sa device / grupo / CSV</td>
+</tr>
+<tr>
+<td><strong>Stop</strong></td>
+<td>Itigil ang stream sa isang panel</td>
+</tr>
+</tbody></table>
+<p><strong>Config dialog:</strong></p>
+<ol>
+<li><strong>Config</strong> sa top bar.</li>
+<li>Bawat isa sa 6 panel: device ID, map group, all online, o custom list.</li>
+<li><strong>Download wall template (CSV)</strong> → edit → <strong>Import wall CSV</strong>.</li>
+<li><strong>Save</strong>.</li>
+</ol>
+<hr>
+<h2>11. Evidence &amp; Docking</h2>
+<p><strong>Tab:</strong> <strong>Evidence &amp; Docking</strong>.</p>
+<p><strong>Sub-tabs:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Sub-tab</th>
+<th>Layunin</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Overview</strong></td>
+<td>Stats at gabay</td>
+</tr>
+<tr>
+<td><strong>Docking Stations</strong></td>
+<td>Irehistro ang dock, tingnan ang bay</td>
+</tr>
+<tr>
+<td><strong>Evidence Library</strong></td>
+<td>Hanapin at i-play ang file</td>
+</tr>
+<tr>
+<td><strong>Case Files</strong></td>
+<td>Case na may naka-link na ebidensya</td>
+</tr>
+<tr>
+<td><strong>Route &amp; GPS</strong></td>
+<td>Replay ng GPS track</td>
+</tr>
+<tr>
+<td><strong>Storage</strong></td>
+<td>Super admin — path at FTP scan</td>
+</tr>
+</tbody></table>
+<h3>11.1 Evidence Library</h3>
+<ol>
+<li>Buksan ang <strong>Evidence Library</strong>.</li>
+<li><strong>Refresh</strong>.</li>
+<li>Search/filter (officer, petsa, source).</li>
+<li><strong>Detail</strong> sa row → preview.</li>
+<li><strong>Download</strong> kung pinapayagan.</li>
+</ol>
+<h3>11.2 Docking Stations</h3>
+<p><strong>Register dock</strong> → piliin ang dock → tingnan ang bay grid.</p>
+<h3>11.3 Case Files</h3>
+<p><strong>New case file</strong> · <strong>Create from SOS</strong> · i-link ang ebidensya · isara ang case.</p>
+<h3>11.4 Route &amp; GPS</h3>
+<p>Device + time range → replay sa mapa.</p>
+<h3>11.5 Storage (admin)</h3>
+<p>FTP + live capture paths → <strong>Save storage</strong> → <strong>Scan FTP</strong>.</p>
+<hr>
+<h2>12. Command Wall</h2>
+<p><strong>Live wall:</strong> I-drag ang device mula sa Roster → panel → piliin ang layout (1/4/9/16/32) → <strong>Rotate</strong> → <strong>Spotlight</strong> → <strong>Clear wall</strong> → <strong>Popout Matrix</strong>.</p>
+<p><strong>Display room:</strong> Preset na <strong>4-Monitor SOS Room</strong> para sa extended desktop.</p>
+<hr>
+<h2>13. Centre Summary</h2>
+<p>KPI rings, SOS chart, storage, system health, recent activity, <strong>AI assistant</strong> → <strong>Ask</strong>. I-click ang <strong>Refresh</strong>.</p>
+<hr>
+<h2>14. Video Conference</h2>
+<p>Kailangan ang Docker. Sub-tabs: <strong>Live</strong>, <strong>Lobby</strong>, <strong>Recordings</strong>, <strong>Settings</strong>.</p>
+<p><strong>Join Room</strong> → layouts (Gallery, Speaker, Focus, atbp.) → <strong>Share screen</strong> → <strong>Add BWC to Room</strong>.</p>
+<p>Android: <strong>MobilityConference-1.5.6.apk</strong>, parehong server URL.</p>
+<hr>
+<h2>15. Settings at Audit Trail</h2>
+<p><strong>Server Config</strong>, lifecycle cards (<strong>Onboarding</strong>, <strong>Assets</strong>, atbp.), <strong>Audit Trail</strong> (filter → <strong>Apply</strong> → <strong>Export CSV</strong>), <strong>Sign out</strong>.</p>
+<hr>
+<h2>16. Mga role</h2>
+<p>Super admin = full edit · Operator = read-only Server Config · Custom = per <strong>Dashboard Auth</strong>.</p>
+<hr>
+<h2>17. Workflow cookbook</h2>
+<p><strong>Shift start:</strong> Start Mobility.bat → Operations → bilangin online → Settings IP.</p>
+<p><strong>Insidente:</strong> Pin → PTT → server record kung kailangan.</p>
+<p><strong>SOS:</strong> Banner → itakda ang radius kung kailangan → <strong>Acknowledge</strong> (naka-check ang malalapit) o <strong>PTT team</strong> → hawakan <strong>PTT</strong> para sa buong team → log → Case from SOS.</p>
+<p><strong>TV wall:</strong> Command Wall 16 → Rotate 30s.</p>
+<hr>
+<h2>18. Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th>Sintomas</th>
+<th>Ayusin</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Lahat Offline</td>
+<td>Configuration Manual — Network</td>
+</tr>
+<tr>
+<td>Walang video</td>
+<td>Firewall 3889; i-Pin</td>
+</tr>
+<tr>
+<td>PTT tahimik</td>
+<td>Hawakan ang button</td>
+</tr>
+<tr>
+<td>SOS PTT isang unit lang</td>
+<td>Walang team</td>
+</tr>
+<tr>
+<td>Walang malapit sa Ack list</td>
+<td>Walang GPS o offline</td>
+</tr>
+<tr>
+<td>VC fail</td>
+<td>Docker + Install-Mobility.bat</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Mapa ng dokumento</h2>
+<table>
+<thead>
+<tr>
+<th>Kailangan</th>
+<th>Basahin</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Install</td>
+<td><strong>Quick Guide</strong></td>
+</tr>
+<tr>
+<td>Server/BWC</td>
+<td><strong>Configuration Manual</strong></td>
+</tr>
+<tr>
+<td>Pang-araw-araw</td>
+<td><strong>Manwal na ito</strong></td>
+</tr>
+</tbody></table>
+
+
+</body>
+</html>

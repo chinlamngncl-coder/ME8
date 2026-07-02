@@ -1,0 +1,10 @@
+﻿{
+    "maxBwcDevices":  8,
+    "issuedAt":  "2026-07-01T08:09:03.8231974Z",
+    "expiresAt":  "2027-07-01T08:09:03.8267996Z",
+    "type":  "subscription",
+    "signature":  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "maxDashboardUsers":  50,
+    "licenseId":  "test-ship-001",
+    "customerName":  "Test Agency"
+}

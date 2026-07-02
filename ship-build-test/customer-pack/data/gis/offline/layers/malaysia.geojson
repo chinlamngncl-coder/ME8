@@ -1,0 +1,13 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Malaysia (starter extent)", "kind": "country_extent" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[99.5, 0.8], [119.3, 0.8], [119.3, 7.7], [99.5, 7.7], [99.5, 0.8]]]
+      }
+    }
+  ]
+}

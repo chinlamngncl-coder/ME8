@@ -1,0 +1,13 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "China (starter extent)", "kind": "country_extent" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[73.5, 18.0], [135.1, 18.0], [135.1, 53.8], [73.5, 53.8], [73.5, 18.0]]]
+      }
+    }
+  ]
+}

@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mobility Axiom — User Manual (Operator Guide)</title>
+  <style>
+body { font-family: "Segoe UI", system-ui, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1.5rem 3rem; line-height: 1.55; color: #1e293b; }
+h1 { font-size: 1.75rem; border-bottom: 2px solid #0f172a; padding-bottom: 0.35rem; }
+h2 { font-size: 1.25rem; margin-top: 1.75rem; color: #0f172a; }
+h3 { font-size: 1.05rem; margin-top: 1.25rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+th, td { border: 1px solid #cbd5e1; padding: 0.45rem 0.65rem; text-align: left; vertical-align: top; }
+th { background: #f1f5f9; }
+code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
+ul, ol { padding-left: 1.4rem; }
+@media print { body { max-width: none; margin: 0; } }
+</style>
+</head>
+<body>
+<h1>Mobility Axiom — User Manual (Operator Guide)</h1>
+<p><strong>Audience:</strong> Dispatchers, supervisors, evidence staff, control-room operators.<br><strong>Related docs:</strong> <strong>Quick Guide</strong> (install) · <strong>Configuration Manual</strong> (server/BWC setup) · <strong>README.txt</strong> (pack layout)</p>
+<p>This guide walks through <strong>every tab</strong>, <strong>every major button</strong>, and <strong>step-by-step workflows</strong> in the dashboard. UI labels match your selected language; this manual uses English names as they appear in the English UI.</p>
+<hr>
+<h2>Table of contents</h2>
+<ol>
+<li><a href="#1-what-the-system-does">What the system does</a></li>
+<li><a href="#2-sign-in-language-sign-out">Sign in, language, sign out</a></li>
+<li><a href="#3-header-bar">Header bar (top of every screen)</a></li>
+<li><a href="#4-main-layout--operations-tab">Main layout — Operations tab</a></li>
+<li><a href="#5-device-summary-fleet-table">Device Summary (fleet table) — detailed</a></li>
+<li><a href="#6-sos">SOS — banner, log, incident report</a></li>
+<li><a href="#7-ptt-groups-and-messages">PTT groups and Messages</a></li>
+<li><a href="#8-map">Map — pins, panels, toolbar</a></li>
+<li><a href="#9-geofencing">Geofencing — step by step</a></li>
+<li><a href="#10-video-wall">Video wall (6 panels) — detailed</a></li>
+<li><a href="#11-evidence--docking">Evidence &amp; Docking — all sub-tabs</a></li>
+<li><a href="#12-command-wall">Command Wall — Live wall &amp; Display room</a></li>
+<li><a href="#13-centre-summary">Centre Summary</a></li>
+<li><a href="#14-video-conference">Video Conference — Live, Lobby, Recordings, Settings</a></li>
+<li><a href="#15-settings--audit-trail">Settings hub &amp; Audit Trail</a></li>
+<li><a href="#16-user-roles">User roles and permissions</a></li>
+<li><a href="#17-workflow-cookbook">Workflow cookbook (shift scenarios)</a></li>
+<li><a href="#18-troubleshooting">Troubleshooting</a></li>
+</ol>
+<hr>
+<h2>1. What the system does</h2>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Where in UI</th>
+<th>What you can do</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Live GPS map</td>
+<td>Operations → map</td>
+<td>See officer location, SOS, recording status</td>
+</tr>
+<tr>
+<td>Live BWC video</td>
+<td>Map pin panel, video wall, Command Wall</td>
+<td>Watch up to many streams; 6 on Operations by default</td>
+</tr>
+<tr>
+<td>Voice / PTT</td>
+<td>Fleet table, map pin, PTT groups</td>
+<td>One-to-one or group push-to-talk</td>
+</tr>
+<tr>
+<td>SOS handling</td>
+<td>Header banner, SOS log, map</td>
+<td>Alarm, report, folder export</td>
+</tr>
+<tr>
+<td>Text to BWC</td>
+<td>Operations → Messages</td>
+<td>Send text to online cameras</td>
+</tr>
+<tr>
+<td>Evidence library</td>
+<td>Evidence tab</td>
+<td>Search dock uploads, server recordings, case files</td>
+</tr>
+<tr>
+<td>Video conference</td>
+<td>Video Conference tab</td>
+<td>Room with phones, PCs, live BWC share</td>
+</tr>
+<tr>
+<td>Administration</td>
+<td>Settings → Server Config</td>
+<td>Network, BWC list, operators (super admin)</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>2. Sign in, language, sign out</h2>
+<h3>2.1 First login</h3>
+<ol>
+<li>Open browser (Chrome or Edge recommended).</li>
+<li>Go to <code>http://&lt;server-ip&gt;:3888</code> (trial on same PC: <code>http://localhost:3888</code>).</li>
+<li>Enter <strong>Username</strong> and <strong>Password</strong> (trial default: <code>global</code> / <code>global123</code>).</li>
+<li>Click <strong>Sign in</strong>.</li>
+</ol>
+<h3>2.2 Change language</h3>
+<ul>
+<li><strong>At login:</strong> use the language dropdown before signing in.</li>
+<li><strong>After login:</strong> top-right <strong>Language</strong> dropdown in the header.</li>
+<li>APAC trial: English, Korean, Thai, Indonesian, Filipino.</li>
+</ul>
+<p>All menus, buttons, and hints switch immediately.</p>
+<h3>2.3 Change your password (super admin)</h3>
+<ol>
+<li><strong>Settings</strong> tab → <strong>Server Config</strong>.</li>
+<li>Open <strong>Dashboard Auth</strong> (left nav inside Server Config).</li>
+<li>Find your user row → set new password → <strong>Save</strong> on that row.</li>
+</ol>
+<h3>2.4 Sign out</h3>
+<ol>
+<li><strong>Settings</strong> tab.</li>
+<li>Left panel → <strong>Sign out</strong>.</li>
+<li>Browser returns to login page. Always sign out on shared PCs.</li>
+</ol>
+<hr>
+<h2>3. Header bar</h2>
+<p>Visible on every tab.</p>
+<table>
+<thead>
+<tr>
+<th>Control</th>
+<th>Location</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Mobility Axiom</strong> logo</td>
+<td>Top left</td>
+<td>Brand; no action</td>
+</tr>
+<tr>
+<td><strong>Voice mute</strong> 🔊</td>
+<td>Top right</td>
+<td>Mute/unmute spoken SOS and alert voice prompts</td>
+</tr>
+<tr>
+<td><strong>Repeat</strong></td>
+<td>Top right</td>
+<td>Replay last voice alert (useful if dispatcher missed it)</td>
+</tr>
+<tr>
+<td><strong>Language</strong></td>
+<td>Top right</td>
+<td>Change UI language</td>
+</tr>
+<tr>
+<td><strong>SOS banner</strong></td>
+<td>Below header (when active)</td>
+<td>Red strip: device name, time, acknowledge actions — appears only during open SOS</td>
+</tr>
+</tbody></table>
+<p><strong>Tip:</strong> If you hear no voice alerts, check voice mute is off (icon not struck through).</p>
+<hr>
+<h2>4. Main layout — Operations tab</h2>
+<p>Operations is the <strong>default home screen</strong> after login.</p>
+<h3>4.1 Three columns</h3>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Left sidebar</strong></td>
+<td>Device Summary, SOS log, PTT groups, Messages, Storage shortcuts</td>
+</tr>
+<tr>
+<td><strong>Centre</strong></td>
+<td>Interactive map + map toolbar</td>
+</tr>
+<tr>
+<td><strong>Right</strong></td>
+<td>Six live video wall panels</td>
+</tr>
+</tbody></table>
+<h3>4.2 Collapse sidebar</h3>
+<p>Click <strong>◀</strong> on the narrow gutter between sidebar and map to hide the fleet panel and gain map space. Click again to show.</p>
+<h3>4.3 Top nav (only on Operations)</h3>
+<p>When <strong>Operations</strong> tab is active, extra controls appear in the top bar:</p>
+<table>
+<thead>
+<tr>
+<th>Control</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Auto-rotate</strong></td>
+<td>Checkbox — cycles cameras across the 6 wall panels automatically</td>
+</tr>
+<tr>
+<td><strong>Popout Matrix</strong></td>
+<td>Opens full-screen video matrix on another monitor</td>
+</tr>
+<tr>
+<td><strong>Config</strong></td>
+<td>Opens video wall assignment dialog</td>
+</tr>
+</tbody></table>
+<h3>4.4 Command Wall awareness strip</h3>
+<p>If Command Wall is open elsewhere, a thin bar may appear above the map: <strong>Open Command Wall →</strong> — click to jump to that tab.</p>
+<hr>
+<h2>5. Device Summary (fleet table)</h2>
+<p><strong>Location:</strong> Operations → left sidebar → <strong>Device Summary</strong>.</p>
+<p><strong>Summary line:</strong> e.g. <code>3 online · 5 devices</code> — quick fleet health.</p>
+<h3>5.1 Search and filter</h3>
+<ol>
+<li><strong>Search</strong> box — type officer name or device ID; table filters live.</li>
+<li><strong>Filter</strong> dropdown:<ul>
+<li><strong>All</strong> — every registered BWC</li>
+<li><strong>Online only</strong> — units currently connected</li>
+<li><strong>Offline only</strong> — registered but not connected</li>
+</ul>
+</li>
+</ol>
+<h3>5.2 Table columns — what to click</h3>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>How to use</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Pin</strong></td>
+<td>Click once</td>
+<td>Toggles map pin + floating live video panel. Click again to remove pin.</td>
+</tr>
+<tr>
+<td><strong>PTT</strong></td>
+<td><strong>Press and hold</strong></td>
+<td>Talk to this BWC only. Release to stop. No video on PTT.</td>
+</tr>
+<tr>
+<td><strong>Call</strong></td>
+<td>Click</td>
+<td>Starts voice call session to BWC (no video).</td>
+</tr>
+<tr>
+<td><strong>GPS</strong></td>
+<td>Click</td>
+<td>Opens route / GPS track view for historical path.</td>
+</tr>
+<tr>
+<td><em>(checkbox)</em></td>
+<td>Tick</td>
+<td>Used with PTT groups — select 2+ online units.</td>
+</tr>
+<tr>
+<td><strong>Device</strong></td>
+<td>—</td>
+<td>Shows officer nickname and device ID.</td>
+</tr>
+<tr>
+<td><strong>Status</strong></td>
+<td>—</td>
+<td><strong>Online</strong> (green) or <strong>Offline</strong> (grey).</td>
+</tr>
+</tbody></table>
+<h3>5.3 Bulk pin actions</h3>
+<table>
+<thead>
+<tr>
+<th>Button</th>
+<th>When enabled</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Open All (Up to 6)</strong></td>
+<td>At least one online</td>
+<td>Pins up to six online devices on map simultaneously</td>
+</tr>
+<tr>
+<td><strong>Clear map pins</strong></td>
+<td>Pins open</td>
+<td>Removes all floating pin panels from map</td>
+</tr>
+</tbody></table>
+<h3>5.4 Workflow — monitor one officer</h3>
+<ol>
+<li>Find officer in table (search if needed).</li>
+<li>Confirm <strong>Online</strong>.</li>
+<li>Click <strong>Pin</strong> → map zooms; floating video opens.</li>
+<li>To talk: hold <strong>PTT</strong> on row OR on map pin panel.</li>
+<li>To stop video on map: click <strong>Pin</strong> again or close pin panel.</li>
+</ol>
+<h3>5.5 Workflow — call without video</h3>
+<ol>
+<li>Click <strong>Call</strong> on fleet row.</li>
+<li>Wait for BWC to answer (device-dependent).</li>
+<li>End call from BWC or dashboard when done.</li>
+</ol>
+<h3>5.6 Empty table</h3>
+<p><strong>No devices yet</strong> — no BWCs registered. Super admin must add devices under <strong>Settings → Server Config → BWCs</strong> (see Configuration Manual).</p>
+<hr>
+<h2>6. SOS</h2>
+<h3>6.1 Active SOS — header banner</h3>
+<p>When a BWC triggers SOS:</p>
+<ol>
+<li><strong>Red banner</strong> appears under header with device identity and time.</li>
+<li>Map typically <strong>zooms</strong> to SOS location.</li>
+<li>Pin shows <strong>SOS</strong> status chip.</li>
+<li>Voice alert may play (unless muted).</li>
+</ol>
+<p><strong>Dispatcher actions:</strong></p>
+<ol>
+<li>Set <strong>response radius</strong> (200–1000 m) if needed — red circle on map shows nearby units.</li>
+<li>Click <strong>Pin</strong> if not already open — confirm live video on the alarm officer.</li>
+<li><strong>Acknowledge</strong> — see §6.1b (forms PTT team from checked nearby units), <strong>or</strong> click <strong>PTT team</strong> on the banner first.</li>
+<li><strong>Press and hold PTT</strong> on wall panel or map pin to talk to the <strong>whole team</strong> when <strong>PTT TEAM · ON</strong> is shown.</li>
+<li>Open <strong>SOS log</strong> row for full report (below).</li>
+</ol>
+<h3>6.1b Response radius and SOS PTT team</h3>
+<table>
+<thead>
+<tr>
+<th>Banner control</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Radius chips</strong></td>
+<td>200 / 300 / 400 / 500 / 1000 m — who counts as “nearby” on the map</td>
+</tr>
+<tr>
+<td><strong>Summary line</strong></td>
+<td>Nearby unit names and distances</td>
+</tr>
+<tr>
+<td><strong>PTT team</strong></td>
+<td>Push one PTT group now (alarm officer + online units in radius); alarm stays open</td>
+</tr>
+<tr>
+<td><strong>Acknowledge</strong></td>
+<td>Close alarm in the log; see steps below</td>
+</tr>
+</tbody></table>
+<p><strong>Recommended — Acknowledge with auto PTT team:</strong></p>
+<ol>
+<li>Click <strong>Acknowledge</strong> on the banner.</li>
+<li>In the dialog, <strong>nearby units are checked by default</strong> — uncheck any you do not want on the team.</li>
+<li>Optional note → <strong>Submit / close</strong>.</li>
+<li>Wait for toast <strong>PTT team ON — …</strong> (needs at least one checked online helper besides the alarm officer).</li>
+<li><strong>Press and hold PTT</strong> on the alarm officer’s wall panel or map pin — all checked units hear you (audio only, not a phone call).</li>
+</ol>
+<p><strong>Manual PTT team (alarm still open):</strong> Click <strong>PTT team</strong> on the banner instead of step 1–3 above, then hold PTT as in step 5.</p>
+<p><strong>Notes:</strong></p>
+<ul>
+<li>Helpers must be <strong>online</strong> and inside the radius (GPS on map).</li>
+<li>Uncheck <strong>all</strong> helpers in Acknowledge if you only want to log the alarm without forming a team.</li>
+<li>Server must have PTT enabled (see Configuration Manual).</li>
+</ul>
+<h3>6.2 SOS log panel</h3>
+<p><strong>Location:</strong> Operations → left sidebar → <strong>SOS log</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Chart</td>
+<td>Visual count of recent SOS events</td>
+</tr>
+<tr>
+<td>Event rows</td>
+<td>Click row → incident detail dialog + map focus</td>
+</tr>
+<tr>
+<td><strong>Open incident files</strong></td>
+<td>Opens Windows folder with SOS packages on server</td>
+</tr>
+<tr>
+<td><strong>Download CSV</strong></td>
+<td>Export log for compliance</td>
+</tr>
+<tr>
+<td><strong>Clear list</strong></td>
+<td>Clears on-screen list only (not server files)</td>
+</tr>
+<tr>
+<td><strong>Reload list</strong></td>
+<td>Refresh from server</td>
+</tr>
+</tbody></table>
+<h3>6.3 SOS incident detail dialog</h3>
+<p>After clicking a log row:</p>
+<table>
+<thead>
+<tr>
+<th>Button</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Open in new tab</strong></td>
+<td>Full HTML report in browser tab</td>
+</tr>
+<tr>
+<td><strong>Close</strong></td>
+<td>Dismiss dialog</td>
+</tr>
+<tr>
+<td><strong>Server folder (admin)</strong></td>
+<td>Open raw incident folder on server</td>
+</tr>
+</tbody></table>
+<p>Some incidents require <strong>PIN unlock</strong> before viewing sensitive report content — enter agency PIN → <strong>Unlock</strong>.</p>
+<h3>6.4 Create case file from SOS</h3>
+<p>From <strong>Evidence → Case Files</strong> → <strong>Create from SOS</strong> links evidence workflow to the alarm (see §11.4).</p>
+<hr>
+<h2>7. PTT groups and Messages</h2>
+<h3>7.1 PTT groups</h3>
+<p><strong>Location:</strong> Operations → <strong>PTT groups</strong> box.</p>
+<p><strong>Purpose:</strong> One push-to-talk channel for multiple BWCs (e.g. all units at a scene).</p>
+<p><strong>Steps:</strong></p>
+<ol>
+<li><strong>Option A — map group:</strong> Select coloured group from dropdown (groups defined in Server Config → Map groups).</li>
+<li><strong>Option B — manual pick:</strong> Tick checkboxes on 2+ <strong>online</strong> rows in fleet table.</li>
+<li>Review <strong>Members</strong> list — click <strong>×</strong> to exclude, <strong>+</strong> to include before joining.</li>
+<li>Click <strong>Join group PTT</strong> — status line confirms.</li>
+<li>Hold <strong>PTT</strong> on any grouped device to broadcast to all members.</li>
+<li>Click <strong>Ungroup all</strong> when incident ends.</li>
+</ol>
+<h3>7.2 Messages</h3>
+<p><strong>Location:</strong> Operations → <strong>Messages</strong>.</p>
+<ol>
+<li><strong>Online BWCs</strong> list shows who can receive text.</li>
+<li>Click officer name → chat thread opens.</li>
+<li>Type in text field → <strong>Send</strong>.</li>
+<li>Multiple threads: tabs appear for each open chat.</li>
+<li><strong>Clear thread</strong> — removes messages from your view (server may retain per policy).</li>
+</ol>
+<p><strong>Retention:</strong> UI shows last 24 hours; server stores up to 30 days.</p>
+<hr>
+<h2>8. Map</h2>
+<h3>8.1 Map basics</h3>
+<ul>
+<li>Pan: click-drag map.</li>
+<li>Zoom: mouse wheel or +/- controls.</li>
+<li><strong>Pin colours</strong> = map groups (legend appears bottom-left when pins visible).</li>
+<li><strong>Offline</strong> devices do not show GPS pins.</li>
+</ul>
+<h3>8.2 Floating pin panel</h3>
+<p>Opened by clicking <strong>Pin</strong> on fleet row or clicking map pin.</p>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Title bar</td>
+<td>Officer name, device ID — <strong>drag</strong> to move panel</td>
+</tr>
+<tr>
+<td>Live video</td>
+<td>Real-time BWC camera</td>
+</tr>
+<tr>
+<td><strong>PTT</strong> button</td>
+<td>Hold to talk</td>
+</tr>
+<tr>
+<td>Minimize / Expand</td>
+<td>Resize panel</td>
+</tr>
+<tr>
+<td>Status badges</td>
+<td>Online, SOS, REC (SD), SRV REC (server), Fall, Patrol</td>
+</tr>
+<tr>
+<td>Close (×)</td>
+<td>Closes panel — wall video may continue on right</td>
+</tr>
+</tbody></table>
+<p><strong>Stacked panels:</strong> If multiple pins open, hint says <strong>Stacked — drag panel headers apart</strong>.</p>
+<h3>8.3 Map toolbar (below map)</h3>
+<p><strong>Order of use for remote commands:</strong></p>
+<ol>
+<li>Select <strong>online BWC</strong> from dropdown (required for snapshot/record).</li>
+<li>Use action buttons on the right.</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Button</th>
+<th>Steps</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Wall Map</strong></td>
+<td>Click</td>
+<td>New window — map only for TV/monitor (display mirror; control stays here)</td>
+</tr>
+<tr>
+<td><strong>Snapshot</strong></td>
+<td>Select BWC → Snapshot</td>
+<td>Still image captured on device</td>
+</tr>
+<tr>
+<td><strong>Start SD record</strong></td>
+<td>Select BWC → Start</td>
+<td>Records to BWC SD card</td>
+</tr>
+<tr>
+<td><strong>Stop SD record</strong></td>
+<td>Select BWC → Stop</td>
+<td>Ends SD recording</td>
+</tr>
+<tr>
+<td><strong>Record to server</strong></td>
+<td>Select BWC → Start</td>
+<td>Server saves live stream to evidence path</td>
+</tr>
+<tr>
+<td><strong>Stop server record</strong></td>
+<td>Click Stop</td>
+<td>Ends server recording</td>
+</tr>
+<tr>
+<td><strong>Set geofencing</strong></td>
+<td>See §9</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Clear geofencing</strong></td>
+<td>See §9</td>
+<td></td>
+</tr>
+</tbody></table>
+<p><strong>Permission box:</strong> If remote control blocked on BWC, <strong>Permission</strong> button explains — officer may need to grant remote control on device.</p>
+<hr>
+<h2>9. Geofencing</h2>
+<h3>9.1 Set geofence</h3>
+<ol>
+<li>Map toolbar → enter <strong>radius</strong> in metres (e.g. <code>200</code>).</li>
+<li>Click <strong>Set geofencing</strong>.</li>
+<li>Dialog: choose target BWC (online).</li>
+<li>On map: <strong>drag orange centre</strong> or <strong>white edge</strong> to position, or click map to place.</li>
+<li>Click <strong>Save geofence</strong> on map bar.</li>
+<li>Toast confirms when BWC enters/leaves zone.</li>
+</ol>
+<h3>9.2 Clear geofence</h3>
+<ol>
+<li>Click <strong>Clear geofencing</strong>.</li>
+<li>Select BWC in dialog.</li>
+<li>Confirm <strong>Clear geofencing</strong>.</li>
+</ol>
+<hr>
+<h2>10. Video wall</h2>
+<p><strong>Location:</strong> Operations → right column (six panels).</p>
+<h3>10.1 Each panel</h3>
+<ul>
+<li>Shows one live BWC stream when assigned.</li>
+<li><strong>Stop</strong> on panel — stops that stream only.</li>
+<li>Empty panel — grey placeholder until device pinned or configured.</li>
+</ul>
+<h3>10.2 Auto-rotate</h3>
+<ol>
+<li>Top nav → tick <strong>Auto-rotate</strong>.</li>
+<li>System cycles online cameras across panels every few seconds.</li>
+<li>Untick to stop.</li>
+</ol>
+<h3>10.3 Popout Matrix</h3>
+<p>Opens dedicated full-screen grid on second monitor — useful for supervisor desk.</p>
+<h3>10.4 Config dialog (assign cameras)</h3>
+<ol>
+<li>Top nav → <strong>Config</strong>.</li>
+<li>For <strong>each of 6 panels</strong>, choose source:<ul>
+<li>Fixed <strong>device ID</strong></li>
+<li><strong>Map group</strong> (rotates within group)</li>
+<li><strong>All online</strong></li>
+<li>Custom ID list</li>
+</ul>
+</li>
+<li><strong>Download wall template (CSV)</strong> — edit in Excel → <strong>Import wall CSV</strong>.</li>
+<li><strong>Export wall CSV</strong> — backup current layout.</li>
+<li><strong>Save</strong> — applies immediately.</li>
+<li><strong>Cancel</strong> — discard changes.</li>
+</ol>
+<p><strong>Note:</strong> BWCs must be registered under Server Config → BWCs before they appear in lists.</p>
+<hr>
+<h2>11. Evidence &amp; Docking</h2>
+<p><strong>Tab:</strong> <strong>Evidence &amp; Docking</strong> (top nav).</p>
+<p><strong>Sub-tabs</strong> (horizontal nav inside Evidence):</p>
+<table>
+<thead>
+<tr>
+<th>Sub-tab</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Overview</strong></td>
+<td>Stats — how much evidence indexed, guidance</td>
+</tr>
+<tr>
+<td><strong>Docking Stations</strong></td>
+<td>Register physical docks, see bay status</td>
+</tr>
+<tr>
+<td><strong>Evidence Library</strong></td>
+<td>Searchable table of all files</td>
+</tr>
+<tr>
+<td><strong>Case Files</strong></td>
+<td>Investigation case folders linking evidence</td>
+</tr>
+<tr>
+<td><strong>Route &amp; GPS</strong></td>
+<td>Replay GPS tracks (evidence context)</td>
+</tr>
+<tr>
+<td><strong>Storage</strong></td>
+<td>Super admin — folder paths, FTP, scan (hidden if no permission)</td>
+</tr>
+</tbody></table>
+<h3>11.1 Evidence Library — daily use</h3>
+<ol>
+<li>Open <strong>Evidence Library</strong> sub-tab.</li>
+<li>Click <strong>Refresh</strong> to load latest index.</li>
+<li>Use search/filter toolbar (officer, date, source).</li>
+<li>Click row <strong>Detail</strong> → preview player opens.</li>
+<li><strong>Download</strong> column — save file locally (if permitted).</li>
+<li><strong>Secure export</strong> — may prompt for extra confirmation (role-dependent).</li>
+</ol>
+<p><strong>Sources you may see:</strong> FTP dock upload, live capture, SOS auto-record, manual server record.</p>
+<h3>11.2 Docking Stations</h3>
+<ol>
+<li><strong>Docking Stations</strong> sub-tab.</li>
+<li><strong>Register dock</strong> — add dock ID and name (admin).</li>
+<li>Select dock in list → <strong>bay grid</strong> shows slots and upload status.</li>
+<li>When officer places BWC in dock, files upload via FTP — appear in Library after scan.</li>
+</ol>
+<h3>11.3 Case Files</h3>
+<ol>
+<li><strong>Case Files</strong> sub-tab.</li>
+<li><strong>New case file</strong> — enter title, officer, narrative.</li>
+<li><strong>Create from SOS</strong> — pre-fills from SOS incident.</li>
+<li>Filter: search, period, open/closed status.</li>
+<li>Open case → link evidence from Library → write report → close case when done.</li>
+</ol>
+<h3>11.4 Route &amp; GPS</h3>
+<ol>
+<li><strong>Route &amp; GPS</strong> sub-tab.</li>
+<li>Select device and time range.</li>
+<li>Map replays path — use for incident reconstruction reports.</li>
+</ol>
+<h3>11.5 Storage (admin)</h3>
+<ol>
+<li><strong>Storage</strong> sub-tab (super admin).</li>
+<li>Set <strong>FTP folder</strong>, <strong>live capture folder</strong>, browse server paths.</li>
+<li><strong>Save storage</strong> → <strong>Scan FTP for evidence</strong> to index new files.</li>
+</ol>
+<hr>
+<h2>12. Command Wall</h2>
+<p><strong>Tab:</strong> <strong>Command Wall</strong>.</p>
+<p><strong>Sub-tabs:</strong> <strong>Live wall</strong> | <strong>Display room</strong></p>
+<h3>12.1 Live wall</h3>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Roster on left lists <strong>online</strong> devices — search if needed</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Drag</strong> device chip onto empty <strong>panel</strong> in grid</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Live video starts automatically</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Choose <strong>layout</strong>: 1, 4, 9, 16, 32, or 1+7 focus</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Rotate</strong> / <strong>Poll</strong> — auto-cycle feeds (set interval, pause/resume)</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>Click panel</strong> — spotlight (enlarge); click again for grid</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>PTT</strong> on wall toolbar — talk to devices on wall</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>Clear wall</strong> — remove all</td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>Popout Matrix</strong> or ↗ — TV / second monitor</td>
+</tr>
+</tbody></table>
+<h3>12.2 Display room</h3>
+<p>Pre-configured <strong>multi-monitor</strong> layouts for Windows extended desktop:</p>
+<ul>
+<li><strong>4-Monitor SOS Room</strong> preset: Ops on monitor 1, live wall on 2, map mirror on 3, KPIs on 4.</li>
+<li>Follow on-screen <strong>Open</strong> buttons to launch each window to the correct display.</li>
+</ul>
+<hr>
+<h2>13. Centre Summary</h2>
+<p><strong>Tab:</strong> <strong>Centre Summary</strong> (super admin / managers).</p>
+<table>
+<thead>
+<tr>
+<th>Section</th>
+<th>What you see</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>KPI rings</td>
+<td>Online, offline, open SOS, SOS week, storage, uptime</td>
+<td>Hover for detail</td>
+</tr>
+<tr>
+<td>Period selector</td>
+<td>Daily / weekly / monthly / yearly</td>
+<td>Change graph range</td>
+</tr>
+<tr>
+<td>SOS trend chart</td>
+<td>Bar/line trend</td>
+<td><strong>Download chart PNG</strong></td>
+</tr>
+<tr>
+<td>Storage breakdown</td>
+<td>Folder sizes</td>
+<td>Identify disk pressure</td>
+</tr>
+<tr>
+<td>System health</td>
+<td>SIP, PTT, fleet link up/down</td>
+<td>If red, see Configuration Manual</td>
+</tr>
+<tr>
+<td>Recent activity</td>
+<td>Who did what</td>
+<td>Click row for detail</td>
+</tr>
+<tr>
+<td>AI assistant</td>
+<td>Chat box</td>
+<td>Ask e.g. &quot;How many devices online?&quot; → <strong>Ask</strong></td>
+</tr>
+</tbody></table>
+<p><strong>Refresh</strong> button updates all widgets.</p>
+<hr>
+<h2>14. Video Conference</h2>
+<p><strong>Tab:</strong> <strong>Video Conference</strong>. Requires <strong>Docker Desktop</strong> running.</p>
+<p><strong>Sub-tabs:</strong> <strong>Live</strong> | <strong>Lobby</strong> | <strong>Recordings</strong> | <strong>Settings</strong></p>
+<h3>14.1 Join a room (Live)</h3>
+<ol>
+<li><strong>Live</strong> sub-tab.</li>
+<li>Enter room name or pick recent room.</li>
+<li>Click <strong>Join Room</strong>.</li>
+<li>Allow camera/microphone in browser prompt.</li>
+<li>Video tiles appear — your self-view and others.</li>
+</ol>
+<h3>14.2 Layout controls (in room)</h3>
+<table>
+<thead>
+<tr>
+<th>Layout</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Gallery</strong></td>
+<td>Equal tiles — everyone visible</td>
+</tr>
+<tr>
+<td><strong>Speaker</strong></td>
+<td>Active speaker large</td>
+</tr>
+<tr>
+<td><strong>Focus</strong></td>
+<td>One speaker full screen</td>
+</tr>
+<tr>
+<td><strong>2-up</strong></td>
+<td>Two main feeds</td>
+</tr>
+<tr>
+<td><strong>Briefing</strong></td>
+<td>Shared content main stage</td>
+</tr>
+<tr>
+<td><strong>Side-by-side</strong></td>
+<td>Share left, people right</td>
+</tr>
+<tr>
+<td><strong>PiP</strong></td>
+<td>Picture-in-picture</td>
+</tr>
+</tbody></table>
+<h3>14.3 Share content</h3>
+<ul>
+<li><strong>Share screen</strong> — show desktop/apps.</li>
+<li><strong>Share image</strong> — upload still for briefing.</li>
+</ul>
+<h3>14.4 Add BWC live to room</h3>
+<ol>
+<li>In room, find <strong>Body Cameras (BWC)</strong> section.</li>
+<li>Dropdown → select <strong>online</strong> BWC.</li>
+<li><strong>Add to Room</strong> — live body camera appears as participant tile.</li>
+<li><strong>Remove BWC Share</strong> when done.</li>
+</ol>
+<h3>14.5 Host tools (super admin / host)</h3>
+<ul>
+<li>Mute all, grant/deny speak floor, <strong>End Room</strong>.</li>
+</ul>
+<h3>14.6 Lobby</h3>
+<p>Schedule or advertise rooms; waiting participants (if configured).</p>
+<h3>14.7 Recordings</h3>
+<p>List server-recorded conference files — play/download per policy.</p>
+<h3>14.8 Settings</h3>
+<p>Set <strong>Phone / browser video URL</strong> (WebSocket) if mobile users cannot connect outside LAN.</p>
+<h3>14.9 Android app</h3>
+<ol>
+<li>Install <code>MobilityConference-1.5.6.apk</code>.</li>
+<li>Server URL = dashboard URL.</li>
+<li>Sign in → join same room name → enable camera.</li>
+</ol>
+<hr>
+<h2>15. Settings &amp; Audit Trail</h2>
+<h3>15.1 Settings hub</h3>
+<p><strong>Tab:</strong> <strong>Settings</strong>.</p>
+<p><strong>Health strip (top):</strong> Fleet count, FTP status, uptime, license.</p>
+<p><strong>Left panel:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Field / button</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>BWC register IP</td>
+<td>IPv4 for cameras — must match camera SIP screen</td>
+</tr>
+<tr>
+<td>Operator login</td>
+<td>URL for read-only operator accounts</td>
+</tr>
+<tr>
+<td>Deployment</td>
+<td>Lab / LAN / Cloud mode</td>
+</tr>
+<tr>
+<td>Signed in</td>
+<td>Your user + role badge</td>
+</tr>
+<tr>
+<td><strong>Server Config</strong></td>
+<td>Full admin (network, BWCs, users)</td>
+</tr>
+<tr>
+<td><strong>Tech admin</strong></td>
+<td>License tools (super admin)</td>
+</tr>
+<tr>
+<td><strong>Audit Trail</strong></td>
+<td>Compliance log</td>
+</tr>
+<tr>
+<td><strong>Sign out</strong></td>
+<td>End session</td>
+</tr>
+</tbody></table>
+<p><strong>Device lifecycle cards:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Card</th>
+<th>Click <strong>Manage</strong> to</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Onboarding</td>
+<td>Step-by-step first BWC setup wizard</td>
+</tr>
+<tr>
+<td>Assets</td>
+<td>Device inventory</td>
+</tr>
+<tr>
+<td>Configuration</td>
+<td>Jump to Server Config</td>
+</tr>
+<tr>
+<td>Maintenance</td>
+<td>Open storage folders</td>
+</tr>
+<tr>
+<td>Faults &amp; SOS</td>
+<td>Centre Summary</td>
+</tr>
+<tr>
+<td>Monitoring</td>
+<td>Diagnostics</td>
+</tr>
+<tr>
+<td>Firmware</td>
+<td>OTA inventory</td>
+</tr>
+</tbody></table>
+<h3>15.2 Audit Trail</h3>
+<p><strong>Open:</strong> Settings → <strong>Audit Trail</strong>.</p>
+<ol>
+<li>Set <strong>From</strong> / <strong>To</strong> dates.</li>
+<li>Filter <strong>Category</strong>, <strong>Action</strong>, <strong>User</strong>, free-text <strong>Search</strong>.</li>
+<li><strong>Apply</strong> → table fills.</li>
+<li>Click row → <strong>Event detail</strong> side panel (JSON details).</li>
+<li><strong>Export CSV</strong> (if permitted) for auditors.</li>
+<li><strong>Previous</strong> / <strong>Next</strong> pages for long histories.</li>
+</ol>
+<hr>
+<h2>16. User roles</h2>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Operations</th>
+<th>Evidence</th>
+<th>Command Wall</th>
+<th>VC</th>
+<th>Server Config</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Super admin</td>
+<td>Full</td>
+<td>Full + storage</td>
+<td>Full</td>
+<td>Full + host</td>
+<td>Edit all</td>
+</tr>
+<tr>
+<td>Operator</td>
+<td>Full</td>
+<td>View/search</td>
+<td>Full</td>
+<td>Join</td>
+<td>Read-only</td>
+</tr>
+<tr>
+<td>Custom</td>
+<td>Per toggle</td>
+<td>Per toggle</td>
+<td>Per toggle</td>
+<td>Per toggle</td>
+<td>Per toggle</td>
+</tr>
+</tbody></table>
+<p>Missing tabs or banners like <em>&quot;access not granted&quot;</em> = ask super admin to enable under <strong>Dashboard Auth</strong>.</p>
+<hr>
+<h2>17. Workflow cookbook</h2>
+<h3>Shift start (dispatcher)</h3>
+<ol>
+<li>Confirm server running (<code>Start Mobility.bat</code>).</li>
+<li>Login → Operations.</li>
+<li>Check <code>N online · M devices</code>.</li>
+<li>Settings → verify BWC register IP.</li>
+<li>Test one <strong>Pin</strong> + <strong>PTT</strong> with field unit.</li>
+</ol>
+<h3>Active incident — single officer</h3>
+<ol>
+<li>Search officer → <strong>Pin</strong>.</li>
+<li><strong>Record to server</strong> if policy requires.</li>
+<li>Hold <strong>PTT</strong> for instructions.</li>
+<li>On close: stop server record.</li>
+</ol>
+<h3>Multi-unit scene</h3>
+<ol>
+<li>Tick 3+ online units OR select map group.</li>
+<li><strong>Join group PTT</strong>.</li>
+<li>Optional: <strong>Open All (Up to 6)</strong> for map overview.</li>
+</ol>
+<h3>SOS response</h3>
+<ol>
+<li>Read header banner; set <strong>radius</strong> if needed.</li>
+<li>Pin + live video on alarm officer.</li>
+<li><strong>Acknowledge</strong> — leave nearby helpers <strong>checked</strong> → PTT team forms automatically (§6.1b), <strong>or</strong> <strong>PTT team</strong> on banner first.</li>
+<li><strong>Press and hold PTT</strong> on wall or pin to brief the team.</li>
+<li>SOS log → open report.</li>
+<li>Evidence → <strong>Create from SOS</strong> case file.</li>
+</ol>
+<h3>Evidence handover to investigations</h3>
+<ol>
+<li>Evidence → Library → filter by date/officer.</li>
+<li>Download or secure export.</li>
+<li>Case Files → link clips to case ID.</li>
+</ol>
+<h3>Control room TV</h3>
+<ol>
+<li>Command Wall → 16 layout.</li>
+<li>Drag all online units.</li>
+<li>Rotate 30s.</li>
+<li>Popout to TV HDMI PC.</li>
+</ol>
+<hr>
+<h2>18. Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>All devices Offline</td>
+<td>Wrong server IP on cameras</td>
+<td>Configuration Manual → Network + Type on BWC</td>
+</tr>
+<tr>
+<td>One device Offline</td>
+<td>ID/password mismatch</td>
+<td>Check BWCs tab vs camera SIP screen</td>
+</tr>
+<tr>
+<td>Pin works, no video</td>
+<td>Firewall 3889</td>
+<td>Open port on server</td>
+</tr>
+<tr>
+<td>PTT silent</td>
+<td>Tapping not holding</td>
+<td>Hold PTT; check group not conflicting</td>
+</tr>
+<tr>
+<td>SOS PTT reaches one unit only</td>
+<td>No team formed</td>
+<td>Ack with helpers checked or <strong>PTT team</strong>; wait for <strong>PTT team ON</strong> toast</td>
+</tr>
+<tr>
+<td>No nearby units in Ack list</td>
+<td>GPS missing or offline</td>
+<td>Wait for map positions; widen radius</td>
+</tr>
+<tr>
+<td>No GPS pin</td>
+<td>GPS off on BWC</td>
+<td>Enable GPS; wait 30s</td>
+</tr>
+<tr>
+<td>VC fails</td>
+<td>Docker stopped</td>
+<td>Start Docker; re-run Install-Mobility.bat</td>
+</tr>
+<tr>
+<td>Evidence empty</td>
+<td>FTP path wrong or not scanned</td>
+<td>Storage tab → Scan FTP</td>
+</tr>
+<tr>
+<td>Cannot edit server</td>
+<td>Operator role</td>
+<td>Login as super admin</td>
+</tr>
+<tr>
+<td>Map blank grey</td>
+<td>No tile internet (APAC)</td>
+<td>Needs internet for OSM tiles; CN pack uses offline tiles</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Document map</h2>
+<table>
+<thead>
+<tr>
+<th>You need…</th>
+<th>Read…</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Install Docker, bats, first login</td>
+<td><strong>Quick Guide</strong></td>
+</tr>
+<tr>
+<td>SIP, firewall, BWC registration, operators</td>
+<td><strong>Configuration Manual</strong></td>
+</tr>
+<tr>
+<td>Day-to-day dashboard use</td>
+<td><strong>This User Manual</strong></td>
+</tr>
+</tbody></table>
+
+
+</body>
+</html>

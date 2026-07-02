@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mobility Axiom — 快速指南</title>
+  <style>
+body { font-family: "Segoe UI", system-ui, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1.5rem 3rem; line-height: 1.55; color: #1e293b; }
+h1 { font-size: 1.75rem; border-bottom: 2px solid #0f172a; padding-bottom: 0.35rem; }
+h2 { font-size: 1.25rem; margin-top: 1.75rem; color: #0f172a; }
+h3 { font-size: 1.05rem; margin-top: 1.25rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+th, td { border: 1px solid #cbd5e1; padding: 0.45rem 0.65rem; text-align: left; vertical-align: top; }
+th { background: #f1f5f9; }
+code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
+ul, ol { padding-left: 1.4rem; }
+@media print { body { max-width: none; margin: 0; } }
+</style>
+</head>
+<body>
+<h1>Mobility Axiom — 快速指南</h1>
+<h2>本机需要准备</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>是否必须</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Windows 10/11（64 位）</td>
+<td>是</td>
+<td>安装 Docker 需管理员权限</td>
+</tr>
+<tr>
+<td><strong>Node.js</strong></td>
+<td><strong>否</strong></td>
+<td><strong>已内置</strong>于 <code>Mobility-Axiom\tools\node\</code></td>
+</tr>
+<tr>
+<td><strong>Docker Desktop</strong></td>
+<td>是（仅视频会议）</td>
+<td><a href="https://www.docker.com/products/docker-desktop/">下载</a></td>
+</tr>
+<tr>
+<td>外网</td>
+<td>仅首次安装</td>
+<td>拉取 Docker 镜像；<strong>地图瓦片为离线</strong></td>
+</tr>
+</tbody></table>
+<h2>安装（一次）</h2>
+<ol>
+<li><strong>解压</strong>完整 <strong>CN Trial Mobility</strong> 文件夹（如 <code>C:\CN-Trial\</code>）。</li>
+<li>安装并启动 <strong>Docker Desktop</strong> — 等待托盘鲸鱼图标稳定。</li>
+<li>在包根目录双击 <strong><code>Install-Mobility.bat</code></strong>。</li>
+<li>每次使用双击 <strong><code>Start Mobility.bat</code></strong>。</li>
+</ol>
+<p><strong>请勿</strong>运行 <code>npm install</code> — 依赖库已预装在包内。</p>
+<h2>首次登录</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>地址</td>
+<td>http://&lt;服务器IP&gt;:3888</td>
+</tr>
+<tr>
+<td>用户名</td>
+<td>global</td>
+</tr>
+<tr>
+<td>密码</td>
+<td>global123</td>
+</tr>
+</tbody></table>
+<p>语言：登录页可选 <strong>English</strong> 或 <strong>中文（简体）</strong>。</p>
+<h2>地图</h2>
+<p>本包含 <strong>离线地图瓦片</strong>（北京区域），底图无需外网。</p>
+<h2>执法记录仪上线（概要）</h2>
+<ol>
+<li><strong>设置 → 服务器配置 → 网络</strong> — 填写服务器 IPv4。</li>
+<li><strong>设置 → 服务器配置 → BWC</strong> — 添加设备 ID 与警员姓名。</li>
+<li>在 BWC SIP 界面填写 <strong>Type on BWC</strong> 中的值（仅 IPv4）。</li>
+</ol>
+<h2>视频会议</h2>
+<p>在 Android 安装 <strong>MobilityConference-1.5.6.apk</strong>。Docker 须保持运行。</p>
+
+
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "fleet-backend",
+  "version": "1.0.0",
+  "description": "SIP Standalone Backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "verify": "node scripts/verify-install.js",
+    "postinstall": "node scripts/verify-install.js --quiet"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ffmpeg-static": "^5.2.0",
+    "ftp-srv": "^4.6.3",
+    "livekit-server-sdk": "^2.9.7",
+    "node-llama-cpp": "^3.18.1",
+    "qrcode": "^1.5.4",
+    "sip": "0.0.6",
+    "socket.io": "^4.8.3",
+    "ws": "^8.21.0",
+    "xml2js": "^0.6.2"
+  }
+}

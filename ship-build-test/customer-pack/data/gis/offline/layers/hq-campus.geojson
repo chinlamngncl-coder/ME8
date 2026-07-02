@@ -1,0 +1,21 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "id": "boundary-1", "name": "HQ Offline Boundary", "kind": "boundary" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[28.2268, -25.7496], [28.2338, -25.7496], [28.2338, -25.7440], [28.2268, -25.7440], [28.2268, -25.7496]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "id": "bldg-a", "name": "Ops Building A", "kind": "building" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[28.2281, -25.7489], [28.2297, -25.7489], [28.2297, -25.7477], [28.2281, -25.7477], [28.2281, -25.7489]]]
+      }
+    }
+  ]
+}

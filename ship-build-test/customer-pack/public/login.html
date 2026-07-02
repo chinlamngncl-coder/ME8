@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark">
+    <title>Sign in — Mobility Axiom</title>
+    <style>
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; min-height: 100%;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(160deg, #0f172a 0%, #1e293b 45%, #0f172a 100%);
+            color: #e2e8f0;
+            color-scheme: dark;
+            display: flex; align-items: center; justify-content: center;
+            padding: 24px;
+        }
+        .login-card {
+            width: 100%; max-width: 380px;
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid #475569;
+            border-radius: 12px;
+            padding: 28px 24px 24px;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+        }
+        .login-lang { display: flex; justify-content: flex-end; margin-bottom: 12px; gap: 6px; font-size: 11px; color: #94a3b8; }
+        .login-lang select { background: #0f172a; color: #e2e8f0; border: 1px solid #475569; border-radius: 6px; padding: 4px 8px; font-size: 11px; }
+        .login-brand {
+            display: flex; align-items: center; gap: 14px; margin-bottom: 24px; min-width: 0;
+        }
+        .ubitron-logo {
+            height: 20px; width: auto; display: block; flex-shrink: 0;
+            filter: contrast(1.18) brightness(0.97);
+        }
+        .login-brand-divider {
+            flex-shrink: 0; width: 1px; height: 30px;
+            background: linear-gradient(180deg, transparent, rgba(100, 116, 139, 0.35) 18%, rgba(226, 232, 240, 0.55) 50%, rgba(100, 116, 139, 0.35) 82%, transparent);
+        }
+        .login-brand-text { min-width: 0; }
+        .app-wordmark {
+            margin: 0; display: flex; align-items: baseline; gap: 0.38em; line-height: 1.1;
+            -webkit-font-smoothing: antialiased;
+        }
+        .app-wordmark-primary {
+            font-size: 18px; font-weight: 700; letter-spacing: 0.02em;
+            color: #fafafa;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+        }
+        .app-wordmark-accent {
+            font-size: 18px; font-weight: 700; letter-spacing: 0.1em;
+            background: linear-gradient(180deg, #cbd5e1 0%, #94a3b8 55%, #64748b 100%);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        .login-brand-text h1.app-wordmark { margin: 0; padding: 0; font-size: inherit; font-weight: inherit; }
+        label { display: block; font-size: 11px; color: #94a3b8; margin-bottom: 14px; }
+        .login-input {
+            display: block; width: 100%; margin-top: 6px; padding: 11px 12px;
+            border-radius: 8px; border: 1px solid #475569;
+            background: #0f172a; color: #f8fafc; font-size: 14px;
+            caret-color: #f8fafc; font-family: inherit;
+        }
+        .login-input:focus { outline: none; border-color: #3b82f6; }
+        .login-pass-masked {
+            -webkit-text-security: disc;
+            text-security: disc;
+        }
+        .login-pass-row {
+            display: flex; align-items: stretch; gap: 6px; margin-top: 6px;
+        }
+        .login-pass-row .login-input {
+            flex: 1; min-width: 0; margin-top: 0;
+        }
+        .login-pass-toggle {
+            flex-shrink: 0; padding: 0 12px;
+            border-radius: 8px; border: 1px solid #475569;
+            background: #1e293b; color: #cbd5e1;
+            font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit;
+        }
+        .login-pass-toggle:hover { background: #334155; color: #f8fafc; }
+        button[type="submit"] {
+            width: 100%; margin-top: 8px; padding: 12px;
+            border: none; border-radius: 8px;
+            background: #2563eb; color: #fff;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+        }
+        button[type="submit"]:hover { background: #1d4ed8; }
+        button[type="submit"]:disabled { opacity: 0.6; cursor: wait; }
+        #login-oidc {
+            width: 100%; margin-top: 12px; padding: 12px;
+            border: 1px solid #475569; border-radius: 8px;
+            background: #1e293b; color: #e2e8f0;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+        }
+        #login-oidc:hover { background: #334155; }
+        #login-oidc[hidden] { display: none !important; }
+        #login-form[hidden] { display: none !important; }
+        .login-divider { margin: 16px 0; text-align: center; font-size: 11px; color: #64748b; }
+        .login-divider[hidden] { display: none !important; }
+        #login-error {
+            display: none; margin: 0 0 12px; padding: 10px 12px;
+            border-radius: 8px; background: rgba(220, 38, 38, 0.15);
+            border: 1px solid #b91c1c; color: #fca5a5; font-size: 12px;
+        }
+        #login-totp-step[hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="login-lang">
+            <label for="login-lang" data-i18n="lang.label">Language</label>
+            <select id="login-lang" data-i18n-aria="lang.label" aria-label="Language"></select>
+        </div>
+        <div class="login-brand">
+            <img src="/assets/ubitron-logo.png" alt="UBITRON" class="ubitron-logo">
+            <span class="login-brand-divider" aria-hidden="true"></span>
+            <div class="login-brand-text">
+                <h1 class="app-wordmark" data-i18n-aria="login.title">
+                    <span class="app-wordmark-primary" data-i18n="header.appNamePrimary">Mobility</span>
+                    <span class="app-wordmark-accent" data-i18n="header.appNameAccent">Axiom</span>
+                </h1>
+            </div>
+        </div>
+        <p id="login-error" role="alert" data-i18n="login.errorInvalid">Invalid sign-in. Try again.</p>
+        <button type="button" id="login-oidc" hidden>Sign in with organization account</button>
+        <p id="login-divider" class="login-divider" hidden>or use local account</p>
+        <form id="login-form" autocomplete="on">
+            <label><span data-i18n="login.user">User</span>
+                <input type="text" id="login-user" name="username" class="login-input" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required autofocus>
+            </label>
+            <label><span data-i18n="login.password">Password</span>
+                <div class="login-pass-row">
+                    <input type="text" id="login-pass" name="password" class="login-input login-pass-masked" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" required>
+                    <button type="button" id="login-pass-toggle" class="login-pass-toggle" aria-pressed="false">Show</button>
+                </div>
+            </label>
+            <button type="submit" id="login-submit" data-i18n="login.submit">Sign in</button>
+        </form>
+        <div id="login-totp-step" hidden>
+            <p class="setup-hint" style="font-size:12px;color:#94a3b8;margin:0 0 12px" data-i18n="login.totpHint">Enter the 6-digit code from your authenticator app.</p>
+            <form id="login-totp-form">
+                <label><span data-i18n="login.totpCode">Authenticator code</span>
+                    <input type="text" id="login-totp" class="login-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="8" autocomplete="one-time-code" required>
+                </label>
+                <p class="setup-hint" style="font-size:11px;color:#64748b;margin:0 0 10px" data-i18n="login.totpBackupHint">Or enter a one-time backup code.</p>
+                <button type="submit" id="login-totp-submit" data-i18n="login.totpSubmit">Verify and sign in</button>
+                <button type="button" id="login-totp-back" style="width:100%;margin-top:8px;padding:10px;border-radius:8px;border:1px solid #475569;background:#1e293b;color:#cbd5e1;cursor:pointer" data-i18n="login.totpBack">Back</button>
+            </form>
+        </div>
+    </div>
+    <script src="/js/i18n.js"></script>
+    <script src="/js/password-policy-ui.js"></script>
+    <script src="/js/login.js?v=20260701-totp"></script>
+</body>
+</html>

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mobility Axiom — 配置手册</title>
+  <style>
+body { font-family: "Segoe UI", system-ui, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1.5rem 3rem; line-height: 1.55; color: #1e293b; }
+h1 { font-size: 1.75rem; border-bottom: 2px solid #0f172a; padding-bottom: 0.35rem; }
+h2 { font-size: 1.25rem; margin-top: 1.75rem; color: #0f172a; }
+h3 { font-size: 1.05rem; margin-top: 1.25rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+th, td { border: 1px solid #cbd5e1; padding: 0.45rem 0.65rem; text-align: left; vertical-align: top; }
+th { background: #f1f5f9; }
+code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
+ul, ol { padding-left: 1.4rem; }
+@media print { body { max-width: none; margin: 0; } }
+</style>
+</head>
+<body>
+<h1>Mobility Axiom — 配置手册</h1>
+<p><strong>适用：</strong> IT、超级管理员、安装人员。<br><strong>配合阅读：</strong> <strong>快速指南</strong> · <strong>用户手册</strong></p>
+<p>分步说明服务器设置、BWC 注册、操作员、存储、防火墙及视频会议。</p>
+<hr>
+<h2>目录</h2>
+<ol>
+<li><a href="#1-%E5%BC%80%E5%A7%8B%E4%B9%8B%E5%89%8D">开始之前</a></li>
+<li><a href="#2-%E6%89%93%E5%BC%80-server-config">打开 Server Config</a></li>
+<li><a href="#3-network--deployment">Network &amp; deployment</a></li>
+<li><a href="#4-%E6%B3%A8%E5%86%8C-bwc">注册 BWC</a></li>
+<li><a href="#5-map-groups">Map groups</a></li>
+<li><a href="#6-dashboard-auth">Dashboard Auth</a></li>
+<li><a href="#7-%E8%AF%81%E6%8D%AE%E5%AD%98%E5%82%A8%E8%B7%AF%E5%BE%84">证据存储路径</a></li>
+<li><a href="#8-video-conference">Video Conference</a></li>
+<li><a href="#9-centre-summary-ai">Centre Summary AI</a></li>
+<li><a href="#10-%E9%98%B2%E7%81%AB%E5%A2%99%E4%B8%8E%E7%AB%AF%E5%8F%A3">防火墙与端口</a></li>
+<li><a href="#11-%E8%AF%95%E7%94%A8%E8%AE%B8%E5%8F%AF%E8%AF%81">试用许可证</a></li>
+<li><a href="#12-%E5%AF%86%E7%A0%81%E4%B8%8E%E5%AE%A1%E8%AE%A1">密码与审计</a></li>
+<li><a href="#13-%E9%AA%8C%E6%94%B6%E6%A3%80%E6%9F%A5%E8%A1%A8">验收检查表</a></li>
+</ol>
+<hr>
+<h2>1. 开始之前</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>要求</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>服务器 PC</td>
+<td>Windows 10/11 64 位，建议固定 LAN IP</td>
+</tr>
+<tr>
+<td>交付包</td>
+<td>解压后运行一次 <code>Install-Mobility.bat</code></td>
+</tr>
+<tr>
+<td>Docker Desktop</td>
+<td>已安装并运行（仅视频会议）</td>
+</tr>
+<tr>
+<td>BWC</td>
+<td>已开机、可访问 SIP 界面</td>
+</tr>
+<tr>
+<td>网络</td>
+<td>同 LAN；摄像机键盘仅 <strong>IPv4</strong></td>
+</tr>
+</tbody></table>
+<p>无需单独安装 Node — 包内含 <code>Mobility-Axiom\tools\node\</code>。</p>
+<hr>
+<h2>2. 打开 Server Config</h2>
+<ol>
+<li>超级管理员登录（试用：<code>global</code>）。</li>
+<li><strong>Settings</strong> → <strong>Server Config</strong>。</li>
+<li>左侧：<strong>Network &amp; deployment</strong> | <strong>BWCs</strong> | <strong>Map groups</strong> | <strong>Dashboard Auth</strong>。</li>
+</ol>
+<p>操作员账户为 <strong>只读</strong>。</p>
+<hr>
+<h2>3. Network &amp; deployment</h2>
+<h3>3.1 Deployment</h3>
+<p>选择 <strong>LAN server</strong> → <strong>Save server settings</strong>。</p>
+<h3>3.2 LAN network（重要）</h3>
+<ol>
+<li><strong>BWC SIP server IP</strong> = 本机 <strong>IPv4</strong>（如 <code>192.168.1.10</code>）— 勿用主机名。</li>
+<li>记下 HTTP 端口 <code>3888</code> 与视频 WS <code>3889</code>。</li>
+<li><strong>Save server settings</strong>。</li>
+</ol>
+<h3>3.3 BWC camera register</h3>
+<p>设置 Platform ID、Realm、Password → 将 <strong>Type on BWC</strong> 抄到每台摄像机 SIP 界面。</p>
+<hr>
+<h2>4. 注册 BWC</h2>
+<p><strong>标签：</strong> <strong>BWCs</strong></p>
+<ol>
+<li><strong>Add row</strong> → <strong>Device ID</strong>（与摄像机一致）→ <strong>Officer</strong> → <strong>Map group</strong>（可选）。</li>
+<li><strong>Save BWC list</strong>。</li>
+</ol>
+<p><strong>摄像机 SIP 界面：</strong></p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>填写</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SIP 服务器</td>
+<td>服务器 IPv4</td>
+</tr>
+<tr>
+<td>端口</td>
+<td>5060</td>
+</tr>
+<tr>
+<td>Platform ID / Realm / Password</td>
+<td>与 Server Config 一致</td>
+</tr>
+<tr>
+<td>Device ID</td>
+<td>与 BWC 列表行一致</td>
+</tr>
+</tbody></table>
+<p>约 30 秒后在 <strong>Operations</strong> 显示 <strong>Online</strong>。</p>
+<p>试用包 <code>FM_SEED_BWC_ID=</code> 为空 — 无演示设备。</p>
+<hr>
+<h2>5. Map groups</h2>
+<p>创建组名与颜色 → 在 BWCs 标签分配 → 用于图钉颜色、视频墙、PTT。</p>
+<hr>
+<h2>6. Dashboard Auth</h2>
+<p><strong>Operator：</strong> 允许 Operations/Evidence/Command Wall/VC — 禁止编辑 Server Config → 行内 <strong>Save</strong>。</p>
+<p><strong>Super admin：</strong> 添加行 → <strong>Save</strong>。</p>
+<hr>
+<h2>7. 证据存储路径</h2>
+<p>FTP 文件夹、现场录制、证据索引 → <strong>Save storage</strong> → <strong>Scan FTP for evidence</strong>。</p>
+<p>NAS 须先在 Windows 挂载。</p>
+<p>可选：<strong>Auto-record server video on SOS alarm</strong>。</p>
+<hr>
+<h2>8. Video Conference</h2>
+<ol>
+<li>Docker Desktop。</li>
+<li><code>Install-Mobility.bat</code> — 启动 LiveKit。</li>
+<li><strong>Video Conference → Settings</strong> — 手机 WebSocket（如 <code>ws://192.168.1.10:7880</code>）。</li>
+</ol>
+<p>分发 <code>MobilityConference-1.5.6.apk</code>。</p>
+<hr>
+<h2>9. Centre Summary AI</h2>
+<p>模型位于 <code>Mobility-Axiom\vendor\llm\</code>（约 2 GB），现场无需下载。首次 <strong>Ask</strong> 加载 1–2 分钟。</p>
+<hr>
+<h2>10. 防火墙与端口</h2>
+<table>
+<thead>
+<tr>
+<th>端口</th>
+<th>服务</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>3888</td>
+<td>控制台 HTTP</td>
+</tr>
+<tr>
+<td>3889</td>
+<td>实时视频 WebSocket</td>
+</tr>
+<tr>
+<td>5060</td>
+<td>SIP</td>
+</tr>
+<tr>
+<td>7880</td>
+<td>LiveKit</td>
+</tr>
+<tr>
+<td>40130+ UDP</td>
+<td>RTP</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>11. 试用许可证</h2>
+<p>5 台 BWC · 10 个控制台用户 · 1 年（以许可证文件为准）。</p>
+<hr>
+<h2>12. 密码与审计</h2>
+<p><strong>Dashboard Auth</strong> → 新密码 → <strong>Save</strong>。<strong>Audit Trail</strong> → 筛选 → <strong>Export CSV</strong>。</p>
+<hr>
+<h2>13. 验收检查表</h2>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>通过</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Install-Mobility.bat 无错误</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Docker 运行中</td>
+<td>☐</td>
+</tr>
+<tr>
+<td><code>http://localhost:3888</code> 可打开</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>LAN IP = 本机 IPv4</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>BWC 已保存</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>摄像机 SIP 一致</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>60 秒内 Online</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>图钉有实时视频</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>PTT 有声音</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>FTP 扫描 OK</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>VC Join Room OK</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>操作员只读测试</td>
+<td>☐</td>
+</tr>
+</tbody></table>
+<p>失败请参阅用户手册 §18 与 <code>VIEW-LOG.bat</code>。</p>
+<hr>
+<h2>离线地图（CN 包）</h2>
+<p>瓦片路径 <code>data/gis/offline/tiles/</code> 请勿删除。扩展区域请联系供应商。</p>
+
+
+</body>
+</html>

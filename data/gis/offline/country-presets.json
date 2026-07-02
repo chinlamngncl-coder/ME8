@@ -1,0 +1,10 @@
+{
+  "za": { "name": "South Africa", "pos": [-30.5595, 22.9375], "zoom": 5, "offlineLayer": "hq-campus.geojson" },
+  "ph": { "name": "Philippines", "pos": [12.8797, 121.774], "zoom": 6, "offlineLayer": "philippines.geojson" },
+  "my": { "name": "Malaysia", "pos": [4.2105, 101.9758], "zoom": 6, "offlineLayer": "malaysia.geojson" },
+  "sg": { "name": "Singapore", "pos": [1.3521, 103.8198], "zoom": 11, "offlineLayer": "singapore.geojson" },
+  "id": { "name": "Indonesia", "pos": [-2.5489, 118.0149], "zoom": 5, "offlineLayer": "indonesia.geojson" },
+  "th": { "name": "Thailand", "pos": [15.87, 100.9925], "zoom": 6, "offlineLayer": "thailand.geojson" },
+  "kr": { "name": "Korea", "pos": [36.5, 127.9], "zoom": 7, "offlineLayer": "korea.geojson" },
+  "cn": { "name": "China", "pos": [35.8617, 104.1954], "zoom": 4, "offlineLayer": "china.geojson" }
+}

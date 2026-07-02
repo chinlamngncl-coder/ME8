@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mobility Axiom — 빠른 시작 가이드</title>
+  <style>
+body { font-family: "Segoe UI", system-ui, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1.5rem 3rem; line-height: 1.55; color: #1e293b; }
+h1 { font-size: 1.75rem; border-bottom: 2px solid #0f172a; padding-bottom: 0.35rem; }
+h2 { font-size: 1.25rem; margin-top: 1.75rem; color: #0f172a; }
+h3 { font-size: 1.05rem; margin-top: 1.25rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+th, td { border: 1px solid #cbd5e1; padding: 0.45rem 0.65rem; text-align: left; vertical-align: top; }
+th { background: #f1f5f9; }
+code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
+ul, ol { padding-left: 1.4rem; }
+@media print { body { max-width: none; margin: 0; } }
+</style>
+</head>
+<body>
+<h1>Mobility Axiom — 빠른 시작 가이드</h1>
+<h2>이 PC에 필요한 것</h2>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>필수?</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Windows 10/11 (64비트)</td>
+<td>예</td>
+<td>Docker 설치 시 관리자 권한</td>
+</tr>
+<tr>
+<td><strong>Node.js</strong></td>
+<td><strong>아니오</strong></td>
+<td>패키지에 포함 (<code>Mobility-Axiom\tools\node\</code>)</td>
+</tr>
+<tr>
+<td><strong>Docker Desktop</strong></td>
+<td>예 (화상회의)</td>
+<td><a href="https://www.docker.com/products/docker-desktop/">다운로드</a></td>
+</tr>
+<tr>
+<td>인터넷</td>
+<td>최초 설치 시</td>
+<td>화상회의용 Docker 이미지 다운로드</td>
+</tr>
+</tbody></table>
+<h2>설치 (한 번)</h2>
+<ol>
+<li>배송 폴더 전체를 <strong>압축 해제</strong> (예: <code>C:\Mobility-Trial\</code>).</li>
+<li>위 링크에서 <strong>Docker Desktop</strong> 설치 후 실행 — 고래 아이콘이 안정될 때까지 대기.</li>
+<li><strong><code>Install-Mobility.bat</code></strong> 더블클릭 (패키지 루트).<ul>
+<li>번들 Node 및 라이브러리 확인</li>
+<li>LAN IP로 <code>.env</code> 생성</li>
+<li>LiveKit(화상회의) 시작</li>
+</ul>
+</li>
+<li>사용할 때마다 <strong><code>Start Mobility.bat</code></strong> 더블클릭.</li>
+</ol>
+<p><strong><code>npm install</code>을 실행하지 마세요</strong> — 의존성은 패키지에 포함되어 있습니다.</p>
+<h2>첫 로그인</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>URL</td>
+<td>http://&lt;서버-IP&gt;:3888</td>
+</tr>
+<tr>
+<td>사용자명</td>
+<td>global</td>
+</tr>
+<tr>
+<td>비밀번호</td>
+<td>global123</td>
+</tr>
+</tbody></table>
+<h2>BWC 온라인 (요약)</h2>
+<ol>
+<li><strong>Settings → Server Config → Network</strong> — set server IPv4 → <strong>Save server settings</strong>.</li>
+<li><strong>Settings → Server Config → BWCs</strong> — add Device ID + officer name → <strong>Save BWC list</strong>.</li>
+<li>On each BWC SIP screen — enter values from <strong>Type on BWC</strong> (IPv4 only).</li>
+<li>Wait ~30s — device shows <strong>Online</strong> in fleet list.</li>
+</ol>
+<h2>화상 회의 (휴대폰)</h2>
+<ol>
+<li>Install <strong>MobilityConference-1.5.6.apk</strong> on Android.</li>
+<li>Server URL = same as dashboard (http://<server-ip>:3888).</li>
+<li>Sign in → open room → Join with camera.</li>
+</ol>
+<h2>체험 라이선스</h2>
+<p>5 BWC · 10 dashboard users · 1 year.</p>
+<p>Full steps: <strong>Configuration Manual</strong> in this folder.</p>
+
+
+</body>
+</html>

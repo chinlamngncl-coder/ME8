@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mobility Axiom — คู่มือผู้ใช้ (คู่มือผู้ปฏิบัติการ)</title>
+  <style>
+body { font-family: "Segoe UI", system-ui, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1.5rem 3rem; line-height: 1.55; color: #1e293b; }
+h1 { font-size: 1.75rem; border-bottom: 2px solid #0f172a; padding-bottom: 0.35rem; }
+h2 { font-size: 1.25rem; margin-top: 1.75rem; color: #0f172a; }
+h3 { font-size: 1.05rem; margin-top: 1.25rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+th, td { border: 1px solid #cbd5e1; padding: 0.45rem 0.65rem; text-align: left; vertical-align: top; }
+th { background: #f1f5f9; }
+code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
+ul, ol { padding-left: 1.4rem; }
+@media print { body { max-width: none; margin: 0; } }
+</style>
+</head>
+<body>
+<h1>Mobility Axiom — คู่มือผู้ใช้ (คู่มือผู้ปฏิบัติการ)</h1>
+<p><strong>สำหรับ:</strong> ผู้จัดจ่าย หัวหน้างาน เจ้าหน้าที่หลักฐาน ห้องควบคุม<br><strong>เอกสารที่เกี่ยวข้อง:</strong> <strong>Quick Guide</strong>(ติดตั้ง) · <strong>Configuration Manual</strong>(เซิร์ฟเวอร์/BWC) · <strong>README.txt</strong></p>
+<p>คู่มือนี้อธิบาย <strong>ทุกแท็บ ปุ่มหลัก และขั้นตอนการทำงาน</strong> บนแดชบอร์ด ป้าย UI ตรงกับภาษาที่เลือก</p>
+<hr>
+<h2>สารบัญ</h2>
+<ol>
+<li><a href="#1-%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%97%E0%B8%B3%E0%B8%AD%E0%B8%B0%E0%B9%84%E0%B8%A3">ระบบทำอะไร</a></li>
+<li><a href="#2-%E0%B9%80%E0%B8%82%E0%B9%89%E0%B8%B2%E0%B8%AA%E0%B8%B9%E0%B9%88%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A-%E0%B8%A0%E0%B8%B2%E0%B8%A9%E0%B8%B2-%E0%B8%AD%E0%B8%AD%E0%B8%81%E0%B8%88%E0%B8%B2%E0%B8%81%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A">เข้าสู่ระบบ ภาษา ออกจากระบบ</a></li>
+<li><a href="#3-%E0%B9%81%E0%B8%96%E0%B8%9A%E0%B8%AB%E0%B8%B1%E0%B8%A7%E0%B8%88%E0%B8%AD">แถบหัวจอ</a></li>
+<li><a href="#4-%E0%B9%81%E0%B8%97%E0%B9%87%E0%B8%9A-operations">แท็บ Operations</a></li>
+<li><a href="#5-device-summary">Device Summary</a></li>
+<li><a href="#6-sos">SOS</a></li>
+<li><a href="#7-ptt-groups-%E0%B9%81%E0%B8%A5%E0%B8%B0-messages">PTT groups และ Messages</a></li>
+<li><a href="#8-%E0%B9%81%E0%B8%9C%E0%B8%99%E0%B8%97%E0%B8%B5%E0%B9%88">แผนที่</a></li>
+<li><a href="#9-geofencing">Geofencing</a></li>
+<li><a href="#10-video-wall">Video wall</a></li>
+<li><a href="#11-evidence--docking">Evidence &amp; Docking</a></li>
+<li><a href="#12-command-wall">Command Wall</a></li>
+<li><a href="#13-centre-summary">Centre Summary</a></li>
+<li><a href="#14-video-conference">Video Conference</a></li>
+<li><a href="#15-settings-%E0%B9%81%E0%B8%A5%E0%B8%B0-audit-trail">Settings และ Audit Trail</a></li>
+<li><a href="#16-%E0%B8%9A%E0%B8%97%E0%B8%9A%E0%B8%B2%E0%B8%97%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B9%83%E0%B8%8A%E0%B9%89">บทบาทผู้ใช้</a></li>
+<li><a href="#17-%E0%B8%95%E0%B8%B1%E0%B8%A7%E0%B8%AD%E0%B8%A2%E0%B9%88%E0%B8%B2%E0%B8%87-workflow">ตัวอย่าง workflow</a></li>
+<li><a href="#18-%E0%B9%81%E0%B8%81%E0%B9%89%E0%B8%9B%E0%B8%B1%E0%B8%8D%E0%B8%AB%E0%B8%B2">แก้ปัญหา</a></li>
+</ol>
+<hr>
+<h2>1. ระบบทำอะไร</h2>
+<table>
+<thead>
+<tr>
+<th>ความสามารถ</th>
+<th>ตำแหน่งใน UI</th>
+<th>การใช้งาน</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>แผนที่ GPS สด</td>
+<td>Operations → แผนที่</td>
+<td>ตำแหน่งเจ้าหน้าที่ SOS สถานะบันทึก</td>
+</tr>
+<tr>
+<td>วิดีโอ BWC สด</td>
+<td>แผง pin วิดีโอวอลล์ Command Wall</td>
+<td>หลายสตรีม (Operations 6 จอ)</td>
+</tr>
+<tr>
+<td>เสียง/PTT</td>
+<td>ตาราง fleet pin กลุ่ม PTT</td>
+<td>พูดคุย 1:1 หรือกลุ่ม</td>
+</tr>
+<tr>
+<td>SOS</td>
+<td>แบนเนอร์ SOS log แผนที่</td>
+<td>แจ้งเตือน รายงาน ส่งออกโฟลเดอร์</td>
+</tr>
+<tr>
+<td>ข้อความถึง BWC</td>
+<td>Operations → Messages</td>
+<td>ส่งข้อความเมื่อออนไลน์</td>
+</tr>
+<tr>
+<td>หลักฐาน</td>
+<td>แท็บ Evidence</td>
+<td>ค้นหาไฟล์จาก dock บันทึกเซิร์ฟเวอร์</td>
+</tr>
+<tr>
+<td>ประชุมวิดีโอ</td>
+<td>Video Conference</td>
+<td>ห้อง โทรศัพท์ PC แชร์ BWC</td>
+</tr>
+<tr>
+<td>ผู้ดูแล</td>
+<td>Settings → Server Config</td>
+<td>เครือข่าย รายการ BWC</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>2. เข้าสู่ระบบ ภาษา ออกจากระบบ</h2>
+<h3>2.1 เข้าครั้งแรก</h3>
+<ol>
+<li>เปิดเบราว์เซอร์ (Chrome/Edge)</li>
+<li>ไปที่ <code>http://&lt;server-ip&gt;:3888</code> (ทดลอง: <code>http://localhost:3888</code>)</li>
+<li>ใส่ <strong>Username</strong> / <strong>Password</strong> (ทดลอง: <code>global</code> / <code>global123</code>)</li>
+<li>คลิก <strong>Sign in</strong></li>
+</ol>
+<h3>2.2 เปลี่ยนภาษา</h3>
+<p>หน้า login หรือ <strong>Language</strong> มุมขวาบน — APAC: อังกฤษ เกาหลี ไทย อินโดนีเซีย ฟิลิปปินส์</p>
+<h3>2.3 เปลี่ยนรหัสผ่าน (super admin)</h3>
+<p><strong>Settings</strong> → <strong>Server Config</strong> → <strong>Dashboard Auth</strong> → แก้รหัส → <strong>Save</strong></p>
+<h3>2.4 ออกจากระบบ</h3>
+<p><strong>Settings</strong> → <strong>Sign out</strong> — ใช้ PC ร่วมต้องออกเสมอ</p>
+<hr>
+<h2>3. แถบหัวจอ</h2>
+<table>
+<thead>
+<tr>
+<th>ปุ่ม</th>
+<th>หน้าที่</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>🔊 Voice mute</td>
+<td>ปิด/เปิดเสียง SOS</td>
+</tr>
+<tr>
+<td>Repeat</td>
+<td>เล่นเสียงแจ้งเตือนซ้ำ</td>
+</tr>
+<tr>
+<td>Language</td>
+<td>เปลี่ยนภาษา UI</td>
+</tr>
+<tr>
+<td>SOS banner</td>
+<td>แถบแดงเมื่อมี SOS</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>4. แท็บ Operations</h2>
+<table>
+<thead>
+<tr>
+<th>ส่วน</th>
+<th>เนื้อหา</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>แถบซ้าย</td>
+<td>Device Summary SOS log PTT Messages Storage</td>
+</tr>
+<tr>
+<td>กลาง</td>
+<td>แผนที่ + toolbar</td>
+</tr>
+<tr>
+<td>ขวา</td>
+<td>วิดีโอ 6 ช่อง</td>
+</tr>
+</tbody></table>
+<p><strong>◀</strong> ซ่อน/แสดงแถบซ้าย | <strong>Auto-rotate</strong> <strong>Popout Matrix</strong> <strong>Config</strong></p>
+<hr>
+<h2>5. Device Summary</h2>
+<table>
+<thead>
+<tr>
+<th>คอลัมน์</th>
+<th>การกระทำ</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pin</td>
+<td>เปิด pin แผนที่ + วิดีโอ</td>
+</tr>
+<tr>
+<td>PTT</td>
+<td><strong>กดค้าง</strong> พูด 1:1</td>
+</tr>
+<tr>
+<td>Call</td>
+<td>โทรเสียง</td>
+</tr>
+<tr>
+<td>GPS</td>
+<td>ดูเส้นทาง</td>
+</tr>
+</tbody></table>
+<p><strong>Open All (Up to 6)</strong> · <strong>Clear map pins</strong></p>
+<p>ขั้นตอน: ตรวจ <strong>Online</strong> → <strong>Pin</strong> → <strong>PTT</strong></p>
+<hr>
+<h2>6. SOS</h2>
+<p>แบนเนอร์แดง → ตั้ง <strong>radius</strong> (200–1000 m) ดูหน่วยใกล้เคียงบนแผนที่ → <strong>Acknowledge</strong> (ติ๊กหน่วยใกล้เคียงเป็นค่าเริ่มต้น) หรือ <strong>PTT team</strong> → รอ toast <strong>PTT team ON</strong> → <strong>กดค้าง PTT</strong> ที่ wall/pin ของเจ้าหน้าที่แจ้งเหตุเพื่อพูดกับ<strong>ทั้งทีม</strong> → <strong>SOS log</strong> · <strong>Open incident files</strong> · PIN <strong>Unlock</strong></p>
+<hr>
+<h2>7. PTT groups และ Messages</h2>
+<p>เลือกกลุ่มแผนที่หรือติ๊ก 2+ ออนไลน์ → <strong>Join group PTT</strong> · Messages: คลิกชื่อ → <strong>Send</strong></p>
+<hr>
+<h2>8. แผนที่</h2>
+<p>ลากซูม · pin สีตามกลุ่ม · แผงลอย: วิดีโอ <strong>PTT</strong> · toolbar: <strong>Wall Map</strong> Snapshot บันทึก SD/เซิร์ฟเวอร์ geofencing</p>
+<hr>
+<h2>9. Geofencing</h2>
+<p>ใส่รัศมี(เมตร) → <strong>Set geofencing</strong> → วางบนแผนที่ → <strong>Save geofence</strong> · <strong>Clear geofencing</strong> ลบ</p>
+<hr>
+<h2>10. Video wall</h2>
+<p>6 ช่อง · <strong>Auto-rotate</strong> · <strong>Config</strong>(กำหนด BWC/กลุ่ม/CSV) · <strong>Stop</strong> ต่อช่อง</p>
+<hr>
+<h2>11. Evidence &amp; Docking</h2>
+<p>แท็บย่อย: Overview · Docking Stations · Evidence Library · Case Files · Route &amp; GPS · Storage</p>
+<p>Library: <strong>Refresh</strong> ค้นหา <strong>Detail</strong> <strong>Download</strong> · Case: <strong>New case file</strong> <strong>Create from SOS</strong> · Storage(admin): <strong>Save storage</strong> <strong>Scan FTP</strong></p>
+<hr>
+<h2>12. Command Wall</h2>
+<p>ลากจาก Roster → panel · เลย์เอาต์ 1/4/9/16/32 · <strong>Rotate</strong> · <strong>Spotlight</strong> · <strong>Clear wall</strong> · Display room: 4 จอ SOS Room</p>
+<hr>
+<h2>13. Centre Summary</h2>
+<p>KPI SOS กราฟ ที่เก็บข้อมูล สุขภาพระบบ AI → <strong>Ask</strong> · <strong>Refresh</strong></p>
+<hr>
+<h2>14. Video Conference</h2>
+<p>ต้องมี Docker · <strong>Join Room</strong> · Gallery/Speaker/Focus · <strong>Share screen</strong> · BWC <strong>Add to Room</strong> · APK MobilityConference-1.5.6.apk</p>
+<hr>
+<h2>15. Settings และ Audit Trail</h2>
+<p><strong>Server Config</strong> การ์ด lifecycle <strong>Audit Trail</strong> กรองวันที่ → <strong>Apply</strong> → <strong>Export CSV</strong> · <strong>Sign out</strong></p>
+<hr>
+<h2>16. บทบาทผู้ใช้</h2>
+<p>Super admin แก้ Server Config ได้ · Operator อ่านอย่างเดียว · Custom ตั้งที่ Dashboard Auth</p>
+<hr>
+<h2>17. ตัวอย่าง workflow</h2>
+<p>เริ่มกะ: Start Mobility.bat → Operations ตรวจออนไลน์ · เหตุการณ์: Pin+PTT · SOS: แบนเนอร์→ตั้ง radius→Ack(ติ๊กหน่วยใกล้)หรือ PTT team→กดค้าง PTT ทีม→log · TV: Command Wall 16 Rotate 30วินาที</p>
+<hr>
+<h2>18. แก้ปัญหา</h2>
+<table>
+<thead>
+<tr>
+<th>อาการ</th>
+<th>แก้</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Offline ทั้งหมด</td>
+<td>Configuration Manual เครือข่าย</td>
+</tr>
+<tr>
+<td>ไม่มีวิดีโอ</td>
+<td>ไฟร์วอลล์ 3889 Pin</td>
+</tr>
+<tr>
+<td>PTT เงียบ</td>
+<td>กดค้าง</td>
+</tr>
+<tr>
+<td>VC ล้มเหลว</td>
+<td>Docker + Install-Mobility.bat</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>แผนที่เอกสาร</h2>
+<table>
+<thead>
+<tr>
+<th>ต้องการ</th>
+<th>อ่าน</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ติดตั้ง</td>
+<td><strong>Quick Guide</strong></td>
+</tr>
+<tr>
+<td>เซิร์ฟเวอร์/BWC</td>
+<td><strong>Configuration Manual</strong></td>
+</tr>
+<tr>
+<td>ใช้งานประจำวัน</td>
+<td><strong>คู่มือนี้</strong></td>
+</tr>
+</tbody></table>
+
+
+</body>
+</html>

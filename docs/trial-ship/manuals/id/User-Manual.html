@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mobility Axiom — Panduan Pengguna (Panduan Operator)</title>
+  <style>
+body { font-family: "Segoe UI", system-ui, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1.5rem 3rem; line-height: 1.55; color: #1e293b; }
+h1 { font-size: 1.75rem; border-bottom: 2px solid #0f172a; padding-bottom: 0.35rem; }
+h2 { font-size: 1.25rem; margin-top: 1.75rem; color: #0f172a; }
+h3 { font-size: 1.05rem; margin-top: 1.25rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+th, td { border: 1px solid #cbd5e1; padding: 0.45rem 0.65rem; text-align: left; vertical-align: top; }
+th { background: #f1f5f9; }
+code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
+ul, ol { padding-left: 1.4rem; }
+@media print { body { max-width: none; margin: 0; } }
+</style>
+</head>
+<body>
+<h1>Mobility Axiom — Panduan Pengguna (Panduan Operator)</h1>
+<p><strong>Untuk:</strong> Dispatcher, supervisor, staf bukti, ruang kendali.<br><strong>Dokumen terkait:</strong> <strong>Quick Guide</strong>(instal) · <strong>Panduan Konfigurasi</strong>(server/BWC) · <strong>README.txt</strong></p>
+<p>Panduan ini menjelaskan <strong>setiap tab</strong>, <strong>tombol utama</strong>, dan <strong>alur kerja langkah demi langkah</strong>. Label UI sesuai bahasa yang dipilih.</p>
+<hr>
+<h2>Daftar isi</h2>
+<ol>
+<li><a href="#1-fungsi-sistem">Fungsi sistem</a></li>
+<li><a href="#2-masuk-bahasa-keluar">Masuk, bahasa, keluar</a></li>
+<li><a href="#3-bilah-header">Bilah header</a></li>
+<li><a href="#4-tab-operations">Tab Operations</a></li>
+<li><a href="#5-device-summary">Device Summary</a></li>
+<li><a href="#6-sos">SOS</a></li>
+<li><a href="#7-ptt-groups--messages">PTT groups &amp; Messages</a></li>
+<li><a href="#8-peta">Peta</a></li>
+<li><a href="#9-geofencing">Geofencing</a></li>
+<li><a href="#10-video-wall">Video wall</a></li>
+<li><a href="#11-evidence--docking">Evidence &amp; Docking</a></li>
+<li><a href="#12-command-wall">Command Wall</a></li>
+<li><a href="#13-centre-summary">Centre Summary</a></li>
+<li><a href="#14-video-conference">Video Conference</a></li>
+<li><a href="#15-settings--audit-trail">Settings &amp; Audit Trail</a></li>
+<li><a href="#16-peran-pengguna">Peran pengguna</a></li>
+<li><a href="#17-contoh-alur-kerja">Contoh alur kerja</a></li>
+<li><a href="#18-pemecahan-masalah">Pemecahan masalah</a></li>
+</ol>
+<hr>
+<h2>1. Fungsi sistem</h2>
+<table>
+<thead>
+<tr>
+<th>Kemampuan</th>
+<th>Di UI</th>
+<th>Yang bisa dilakukan</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Peta GPS langsung</td>
+<td>Operations → peta</td>
+<td>Lokasi petugas, SOS, status rekam</td>
+</tr>
+<tr>
+<td>Video BWC langsung</td>
+<td>Panel pin, video wall, Command Wall</td>
+<td>Banyak stream (6 di Operations)</td>
+</tr>
+<tr>
+<td>Suara/PTT</td>
+<td>Tabel armada, pin, grup PTT</td>
+<td>Push-to-talk 1:1 atau grup</td>
+</tr>
+<tr>
+<td>SOS</td>
+<td>Banner, log SOS, peta</td>
+<td>Alarm, laporan, ekspor folder</td>
+</tr>
+<tr>
+<td>Teks ke BWC</td>
+<td>Operations → Messages</td>
+<td>Kirim teks saat online</td>
+</tr>
+<tr>
+<td>Perpustakaan bukti</td>
+<td>Tab Evidence</td>
+<td>Cari unggahan dock, rekam server</td>
+</tr>
+<tr>
+<td>Konferensi video</td>
+<td>Video Conference</td>
+<td>Ruang, ponsel, PC, share BWC</td>
+</tr>
+<tr>
+<td>Admin</td>
+<td>Settings → Server Config</td>
+<td>Jaringan, daftar BWC</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>2. Masuk, bahasa, keluar</h2>
+<h3>2.1 Login pertama</h3>
+<ol>
+<li>Buka browser (Chrome/Edge).</li>
+<li><code>http://&lt;ip-server&gt;:3888</code> (uji coba: <code>http://localhost:3888</code>).</li>
+<li><strong>Username</strong> / <strong>Password</strong> (<code>global</code> / <code>global123</code>).</li>
+<li>Klik <strong>Sign in</strong>.</li>
+</ol>
+<h3>2.2 Ganti bahasa</h3>
+<p>Dropdown <strong>Language</strong> di login atau header — APAC: EN, KO, TH, ID, FIL.</p>
+<h3>2.3 Ganti kata sandi (super admin)</h3>
+<p><strong>Settings</strong> → <strong>Server Config</strong> → <strong>Dashboard Auth</strong> → kata sandi baru → <strong>Save</strong>.</p>
+<h3>2.4 Keluar</h3>
+<p><strong>Settings</strong> → <strong>Sign out</strong> — wajib di PC bersama.</p>
+<hr>
+<h2>3. Bilah header</h2>
+<table>
+<thead>
+<tr>
+<th>Kontrol</th>
+<th>Fungsi</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>🔊 Voice mute</td>
+<td>Bisukan suara SOS</td>
+</tr>
+<tr>
+<td>Repeat</td>
+<td>Ulangi peringatan suara</td>
+</tr>
+<tr>
+<td>Language</td>
+<td>Ganti bahasa UI</td>
+</tr>
+<tr>
+<td>SOS banner</td>
+<td>Strip merah saat SOS aktif</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>4. Tab Operations</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Isi</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Sidebar kiri</td>
+<td>Device Summary, SOS log, PTT, Messages, Storage</td>
+</tr>
+<tr>
+<td>Tengah</td>
+<td>Peta + toolbar</td>
+</tr>
+<tr>
+<td>Kanan</td>
+<td>6 panel video</td>
+</tr>
+</tbody></table>
+<p><strong>◀</strong> sembunyikan sidebar · <strong>Auto-rotate</strong> · <strong>Popout Matrix</strong> · <strong>Config</strong></p>
+<hr>
+<h2>5. Device Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Tindakan</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pin</td>
+<td>Toggle pin peta + video mengambang</td>
+</tr>
+<tr>
+<td>PTT</td>
+<td><strong>Tahan</strong> bicara 1:1</td>
+</tr>
+<tr>
+<td>Call</td>
+<td>Panggilan suara</td>
+</tr>
+<tr>
+<td>GPS</td>
+<td>Lacak rute</td>
+</tr>
+</tbody></table>
+<p><strong>Open All (Up to 6)</strong> · <strong>Clear map pins</strong> — Online → <strong>Pin</strong> → <strong>PTT</strong></p>
+<hr>
+<h2>6. SOS</h2>
+<p>Banner merah → atur <strong>radius</strong> (200–1000 m) untuk unit terdekat di peta → <strong>Acknowledge</strong> (unit terdekat <strong>tercentang</strong> default) atau <strong>PTT team</strong> → tunggu toast <strong>PTT team ON</strong> → <strong>tahan PTT</strong> di wall/pin petugas alarm untuk bicara ke <strong>seluruh tim</strong> → baris <strong>SOS log</strong> · <strong>Open incident files</strong> · PIN <strong>Unlock</strong></p>
+<hr>
+<h2>7. PTT groups &amp; Messages</h2>
+<p>Pilih grup peta atau centang 2+ online → <strong>Join group PTT</strong> · Messages: klik nama → <strong>Send</strong></p>
+<hr>
+<h2>8. Peta</h2>
+<p>Geser/zoom · pin berwarna · panel: video <strong>PTT</strong> · toolbar: <strong>Wall Map</strong> Snapshot rekam SD/server geofencing</p>
+<hr>
+<h2>9. Geofencing</h2>
+<p>Radius (meter) → <strong>Set geofencing</strong> → tempatkan → <strong>Save geofence</strong> · <strong>Clear geofencing</strong></p>
+<hr>
+<h2>10. Video wall</h2>
+<p>6 panel · <strong>Auto-rotate</strong> · <strong>Config</strong> (BWC/grup/CSV) · <strong>Stop</strong></p>
+<hr>
+<h2>11. Evidence &amp; Docking</h2>
+<p>Sub-tab: Overview · Docking Stations · Evidence Library · Case Files · Route &amp; GPS · Storage</p>
+<p>Library: <strong>Refresh</strong> cari <strong>Detail</strong> unduh · Case: <strong>New case file</strong> <strong>Create from SOS</strong> · Storage: <strong>Save storage</strong> <strong>Scan FTP</strong></p>
+<hr>
+<h2>12. Command Wall</h2>
+<p>Seret Roster → panel · layout 1/4/9/16/32 · <strong>Rotate</strong> · <strong>Spotlight</strong> · <strong>Clear wall</strong></p>
+<hr>
+<h2>13. Centre Summary</h2>
+<p>KPI, grafik SOS, penyimpanan, AI → <strong>Ask</strong> · <strong>Refresh</strong></p>
+<hr>
+<h2>14. Video Conference</h2>
+<p>Docker wajib · <strong>Join Room</strong> · Gallery/Speaker · <strong>Share screen</strong> · BWC <strong>Add to Room</strong> · APK</p>
+<hr>
+<h2>15. Settings &amp; Audit Trail</h2>
+<p><strong>Server Config</strong>, kartu lifecycle, <strong>Audit Trail</strong> filter → <strong>Apply</strong> → <strong>Export CSV</strong>, <strong>Sign out</strong></p>
+<hr>
+<h2>16. Peran pengguna</h2>
+<p>Super admin edit penuh · Operator Server Config baca saja · Custom di Dashboard Auth</p>
+<hr>
+<h2>17. Contoh alur kerja</h2>
+<p>Mulai shift: Start Mobility.bat → cek online · Insiden: Pin+PTT · SOS: banner→radius→Ack(centang terdekat) atau PTT team→tahan PTT tim→log · TV: Command Wall 16 Rotate 30dtk</p>
+<hr>
+<h2>18. Pemecahan masalah</h2>
+<table>
+<thead>
+<tr>
+<th>Gejala</th>
+<th>Perbaikan</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Semua Offline</td>
+<td>Panduan Konfigurasi jaringan</td>
+</tr>
+<tr>
+<td>Tanpa video</td>
+<td>Firewall 3889, Pin</td>
+</tr>
+<tr>
+<td>PTT diam</td>
+<td>Tahan tombol</td>
+</tr>
+<tr>
+<td>VC gagal</td>
+<td>Docker + Install-Mobility.bat</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Peta dokumen</h2>
+<table>
+<thead>
+<tr>
+<th>Butuh</th>
+<th>Baca</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Instal</td>
+<td><strong>Quick Guide</strong></td>
+</tr>
+<tr>
+<td>Server/BWC</td>
+<td><strong>Panduan Konfigurasi</strong></td>
+</tr>
+<tr>
+<td>Operasi harian</td>
+<td><strong>Panduan ini</strong></td>
+</tr>
+</tbody></table>
+
+
+</body>
+</html>

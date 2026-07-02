@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Live — Mobility Axiom</title>
+    <style>
+        body { margin: 0; background: #000; color: #e2e8f0; font-family: Inter, system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; }
+        .header { padding: 8px 14px; background: #1e293b; display: flex; justify-content: space-between; align-items: center; gap: 10px; border-bottom: 1px solid #334155; }
+        #camTitle { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .controls { display: flex; gap: 6px; flex-shrink: 0; }
+        button { background: #0f172a; border: 1px solid #475569; color: #e2e8f0; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 12px; min-width: 32px; }
+        button:hover:not(:disabled) { background: #334155; }
+        button:disabled { opacity: 0.35; cursor: default; }
+        button.active { color: #4ade80; border-color: #22c55e; background: #14532d; }
+        #btn-close { background: #2563eb; border-color: #1d4ed8; color: #fff; }
+        .stage { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; min-height: 0; }
+        canvas { width: 100%; height: 100%; object-fit: contain; }
+        #status { position: absolute; color: #94a3b8; font-size: 13px; pointer-events: none; }
+    </style>
+    <script src="/vendor/jsmpeg.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/ptt-mic.js"></script>
+    <script src="/js/call-mic.js"></script>
+</head>
+<body>
+    <div class="header">
+        <span id="camTitle">Connecting…</span>
+        <div class="controls">
+            <button type="button" id="btn-play" title="Play">▶</button>
+            <button type="button" id="btn-stop" title="Stop">■</button>
+            <button type="button" id="btn-mute" title="Listen">🔇</button>
+            <button type="button" id="btn-call" title="Call BWC (when live)" hidden disabled>📞</button>
+            <button type="button" id="btn-close">Close</button>
+        </div>
+    </div>
+    <div class="stage">
+        <canvas id="canvas"></canvas>
+        <div id="status">Connecting…</div>
+    </div>
+    <script>
+        (function () {
+            var params = new URLSearchParams(window.location.search);
+            var camId = params.get('camId') || '';
+            var dashPort = parseInt(params.get('port') || window.location.port || '3888', 10);
+            var videoWsPort = dashPort + 1;
+            var audioWsPort = dashPort + 2;
+            var attachExisting = params.get('stream') === '1';
+
+            var player = null;
+            var socket = null;
+            var pcmAudio = null;
+            var audioMuted = false;
+            var voiceCallCamId = null;
+            var voiceCallPending = false;
+            var liveStarted = false;
+
+            var canvas = document.getElementById('canvas');
+            var statusEl = document.getElementById('status');
+            var titleEl = document.getElementById('camTitle');
+            var muteBtn = document.getElementById('btn-mute');
+            var callBtn = document.getElementById('btn-call');
+
+            titleEl.textContent = camId ? ('LIVE · ' + camId) : 'No camera';
+
+            function wsVideoUrl() {
+                return 'ws://' + window.location.hostname + ':' + videoWsPort + '/?camId=' + encodeURIComponent(camId);
+            }
+
+            function wsAudioUrl() {
+                return 'ws://' + window.location.hostname + ':' + audioWsPort;
+            }
+
+            function setStatus(text) {
+                statusEl.textContent = text || '';
+                statusEl.style.display = text ? 'block' : 'none';
+            }
+
+            function ensurePcmAudio() {
+                if (pcmAudio) return pcmAudio;
+                var AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return null;
+                var ctx = new AudioCtx({ sampleRate: 8000 });
+                var gain = ctx.createGain();
+                gain.connect(ctx.destination);
+                var ws = new WebSocket(wsAudioUrl());
+                ws.binaryType = 'arraybuffer';
+                pcmAudio = { ctx: ctx, ws: ws, gain: gain, nextTime: 0, started: false };
+                ws.onopen = function () {
+                    if (ctx.state === 'suspended') ctx.resume();
+                    if (socket && camId) socket.emit('audio-focus', { camId: camId });
+                    syncListenGain();
+                };
+                ws.onmessage = function (ev) {
+                    if (!ev.data || audioMuted) return;
+                    var int16 = new Int16Array(ev.data);
+                    if (!int16.length) return;
+                    var float32 = new Float32Array(int16.length);
+                    for (var i = 0; i < int16.length; i++) {
+                        float32[i] = int16[i] / (int16[i] < 0 ? 32768 : 32767);
+                    }
+                    var buf = ctx.createBuffer(1, float32.length, 8000);
+                    buf.getChannelData(0).set(float32);
+                    var src = ctx.createBufferSource();
+                    src.buffer = buf;
+                    src.connect(gain);
+                    if (!pcmAudio.started) {
+                        pcmAudio.nextTime = ctx.currentTime + 0.05;
+                        pcmAudio.started = true;
+                    }
+                    var t = Math.max(ctx.currentTime, pcmAudio.nextTime);
+                    src.start(t);
+                    pcmAudio.nextTime = t + buf.duration;
+                };
+                return pcmAudio;
+            }
+
+            function syncListenGain() {
+                if (!pcmAudio || !pcmAudio.gain) return;
+                pcmAudio.gain.gain.value = audioMuted ? 0 : 1;
+            }
+
+            function syncCallUi() {
+                var live = !!player;
+                callBtn.hidden = !live;
+                callBtn.disabled = !live || voiceCallPending;
+                var active = !!(camId && voiceCallCamId === camId);
+                callBtn.classList.toggle('active', active);
+                callBtn.title = active ? 'End voice call' : 'Call BWC (when live)';
+            }
+
+            function startPlayer() {
+                if (!camId) return;
+                if (player) {
+                    try { player.destroy(); } catch (_) { /* ignore */ }
+                    player = null;
+                }
+                setStatus('Connecting…');
+                try {
+                    player = new JSMpeg.Player(wsVideoUrl(), {
+                        canvas: canvas,
+                        audio: false,
+                        disableGl: true,
+                        onVideoDecode: function () {
+                            setStatus('');
+                            liveStarted = true;
+                            ensurePcmAudio();
+                            syncCallUi();
+                        },
+                    });
+                } catch (err) {
+                    setStatus(err.message || 'Player error');
+                }
+            }
+
+            function stopPlayer() {
+                if (player) {
+                    try { player.destroy(); } catch (_) { /* ignore */ }
+                    player = null;
+                }
+                liveStarted = false;
+                syncCallUi();
+                if (socket && camId) socket.emit('stop-video', { camId: camId });
+            }
+
+            function toggleVoiceCall() {
+                if (!socket || !camId || voiceCallPending || !player) return;
+                if (voiceCallCamId === camId) {
+                    voiceCallPending = true;
+                    syncCallUi();
+                    socket.emit('end-bwc-call', { camId: camId });
+                    return;
+                }
+                voiceCallPending = true;
+                syncCallUi();
+                socket.emit('start-bwc-call', { camId: camId });
+            }
+
+            function onBwcCallState(data) {
+                voiceCallPending = false;
+                if (data && data.active && data.camId) {
+                    voiceCallCamId = data.camId;
+                    audioMuted = false;
+                    muteBtn.textContent = '🔊';
+                    ensurePcmAudio();
+                    if (window.CallMic) CallMic.start(data.camId);
+                    syncListenGain();
+                } else {
+                    if (window.CallMic) CallMic.stop();
+                    if (!data || !data.camId || voiceCallCamId === data.camId) voiceCallCamId = null;
+                }
+                if (data && data.error) setStatus(data.error);
+                syncCallUi();
+            }
+
+            document.getElementById('btn-play').onclick = function () {
+                if (socket && camId && !attachExisting) {
+                    socket.emit('start-video', { camId: camId, mode: 'video' });
+                }
+                startPlayer();
+            };
+            document.getElementById('btn-stop').onclick = function () {
+                if (voiceCallCamId === camId && socket) {
+                    socket.emit('end-bwc-call', { camId: camId });
+                }
+                stopPlayer();
+            };
+            document.getElementById('btn-close').onclick = function () { window.close(); };
+            muteBtn.onclick = function () {
+                audioMuted = !audioMuted;
+                muteBtn.textContent = audioMuted ? '🔇' : '🔊';
+                muteBtn.title = audioMuted ? 'Listen to live audio' : 'Mute live audio';
+                syncListenGain();
+            };
+            callBtn.onclick = toggleVoiceCall;
+
+            if (!camId) {
+                setStatus('No camera ID.');
+                return;
+            }
+
+            socket = io();
+            if (window.CallMic) CallMic.bindSocket(socket);
+            socket.on('bwc-call-state', onBwcCallState);
+            socket.on('connect', function () {
+                if (!attachExisting) {
+                    socket.emit('start-video', { camId: camId, mode: 'video' });
+                } else if (camId) {
+                    socket.emit('audio-focus', { camId: camId });
+                }
+                startPlayer();
+            });
+            window.addEventListener('beforeunload', function () {
+                if (voiceCallCamId === camId && socket) socket.emit('end-bwc-call', { camId: camId });
+            });
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video matrix — Mobility C2</title>
+    <style>
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; height: 100%; background: #020617; overflow: hidden;
+            font-family: Inter, system-ui, Segoe UI, sans-serif; color: #e2e8f0;
+        }
+        #toolbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10; height: 44px;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 14px; background: rgba(15, 23, 42, 0.96); border-bottom: 1px solid #334155;
+        }
+        #toolbar .title { font-size: 13px; font-weight: 600; color: #f8fafc; }
+        #toolbar .meta { font-size: 11px; color: #94a3b8; margin-left: 10px; }
+        #toolbar .controls { display: flex; gap: 8px; }
+        #toolbar button {
+            padding: 6px 12px; font-size: 12px; border-radius: 6px; border: 1px solid #475569;
+            background: #1e293b; color: #e2e8f0; cursor: pointer;
+        }
+        #toolbar button:hover { background: #334155; }
+        #btn-close { background: #2563eb; border-color: #1d4ed8; color: #fff; }
+        #stage {
+            position: absolute; top: 44px; left: 0; right: 0; bottom: 0;
+            padding: 6px; display: flex; align-items: stretch; justify-content: center;
+            background: #000;
+        }
+        .matrix-grid {
+            width: 100%; height: 100%; max-width: 1920px; max-height: 1032px;
+            display: grid; gap: 6px; margin: auto;
+        }
+        .matrix-grid.n1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+        .matrix-grid.n2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+        .matrix-grid.n3, .matrix-grid.n4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+        .matrix-grid.n5, .matrix-grid.n6 { grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; }
+        .matrix-cell {
+            min-width: 0; min-height: 0; display: flex; flex-direction: column;
+            background: #0f172a; border: 1px solid #334155; border-radius: 8px; overflow: hidden;
+        }
+        .matrix-cell-head {
+            flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px;
+            padding: 5px 8px; font-size: 11px; background: #1e293b; border-bottom: 1px solid #334155;
+        }
+        .matrix-cell-head .panel { font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; }
+        .matrix-cell-head .cam { flex: 1; min-width: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f1f5f9; }
+        .matrix-cell-head .status { font-size: 10px; color: #64748b; flex-shrink: 0; max-width: 5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .matrix-cell-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+        .matrix-cell-play,
+        .matrix-cell-stop,
+        .matrix-cell-audio {
+            flex-shrink: 0; min-width: 24px; padding: 2px 5px; font-size: 11px; line-height: 1.2;
+            border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #e2e8f0; cursor: pointer;
+        }
+        .matrix-cell-play:hover,
+        .matrix-cell-stop:hover,
+        .matrix-cell-audio:hover:not(:disabled) { background: #334155; }
+        .matrix-cell-stop { color: #fca5a5; border-color: #7f1d1d; }
+        .matrix-cell-audio { color: #94a3b8; }
+        .matrix-cell-audio.listening { color: #38bdf8; border-color: #38bdf8; }
+        .matrix-cell-audio:disabled { opacity: 0.35; cursor: default; }
+        .matrix-cell-stage {
+            flex: 1; min-height: 0; position: relative; background: #000;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .matrix-cell-stage canvas {
+            width: 100%; height: 100%; display: block; object-fit: contain; background: #000;
+        }
+        .matrix-cell-idle {
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            padding: 12px; text-align: center; font-size: 12px; color: #64748b; pointer-events: none;
+        }
+        .matrix-cell-idle[hidden] { display: none !important; }
+        #lost-opener {
+            position: absolute; inset: 44px 0 0; display: none; align-items: center; justify-content: center;
+            padding: 24px; text-align: center; color: #94a3b8; font-size: 14px; background: #0f172a;
+        }
+        #lost-opener.show { display: flex; }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <div style="display:flex;align-items:baseline;min-width:0;">
+            <span class="title" id="matrix-title">Video matrix</span>
+            <span class="meta" id="matrix-meta"></span>
+        </div>
+        <div class="controls">
+            <button type="button" id="btn-close">Close</button>
+        </div>
+    </div>
+    <div id="stage"><div id="grid" class="matrix-grid"></div></div>
+    <div id="lost-opener">Dashboard window closed.</div>
+
+    <script>
+        function tr(key, params) {
+            try {
+                if (window.opener && window.opener.I18n && window.opener.I18n.t) {
+                    return window.opener.I18n.t(key, params);
+                }
+            } catch (_) { /* ignore */ }
+            var fallbacks = {
+                'matrix.documentTitle': 'Video matrix — Mobility C2',
+                'matrix.title': 'Video matrix',
+                'matrix.meta': '{n} panel(s)',
+                'matrix.noVideo': 'No live video on this panel',
+                'matrix.openerClosed': 'Dashboard window closed — close this matrix.',
+                'common.close': 'Close',
+                'video.panel': 'Panel {n}',
+                'video.listenWhenLive': 'Listen when live',
+                'audio.mutePanel': 'Mute this panel',
+                'video.play': 'Play',
+                'video.stop': 'Stop',
+            };
+            var s = fallbacks[key] || key;
+            if (params && typeof params === 'object') {
+                Object.keys(params).forEach(function (p) {
+                    s = s.replace(new RegExp('\\{' + p + '\\}', 'g'), String(params[p]));
+                });
+            }
+            return s;
+        }
+
+        var params = new URLSearchParams(window.location.search);
+        var matrixSource = (params.get('source') || 'ops').trim().toLowerCase();
+        var maxSlots = parseInt(params.get('max') || '', 10);
+        if (isNaN(maxSlots) || maxSlots < 1) maxSlots = matrixSource === 'cw' ? 32 : 6;
+        var slotIndices = (params.get('slots') || '')
+            .split(',')
+            .map(function (v) { return parseInt(v, 10); })
+            .filter(function (n) { return !isNaN(n) && n >= 0 && n < maxSlots; });
+        if (!slotIndices.length) slotIndices = [0];
+
+        document.getElementById('matrix-title').textContent = tr('matrix.title');
+        document.getElementById('matrix-meta').textContent = tr('matrix.meta', { n: slotIndices.length });
+        document.title = tr('matrix.documentTitle');
+        document.getElementById('btn-close').textContent = tr('common.close');
+
+        var grid = document.getElementById('grid');
+        var count = slotIndices.length;
+
+        function applyGridLayout(el, n) {
+            if (n <= 6) {
+                el.className = 'matrix-grid n' + n;
+                el.style.gridTemplateColumns = '';
+                el.style.gridTemplateRows = '';
+                return;
+            }
+            var cols = n <= 9 ? 3 : (n <= 16 ? 4 : (n <= 24 ? 6 : 8));
+            var rows = Math.ceil(n / cols);
+            el.className = 'matrix-grid';
+            el.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+            el.style.gridTemplateRows = 'repeat(' + rows + ', 1fr)';
+        }
+        applyGridLayout(grid, count);
+
+        var cells = slotIndices.map(function (slotIndex) {
+            var info = { slotIndex: slotIndex, panelNum: slotIndex + 1, camId: '', label: '', status: '' };
+            try {
+                if (window.opener && window.opener.VideoMatrix && window.opener.VideoMatrix.getSlotMatrixInfo) {
+                    info = window.opener.VideoMatrix.getSlotMatrixInfo(slotIndex);
+                }
+            } catch (_) { /* ignore */ }
+
+            var cell = document.createElement('div');
+            cell.className = 'matrix-cell';
+            cell.dataset.slot = String(slotIndex);
+            var panelLabel = tr('video.panel', { n: info.panelNum || (slotIndex + 1) });
+            var camLabel = info.label || info.camId || '—';
+            cell.innerHTML =
+                '<div class="matrix-cell-head">' +
+                '<span class="panel">' + panelLabel + '</span>' +
+                '<span class="cam"></span>' +
+                '<div class="matrix-cell-actions">' +
+                '<button type="button" class="matrix-cell-play" title="' + tr('video.play') + '">▶</button>' +
+                '<button type="button" class="matrix-cell-audio" title="' + tr('video.listenWhenLive') + '" disabled>🔇</button>' +
+                '<button type="button" class="matrix-cell-stop" title="' + tr('video.stop') + '">■</button>' +
+                '</div>' +
+                '<span class="status"></span>' +
+                '</div>' +
+                '<div class="matrix-cell-stage">' +
+                '<canvas width="640" height="360"></canvas>' +
+                '<span class="matrix-cell-idle">' + tr('matrix.noVideo') + '</span>' +
+                '</div>';
+            cell.querySelector('.cam').textContent = camLabel;
+            cell.querySelector('.status').textContent = info.status || '';
+            grid.appendChild(cell);
+            return {
+                slotIndex: slotIndex,
+                canvas: cell.querySelector('canvas'),
+                idle: cell.querySelector('.matrix-cell-idle'),
+                statusEl: cell.querySelector('.status'),
+                camEl: cell.querySelector('.cam'),
+                audioBtn: cell.querySelector('.matrix-cell-audio'),
+                playBtn: cell.querySelector('.matrix-cell-play'),
+                stopBtn: cell.querySelector('.matrix-cell-stop'),
+            };
+        });
+
+        function matrixPlaySlot(slotIndex) {
+            try {
+                if (window.opener && window.opener.VideoMatrix && window.opener.VideoMatrix.playSlotByIndex) {
+                    return window.opener.VideoMatrix.playSlotByIndex(slotIndex);
+                }
+            } catch (_) { /* ignore */ }
+            return false;
+        }
+
+        function matrixStopSlot(slotIndex) {
+            try {
+                if (window.opener && window.opener.VideoMatrix && window.opener.VideoMatrix.stopSlotByIndex) {
+                    return window.opener.VideoMatrix.stopSlotByIndex(slotIndex);
+                }
+            } catch (_) { /* ignore */ }
+            return false;
+        }
+
+        function syncCellAudioBtn(cell, info) {
+            if (!cell.audioBtn) return;
+            var live = !!(info && info.hasLive);
+            var muted = !info || info.audioMuted !== false;
+            cell.audioBtn.disabled = !live;
+            cell.audioBtn.textContent = muted ? '🔇' : '🔊';
+            cell.audioBtn.title = muted ? tr('video.listenWhenLive') : tr('audio.mutePanel');
+            cell.audioBtn.classList.toggle('listening', live && !muted);
+            cell.audioBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+        }
+
+        cells.forEach(function (cell) {
+            if (cell.playBtn) {
+                cell.playBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    if (!openerAlive()) return;
+                    matrixPlaySlot(cell.slotIndex);
+                });
+            }
+            if (cell.stopBtn) {
+                cell.stopBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    if (!openerAlive()) return;
+                    matrixStopSlot(cell.slotIndex);
+                });
+            }
+            if (!cell.audioBtn) return;
+            cell.audioBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                if (!openerAlive()) return;
+                try {
+                    if (window.opener.VideoMatrix && typeof window.opener.VideoMatrix.toggleSlotAudioByIndex === 'function') {
+                        window.opener.VideoMatrix.toggleSlotAudioByIndex(cell.slotIndex);
+                    }
+                } catch (_) { /* ignore */ }
+            });
+        });
+
+        function openerAlive() {
+            try { return !!(window.opener && !window.opener.closed); } catch (_) { return false; }
+        }
+
+        function sourceCanvas(slotIndex) {
+            try {
+                if (window.opener && window.opener.VideoMatrix && window.opener.VideoMatrix.getSlotCanvas) {
+                    return window.opener.VideoMatrix.getSlotCanvas(slotIndex);
+                }
+            } catch (_) { /* ignore */ }
+            return null;
+        }
+
+        function getMatrixInfo(slotIndex) {
+            try {
+                if (window.opener.VideoMatrix && window.opener.VideoMatrix.getSlotMatrixInfo) {
+                    return window.opener.VideoMatrix.getSlotMatrixInfo(slotIndex);
+                }
+            } catch (_) { /* ignore */ }
+            return null;
+        }
+
+        function refreshMeta(cell) {
+            if (!openerAlive()) return;
+            var info = getMatrixInfo(cell.slotIndex);
+            if (!info) return;
+            if (info.label && cell.camEl) cell.camEl.textContent = info.label;
+            if (info.status && cell.statusEl) cell.statusEl.textContent = info.status;
+            syncCellAudioBtn(cell, info);
+        }
+
+        var rafId = null;
+        function tick() {
+            if (!openerAlive()) {
+                document.getElementById('lost-opener').classList.add('show');
+                document.getElementById('lost-opener').textContent = tr('matrix.openerClosed');
+                document.getElementById('stage').style.visibility = 'hidden';
+                return;
+            }
+            cells.forEach(function (cell) {
+                var src = sourceCanvas(cell.slotIndex);
+                var dst = cell.canvas;
+                if (src && src.width > 8 && src.height > 8) {
+                    if (dst.width !== src.width) dst.width = src.width;
+                    if (dst.height !== src.height) dst.height = src.height;
+                    var ctx = dst.getContext('2d');
+                    ctx.drawImage(src, 0, 0, dst.width, dst.height);
+                    cell.idle.hidden = true;
+                } else {
+                    cell.idle.hidden = false;
+                }
+                refreshMeta(cell);
+            });
+            rafId = requestAnimationFrame(tick);
+        }
+
+        document.getElementById('btn-close').addEventListener('click', function () { window.close(); });
+        window.addEventListener('beforeunload', function () {
+            if (rafId) cancelAnimationFrame(rafId);
+        });
+
+        tick();
+    </script>
+</body>
+</html>

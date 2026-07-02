@@ -1,0 +1,13 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Thailand (starter extent)", "kind": "country_extent" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[97.2, 5.5], [105.8, 5.5], [105.8, 20.7], [97.2, 20.7], [97.2, 5.5]]]
+      }
+    }
+  ]
+}

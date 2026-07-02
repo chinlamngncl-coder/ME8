@@ -1,0 +1,17 @@
+{
+  "tenantId": "default",
+  "displayName": "",
+  "bwcRegisterIp": "__ME8_LAN_IP__",
+  "operatorLoginUrl": "http://__ME8_LAN_IP__:3988",
+  "deploymentMode": "lan",
+  "networkAccess": "lan-static",
+  "plan": "enterprise",
+  "licenseId": null,
+  "limitsSource": "env",
+  "limits": {
+    "maxBwcDevices": 5000,
+    "maxDashboardUsers": 500,
+    "maxConcurrentLive": 8
+  },
+  "updatedAt": ""
+}

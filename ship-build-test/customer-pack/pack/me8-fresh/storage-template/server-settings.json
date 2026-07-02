@@ -1,0 +1,83 @@
+{
+  "publicHost": "__ME8_LAN_IP__",
+  "bindHost": "0.0.0.0",
+  "network": {
+    "lan": {
+      "ipMode": "static",
+      "serverIp": "__ME8_LAN_IP__",
+      "subnetMask": "255.255.255.0",
+      "gateway": "",
+      "dns1": "",
+      "dns2": "",
+      "hostname": ""
+    },
+    "wan": {
+      "publicIp": "",
+      "ddnsHostname": "",
+      "vpnEndpoint": "",
+      "routerGateway": ""
+    }
+  },
+  "deployment": {
+    "mode": "lan",
+    "networkAccess": "lan-static",
+    "operatorUrl": "http://__ME8_LAN_IP__:3988",
+    "tenantName": ""
+  },
+  "activeProtocol": "sip",
+  "bwcRegistration": {
+    "operatorName": "",
+    "deviceId": "",
+    "userName": "",
+    "password": ""
+  },
+  "sip": {
+    "sipPort": 5060,
+    "platformId": "34020000002000000001",
+    "realm": "3402000000",
+    "mediaTransport": "udp",
+    "msgWsPort": 6000
+  },
+  "onvif": {
+    "port": 80,
+    "user": "",
+    "password": "",
+    "devicePath": "/onvif/device_service",
+    "rtspUrl": "",
+    "rtspTransport": "tcp"
+  },
+  "docking": {
+    "ftpUploadPath": ""
+  },
+  "evidence": {
+    "archivePrimary": "local",
+    "liveCaptureEnabled": false,
+    "liveCapturePath": "evidence/live-capture",
+    "liveCaptureAutoOnSos": false,
+    "retentionDays": 0,
+    "nasMountPath": "",
+    "dockFtpTargetNote": "",
+    "sanInstallerNote": ""
+  },
+  "voiceAlerts": {
+    "enabled": true,
+    "autoSpeak": true,
+    "speakSos": true,
+    "speakFall": true,
+    "speakGeofence": true,
+    "speakRecStart": false,
+    "speakRecStop": false,
+    "rate": 1,
+    "pitch": 1,
+    "volume": 1,
+    "voiceLang": ""
+  },
+  "site": {
+    "timezone": "UTC"
+  },
+  "ptt": {
+    "modelVoicePrefixes": [],
+    "downlinkByCamId": {},
+    "audioCmdByCamId": {}
+  }
+}

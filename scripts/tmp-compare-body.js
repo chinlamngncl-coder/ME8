@@ -1,0 +1,11 @@
+'use strict';
+const fs = require('fs');
+const crypto = require('crypto');
+const me8 = fs.readFileSync('C:/Users/user/Desktop/Enterprise Mobility/ME8/public/index.html', 'utf8');
+const v2 = fs.readFileSync('C:/Users/user/Desktop/Enterprise Mobility/Lab-8BWC-v2/baseline/2026-06-30-8wc-v2/public/index.html', 'utf8');
+const cut = (s) => s.indexOf('<script src="/vendor/jsmpeg');
+const mBody = me8.slice(0, cut(me8));
+const vBody = v2.slice(0, cut(v2));
+const h = (x) => crypto.createHash('sha256').update(x).digest('hex');
+console.log('body bytes me8', mBody.length, 'v2', vBody.length);
+console.log('body hash match', h(mBody) === h(vBody));

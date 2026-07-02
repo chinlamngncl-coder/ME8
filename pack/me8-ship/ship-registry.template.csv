@@ -1,0 +1,2 @@
+shipDate,customerName,licenseId,licenseType,expiresAt,maxBwc,maxUsers,lanIp,sku,licenseFilePath,packOutRoot,shippedBy,notes
+2026-07-01,Example Agency,abc123def456,perpetual,2036-12-31,8,50,10.0.0.50,ME8-Core,issued\example-platform-license.json,C:\ME8-Ship-Staging\Example,,Contract PO-0000

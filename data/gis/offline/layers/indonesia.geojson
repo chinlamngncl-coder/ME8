@@ -1,0 +1,13 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Indonesia (starter extent)", "kind": "country_extent" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[95.0, -11.5], [141.5, -11.5], [141.5, 6.5], [95.0, 6.5], [95.0, -11.5]]]
+      }
+    }
+  ]
+}

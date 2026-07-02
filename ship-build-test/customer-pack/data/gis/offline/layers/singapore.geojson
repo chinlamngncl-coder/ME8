@@ -1,0 +1,13 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Singapore (starter extent)", "kind": "country_extent" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[103.55, 1.16], [104.05, 1.16], [104.05, 1.50], [103.55, 1.50], [103.55, 1.16]]]
+      }
+    }
+  ]
+}

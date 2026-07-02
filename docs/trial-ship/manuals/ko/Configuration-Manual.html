@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mobility Axiom — 구성 매뉴얼</title>
+  <style>
+body { font-family: "Segoe UI", system-ui, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1.5rem 3rem; line-height: 1.55; color: #1e293b; }
+h1 { font-size: 1.75rem; border-bottom: 2px solid #0f172a; padding-bottom: 0.35rem; }
+h2 { font-size: 1.25rem; margin-top: 1.75rem; color: #0f172a; }
+h3 { font-size: 1.05rem; margin-top: 1.25rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+th, td { border: 1px solid #cbd5e1; padding: 0.45rem 0.65rem; text-align: left; vertical-align: top; }
+th { background: #f1f5f9; }
+code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
+ul, ol { padding-left: 1.4rem; }
+@media print { body { max-width: none; margin: 0; } }
+</style>
+</head>
+<body>
+<h1>Mobility Axiom — 구성 매뉴얼</h1>
+<p><strong>대상:</strong> IT 담당자, 슈퍼 관리자, 설치 담당자.<br><strong>함께 읽기:</strong> <strong>빠른 시작 가이드</strong> · <strong>사용자 매뉴얼</strong></p>
+<p>서버 설정, BWC 등록, 운영자, 저장소, 방화벽, 화상 회의를 단계별로 설명합니다.</p>
+<hr>
+<h2>목차</h2>
+<ol>
+<li><a href="#1-%EC%8B%9C%EC%9E%91-%EC%A0%84-%EC%A4%80%EB%B9%84">시작 전 준비</a></li>
+<li><a href="#2-server-config-%EC%97%B4%EA%B8%B0">Server Config 열기</a></li>
+<li><a href="#3-network--deployment">Network &amp; deployment</a></li>
+<li><a href="#4-bwc-%EB%93%B1%EB%A1%9D">BWC 등록</a></li>
+<li><a href="#5-map-groups">Map groups</a></li>
+<li><a href="#6-dashboard-auth">Dashboard Auth</a></li>
+<li><a href="#7-%EC%A6%9D%EA%B1%B0-%EC%A0%80%EC%9E%A5-%EA%B2%BD%EB%A1%9C">증거 저장 경로</a></li>
+<li><a href="#8-video-conference">Video Conference</a></li>
+<li><a href="#9-centre-summary-ai">Centre Summary AI</a></li>
+<li><a href="#10-%EB%B0%A9%ED%99%94%EB%B2%BD-%EB%B0%8F-%ED%8F%AC%ED%8A%B8">방화벽 및 포트</a></li>
+<li><a href="#11-%EC%B2%B4%ED%97%98-%EB%9D%BC%EC%9D%B4%EC%84%A0%EC%8A%A4">체험 라이선스</a></li>
+<li><a href="#12-%EB%B9%84%EB%B0%80%EB%B2%88%ED%98%B8-%EB%B0%8F-%EA%B0%90%EC%82%AC">비밀번호 및 감사</a></li>
+<li><a href="#13-%EC%84%A4%EC%A0%95-%ED%99%95%EC%9D%B8-%EC%B2%B4%ED%81%AC%EB%A6%AC%EC%8A%A4%ED%8A%B8">설정 확인 체크리스트</a></li>
+</ol>
+<hr>
+<h2>1. 시작 전 준비</h2>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>요구 사항</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>서버 PC</td>
+<td>Windows 10/11 64비트, 고정 LAN IP 권장</td>
+</tr>
+<tr>
+<td>팩</td>
+<td>압축 해제 후 <code>Install-Mobility.bat</code> 1회 실행</td>
+</tr>
+<tr>
+<td>Docker Desktop</td>
+<td>설치·실행(화상 회의용)</td>
+</tr>
+<tr>
+<td>BWC</td>
+<td>전원, 네트워크, SIP 화면 접근</td>
+</tr>
+<tr>
+<td>네트워크</td>
+<td>서버와 BWC 동일 LAN, 카메라 키패드 <strong>IPv4만</strong></td>
+</tr>
+</tbody></table>
+<p>별도 Node.js 설치 불필요 — <code>Mobility-Axiom\tools\node\</code> 포함.</p>
+<hr>
+<h2>2. Server Config 열기</h2>
+<ol>
+<li>슈퍼 관리자 로그인(체험: <code>global</code>).</li>
+<li><strong>Settings</strong> → <strong>Server Config</strong>.</li>
+<li>왼쪽: <strong>Network &amp; deployment</strong> | <strong>BWCs</strong> | <strong>Map groups</strong> | <strong>Dashboard Auth</strong>.</li>
+</ol>
+<p>운영자 계정은 <strong>읽기 전용</strong>.</p>
+<hr>
+<h2>3. Network &amp; deployment</h2>
+<h3>3.1 Deployment</h3>
+<p><strong>LAN server</strong> 선택 → <strong>Save server settings</strong>.</p>
+<h3>3.2 LAN network (중요)</h3>
+<ol>
+<li><strong>BWC SIP server IP</strong> = 이 PC <strong>IPv4</strong>(예: <code>192.168.1.10</code>) — 호스트명 금지.</li>
+<li>HTTP <code>3888</code>, 비디오 WS <code>3889</code> 확인.</li>
+<li><strong>Save server settings</strong>.</li>
+</ol>
+<h3>3.3 BWC camera register</h3>
+<p>Platform ID, Realm, Password 설정 → <strong>Type on BWC</strong> 값을 각 카메라 SIP에 입력.</p>
+<hr>
+<h2>4. BWC 등록</h2>
+<p><strong>BWCs</strong> 탭:</p>
+<ol>
+<li>행 추가 → <strong>Device ID</strong>(카메라와 동일) → <strong>Officer</strong> 이름 → <strong>Map group</strong>(선택).</li>
+<li><strong>Save BWC list</strong>.</li>
+</ol>
+<p><strong>카메라 SIP 화면:</strong></p>
+<table>
+<thead>
+<tr>
+<th>필드</th>
+<th>값</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SIP 서버</td>
+<td>서버 IPv4</td>
+</tr>
+<tr>
+<td>포트</td>
+<td>5060</td>
+</tr>
+<tr>
+<td>Platform ID / Realm / Password</td>
+<td>Server Config와 동일</td>
+</tr>
+<tr>
+<td>Device ID</td>
+<td>BWC 목록과 동일</td>
+</tr>
+</tbody></table>
+<p>30초 후 <strong>Operations</strong> → <strong>Online</strong> 확인.</p>
+<p>체험 팩은 <code>FM_SEED_BWC_ID=</code> 비움 — 데모 장치 없음.</p>
+<hr>
+<h2>5. Map groups</h2>
+<p>그룹 이름·색상 생성 → BWCs 탭에서 할당 → 핀 색, PTT, 비디오 월에 사용.</p>
+<hr>
+<h2>6. Dashboard Auth</h2>
+<p><strong>Operator:</strong> Operations·Evidence·Command Wall·VC 허용, Server Config 편집 금지 → 행 <strong>Save</strong>.</p>
+<p><strong>Super admin</strong> 추가 시 동일하게 <strong>Save</strong>.</p>
+<hr>
+<h2>7. 증거 저장 경로</h2>
+<p>FTP 업로드, 라이브 캡처, 증거 인덱스 경로 설정 → <strong>Save storage</strong> → <strong>Scan FTP for evidence</strong>.</p>
+<p>NAS는 Windows에 마운트 후 경로 지정.</p>
+<p>SOS 시 자동 서버 녹화 옵션 활성화 가능.</p>
+<hr>
+<h2>8. Video Conference</h2>
+<ol>
+<li>Docker Desktop 설치.</li>
+<li><code>Install-Mobility.bat</code> — LiveKit 시작.</li>
+<li><strong>Video Conference → Settings</strong> — 휴대폰용 WebSocket URL(예: <code>ws://192.168.1.10:7880</code>).</li>
+</ol>
+<p><code>MobilityConference-1.5.6.apk</code> 배포.</p>
+<hr>
+<h2>9. Centre Summary AI</h2>
+<p>모델: <code>Mobility-Axiom\vendor\llm\</code> (~2GB), 현장 다운로드 없음. 첫 <strong>Ask</strong> 시 1–2분 로딩.</p>
+<hr>
+<h2>10. 방화벽 및 포트</h2>
+<table>
+<thead>
+<tr>
+<th>포트</th>
+<th>서비스</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>3888</td>
+<td>대시보드 HTTP</td>
+</tr>
+<tr>
+<td>3889</td>
+<td>라이브 비디오 WS</td>
+</tr>
+<tr>
+<td>5060</td>
+<td>SIP</td>
+</tr>
+<tr>
+<td>7880</td>
+<td>LiveKit</td>
+</tr>
+<tr>
+<td>40130+ UDP</td>
+<td>RTP</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>11. 체험 라이선스</h2>
+<p>5 BWC · 10 사용자 · 1년(발급 라이선스 기준).</p>
+<hr>
+<h2>12. 비밀번호 및 감사</h2>
+<p>비밀번호: <strong>Dashboard Auth</strong> → 행 <strong>Save</strong>.</p>
+<p><strong>Audit Trail</strong>에서 필터·CSV보내기.</p>
+<hr>
+<h2>13. 설정 확인 체크리스트</h2>
+<table>
+<thead>
+<tr>
+<th>단계</th>
+<th>통과</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Install-Mobility.bat 성공</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Docker 실행</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>localhost:3888 접속</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>LAN IP = PC IPv4</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>BWC 등록·저장</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>카메라 SIP 일치</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>60초 내 Online</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>Pin 라이브 영상</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>PTT 음성</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>FTP 스캔</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>VC Join Room</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>운영자 읽기 전용 테스트</td>
+<td>☐</td>
+</tr>
+</tbody></table>
+<p>실패 시 사용자 매뉴얼 §18 및 <code>VIEW-LOG.bat</code> 확인.</p>
+
+
+</body>
+</html>
