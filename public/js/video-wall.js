@@ -526,6 +526,7 @@
 
     function onLiveVoiceHint(data) {
         if (!data || !data.camId) return;
+        if (typeof global.isSosIncidentActive === 'function' && global.isSosIncidentActive()) return;
         const camId = String(data.camId).trim();
         if (!hasActiveDashboardLiveForCam(camId)) return;
         if (global.PttRx && PttRx.isRxActive(camId)) return;
@@ -1860,6 +1861,116 @@
         });
     }
 
+    const signalLostCams = new Set();
+
+    function signalLostLabel() {
+        return tr('video.signalLost');
+    }
+
+    function ensureSignalLostOverlay(container) {
+        if (!container) return null;
+        let el = container.querySelector('.video-signal-lost-overlay');
+        if (!el) {
+            el = document.createElement('div');
+            el.className = 'video-signal-lost-overlay';
+            el.setAttribute('aria-live', 'polite');
+            container.appendChild(el);
+        }
+        el.textContent = signalLostLabel();
+        el.hidden = false;
+        return el;
+    }
+
+    function clearSignalLostOverlay(container) {
+        if (!container) return;
+        const el = container.querySelector('.video-signal-lost-overlay');
+        if (el) el.hidden = true;
+    }
+
+    function clearVideoSignalLostForCam(camId) {
+        if (!camId) return;
+        signalLostCams.delete(camId);
+        getSlots().forEach(function (slotEl) {
+            const bound = slotEl.dataset.camId || resolveCamIdForSlot(slotEl);
+            if (bound !== camId) return;
+            slotEl.classList.remove('video-slot-signal-lost');
+            const stage = slotEl.querySelector('.video-slot-stage');
+            if (stage) clearSignalLostOverlay(stage);
+        });
+        const pinHost = mapPinHostForCam(camId);
+        if (pinHost) {
+            pinHost.classList.remove('map-pin-signal-lost');
+            clearSignalLostOverlay(pinHost);
+        }
+    }
+
+    function detachWallPlayerKeepCanvas(slotIndex, camId) {
+        const p = players.get(slotIndex);
+        if (p) {
+            try { p.destroy(); } catch (_) { /* ignore */ }
+            players.delete(slotIndex);
+            activeStreams.delete(slotIndex);
+            if (camId) clearRegisteredActivePlayer(camId, 'wall');
+        }
+        if (typeof slotIndex === 'number') {
+            const slotEl = getSlots()[slotIndex];
+            if (slotEl) slotEl.classList.remove('video-slot-has-live');
+        }
+        updateSlotAudioButton(slotIndex);
+        maybeStopPcmAudio();
+    }
+
+    function detachMapPlayerKeepCanvas(camId) {
+        if (mapPinMirrorActive(camId) || mapMirrorCamId === camId) stopMapPinMirror(camId);
+        const p = mapPlayers.get(camId);
+        if (p) {
+            try { p.destroy(); } catch (_) { /* ignore */ }
+            mapPlayers.delete(camId);
+        }
+        clearRegisteredActivePlayer(camId, 'map');
+        activeStreams.delete(mapStreamKey(camId));
+        maybeStopPcmAudio();
+        syncPinAudioUi();
+    }
+
+    function markVideoSignalLost(camId) {
+        if (!camId) return;
+        signalLostCams.add(camId);
+        getSlots().forEach(function (slotEl) {
+            const bound = slotEl.dataset.camId || resolveCamIdForSlot(slotEl);
+            if (bound !== camId) return;
+            const idx = findSlotIndex(slotEl);
+            if (!slotHasLiveWallPlayer(slotEl, idx)) return;
+            const stage = slotEl.querySelector('.video-slot-stage');
+            if (!stage || !stage.querySelector('canvas')) return;
+            ensureSignalLostOverlay(stage);
+            slotEl.classList.add('video-slot-signal-lost');
+            slotEl.classList.remove('video-slot-has-live');
+            setSlotMeta(slotEl, camId, signalLostLabel());
+            removeStreamingOverlay(stage);
+            detachWallPlayerKeepCanvas(idx, camId);
+        });
+        const pinHost = mapPinHostForCam(camId);
+        if (pinHost && mapPinHasLiveVideo(camId) && pinHost.querySelector('canvas')) {
+            ensureSignalLostOverlay(pinHost);
+            pinHost.classList.add('map-pin-signal-lost');
+            removeStreamingOverlay(pinHost);
+            detachMapPlayerKeepCanvas(camId);
+        }
+        streamingCams.delete(camId);
+        if (streamingCamId === camId) {
+            streamingCamId = streamingCams.values().next().value || null;
+        }
+        releaseServerStreamIfIdle(camId);
+        syncAllCallUi();
+        syncAllPttUi();
+    }
+
+    function camHasSignalLostFrame(camId) {
+        if (!camId) return false;
+        return wallSlotDecodedForCam(camId) || mapPinHasLiveVideo(camId);
+    }
+
     function isAlarmCamId(camId) {
         if (!camId) return false;
         if (typeof global.isCamSosActive === 'function' && global.isCamSosActive(camId)) return true;
@@ -2450,6 +2561,41 @@
             '</div></div>';
     }
 
+    function showMapPinStoppedPlaceholder(camId) {
+        if (!camId) return;
+        const root = mapPopupRootForCam(camId);
+        if (!root) return;
+        const host = root.querySelector('.map-pin-video') || root.querySelector('.vid-box');
+        if (!host) {
+            const container = root.querySelector('.sos-popup-container');
+            if (!container) return;
+            container.innerHTML = mapPinVideoMarkup(camId);
+            const box = container.querySelector('.map-pin-video') || container.querySelector('.vid-box');
+            const ph = box && box.querySelector('.map-pin-video-placeholder');
+            if (ph) {
+                ph.textContent = tr('video.stopped');
+                ph.hidden = false;
+                ph.classList.add('map-pin-stopped-placeholder');
+            }
+            updateMapPinStopButton(camId);
+            return;
+        }
+        host.querySelectorAll('canvas, .map-pin-streaming-label, .video-signal-lost-overlay').forEach(function (el) {
+            el.remove();
+        });
+        host.classList.remove('vid-box-live', 'map-pin-has-live', 'map-pin-signal-lost');
+        let ph = host.querySelector('.map-pin-video-placeholder');
+        if (!ph) {
+            ph = document.createElement('div');
+            ph.className = 'map-pin-video-placeholder map-pin-stopped-placeholder';
+            host.insertBefore(ph, host.firstChild);
+        }
+        ph.textContent = tr('video.stopped');
+        ph.hidden = false;
+        ph.classList.add('map-pin-stopped-placeholder');
+        updateMapPinStopButton(camId);
+    }
+
     function resetMapPopupVideo(camId) {
         stopMapPinMirror(camId);
         if (!camId) return;
@@ -2457,7 +2603,10 @@
         const root = mapPopupRootForCam(camId);
         if (!root) return;
         const container = root.querySelector('.sos-popup-container');
-        if (!container) return;
+        if (!container) {
+            showMapPinStoppedPlaceholder(camId);
+            return;
+        }
         container.innerHTML = mapPinVideoMarkup(camId);
         updateMapPinStopButton(camId);
     }
@@ -2647,6 +2796,25 @@
             if (id && root) applyMapPinPttCommUi(id, root);
             return;
         }
+        if (id && typeof global.isPinVideoStoppedByUser === 'function' && global.isPinVideoStoppedByUser(id)) {
+            if (playBtn) playBtn.hidden = false;
+            if (stopBtn) stopBtn.hidden = true;
+            if (placeholder) {
+                placeholder.textContent = tr('video.stopped');
+                placeholder.hidden = false;
+                placeholder.classList.add('map-pin-stopped-placeholder');
+            }
+            if (box) {
+                box.classList.remove('vid-box-live', 'map-pin-has-live', 'map-pin-signal-lost');
+            }
+            syncPinAudioUi(camId);
+            syncPinCallUi(camId);
+            syncPinVoiceUi(camId);
+            syncPinPttUi(camId);
+            syncPinPttTxUi();
+            if (id && root) applyMapPinPttCommUi(id, root);
+            return;
+        }
         if (playBtn) playBtn.hidden = streaming;
         if (stopBtn) {
             stopBtn.hidden = !streaming;
@@ -2655,6 +2823,9 @@
             stopBtn.title = tr('call.stopLive');
         }
         if (placeholder) placeholder.hidden = pinDecoded || streaming;
+        if (placeholder && !placeholder.hidden && !placeholder.classList.contains('map-pin-stopped-placeholder')) {
+            placeholder.textContent = tr('map.pin.livePlaceholder');
+        }
         if (box) {
             if (pinDecoded) {
                 box.classList.add('vid-box-live', 'map-pin-has-live');
@@ -2828,6 +2999,10 @@
 
     function onDeviceWentOffline(camId) {
         if (!camId) return;
+        if (camHasSignalLostFrame(camId)) {
+            markVideoSignalLost(camId);
+            return;
+        }
         destroyMapPlayer(camId);
         releaseServerStreamIfIdle(camId);
         getSlots().forEach((slotEl) => {
@@ -2843,6 +3018,7 @@
         const slotEl = slots[slotIndex];
         if (!slotEl || !camId) return;
         camId = String(camId).trim();
+        clearVideoSignalLostForCam(camId);
         ensureActivePlayersRegistry();
         const wallReg = getRegisteredActivePlayer(camId, 'wall');
         if (wallReg && wallReg.player) {
@@ -3019,6 +3195,8 @@
             camId = activeStreams.get(idx);
         }
         if (!camId) camId = slotEl.dataset.camId || '';
+        if (camId) clearVideoSignalLostForCam(camId);
+        slotEl.classList.remove('video-slot-signal-lost');
         if (typeof global.isSosIncidentActive === 'function' && global.isSosIncidentActive()) {
             const sosCam = typeof global.getSosCamId === 'function' ? global.getSosCamId() : activeCamId;
             if (sosCam && camId && String(sosCam) === String(camId)) return;
@@ -3402,6 +3580,15 @@
     function playOnMapPopup(camId, element, forcedWallSlot, opts) {
         if (!camId || !element) return;
         opts = opts || {};
+        const pinRoot = mapPopupRootForCam(camId);
+        if (pinRoot) {
+            const pinBox = pinRoot.querySelector('.map-pin-video') || pinRoot.querySelector('.vid-box');
+            const pinPh = pinBox && pinBox.querySelector('.map-pin-video-placeholder');
+            if (pinPh) {
+                pinPh.classList.remove('map-pin-stopped-placeholder');
+                pinPh.textContent = tr('map.pin.livePlaceholder');
+            }
+        }
         if (opts.forceLive) clearPttRxLingerForCamIds([camId], true);
         const wallAlarm = !!element.closest('[data-sos-popup="1"]');
         const pinIsAlarm = wallAlarm || isAlarmCamId(camId);
@@ -3560,12 +3747,13 @@
     function stopPinLive(camId) {
         if (!camId) camId = streamingCamId || activeCamId;
         if (!camId) return;
+        clearVideoSignalLostForCam(camId);
         if (typeof global.markPinVideoUserStop === 'function') {
             global.markPinVideoUserStop(camId);
         }
         // Pin stop only affects the map popup player, not the wall stream.
         destroyMapPlayer(camId);
-        resetMapPopupVideo(camId);
+        showMapPinStoppedPlaceholder(camId);
         releaseServerStreamIfIdle(camId);
         if (typeof global.minimizeMapPinVideo === 'function') {
             global.minimizeMapPinVideo(camId);
@@ -4055,10 +4243,10 @@
         socket.on('video-stream-stopped', function (data) {
             var camId = data && data.camId;
             if (!camId) return;
-            if (wallHasPlayerForCam(camId)) return;
-            if (typeof global.isSosIncidentActive === 'function' && global.isSosIncidentActive()) {
-                const sosCam = typeof global.getSosCamId === 'function' ? global.getSosCamId() : activeCamId;
-                if (sosCam && String(sosCam) === String(camId)) return;
+            if (signalLostCams.has(camId)) return;
+            if (camHasSignalLostFrame(camId)) {
+                markVideoSignalLost(camId);
+                return;
             }
             mapPinDecodedCams.delete(camId);
             streamingCams.delete(camId);

@@ -17,6 +17,8 @@
         canvas { width: 100%; height: 100%; object-fit: contain; }
         #status { position: absolute; color: #94a3b8; font-size: 13px; pointer-events: none; }
     </style>
+    <script src="/js/operator-error-voice.js?v=20260702-op-voice-standalone"></script>
+    <script src="/js/operator-ui.js?v=20260702-op-voice-standalone"></script>
     <script src="/vendor/jsmpeg.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/ptt-mic.js"></script>
@@ -148,7 +150,9 @@
                         },
                     });
                 } catch (err) {
-                    setStatus(err.message || 'Player error');
+                    setStatus((window.OperatorUI)
+                        ? OperatorUI.opMessage(err, null, 'errors.generic')
+                        : 'Could not start video.');
                 }
             }
 
@@ -188,7 +192,11 @@
                     if (window.CallMic) CallMic.stop();
                     if (!data || !data.camId || voiceCallCamId === data.camId) voiceCallCamId = null;
                 }
-                if (data && data.error) setStatus(data.error);
+                if (data && data.error) {
+                    setStatus((window.OperatorUI)
+                        ? OperatorUI.opMessage(null, data, 'errors.generic')
+                        : 'Voice call unavailable.');
+                }
                 syncCallUi();
             }
 

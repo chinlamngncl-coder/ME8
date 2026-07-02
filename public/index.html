@@ -1550,6 +1550,17 @@
             text-shadow: 0 0 12px rgba(59, 130, 246, 0.55);
             animation: streaming-text-blink-live 1s ease-in-out infinite;
         }
+        .video-signal-lost-overlay {
+            position: absolute; inset: 0; z-index: 15;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(15, 23, 42, 0.78);
+            color: #f87171; font-size: 12px; font-weight: 800;
+            letter-spacing: 0.06em; text-transform: uppercase;
+            pointer-events: none; text-align: center; padding: 8px;
+        }
+        .video-signal-lost-overlay[hidden] { display: none !important; }
+        .video-slot-signal-lost .video-slot-streaming-label,
+        .map-pin-signal-lost .map-pin-streaming-label { display: none !important; }
         @keyframes streaming-text-blink-alarm {
             0%, 100% { opacity: 1; color: #fecaca; }
             50% { opacity: 0.45; color: #fca5a5; }
@@ -2741,6 +2752,9 @@
             color: #93c5fd; font-weight: 600; font-size: 12px;
         }
         .map-pin-video-placeholder[hidden] { display: none !important; }
+        .map-pin-video-placeholder.map-pin-stopped-placeholder {
+            color: #94a3b8; font-weight: 600; font-size: 11px; cursor: default;
+        }
         .map-popup-telemetry {
             margin-top: 6px; padding-top: 5px; border-top: 1px solid #334155;
             text-align: left; font-size: 9px;
@@ -5249,7 +5263,7 @@
     <script src="/js/evidence-hub.js?v=20260627-approvals-merge"></script>
     <script src="/js/evidence-manager.js?v=20260702-restore-8wc-v2"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260702-restore-8wc-v2"></script>
+    <script src="/js/video-wall.js?v=20260702-pin-stop-clear-placeholder"></script>
     <script src="/js/video-matrix.js?v=20260629-live-cap-8"></script>
     <script src="/js/fleet-ui.js?v=20260629-live-cap-8"></script>
     <script src="/js/map-popout-sync.js?v=20260612-mirror"></script>
@@ -10650,12 +10664,11 @@
             }
 
             function sendAck(snapshotBase64) {
-                function finishDismiss(keepPttTeam) {
+                function finishDismiss() {
                     closeSosAcknowledgeDialog();
                     dismissOneSos(camId, {
                         recentAckCamId: camId,
                         recentAckKind: ackKind,
-                        keepPttTeam: !!keepPttTeam,
                     });
                     resetSubmitBtn();
                 }
@@ -10668,20 +10681,12 @@
                     })
                         .then(function (r) { return r.json(); })
                         .then(function (data) {
-                            var keep = false;
-                            if (data && data.ok && data.pttTeam && data.pttTeam.team && data.pttTeam.team.length > 1) {
-                                applySosPttTeamResult(data);
-                                keep = true;
-                            } else {
-                                global.activeSosPttTeam = null;
-                                syncSosPttTeamUi();
-                            }
                             refreshSosLedger();
-                            finishDismiss(keep);
+                            finishDismiss();
                         })
-                        .catch(function () { finishDismiss(false); });
+                        .catch(function () { finishDismiss(); });
                 } catch (_) {
-                    finishDismiss(false);
+                    finishDismiss();
                 }
             }
 

@@ -1743,6 +1743,7 @@
   "video.voiceHintDismiss": "Dismiss",
   "video.rotatePanels": "Auto-rotate panels",
   "video.selectDevice": "Select a device",
+  "video.signalLost": "Video signal lost",
   "video.setIdInConfig": "Set ID in Config",
   "video.stop": "Stop",
   "video.stopped": "Stopped — press ▶",
