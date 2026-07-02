@@ -16,8 +16,14 @@ mobile-android/**/build/
 mobile-android/**/.gradle/
 mobile-android/**/.cxx/
 
-# ---- Large local backups / snapshots ----
-baseline/
+# ---- Large local backups / snapshots (scripts + manifests tracked) ----
+baseline/**
+!baseline/**/
+!baseline/**/CREATE-ME8-V1.ps1
+!baseline/**/RESTORE-ME8-V1.ps1
+!baseline/**/VERIFY-ME8-V1.ps1
+!baseline/**/MANIFEST.json
+!baseline/**/HASHES.json
 
 # ---- Runtime / build output ----
 evidence/
