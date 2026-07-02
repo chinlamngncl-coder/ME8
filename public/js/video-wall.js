@@ -3755,8 +3755,18 @@
         destroyMapPlayer(camId);
         showMapPinStoppedPlaceholder(camId);
         releaseServerStreamIfIdle(camId);
-        if (typeof global.minimizeMapPinVideo === 'function') {
-            global.minimizeMapPinVideo(camId);
+        const pinRoot = mapPopupRootForCam(camId);
+        if (pinRoot && pinRoot.classList.contains('pin-popup-minimized')) {
+            pinRoot.classList.remove('pin-popup-minimized');
+            const minBtn = pinRoot.querySelector('.map-pin-minimize');
+            if (minBtn) {
+                minBtn.textContent = '−';
+                minBtn.title = tr('map.pin.minimize');
+                minBtn.setAttribute('aria-label', minBtn.title);
+            }
+            if (typeof global.schedulePinPopupReposition === 'function') {
+                global.schedulePinPopupReposition();
+            }
         }
         if (typeof global.refreshOpenPinPopups === 'function') {
             setTimeout(function () { global.refreshOpenPinPopups(); }, 50);
