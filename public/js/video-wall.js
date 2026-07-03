@@ -41,8 +41,13 @@
         }, extra || {}));
     }
 
+    /** Operator-initiated stop — wins over socket reason if events race. */
+    const localDashboardStopCams = new Set();
+
     function emitOpsStopVideo(camId) {
         if (!socket || !camId) return;
+        camId = String(camId).trim();
+        localDashboardStopCams.add(camId);
         socket.emit('stop-video', { camId: camId, surface: OPS_VIEWER_SURFACE });
     }
 
@@ -2561,8 +2566,10 @@
             '</div></div>';
     }
 
-    function showMapPinStoppedPlaceholder(camId) {
+    function showMapPinStoppedPlaceholder(camId, labelText, placeholderClass) {
         if (!camId) return;
+        labelText = labelText || tr('video.stopped');
+        placeholderClass = placeholderClass || 'map-pin-stopped-placeholder';
         const root = mapPopupRootForCam(camId);
         if (!root) return;
         const host = root.querySelector('.map-pin-video') || root.querySelector('.vid-box');
@@ -2573,10 +2580,11 @@
             const box = container.querySelector('.map-pin-video') || container.querySelector('.vid-box');
             const ph = box && box.querySelector('.map-pin-video-placeholder');
             if (ph) {
-                ph.textContent = tr('video.stopped');
+                ph.textContent = labelText;
                 ph.hidden = false;
-                ph.classList.add('map-pin-stopped-placeholder');
+                ph.className = 'map-pin-video-placeholder ' + placeholderClass;
             }
+            if (box) box.classList.remove('map-pin-bwc-stopped');
             updateMapPinStopButton(camId);
             return;
         }
@@ -2584,15 +2592,61 @@
             el.remove();
         });
         host.classList.remove('vid-box-live', 'map-pin-has-live', 'map-pin-signal-lost');
+        if (placeholderClass === 'map-pin-bwc-stopped-placeholder') {
+            host.classList.add('map-pin-bwc-stopped');
+        } else {
+            host.classList.remove('map-pin-bwc-stopped');
+        }
         let ph = host.querySelector('.map-pin-video-placeholder');
         if (!ph) {
             ph = document.createElement('div');
-            ph.className = 'map-pin-video-placeholder map-pin-stopped-placeholder';
+            ph.className = 'map-pin-video-placeholder ' + placeholderClass;
             host.insertBefore(ph, host.firstChild);
+        } else {
+            ph.className = 'map-pin-video-placeholder ' + placeholderClass;
         }
-        ph.textContent = tr('video.stopped');
+        ph.textContent = labelText;
         ph.hidden = false;
-        ph.classList.add('map-pin-stopped-placeholder');
+        updateMapPinStopButton(camId);
+    }
+
+    function teardownWallPin(camId, stopKind) {
+        if (!camId) return;
+        camId = String(camId).trim();
+        if (typeof global.markPinVideoUserStop === 'function') {
+            global.markPinVideoUserStop(camId);
+        }
+        clearVideoSignalLostForCam(camId);
+        const isDevice = stopKind === 'device';
+        const panelLabel = isDevice ? tr('video.stoppedOnDevice') : tr('video.stopped');
+        const panelStatus = isDevice ? tr('video.stoppedOnDevice') : 'Stopped';
+        const pinClass = isDevice ? 'map-pin-bwc-stopped-placeholder' : 'map-pin-stopped-placeholder';
+        getSlots().forEach(function (slotEl) {
+            const bound = slotEl.dataset.camId || resolveCamIdForSlot(slotEl);
+            if (bound !== camId) return;
+            const idx = findSlotIndex(slotEl);
+            if (slotRenderTimers.has(idx)) {
+                clearTimeout(slotRenderTimers.get(idx));
+                slotRenderTimers.delete(idx);
+            }
+            slotEl.classList.remove('video-slot-has-live', 'video-slot-signal-lost', 'video-slot-bwc-stopped');
+            if (isDevice) slotEl.classList.add('video-slot-bwc-stopped');
+            destroyPlayer(idx);
+            const stage = slotEl.querySelector('.video-slot-stage');
+            if (stage) {
+                removeStreamingOverlay(stage);
+                stage.innerHTML = '<span class="video-slot-empty' + (isDevice ? ' video-slot-bwc-stopped' : '') + '">'
+                    + panelLabel + '</span>';
+            }
+            setSlotMeta(slotEl, camId, panelStatus);
+        });
+        mapPinDecodedCams.delete(camId);
+        streamingCams.delete(camId);
+        destroyMapPlayer(camId);
+        if (streamingCamId === camId) {
+            streamingCamId = streamingCams.values().next().value || null;
+        }
+        showMapPinStoppedPlaceholder(camId, panelLabel, pinClass);
         updateMapPinStopButton(camId);
     }
 
@@ -2831,7 +2885,6 @@
                 box.classList.add('vid-box-live', 'map-pin-has-live');
             } else {
                 box.classList.remove('vid-box-live', 'map-pin-has-live');
-                if (streaming && !pinDecoded) syncMapPinStreamingOverlay(id);
             }
         }
         syncPinAudioUi(camId);
@@ -3155,7 +3208,7 @@
         getSlots().forEach((slotEl) => {
             const stage = slotEl.querySelector('.video-slot-stage');
             if (stage) {
-                stage.innerHTML = '<span class="video-slot-empty">Stopped — press ▶</span>';
+                stage.innerHTML = '<span class="video-slot-empty">' + tr('video.stopped') + '</span>';
             }
             const st = slotEl.querySelector('.video-slot-status');
             if (st && (st.textContent === 'Live' || st.textContent === 'Connecting…'
@@ -3243,7 +3296,7 @@
         }
         const stage = slotEl.querySelector('.video-slot-stage');
         if (stage) {
-            stage.innerHTML = '<span class="video-slot-empty">Stopped — press ▶</span>';
+            stage.innerHTML = '<span class="video-slot-empty">' + tr('video.stopped') + '</span>';
         }
         setSlotMeta(slotEl, cfgCam || null, 'Stopped');
         if (camId) {
@@ -3268,7 +3321,7 @@
         getSlots().forEach((slotEl) => {
             const stage = slotEl.querySelector('.video-slot-stage');
             if (stage) {
-                stage.innerHTML = '<span class="video-slot-empty">Stopped — press ▶</span>';
+                stage.innerHTML = '<span class="video-slot-empty">' + tr('video.stopped') + '</span>';
             }
             const st = slotEl.querySelector('.video-slot-status');
             if (st && (st.textContent === 'Live' || st.textContent === 'Connecting…'
@@ -3521,6 +3574,11 @@
     function prepareOpenAllLive(camIds) {
         const ids = (camIds || []).map(function (id) { return String(id || '').trim(); }).filter(Boolean).slice(0, MAX_LIVE_STREAMS);
         if (!ids.length) return;
+        ids.forEach(function (camId) {
+            if (typeof global.clearPinVideoUserStop === 'function') {
+                global.clearPinVideoUserStop(camId);
+            }
+        });
         clearPttRxLingerForCamIds(ids, true);
         openAllReservedIds = ids.slice();
     }
@@ -4253,17 +4311,19 @@
         socket.on('video-stream-stopped', function (data) {
             var camId = data && data.camId;
             if (!camId) return;
+            camId = String(camId).trim();
             if (signalLostCams.has(camId)) return;
-            if (camHasSignalLostFrame(camId)) {
-                markVideoSignalLost(camId);
+            var reason = data && data.reason;
+            if (localDashboardStopCams.has(camId)) {
+                localDashboardStopCams.delete(camId);
+                teardownWallPin(camId, 'operator');
                 return;
             }
-            mapPinDecodedCams.delete(camId);
-            streamingCams.delete(camId);
-            destroyMapPlayer(camId);
-            if (streamingCamId === camId) {
-                streamingCamId = streamingCams.values().next().value || null;
+            if (reason === 'device_bye') {
+                teardownWallPin(camId, 'device');
+                return;
             }
+            teardownWallPin(camId, 'operator');
         });
 
         bindSlotControls();

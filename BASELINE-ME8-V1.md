@@ -6,6 +6,7 @@
 **Locked:** 2026-07-01 (pre-ZLK/MVP integration checkpoint)  
 **Files:** **2345** — VERIFY OK (2345/2345)  
 **Git:** `420b354` on `main` (GitHub fallback)  
+**Phase 3 interim pass (2026-07-03):** tag `me8-phase-3-pass-20260703` — stop latch, Open All after stop, sync churn removed. Fallback: `git checkout me8-phase-3-pass-20260703` then `RESTART-FLEET.bat`.  
 **Seeded from:** `Lab-8BWC-v2` / lock `8wc-v2` (2026-06-30)
 
 **Interim lock** — full commercial review gate (`docs/google-feedback-discussion/05-REVIEW-GATE-BEFORE-SHIP.md`) still pending for final ship sign-off.

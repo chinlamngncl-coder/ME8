@@ -49,7 +49,6 @@
         var PIN_POPUP_TIP_INSET = 10;
         var PIN_LABEL_CLEAR = 48;
         var pinVideoDockSyncTimer = null;
-        var pinVideoSyncTimers = Object.create(null);
         var pinVideoStoppedByUser = Object.create(null);
 
         function markPinVideoUserStop(camId) {
@@ -1972,10 +1971,6 @@
                 if (stopBtn && stopBtn.closest('.leaflet-popup-content')) {
                     var stopCamId = normalizeCamId(stopBtn.getAttribute('data-cam-id'));
                     markPinVideoUserStop(stopCamId);
-                    if (stopCamId && pinVideoSyncTimers[stopCamId]) {
-                        clearTimeout(pinVideoSyncTimers[stopCamId]);
-                        pinVideoSyncTimers[stopCamId] = null;
-                    }
                     if (pinVideoDockSyncTimer) {
                         clearTimeout(pinVideoDockSyncTimer);
                         pinVideoDockSyncTimer = null;
@@ -2180,10 +2175,7 @@
                 var box = root.querySelector('.map-pin-video');
                 if (!box) return;
                 var ph = box.querySelector('.map-pin-video-placeholder');
-                var canvas = box.querySelector('canvas');
                 var hasLive = typeof VideoWall !== 'undefined' && VideoWall.mapPinHasLiveVideo && VideoWall.mapPinHasLiveVideo(camId);
-                var hasCanvas = !!(canvas && canvas.width > 8 && canvas.height > 8);
-                var streaming = typeof VideoWall !== 'undefined' && VideoWall.isCameraLive && VideoWall.isCameraLive(camId);
                 if (hasLive) {
                     if (ph) ph.hidden = true;
                     box.classList.add('vid-box-live', 'map-pin-has-live');
@@ -2191,12 +2183,6 @@
                         el.style.opacity = '0';
                         el.style.display = 'none';
                     });
-                } else if (streaming || hasCanvas) {
-                    if (ph) ph.hidden = true;
-                    box.classList.remove('map-pin-has-live', 'vid-box-live');
-                    if (typeof VideoWall !== 'undefined' && VideoWall.syncMapPinStreamingOverlay) {
-                        VideoWall.syncMapPinStreamingOverlay(camId);
-                    }
                 }
                 if (typeof VideoWall !== 'undefined' && VideoWall.updateMapPinStopButton) {
                     VideoWall.updateMapPinStopButton(camId);
@@ -3075,35 +3061,11 @@
         }
         window.scheduleSyncOpenPinVideosFromWall = scheduleSyncOpenPinVideosFromWall;
 
-        function preparePinVideoWallResync(camId) {
-            if (!camId || typeof VideoWall === 'undefined') return;
-            if (pinPopupHasVisibleVideo(camId)) return;
-            if (VideoWall.mapPinMirrorActive && VideoWall.mapPinMirrorActive(camId)
-                && VideoWall.wallHasPlayerForCam && VideoWall.wallHasPlayerForCam(camId)
-                && !(VideoWall.mapPinHasLiveVideo && VideoWall.mapPinHasLiveVideo(camId))) {
-                return;
-            }
-            var root = mapPopupRootForCam(camId);
-            if (!root) return;
-            var host = root.querySelector('.map-pin-video');
-            if (!host) return;
-            host.querySelectorAll('canvas.map-pin-video-canvas').forEach(function (c) { c.remove(); });
-            host.querySelectorAll('.map-pin-streaming-label').forEach(function (el) { el.remove(); });
-            host.classList.remove('vid-box-live', 'map-pin-has-live');
-        }
-
         function resyncPinVideoAfterSosAck(camId) {
             camId = normalizeCamId(camId);
             if (!camId) return;
             clearPinVideoUserStop(camId);
             syncPinVideoFromWall(camId);
-            setTimeout(function () {
-                if (typeof VideoWall === 'undefined') return;
-                if (VideoWall.wallHasPlayerForCam && VideoWall.wallHasPlayerForCam(camId)
-                    && !pinPopupHasVisibleVideo(camId)) {
-                    syncPinVideoFromWall(camId);
-                }
-            }, 450);
         }
 
         function syncPinVideoFromWall(camId) {
@@ -3125,32 +3087,15 @@
                     return;
                 }
             }
-            if (pinVideoSyncTimers[camId]) clearTimeout(pinVideoSyncTimers[camId]);
             var root = mapPopupRootForCam(camId);
             if (root && root.classList.contains('pin-popup-minimized')) {
                 root.classList.remove('pin-popup-minimized');
             }
-            var wallLive = VideoWall.wallHasPlayerForCam && VideoWall.wallHasPlayerForCam(camId);
-            if (!root && wallLive) {
-                pinVideoSyncTimers[camId] = setTimeout(function () {
-                    pinVideoSyncTimers[camId] = null;
-                    syncPinVideoFromWall(camId);
-                }, 80);
-                return;
-            }
-            preparePinVideoWallResync(camId);
             if (VideoWall.syncMapPopupPlayer) {
                 VideoWall.syncMapPopupPlayer(camId);
             }
             if (deviceMarkers[camId]) refreshPinPopupPosition(deviceMarkers[camId]);
             if (VideoWall.updateMapPinStopButton) VideoWall.updateMapPinStopButton(camId);
-            var pinLive = VideoWall.mapPinHasLiveVideo && VideoWall.mapPinHasLiveVideo(camId);
-            if (wallLive && !pinLive) {
-                pinVideoSyncTimers[camId] = setTimeout(function () {
-                    pinVideoSyncTimers[camId] = null;
-                    syncPinVideoFromWall(camId);
-                }, 450);
-            }
         }
         window.syncPinVideoFromWall = syncPinVideoFromWall;
 
@@ -3620,7 +3565,6 @@
             if (!root || !root.classList.contains('pin-popup-minimized')) return false;
             clearPinVideoUserStop(camId);
             root.classList.remove('pin-popup-minimized');
-            preparePinVideoWallResync(camId);
             if (typeof VideoWall !== 'undefined' && VideoWall.syncMapPopupPlayer) {
                 VideoWall.syncMapPopupPlayer(camId);
             }
