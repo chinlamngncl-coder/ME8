@@ -2481,7 +2481,7 @@
                             updateSlotAudioButton(slotKey);
                             syncAllCallUi();
                             if (camId) {
-                                setTimeout(function () { syncMapPopupPlayer(camId); }, 120);
+                                setTimeout(function () { syncPinMirrorOnWallDecode(camId); }, 120);
                             }
                             if (wallActiveCamIds().length >= 2) {
                                 setTimeout(function () {
@@ -2708,9 +2708,69 @@
         });
     }
 
-    /** Disabled — map pins use per-cam pool JSMpeg (mob-pin-pool-jsmpeg-primary). */
+    /** Phase 4a — RAF mirror from wall canvas (not wired to play paths until 4b+). */
     function startMapMirrorFromWall(camId, host) {
-        return false;
+        if (!camId || !host) return false;
+        camId = String(camId).trim();
+        const srcCanvas = wallCanvasForCam(camId);
+        if (!srcCanvas) return false;
+
+        stopMapPinMirror(camId);
+
+        host.querySelectorAll('canvas.map-pin-video-canvas').forEach(function (c) { c.remove(); });
+
+        let dstCanvas = host.querySelector('canvas.map-pin-mirror-canvas');
+        if (!dstCanvas) {
+            dstCanvas = document.createElement('canvas');
+            dstCanvas.className = 'map-pin-mirror-canvas';
+            dstCanvas.style.cssText = 'width:100%;height:100%;display:block;background:#000';
+            host.appendChild(dstCanvas);
+        }
+
+        mapMirrorCamId = camId;
+
+        function wallSlotElForCam(id) {
+            for (const el of getSlots()) {
+                const idx = findSlotIndex(el);
+                if (!players.has(idx)) continue;
+                const bound = streamCamForSlotKey(idx) || el.dataset.camId || resolveCamIdForSlot(el);
+                if (bound === id) return el;
+            }
+            return null;
+        }
+
+        function render() {
+            if (!host.isConnected || !srcCanvas.isConnected) {
+                stopMapPinMirror(camId);
+                return;
+            }
+            const dst = host.querySelector('canvas.map-pin-mirror-canvas');
+            if (!dst) {
+                stopMapPinMirror(camId);
+                return;
+            }
+            const sw = srcCanvas.width;
+            const sh = srcCanvas.height;
+            if (sw > 8 && sh > 8) {
+                if (dst.width !== sw) dst.width = sw;
+                if (dst.height !== sh) dst.height = sh;
+                const ctx = dst.getContext('2d');
+                if (ctx) ctx.drawImage(srcCanvas, 0, 0, sw, sh);
+            }
+            const slotEl = wallSlotElForCam(camId);
+            const wallLive = !!(slotEl && slotEl.classList.contains('video-slot-has-live'));
+            if (wallLive) {
+                host.classList.add('map-pin-has-live', 'vid-box-live');
+            } else {
+                host.classList.remove('map-pin-has-live', 'vid-box-live');
+            }
+            ensureMapPinVideoRafs();
+            global.mapPinVideoRafs[camId] = requestAnimationFrame(render);
+        }
+
+        ensureMapPinVideoRafs();
+        global.mapPinVideoRafs[camId] = requestAnimationFrame(render);
+        return true;
     }
 
     function ensureMapPopupShowsWallStream(camId, isAlarm) {
@@ -2751,6 +2811,61 @@
         if (!host) return false;
         const hostCam = host.getAttribute('data-cam-id');
         if (hostCam && hostCam !== camId) return false;
+
+        if (mapPinMirrorActive(camId) && host.querySelector('canvas.map-pin-mirror-canvas')) {
+            host.onclick = null;
+            updateMapPinStopButton(camId);
+            unmuteAudioForSosCam(camId);
+            refreshPinPttAfterLivePin(camId);
+            return true;
+        }
+
+        if (!mapPinHasLiveVideo(camId) && !mapPinMirrorActive(camId)
+            && wallHasPlayerForCam(camId) && !wallSlotDecodedForCam(camId)) {
+            const waitCanvas = host.querySelector('canvas.map-pin-video-canvas');
+            const waitPlayer = getMapPlayer(camId);
+            const hasPinPlayer = !!(waitCanvas && waitPlayer && waitPlayer.canvas === waitCanvas);
+            const hasMirrorCanvas = !!host.querySelector('canvas.map-pin-mirror-canvas');
+            const streamLabel = host.querySelector('.map-pin-streaming-label');
+            const labelVisible = !!(streamLabel && streamLabel.style.display !== 'none'
+                && streamLabel.style.opacity !== '0');
+            if (labelVisible || (!hasPinPlayer && !hasMirrorCanvas)) {
+                if (!labelVisible) showMapPinStreamingOverlay(camId, isAlarmCamId(camId));
+                host.onclick = null;
+                updateMapPinStopButton(camId);
+                unmuteAudioForSosCam(camId);
+                refreshPinPttAfterLivePin(camId);
+                return true;
+            }
+            if (hasPinPlayer) {
+                host.onclick = null;
+                host.classList.remove('vid-box-live', 'map-pin-has-live');
+                if (!labelVisible) showMapPinStreamingOverlay(camId, isAlarmCamId(camId));
+                updateMapPinStopButton(camId);
+                unmuteAudioForSosCam(camId);
+                refreshPinPttAfterLivePin(camId);
+                return true;
+            }
+        }
+
+        if (wallCanvasForCam(camId) && (wallSlotDecodedForCam(camId) || wallHasPlayerForCam(camId))) {
+            destroyMapPlayer(camId);
+            if (startMapMirrorFromWall(camId, host)) {
+                const mirrorPh = host.querySelector('.map-pin-video-placeholder');
+                if (mirrorPh) mirrorPh.hidden = true;
+                removeStreamingOverlay(host);
+                host.onclick = null;
+                host.style.padding = '0';
+                updateMapPinStopButton(camId);
+                unmuteAudioForSosCam(camId);
+                refreshPinPttAfterLivePin(camId);
+                return true;
+            }
+            showMapPinStreamingOverlay(camId, isAlarmCamId(camId));
+            updateMapPinStopButton(camId);
+            return true;
+        }
+
         stopMapPinMirror(camId);
         const existingCanvas = host.querySelector('canvas.map-pin-video-canvas');
         const existingPlayer = getMapPlayer(camId);
@@ -2810,11 +2925,28 @@
         return true;
     }
 
+    /** Wall decoded — mirror to open pin popup when user authorized play (not stop-latched). */
+    function syncPinMirrorOnWallDecode(camId) {
+        if (!camId) return;
+        camId = String(camId).trim();
+        if (pinStoppedByUser(camId)) {
+            updateMapPinStopButton(camId);
+            return;
+        }
+        if (!mapPopupRootForCam(camId)) return;
+        if (!wallSlotDecodedForCam(camId) && !wallCanvasForCam(camId)) return;
+        attachMapPopupPlayer(camId, null);
+    }
+
     function syncMapPopupPlayer(camId) {
         if (!camId) return;
         camId = String(camId).trim();
         if (pinStoppedByUser(camId)) {
             updateMapPinStopButton(camId);
+            return;
+        }
+        if (wallSlotDecodedForCam(camId) || wallCanvasForCam(camId)) {
+            syncPinMirrorOnWallDecode(camId);
             return;
         }
         attachMapPopupPlayer(camId, null);
@@ -2876,15 +3008,23 @@
             stopBtn.classList.remove('sos-stop-disabled');
             stopBtn.title = tr('call.stopLive');
         }
-        if (placeholder) placeholder.hidden = pinDecoded || streaming;
+        const pinLive = pinDecoded || !!(id && mapPinMirrorActive(id));
+        if (placeholder) placeholder.hidden = pinLive;
         if (placeholder && !placeholder.hidden && !placeholder.classList.contains('map-pin-stopped-placeholder')) {
             placeholder.textContent = tr('map.pin.livePlaceholder');
         }
         if (box) {
-            if (pinDecoded) {
+            if (pinLive) {
                 box.classList.add('vid-box-live', 'map-pin-has-live');
             } else {
                 box.classList.remove('vid-box-live', 'map-pin-has-live');
+                if (id && !lazyPending && !mapPinHasLiveVideo(id)) {
+                    if (wallHasPlayerForCam(id)) {
+                        showMapPinStreamingOverlay(id, isAlarmCamId(id));
+                    } else {
+                        syncMapPinStreamingOverlay(id);
+                    }
+                }
             }
         }
         syncPinAudioUi(camId);
@@ -3483,13 +3623,14 @@
             pendingWallSlots[i] = camId;
             const slotEl = getSlots()[i];
             if (slotEl) slotEl.dataset.camId = camId;
-            if (wallSlotHasLivePlayer(i, camId)) return;
-            assignCamToSlot(camId, i, {
-                skipInvite: true,
-                keepAlarm: true,
-                wallSlotReserved: true,
-                alarm: false,
-            });
+            if (!wallSlotHasLivePlayer(i, camId)) {
+                assignCamToSlot(camId, i, {
+                    forceInvite: true,
+                    keepAlarm: true,
+                    wallSlotReserved: true,
+                    alarm: false,
+                });
+            }
         });
         healOpenAllWallStreams();
     }
@@ -3545,7 +3686,12 @@
                 return;
             }
             if (!wallSlotHasLivePlayer(wallSlotIndex, camId)) {
-                assignCamToSlot(camId, wallSlotIndex, {
+                assignCamToSlot(camId, wallSlotIndex, opts.forceLive ? {
+                    forceInvite: true,
+                    keepAlarm: true,
+                    wallSlotReserved: true,
+                    alarm: false,
+                } : {
                     skipInvite: true,
                     keepAlarm: true,
                     wallSlotReserved: true,
@@ -3668,7 +3814,13 @@
             }
             if (wallSlot != null && wallSlot >= 0 && !wallSlotHasLivePlayer(wallSlot, camId)) {
                 pendingWallSlots[wallSlot] = camId;
-                assignCamToSlot(camId, wallSlot, {
+                if (opts.forceLive) requestStreamForCam(camId, true);
+                assignCamToSlot(camId, wallSlot, opts.forceLive ? {
+                    forceInvite: true,
+                    keepAlarm: true,
+                    wallSlotReserved: true,
+                    alarm: wallAlarm,
+                } : {
                     skipInvite: true,
                     keepAlarm: true,
                     wallSlotReserved: true,
@@ -3681,17 +3833,31 @@
             return;
         }
         if (guardFieldPttCommInsteadOfPinAutoPlay(camId, 0, opts)) return;
-        requestStreamForCam(camId);
+        requestStreamForCam(camId, !!opts.forceLive);
         const slotIndex = (forcedWallSlot != null && forcedWallSlot >= 0)
             ? forcedWallSlot
             : reserveWallSlotForCam(camId);
         pendingWallSlots[slotIndex] = camId;
-        assignCamToSlot(camId, slotIndex, {
+        assignCamToSlot(camId, slotIndex, opts.forceLive ? {
+            forceInvite: true,
+            keepAlarm: true,
+            wallSlotReserved: true,
+            alarm: wallAlarm,
+        } : {
             skipInvite: true,
             keepAlarm: true,
             wallSlotReserved: true,
             alarm: wallAlarm,
         });
+        if (opts.forceLive) {
+            showMapPinStreamingOverlay(camId, pinIsAlarm);
+            destroyMapPlayer(camId);
+            attachMapPopupPlayer(camId, element);
+            updateMapPinStopButton(camId);
+            unmuteAudioForSosCam(camId);
+            syncAllPttRxUi();
+            return;
+        }
         let canvas = element.querySelector('canvas');
         if (!canvas) {
             canvas = document.createElement('canvas');
@@ -4117,8 +4283,10 @@
             }
             if (!isStreamInvited(camId) && !wallHasPlayerForCam(camId) && !mapPlayers.has(camId)) return;
             const slotAlarm = slotEl.classList.contains('alarm');
+            const needsForceInvite = !slotHasLiveWallPlayer(slotEl, slot);
             assignCamToSlot(camId, slot, {
-                skipInvite: true,
+                forceInvite: needsForceInvite,
+                skipInvite: !needsForceInvite,
                 wallSlotReserved: true,
                 keepAlarm: slotAlarm,
                 alarm: slotAlarm,
