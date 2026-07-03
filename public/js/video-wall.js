@@ -2648,6 +2648,10 @@
         }
         showMapPinStoppedPlaceholder(camId, panelLabel, pinClass);
         updateMapPinStopButton(camId);
+        if (openAllSlotByCam || openAllLivePinsSyncTimer
+            || (openAllReservedIds && openAllReservedIds.length)) {
+            releaseOpenAllState();
+        }
     }
 
     function resetMapPopupVideo(camId) {
@@ -2848,7 +2852,7 @@
             }
         }
 
-        if (wallCanvasForCam(camId) && (wallSlotDecodedForCam(camId) || wallHasPlayerForCam(camId))) {
+        if (wallCanvasForCam(camId) && wallSlotDecodedForCam(camId)) {
             destroyMapPlayer(camId);
             if (startMapMirrorFromWall(camId, host)) {
                 const mirrorPh = host.querySelector('.map-pin-video-placeholder');
@@ -3477,9 +3481,6 @@
     function focusMapPinQuiet(camId) {
         if (!camId) return;
         activeCamId = camId;
-        if (typeof global.clearPinVideoUserStop === 'function') {
-            global.clearPinVideoUserStop(camId);
-        }
         if (typeof global.clearMapPinPopupSuppression === 'function') {
             global.clearMapPinPopupSuppression(camId);
         }
