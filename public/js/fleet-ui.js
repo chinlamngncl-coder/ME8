@@ -530,9 +530,7 @@
             if (ch) slotIndex = ch.slot;
             const alreadyLive = global.VideoWall.isCameraLive && VideoWall.isCameraLive(camId);
             const online = isDeviceOnline(camId);
-            const pinStoppedByUser = typeof global.isPinVideoStoppedByUser === 'function'
-                && global.isPinVideoStoppedByUser(camId);
-            if (!alreadyLive && !pinStoppedByUser) {
+            if (!alreadyLive) {
                 VideoWall.assignCamToSlot(camId, slotIndex);
             } else if (!online && VideoWall.onDeviceWentOffline) {
                 VideoWall.onDeviceWentOffline(camId);

@@ -1746,7 +1746,7 @@
   "video.signalLost": "Video signal lost",
   "video.setIdInConfig": "Set ID in Config",
   "video.stop": "Stop",
-  "video.stopped": "Video stopped",
+  "video.stopped": "Stopped — press ▶",
   "video.stoppedOnDevice": "Stopped by BWC",
   "video.stoppedShort": "Stopped",
   "video.stream.live": "Live streaming....",
