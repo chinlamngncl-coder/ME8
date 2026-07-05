@@ -4,7 +4,8 @@
 **Search terms:** `pin mirror`, `Open All`, `Live streaming`, `firmware gold`, `CREATE shim`, `dual JSMpeg`, `preparePinVideoWallResync`, `Google verify`, `WebSocket count`
 
 **Google AI verification (4 questions):** `docs/MOB-DISC-GOOGLE-PIN-CANVAS-MIRROR-VERIFY.md`  
-**ZLM next (test-first, no UI yet):** `docs/MOB-DISC-ZLM-TEST-FIRST.md`
+**ZLM next (test-first, no UI yet):** `docs/MOB-DISC-ZLM-TEST-FIRST.md`  
+**“Stopped by BWC” flicker:** `docs/MOB-DISC-BWC-STOPPED-FLICKER.md` — ask Google via `docs/MOB-DISC-ASK-GOOGLE-ZLM.md`
 
 **Primary restore:** `RUN RESTORE-ME8-FIRMWARE-GOLD` → `RESTORE-ME8-FIRMWARE-GOLD.ps1`  
 **Rules doc:** `docs/ME8-FIRMWARE-GOLD-LOCKED.md`  

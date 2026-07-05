@@ -1,82 +1,111 @@
-# MOB DISC — what to ask Google next (ZLM)
+# MOB DISC — ask Google (consolidated paste)
 
 **Date:** 2026-07-06  
-**Search:** `ask google`, `ZLM next`, `what to ask`
+**Search:** `ask google`, `Stopped by BWC`, `ZLM`, `unstable`, `paste`
+
+**Two topics:** (1) ZLM path after our revert (2) intermittent **“Stopped by BWC”** on live wall
 
 ---
 
-## Where we are (plain English)
+## Where we are
 
 | Item | Status |
 |------|--------|
-| Live wall + map pins (Open All) | **Working** — Firmware Gold lock |
-| ZLM backend try | **Failed** — touched live video engine → wall died in seconds → **reverted** |
-| Dashboard UI | **Untouched** — must stay that way until backend is proven |
-| Operator | **Designer** — no Docker, no `.env`, one install pack at ship |
-| TOTP | **Off on bench** — back on before ship |
-
-We still want **ZLM (H.264) primary + FFmpeg (MPEG1) fallback** — but only if it can be done **without breaking** what works today.
+| Open All + pin mirror | Checkpoint **PASS** at Firmware Gold lock — but **not stable day-to-day** |
+| **“Stopped by BWC”** yellow overlay | Comes back **once in a while** while stream may still be running or recoverable |
+| ZLM backend try | **Failed** — pool hooks reverted |
+| Operator | Designer — **one pack at ship**, no Docker, no `.env` |
+| TOTP | Suspended on bench — **on before ship** |
 
 ---
 
-## Paste this to Google
+## Paste to Google (full block)
 
-Copy everything in the box below.
+Copy from **Context** through **What we need back**.
 
 ---
 
-**Context**
+### Context
 
-We run ME8 — 8 body-worn cameras, Node dashboard, SIP/RTP from devices, today **FFmpeg → MPEG1 → JSMpeg** in the browser. Pin video **mirrors wall canvas** (one WebSocket per camera). This stack **passed checkpoint** and is frozen as “Firmware Gold.”
+We run **ME8** — enterprise dashboard for **8 body-worn cameras** (lab: 2 devices, colocated map pins).
 
-We tried “ZLM backend proof” per your decoupled plan: new `lib/zlm*` modules + hooks on **`liveStreamPool.js`** (even with ZLM disabled in env). Within seconds of Open All, wall showed **STOPPED BY BWC**. We **reverted** all pool/server hooks. UI was never edited.
+**Working stack (Firmware Gold lock):**
+- SIP/RTP from BWC → Node **`liveStreamPool`** → FFmpeg → MPEG1 → JSMpeg on **wall panel**
+- Map pin = **canvas mirror** from wall (one WebSocket per camera — no second pin JSMpeg when wall is live)
+- Cache bust: `video-wall.js?v=20260705-pin-mirror-complete`
 
-**Hard constraints (non-negotiable)**
+**Hard constraints**
+1. Customer gets **one install pack** — media runtime inside pack. **No** operator Docker / compose / second product.
+2. **No UI edits** (`video-wall.js`, `index.html`) until backend proof on **standalone test page only** — unless you explicitly approve a **stability MOB** with file named.
+3. After ZLM try: **do not hook `liveStreamPool`** until you define a safe boundary — pool touch caused immediate regression.
+4. Bench operator is **not technical** — agent owns logs/restart; operator pass/fail only.
 
-1. **Operator never installs Docker or a second product** — customer gets **one ME8 pack** (media runtime inside the pack).
-2. **No UI changes** (`video-wall.js`, `index.html`, pins) until isolated backend proof on a **standalone test page** only.
-3. **No edits to `liveStreamPool.js`** until you specify a safe integration boundary — our revert rule after this failure.
-4. Bench operator is **not technical** — agent owns logs, env, restart; operator only pass/fail on what they see.
+---
 
-**Questions**
+### Problem A — ZLM (reverted)
 
-1. Given we **cannot** hook ZLM tee into `liveStreamPool` without regression, what is the **correct integration point** for ZLM ingest on a Node SIP/RTP stack that already runs per-camera FFmpeg? (Separate process? Sidecar **bundled in ship pack** not Docker-for-user? RTP duplicate listener? Something else?)
+We attempted ZLM ingest per your decoupled plan (`lib/zlm*` + pool RTP listen hooks, ZLM env off). Within seconds of Open All, wall showed **“Stopped by BWC”** or **Stopped**. We **reverted** all `liveStreamPool` / `server.js` ZLM wiring. UI was never edited.
 
-2. What is the **minimal proof-of-life** you will accept **before** any UI work — exact deliverables (log lines, test page URL, one cam ID), with **zero** changes to Firmware Gold files?
+**Questions — ZLM**
+1. Where should ZLM ingest attach on a Node stack that **already** runs per-camera FFmpeg in `liveStreamPool`? (**Not** our previous tee on pool RTP — what instead?)
+2. Minimal **proof-of-life** before any UI work (log lines, test page, one cam) with **zero** Firmware Gold file edits?
+3. FFmpeg fallback when ZLM down — backend-only design; same player vs different?
+4. **One-pack ship:** how should ZLMediaKit ship (embedded `vendor/` binary, child process from `server.js`)? No operator-facing compose.
+5. What must **never** be done again (pool `onSessionEnd` during SIP re-INVITE, etc.)?
 
-3. How should **FFmpeg fallback** switch when ZLM is down — same browser player or different? Who owns the decision in **backend only** (no `video-wall.js` branches yet)?
+---
 
-4. For **one-pack ship**: how should ZLM MediaServer ship (embedded binary in `vendor/`, Windows service, child process from `server.js`)? **No** operator-facing compose file.
+### Problem B — intermittent “Stopped by BWC” (live instability)
 
-5. What **must not** be done again (we suspect pool hooks and session-end callbacks during SIP re-INVITE) — please confirm failure mode.
+UI string: **`video.stoppedOnDevice`** → **“Stopped by BWC”** (yellow overlay on wall/pin).
 
-**What we need back**
+**Client triggers we know:**
+1. Socket `video-stream-stopped` with **`reason: 'device_bye'`** → `markBwcStoppedOverlay()` (server: SIP BYE → `liveStreamPool.onRemoteBye` → emit `device_bye`). Server **keeps** pool session `dashboardActive` after BYE (SOS path).
+2. **Stall watch:** if no decoded frame for **~2.8s** (`BWC_VIDEO_STALL_MS`) after first decode → same overlay (`ensureBwcStallWatch` / `noteVideoFrame`).
 
-- Ordered steps (Step 1, 2, 3…) an agent can follow **one MOB at a time**
-- Explicit **forbidden file list** until gate pass
-- Clear **gate**: “operator sees video on test page only” before UI phase
+**Operator report:** Overlay appears **once in a while** during normal Open All / two-cam bench — not every time; feels **unstable** even after pin-mirror checkpoint PASS. Sometimes wall still looks like it was live; recovery unclear without full restart/restore.
+
+**Questions — stability**
+1. Is **2.8s stall → “Stopped by BWC”** wrong product semantics? (User did not stop on device — should this be “Signal lost” / reconnect / debounce instead?)
+2. Can **SIP BYE** arrive mid-session (re-INVITE, firmware, colocated Chin+kk) while RTP/ffmpeg **still valid**? Should client **not** show device-stopped overlay on every `device_bye`?
+3. With **pin canvas mirror**, is `noteVideoFrame` / stall watch tied only to wall JSMpeg — any gap where mirror shows wall but frame clock stalls → false overlay?
+4. Open All **two live** cams: recommended **server + client** debounce / hysteresis before tearing down UI or showing BWC-stopped?
+5. Should **ZLM migration wait** until Problem B has a signed stability gate — or can ZLM lab proceed in parallel with **zero** pool touch?
+
+---
+
+### What we need back
+
+Please reply with:
+
+1. **Ordered steps** (Step 1, 2, 3…) — one MOB at a time for our agent  
+2. **Forbidden file list** until each gate passes  
+3. **Gate A (stability):** Open All 2 cams, 10+ minutes, **no** spurious “Stopped by BWC”  
+4. **Gate B (ZLM):** video on **test page only** (`test-zlm.html`), logs show ingest — **before** any dashboard integration  
+5. Explicit **ship reminder:** TOTP on, one pack, no operator Docker  
 
 ---
 
 ## When Google answers
 
-1. Agent saves answer → new MOB DISC file (e.g. `MOB-DISC-GOOGLE-ZLM-INTEGRATION.md`)
-2. Links from `MOB-DISC-START-HERE.md`
-3. **No code** until you say `MOB-APPLY` on a **named** step from Google’s list
-4. If anything breaks live wall: `RUN RESTORE-ME8-FIRMWARE-GOLD`
+1. Agent saves → `docs/MOB-DISC-GOOGLE-ANSWER-<topic>.md` (or you paste in chat)  
+2. Link from `MOB-DISC-START-HERE.md`  
+3. **No code** until you say `MOB-APPLY` + MOB name from Google’s step list  
+4. If wall breaks: **`RUN RESTORE-ME8-FIRMWARE-GOLD`**
 
 ---
 
 ## You do not need to ask Google about
 
-- Pin mirror / Open All (already fixed — Firmware Gold)
-- TOTP (bench suspended — ship checklist covers re-enable)
-- Docker install steps for yourself (tell Google: **forbidden for operator**)
+- Pin mirror design (settled — unless Google ties it to Problem B)  
+- TOTP (bench off; ship checklist covers re-enable)  
+- Docker steps for yourself  
 
 ---
 
 ## Related
 
-- `docs/MOB-DISC-ZLM-NOT-READY.md` — why we reverted  
-- `docs/MOB-DISC-FIRMWARE-GOLD-PIN-MIRROR.md` — do not break  
-- `docs/MOB-DISC-TOTP-SUSPENDED-BENCH.md` — login relief on bench
+- `docs/MOB-DISC-FIRMWARE-GOLD-PIN-MIRROR.md`  
+- `docs/MOB-DISC-ZLM-NOT-READY.md`  
+- `docs/MOB-DISC-TOTP-SUSPENDED-BENCH.md`  
+- `docs/ME8-EIGHT-BWC-RULES.md` — one WS, pin mirrors wall  
