@@ -41,6 +41,8 @@
 4. **No** 450ms pin resync loops, no `repairOpenPinPopupVideos` painting live without decode.
 5. **Restore = 100%** — `RESTORE-ME8-FIRMWARE-GOLD.ps1` is primary. `RESTORE-ME8-V1.ps1` is legacy fallback only. No partial file copy.
 
+**MOB DISC (pin mirror failures + baseline CREATE mistakes):** `docs/MOB-DISC-FIRMWARE-GOLD-PIN-MIRROR.md`
+
 ---
 
 ## Locked / workflow

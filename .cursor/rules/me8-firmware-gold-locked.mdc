@@ -17,6 +17,7 @@ alwaysApply: true
 
 **Primary lock:** `me8-firmware-gold-20260706`  
 **Doc:** `BASELINE-ME8-FIRMWARE-GOLD.md`  
+**MOB DISC (mistakes + recovery):** `docs/MOB-DISC-FIRMWARE-GOLD-PIN-MIRROR.md`  
 **Restore phrase (user only):** `RUN RESTORE-ME8-FIRMWARE-GOLD`
 
 ## Checkpoint PASS 2026-07-06

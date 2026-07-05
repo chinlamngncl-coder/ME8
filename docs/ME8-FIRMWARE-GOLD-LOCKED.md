@@ -32,3 +32,7 @@
 ## Operator is not tech
 
 Agent owns git, verify, logs, encoding, cache bust. Operator: restart, refresh once, pass/fail from what they see.
+
+## MOB DISC (agent mistakes + recovery)
+
+**Read before touching pin video or baseline scripts:** `docs/MOB-DISC-FIRMWARE-GOLD-PIN-MIRROR.md`
