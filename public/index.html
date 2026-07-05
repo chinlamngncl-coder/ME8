@@ -1086,6 +1086,11 @@
             background: #0f172a; border: 1px solid #334155; border-radius: 6px;
             color: #e2e8f0; font-size: 12px; box-sizing: border-box;
         }
+        .ev-ftp-form-grid select {
+            width: 100%; padding: 7px 9px; margin: 0;
+            background: #0f172a; border: 1px solid #334155; border-radius: 6px;
+            color: #e2e8f0; font-size: 12px; box-sizing: border-box;
+        }
         .ev-ftp-form-grid input[readonly] { color: #94a3b8; background: #0b1220; }
         .ev-ftp-form-grid input:focus {
             outline: none; border-color: #3b82f6; box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.35);
@@ -4123,6 +4128,61 @@
             </div>
 
             <div id="ss-panel-dashboard" class="ss-main-panel">
+            <div id="ss-smtp-section" class="ss-config-section ev-ftp-settings-block" hidden>
+                <h4 data-i18n="smtp.title">Outbound email (SMTP)</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="smtp.hint">Used for password reset and sign-in recovery (when enabled later). Configure once. Password is stored in the server secrets vault only.</p>
+                <div class="ev-ftp-form-grid">
+                    <label>
+                        <span data-i18n="smtp.passwordStatus">Password</span>
+                        <span class="ev-ftp-service-cell" id="ss-smtp-pass-status"><span class="ev-st-badge ev-st-muted">—</span></span>
+                    </label>
+                    <label>
+                        <span data-i18n="smtp.lastTestStatus">Last test</span>
+                        <span class="ev-ftp-service-cell" id="ss-smtp-test-status"><span class="ev-st-badge ev-st-muted">—</span></span>
+                    </label>
+                    <label class="full">
+                        <span data-i18n="smtp.host">SMTP host</span>
+                        <input type="text" id="ss-smtp-host" autocomplete="off" spellcheck="false" placeholder="smtp.example.com">
+                    </label>
+                    <label>
+                        <span data-i18n="smtp.port">Port</span>
+                        <input type="number" id="ss-smtp-port" min="1" max="65535" step="1" autocomplete="off" value="587">
+                    </label>
+                    <label>
+                        <span data-i18n="smtp.secure">Security</span>
+                        <select id="ss-smtp-secure">
+                            <option value="starttls" data-i18n="smtp.secureStarttls">STARTTLS (587)</option>
+                            <option value="ssl" data-i18n="smtp.secureSsl">SSL/TLS (465)</option>
+                            <option value="none" data-i18n="smtp.secureNone">None (plain)</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span data-i18n="smtp.fromName">From display name</span>
+                        <input type="text" id="ss-smtp-from-name" autocomplete="off" spellcheck="false">
+                    </label>
+                    <label>
+                        <span data-i18n="smtp.fromEmail">From email address</span>
+                        <input type="email" id="ss-smtp-from-email" autocomplete="off" spellcheck="false">
+                    </label>
+                    <label>
+                        <span data-i18n="smtp.user">Username (optional)</span>
+                        <input type="text" id="ss-smtp-user" autocomplete="off" spellcheck="false">
+                    </label>
+                    <label class="full">
+                        <span data-i18n="smtp.password">SMTP password</span>
+                        <input type="password" id="ss-smtp-pass" autocomplete="new-password" data-i18n-placeholder="smtp.passwordPlaceholder" placeholder="Leave blank to keep current password">
+                    </label>
+                    <label class="full">
+                        <span data-i18n="smtp.testTo">Send test email to</span>
+                        <input type="email" id="ss-smtp-test-to" autocomplete="email" spellcheck="false" placeholder="you@example.com">
+                    </label>
+                </div>
+                <div class="ev-ftp-save-row">
+                    <button type="button" class="btn btn-action btn-sm" id="ss-smtp-save" data-i18n="smtp.save">Save SMTP settings</button>
+                    <button type="button" class="btn btn-action btn-sm" id="ss-smtp-test" data-i18n="smtp.sendTest">Send test email</button>
+                    <span class="setup-hint" id="ss-smtp-msg" style="margin:0"></span>
+                </div>
+            </div>
             <div id="ss-voice-alerts-section" class="ss-config-section" hidden>
                 <h4 data-i18n="voiceAlerts.config.title">Alerts &amp; voice</h4>
                 <p class="setup-hint" style="margin-top:0" data-i18n="voiceAlerts.config.hint">Browser text-to-speech for control-room alerts. Click anywhere on the dashboard once to allow audio. Session mute is in the header.</p>
@@ -5255,6 +5315,7 @@
     <script src="/js/password-policy-ui.js"></script>
     <script src="/js/tab-lifecycle.js?v=20260702-restore-8wc-v2"></script>
     <script src="/js/server-setup.js?v=20260702-admin-action-bus"></script>
+    <script src="/js/platform-smtp.js?v=20260706-smtp-settings"></script>
     <script src="/js/settings-hub.js?v=20260702-settings-session-sync"></script>
     <script src="/js/tech-diagnostics.js?v=20260702-restore-8wc-v2"></script>
     <script src="/js/usb-maintenance.js?v=20260609-usb2"></script>
@@ -5275,7 +5336,7 @@
     <script src="/js/evidence-hub.js?v=20260627-approvals-merge"></script>
     <script src="/js/evidence-manager.js?v=20260702-restore-8wc-v2"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260705-pin-mirror-complete"></script>
+    <script src="/js/video-wall.js?v=20260706-stall-background-tab"></script>
     <script src="/js/video-matrix.js?v=20260629-live-cap-8"></script>
     <script src="/js/fleet-ui.js?v=20260629-live-cap-8"></script>
     <script src="/js/map-popout-sync.js?v=20260612-mirror"></script>

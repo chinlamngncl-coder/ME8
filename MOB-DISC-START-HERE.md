@@ -14,6 +14,8 @@ Tell the agent exactly:
 
 Then run **`RESTART-FLEET.bat`** and hard refresh once (Ctrl+Shift+R).
 
+**Then** checkpoint Open All **before** any auth MOB. Auth (SMTP, TOTP bench) is re-applied **after** video PASS — see `docs\MOB-DISC-BWC-STOPPED-FLICKER.md` → Recovery genre.
+
 ---
 
 ## What to open
@@ -21,6 +23,7 @@ Then run **`RESTART-FLEET.bat`** and hard refresh once (Ctrl+Shift+R).
 | Topic | File |
 |-------|------|
 | **Live pins / Open All** | `docs\MOB-DISC-FIRMWARE-GOLD-PIN-MIRROR.md` |
+| **“Stopped by BWC” while testing (read this if alt-tabbing)** | `docs\MOB-DISC-BWC-STOPPED-FLICKER.md` |
 | **ZLM — failed, do not use yet** | `docs\MOB-DISC-ZLM-NOT-READY.md` |
 | **TOTP off for testing** (back on before ship) | `docs\MOB-DISC-TOTP-SUSPENDED-BENCH.md` |
 | **What to ask Google (ZLM + “Stopped by BWC”)** | `docs\MOB-DISC-ASK-GOOGLE-ZLM.md` |
@@ -37,6 +40,7 @@ Then run **`RESTART-FLEET.bat`** and hard refresh once (Ctrl+Shift+R).
 - **Pin mirror** — what fixed map video; what agents must not break again.  
 - **Super admin lockout** — email recovery + install kit + Settings reset (planned; see doc). **Not** `.env` or restart.
 - **Ask Google** — ZLM + **“Stopped by BWC”** flicker (paste in doc).  
+- **Stopped by BWC** — often **Opera backgrounded** (Cursor focus); log proved server still live at 1:20 AM. See flicker doc.  
 - **Firmware Gold** — restore instructions.
 
 ---

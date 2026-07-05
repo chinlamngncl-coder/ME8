@@ -54,6 +54,7 @@ process.on('unhandledRejection', (reason) => {
     }
 });
 const serverSettings = require('./lib/serverSettings');
+const platformSmtp = require('./lib/platformSmtp');
 const serverSecrets = require('./lib/serverSecrets');
 const siteTime = require('./lib/siteTime');
 const telemetryFromXml = require('./lib/telemetryFromXml');
@@ -2687,6 +2688,111 @@ app.post('/api/ftp-settings', dashboardAuth.requireSuperAdmin, async (req, res) 
             runtime: runtimePortSnapshot(),
             ftpRestarted: restart.ok,
             ftpRestartReason: restart.reason || null,
+        });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.get('/api/platform/smtp', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        const current = serverSettings.load(STORAGE_DIR);
+        res.json({ ok: true, smtp: platformSmtp.smtpPublicView(current) });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.post('/api/platform/smtp', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        const body = req.body || {};
+        if (reverifyForbidden(req, res, body)) return;
+        const smtpIn = body.smtp || body;
+        const current = serverSettings.load(STORAGE_DIR);
+        const currentSmtp = platformSmtp.resolveSmtpRuntime(current);
+        let password = currentSmtp.password;
+        if (smtpIn.password != null && String(smtpIn.password).trim() !== '') {
+            password = String(smtpIn.password).trim();
+        }
+        const nextSmtp = platformSmtp.normalizeSmtp({
+            host: smtpIn.host != null ? smtpIn.host : currentSmtp.host,
+            port: smtpIn.port != null ? smtpIn.port : currentSmtp.port,
+            secure: smtpIn.secure != null ? smtpIn.secure : currentSmtp.secure,
+            fromName: smtpIn.fromName != null ? smtpIn.fromName : currentSmtp.fromName,
+            fromEmail: smtpIn.fromEmail != null ? smtpIn.fromEmail : currentSmtp.fromEmail,
+            user: smtpIn.user != null ? smtpIn.user : currentSmtp.user,
+            password,
+            lastTestAt: currentSmtp.lastTestAt,
+            lastTestOk: currentSmtp.lastTestOk,
+            lastTestError: currentSmtp.lastTestError,
+        }, platformSmtp.smtpDefaultsFromEnv());
+        if (nextSmtp.user && !nextSmtp.password) {
+            return res.status(400).json(opErr('SMTP password is required when a username is set.'));
+        }
+        const next = serverSettings.save(STORAGE_DIR, Object.assign({}, current, { smtp: nextSmtp }));
+        auditLog.recordFromRequest(req, 'smtp.settings.save', {
+            detail: {
+                host: nextSmtp.host,
+                port: nextSmtp.port,
+                secure: nextSmtp.secure,
+                fromEmail: nextSmtp.fromEmail,
+                user: nextSmtp.user,
+            },
+        });
+        res.json({ ok: true, smtp: platformSmtp.smtpPublicView(next) });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.post('/api/platform/smtp/test', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        const body = req.body || {};
+        if (reverifyForbidden(req, res, body)) return;
+        const testTo = String(body.testTo || '').trim();
+        const current = serverSettings.load(STORAGE_DIR);
+        const currentSmtp = platformSmtp.resolveSmtpRuntime(current);
+        const smtpIn = body.smtp || {};
+        let password = currentSmtp.password;
+        if (smtpIn.password != null && String(smtpIn.password).trim() !== '') {
+            password = String(smtpIn.password).trim();
+        }
+        const runtime = platformSmtp.normalizeSmtp({
+            host: smtpIn.host != null ? smtpIn.host : currentSmtp.host,
+            port: smtpIn.port != null ? smtpIn.port : currentSmtp.port,
+            secure: smtpIn.secure != null ? smtpIn.secure : currentSmtp.secure,
+            fromName: smtpIn.fromName != null ? smtpIn.fromName : currentSmtp.fromName,
+            fromEmail: smtpIn.fromEmail != null ? smtpIn.fromEmail : currentSmtp.fromEmail,
+            user: smtpIn.user != null ? smtpIn.user : currentSmtp.user,
+            password,
+        }, platformSmtp.smtpDefaultsFromEnv());
+        let sendResult;
+        try {
+            sendResult = await platformSmtp.sendTestMail(runtime, testTo);
+        } catch (sendErr) {
+            const errMsg = sendErr && sendErr.message ? sendErr.message : String(sendErr);
+            const stamped = Object.assign({}, currentSmtp, platformSmtp.stripPassword(runtime), {
+                lastTestAt: new Date().toISOString(),
+                lastTestOk: false,
+                lastTestError: errMsg,
+            });
+            serverSettings.save(STORAGE_DIR, Object.assign({}, current, { smtp: stamped }));
+            auditLog.recordFromRequest(req, 'smtp.test.fail', { detail: { testTo, error: errMsg } });
+            return res.status(400).json(opErr(errMsg));
+        }
+        const stamped = Object.assign({}, currentSmtp, platformSmtp.stripPassword(runtime), {
+            lastTestAt: new Date().toISOString(),
+            lastTestOk: true,
+            lastTestError: '',
+        });
+        const next = serverSettings.save(STORAGE_DIR, Object.assign({}, current, { smtp: stamped }));
+        auditLog.recordFromRequest(req, 'smtp.test.ok', {
+            detail: { testTo, messageId: sendResult.messageId || null },
+        });
+        res.json({
+            ok: true,
+            smtp: platformSmtp.smtpPublicView(next),
+            messageId: sendResult.messageId || null,
         });
     } catch (err) {
         res.status(500).json(opErr(err));

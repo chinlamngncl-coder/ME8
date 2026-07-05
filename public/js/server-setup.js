@@ -511,7 +511,12 @@
         const usersSection = document.getElementById('ss-users-section');
         const mySection = document.getElementById('ss-my-account-section');
         const voiceSection = document.getElementById('ss-voice-alerts-section');
+        const smtpSection = document.getElementById('ss-smtp-section');
+        if (smtpSection) smtpSection.hidden = !onDash || !canManageServer;
         if (voiceSection) voiceSection.hidden = !onDash || !canManageServer;
+        if (onDash && canManageServer && global.PlatformSmtp && global.PlatformSmtp.load) {
+            global.PlatformSmtp.load().catch(function () { /* ignore */ });
+        }
         if (canManageUsers) {
             if (subtabs) subtabs.hidden = !onDash;
             if (usersSection) usersSection.hidden = !onDash || activeDashSubTab !== 'operators';

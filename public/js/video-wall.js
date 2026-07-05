@@ -1961,6 +1961,24 @@
     const bwcStallWatchTimers = Object.create(null);
     const bwcStallDecodedOnce = new Set();
 
+    function isBwcStallWatchPaused() {
+        return !!(typeof document !== 'undefined' && document.hidden);
+    }
+
+    function resetBwcStallClocksAfterTabVisible() {
+        const now = Date.now();
+        Object.keys(bwcStallWatchTimers).forEach(function (camId) {
+            if (!camId || !bwcStallWatchTimers[camId]) return;
+            lastVideoFrameAt[camId] = now;
+        });
+    }
+
+    if (typeof document !== 'undefined' && document.addEventListener) {
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) resetBwcStallClocksAfterTabVisible();
+        });
+    }
+
     function noteVideoFrame(camId) {
         if (!camId) return;
         camId = String(camId).trim();
@@ -2001,6 +2019,7 @@
         camId = String(camId).trim();
         if (bwcStallWatchTimers[camId]) return;
         bwcStallWatchTimers[camId] = setInterval(function () {
+            if (isBwcStallWatchPaused()) return;
             if (bwcStoppedCams.has(camId)) {
                 clearBwcStallWatch(camId);
                 return;
