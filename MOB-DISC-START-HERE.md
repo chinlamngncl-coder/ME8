@@ -23,6 +23,7 @@ Then run **`RESTART-FLEET.bat`** and hard refresh once (Ctrl+Shift+R).
 | **Live pins / Open All** | `docs\MOB-DISC-FIRMWARE-GOLD-PIN-MIRROR.md` |
 | **ZLM — failed, do not use yet** | `docs\MOB-DISC-ZLM-NOT-READY.md` |
 | **TOTP off for testing** (back on before ship) | `docs\MOB-DISC-TOTP-SUSPENDED-BENCH.md` |
+| **What to ask Google next (ZLM)** | `docs\MOB-DISC-ASK-GOOGLE-ZLM.md` |
 | **Google pin answers** | `docs\MOB-DISC-GOOGLE-PIN-CANVAS-MIRROR-VERIFY.md` |
 | **Put video back** | `BASELINE-ME8-FIRMWARE-GOLD.md` |
 
