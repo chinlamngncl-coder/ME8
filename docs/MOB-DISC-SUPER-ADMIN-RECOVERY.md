@@ -135,6 +135,7 @@ Customer with Microsoft / org SSO: password recovery is **their IT** — documen
 
 | MOB | Delivers |
 |-----|----------|
+| `mob-me8-auth-smtp-settings` | **First** — UI placement: `docs/MOB-DISC-SMTP-SETTINGS-UI.md` |
 | `mob-me8-auth-recovery-email-field` | Recovery email + verify flow at enroll |
 | `mob-me8-auth-smtp-settings` | Settings UI + send mail + test button |
 | `mob-me8-auth-forgot-password` | Login forgot password + reset link |
