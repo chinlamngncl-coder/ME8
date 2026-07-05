@@ -5,6 +5,8 @@
 **Version:** `me8-firmware-gold-20260706`  
 **Git tag:** `me8-firmware-gold-20260706`  
 **Locked:** 2026-07-06 — Open All + pin canvas mirror checkpoint PASS  
+**Files:** **2349** — VERIFY OK (2349/2349)  
+**Git:** tag `me8-firmware-gold-20260706`  
 **Video cache:** `video-wall.js?v=20260705-pin-mirror-complete`
 
 This is the **primary** ME8 restore floor. Supersedes `me8-v1` for live video / pin work.
