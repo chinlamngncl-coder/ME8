@@ -25,6 +25,7 @@ Then run **`RESTART-FLEET.bat`** and hard refresh once (Ctrl+Shift+R).
 | **TOTP off for testing** (back on before ship) | `docs\MOB-DISC-TOTP-SUSPENDED-BENCH.md` |
 | **What to ask Google (ZLM + “Stopped by BWC”)** | `docs\MOB-DISC-ASK-GOOGLE-ZLM.md` |
 | **Super admin forgot password / lost phone** | `docs\MOB-DISC-SUPER-ADMIN-RECOVERY.md` |
+| **ZLM architecture (awaiting “Approved”)** | `docs\MOB-DISC-ZLM-ARCHITECTURE-PROPOSAL.md` |
 | **Google pin answers** | `docs\MOB-DISC-GOOGLE-PIN-CANVAS-MIRROR-VERIFY.md` |
 | **Put video back** | `BASELINE-ME8-FIRMWARE-GOLD.md` |
 
