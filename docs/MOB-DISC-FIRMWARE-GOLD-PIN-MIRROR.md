@@ -3,7 +3,8 @@
 **Status:** Sealed — tag `me8-firmware-gold-20260706`, VERIFY OK **2349/2349**  
 **Search terms:** `pin mirror`, `Open All`, `Live streaming`, `firmware gold`, `CREATE shim`, `dual JSMpeg`, `preparePinVideoWallResync`, `Google verify`, `WebSocket count`
 
-**Google AI verification (4 questions):** `docs/MOB-DISC-GOOGLE-PIN-CANVAS-MIRROR-VERIFY.md`
+**Google AI verification (4 questions):** `docs/MOB-DISC-GOOGLE-PIN-CANVAS-MIRROR-VERIFY.md`  
+**ZLM next (test-first, no UI yet):** `docs/MOB-DISC-ZLM-TEST-FIRST.md`
 
 **Primary restore:** `RUN RESTORE-ME8-FIRMWARE-GOLD` → `RESTORE-ME8-FIRMWARE-GOLD.ps1`  
 **Rules doc:** `docs/ME8-FIRMWARE-GOLD-LOCKED.md`  
