@@ -6,6 +6,8 @@
 
 Single **forward lane** for enterprise + 8 BWC + security hardening → product ship.
 
+**MOB notes (plain English):** open **`MOB-DISC-START-HERE.md`** in this folder.
+
 ---
 
 ## Sibling trees
