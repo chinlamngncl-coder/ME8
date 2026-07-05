@@ -6332,7 +6332,7 @@ function releaseCamStreamWhenUnwatched(camId, opts) {
     }
     return liveStreamPool.stopStreamForCam(sip, camId).then(() => {
         sosInviteQueue.onStreamStopped(camId);
-        io.emit('video-stream-stopped', { camId, reason: 'operator_stop' });
+        io.emit('video-stream-stopped', { camId });
         return true;
     }).finally(() => {
         stopVideoInProgress.delete(camId);
@@ -7536,7 +7536,7 @@ sip.start({ address: BIND_HOST, port: SIP_PORT }, (request, remote) => {
         }
         const poolCam = liveStreamPool.onRemoteBye(callId);
         if (poolCam) {
-            io.emit('video-stream-stopped', { camId: poolCam, reason: 'device_bye' });
+            io.emit('video-stream-stopped', { camId: poolCam });
         }
         log.sip.info('bye from device', { poolCam: poolCam || null });
         return;

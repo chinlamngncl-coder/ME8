@@ -1747,7 +1747,6 @@
   "video.setIdInConfig": "Set ID in Config",
   "video.stop": "Stop",
   "video.stopped": "Stopped — press ▶",
-  "video.stoppedOnDevice": "Stopped by BWC",
   "video.stoppedShort": "Stopped",
   "video.stream.live": "Live streaming....",
   "video.stream.sos": "SOS live video",
