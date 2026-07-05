@@ -1,41 +1,49 @@
 # MOB notes — start here
 
-**You are not expected to read code.** These are plain-English notes for you and for the next agent.
+**You are not expected to read code.** Plain-English notes for you and the next agent.
 
-**Folder on your PC:**  
-`Desktop` → `Enterprise Mobility` → `ME8` → open the files below (double-click).
+**Folder:** Desktop → Enterprise Mobility → **ME8**
+
+---
+
+## If video broke (wall “STOPPED BY BWC” / pins dead)
+
+Tell the agent exactly:
+
+**`RUN RESTORE-ME8-FIRMWARE-GOLD`**
+
+Then run **`RESTART-FLEET.bat`** and hard refresh once (Ctrl+Shift+R).
 
 ---
 
 ## What to open
 
-| If you care about… | Open this file |
-|--------------------|----------------|
-| **Live pins / Open All** (what broke, what fixed it) | `docs\MOB-DISC-FIRMWARE-GOLD-PIN-MIRROR.md` |
-| **Google’s pin video questions** (answered) | `docs\MOB-DISC-GOOGLE-PIN-CANVAS-MIRROR-VERIFY.md` |
-| **ZLM test page** (backend proof — not the dashboard) | `public\test-zlm.html` → open in browser after restart |
-| **Restore if video goes wrong** | `BASELINE-ME8-FIRMWARE-GOLD.md` |
-
-All of those sit inside the **ME8** folder on your Desktop.
+| Topic | File |
+|-------|------|
+| **Live pins / Open All** | `docs\MOB-DISC-FIRMWARE-GOLD-PIN-MIRROR.md` |
+| **ZLM — failed, do not use yet** | `docs\MOB-DISC-ZLM-NOT-READY.md` |
+| **Google pin answers** | `docs\MOB-DISC-GOOGLE-PIN-CANVAS-MIRROR-VERIFY.md` |
+| **Put video back** | `BASELINE-ME8-FIRMWARE-GOLD.md` |
 
 ---
 
 ## One sentence each
 
-- **Pin mirror notes** — why agents kept breaking map video, and what not to do again.  
-- **Google pin answers** — their checklist, our answers.  
-- **ZLM test page** — `http://YOUR_PC:3988/test-zlm.html` (small video test, not the main app)  
-- **Firmware Gold** — the “put it back” button instructions (`RESTORE-ME8-FIRMWARE-GOLD.ps1`).
+- **Pin mirror** — what fixed map video; what agents must not break again.  
+- **ZLM** — **not ready**; agent tried backend hook → wall died; **reverted**. No Docker for you. One pack at ship.  
+- **Firmware Gold** — restore instructions.
 
 ---
 
-## Tell the agent
+## You do not do
 
-Copy one of these:
+- Docker  
+- Edit `.env`  
+- DevTools / logs  
+- “Try later” steps from agents  
 
-- `MOB-APPLY mob-me8-zlm-backend-proof` — start ZLM **server test only** (no dashboard changes)  
-- `RUN RESTORE-ME8-FIRMWARE-GOLD` — put live video back to last known good  
+Agent owns tech. You: restart, refresh, pass/fail.
 
 ---
 
-*Agents: search `MOB-DISC` in the ME8 folder. Do not bury new notes — link them from this file.*
+*Agents: search `MOB-DISC`. Never ask operator to install ZLM sidecars.*
