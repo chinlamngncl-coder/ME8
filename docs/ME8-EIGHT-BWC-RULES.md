@@ -50,12 +50,14 @@
 
 ---
 
-## Code vs product (known gap in me8-v1 baseline)
+## Code vs product (aligned — `mob-me8-zlm-scale-8`)
 
-These still say **6** until a dedicated cap-alignment MOB:
+| File | Constant | Value |
+|------|----------|-------|
+| `server.js` | `DASHBOARD_MAX_LIVE` default | **8** |
+| `video-wall.js` | `MAX_LIVE_STREAMS` | **8** |
+| `dashboard-boot.js` / `index.html` | `MAX_OPEN_PIN_POPUPS`, `PIN_LAZY_LIVE_FULL_MAX` | **8** |
+| `fleet-ui.js` | `MAX_PIN_SELECT` | **8** |
+| `.env.me8.example` | `FM_MAX_CONCURRENT_LIVE` | **8** |
 
-- `server.js` → `DASHBOARD_MAX_LIVE` default `6`
-- `video-wall.js` → `MAX_LIVE_STREAMS = 6`
-- `dashboard-boot.js` → `MAX_OPEN_PIN_POPUPS = 6` (pin popups on map, not pool cap)
-
-When fixing live video, **align all three to 8** in one MOB — do not patch one file and leave the rest at 6.
+When changing live cap, **update all rows in one MOB** — do not patch one file and leave the rest mismatched.

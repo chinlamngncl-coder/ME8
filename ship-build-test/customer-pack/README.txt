@@ -1,4 +1,4 @@
-﻿Ubitron ME8 — commercial pack skeleton
+Ubitron ME8 — commercial pack skeleton
 ======================================
 
 NOT a trial delivery pack (trial stays on SaaS Mobility :3888).

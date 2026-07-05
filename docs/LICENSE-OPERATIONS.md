@@ -124,7 +124,7 @@ cd "C:\Users\user\Desktop\Enterprise Mobility\ME8"
 
 Optional VC SKU: add `-VideoConference`.
 
-This copies the license to `storage\platform-license.json`, generates customer `.env`, runs `VERIFY-ME8-FRESH.ps1`.
+This copies the license to `storage\platform-license.json`, writes bootstrap profile, runs `npm install`, and `VERIFY-ME8-FRESH.ps1`.
 
 ---
 
@@ -136,7 +136,7 @@ This copies the license to `storage\platform-license.json`, generates customer `
 4. `VERIFY-ME8-FRESH.ps1` on staged pack — pass  
 5. Pack contains **no** `license-private.pem`  
 6. Row added to `pack\me8-ship\ship-registry.csv`  
-7. Customer handoff: `npm install` (once), `RESTART-FLEET.bat` — **do not** ask customer to edit `.env` or issue licenses  
+7. Partner handoff: **`HANDOFF-SHEET.txt`** + **`SETUP-ME8.bat`** + **`CUSTOMER-START.txt`**  
 
 ---
 

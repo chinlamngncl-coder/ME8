@@ -1,0 +1,29 @@
+Ubitron ME8 — getting started (operators)
+=========================================
+
+Your IT partner has started the server. You only use the web dashboard.
+
+1. Open the dashboard URL
+   Example: http://192.168.1.50:3988
+   Use the exact address on your handoff sheet (HANDOFF-SHEET.txt from your partner).
+
+2. First login
+   Username: global
+   Password: global123
+   You must change this password immediately.
+
+3. Complete setup in the browser
+   - New super-admin password
+   - Two-factor authentication (authenticator app)
+   - Settings → Server Config:
+       • Server / network address
+       • FTP password → Save (status: Password saved)
+       • SIP password → Save (status: Password saved)
+       • Body-worn cameras and operator accounts
+
+4. Daily operations
+   Map, live wall, SOS, PTT — from the main menu.
+
+Use the dashboard only. If something fails, contact your Ubitron partner or IT support.
+
+More detail: docs\ME8-CUSTOMER-INSTALL.md

@@ -34,6 +34,10 @@ echo  Stopping old server...
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0kill-fleet-ports.ps1"
 
+echo  Starting ZLM sidecar (if configured)...
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\me8-ship\Start-Me8ZlmSidecar.ps1" -AppRoot "%~dp0"
+
 echo.
 
 echo  Starting server - leave THIS window open

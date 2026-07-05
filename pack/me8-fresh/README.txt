@@ -1,26 +1,26 @@
-ME8 commercial fresh install — storage template
-==========================================
+ME8 ship desk — internal quick reference (Ubitron only)
+=========================================================
 
 Do NOT copy lab storage/ from a dev bench to customers.
 
-Use on the customer server (or reset a lab bench to factory state):
+Full procedure: docs\ME8-INTERNAL-SHIP-DESK.md
+Partner handoff: docs\ME8-INSTALLER-RUNBOOK.md
+Operator sheet: CUSTOMER-START.txt
 
-  1. Stop Fleet (close RESTART-FLEET window).
-  2. From ME8 root:
-       .\NEW-ME8-INSTALL.ps1
-     Optional: .\NEW-ME8-INSTALL.ps1 -LanIp 10.0.0.50
-       (writes .env from template — operators never edit .env after handoff)
-  3. Configure FTP, SIP, and users in Settings → Server Config.
-  4. .\RESTART-FLEET.bat
-  5. Verify:
-       .\VERIFY-ME8-FRESH.ps1
-  6. Security sign-off (IT):
-       docs\ME8-SECURITY-BASELINE.md
+Ship desk build (ready-to-run pack):
+  .\BUILD-ME8-CUSTOMER.ps1 -OutRoot ... -CustomerName ... -LanIp ... -LicensePath ...
+  (factory storage, bootstrap profile, npm deps, verify — all at ship desk)
 
-First login: username global / password global123 — change in super-admin.
+Partner on site:
+  1. Copy Ubitron pack to C:\Ubitron-ME8\
+  2. SETUP-ME8.bat
+  3. CUSTOMER-START.txt + dashboard URL
 
-Pack staging (dev machine, no lab storage in output):
+Operators configure network, FTP, and SIP in Settings only.
 
+First login for site admin: global / global123 — change immediately.
+
+Pack staging (dev tree only):
   .\scripts\me8-ship\PACK-ME8-SKELETON.ps1 -AppRoot . -OutRoot C:\ME8-Ship-Staging
 
-Trial delivery pack (3888) stays on SaaS Mobility — not this path.
+Trial delivery (:3888) stays on SaaS Mobility — not this path.

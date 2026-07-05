@@ -22,7 +22,7 @@ if (-not (Test-Path (Join-Path $packFresh 'MANIFEST.json'))) { throw 'pack\me8-f
 
 $ExcludeDirs = @(
     '.git', '.cursor', 'node_modules', 'baseline', 'ship-build-test',
-    'storage-lab-backup', 'Important-Mobility-Axiom-Shipping'
+    'storage-lab-backup', 'Important-Mobility-Axiom-Shipping', 'docker'
 )
 $ExcludeDirPatterns = @('storage-lab-backup-*')
 
@@ -59,33 +59,28 @@ foreach ($rel in $manifest.emptyDirs) {
     New-Item -ItemType Directory -Force -Path (Join-Path $storageOut $rel) | Out-Null
 }
 
-Write-Step 'Customer env template...'
-Copy-Item (Join-Path $AppRoot '.env.me8.example') (Join-Path $OutRoot '.env.me8.example') -Force
-Copy-Item (Join-Path $AppRoot '.env.me8.example') (Join-Path $OutRoot '.env.example') -Force
+Write-Step 'Partner start launcher...'
+$setupBat = Join-Path $AppRoot 'SETUP-ME8.bat'
+if (Test-Path $setupBat) { Copy-Item $setupBat (Join-Path $OutRoot 'SETUP-ME8.bat') -Force }
 
-Write-Step 'Install + verify launchers at pack root...'
-Copy-Item (Join-Path $AppRoot 'NEW-ME8-INSTALL.ps1') (Join-Path $OutRoot 'NEW-ME8-INSTALL.ps1') -Force
-Copy-Item (Join-Path $AppRoot 'VERIFY-ME8-FRESH.ps1') (Join-Path $OutRoot 'VERIFY-ME8-FRESH.ps1') -Force
 Copy-Item (Join-Path $packFresh 'README.txt') (Join-Path $OutRoot 'ME8-FRESH-INSTALL.txt') -Force
 
 Set-Content (Join-Path $OutRoot 'README.txt') @"
-Ubitron ME8 — commercial pack skeleton
-======================================
+Ubitron ME8
+===========
 
-NOT a trial delivery pack (trial stays on SaaS Mobility :3888).
-ME8 listens on :3988 by default.
+OPERATORS — START HERE:
+  CUSTOMER-START.txt
 
-INSTALL (customer server)
-  1. Copy this folder to e.g. C:\Ubitron-ME8\
-  2. npm install   (Node 18+ required — skeleton does not bundle Node yet)
-  3. Run NEW-ME8-INSTALL.ps1  (factory storage + .env from template)
-  4. Edit .env — set YOUR_LAN_IP, FTP user/pass, SIP secrets
-  5. RESTART-FLEET.bat
-  6. VERIFY-ME8-FRESH.ps1  (must pass before handoff)
+Your partner completes server setup first. You only use the web dashboard.
 
-First login: global / global123 — change super-admin password immediately.
+PARTNER / IT:
+  Double-click SETUP-ME8.bat
+  docs\ME8-INSTALLER-RUNBOOK.md
 
-See ME8-FRESH-INSTALL.txt for detail.
+Dashboard default: http://<LAN-IP>:3988
+
+Ubitron ship desk: docs\ME8-INTERNAL-SHIP-DESK.md (internal only)
 "@ -Encoding UTF8
 
 Write-Step 'VERIFY staged pack (must pass)...'

@@ -68,9 +68,34 @@
         }
         if (passEl) {
             const passBadge = f.passwordConfigured
-                ? '<span class="ev-st-badge ev-st-ok">' + esc(tr('evidence.ftpPasswordSet')) + '</span>'
-                : '<span class="ev-st-badge ev-st-bad">' + esc(tr('evidence.ftpPasswordMissing')) + '</span>';
+                ? '<span class="ev-st-badge ev-st-ok">' + esc(tr('server.secrets.configured')) + '</span>'
+                : '<span class="ev-st-badge ev-st-bad">' + esc(tr('server.secrets.notSet')) + '</span>';
             passEl.innerHTML = passBadge;
+        }
+    }
+
+    function refreshFtpSecretFieldUi(configured) {
+        if (global.ServerSetup && ServerSetup.updateSecretFieldUi) {
+            ServerSetup.updateSecretFieldUi('ss-ftp-pass', 'ss-ftp-pass-field-status', !!configured);
+            return;
+        }
+        const input = $('ss-ftp-pass');
+        const badge = $('ss-ftp-pass-field-status');
+        if (!input || !badge) return;
+        const pending = !!input.value;
+        input.dataset.configured = configured ? '1' : '0';
+        if (pending) {
+            badge.textContent = tr('server.secrets.pendingSave');
+            badge.className = 'ss-secret-status ev-st-badge ev-st-warn';
+            input.placeholder = tr('evidence.ftpPasswordPlaceholder');
+        } else if (configured) {
+            badge.textContent = tr('server.secrets.configured');
+            badge.className = 'ss-secret-status ev-st-badge ev-st-ok';
+            input.placeholder = tr('server.secrets.passwordPlaceholderConfigured');
+        } else {
+            badge.textContent = tr('server.secrets.notSet');
+            badge.className = 'ss-secret-status ev-st-badge ev-st-bad';
+            input.placeholder = tr('evidence.ftpPasswordPlaceholder');
         }
     }
 
@@ -84,6 +109,7 @@
         if ($('ss-ftp-pasv-max')) $('ss-ftp-pasv-max').value = f.pasvMax != null ? String(f.pasvMax) : '20100';
         if ($('ss-ftp-pass')) $('ss-ftp-pass').value = '';
         renderFtpServiceState(f, runtime);
+        refreshFtpSecretFieldUi(!!f.passwordConfigured);
     }
 
     async function saveFtpSettings() {
@@ -526,6 +552,12 @@
         if (liveEnabledEl) liveEnabledEl.addEventListener('change', syncLiveAutoSosToggle);
         const ftpSaveBtn = $('ev-ftp-save');
         if (ftpSaveBtn) ftpSaveBtn.addEventListener('click', function () { saveFtpSettings(); });
+        const ftpPassEl = $('ss-ftp-pass');
+        if (ftpPassEl) {
+            ftpPassEl.addEventListener('input', function () {
+                refreshFtpSecretFieldUi(ftpPassEl.dataset.configured === '1');
+            });
+        }
         bindPathPickerUi();
     }
 

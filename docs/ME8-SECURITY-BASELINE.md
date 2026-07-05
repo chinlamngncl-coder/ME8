@@ -1,7 +1,7 @@
 # ME8 security baseline — pre-ship SOP
 
 **Tree:** `C:\Users\user\Desktop\Enterprise Mobility\ME8`  
-**Dashboard:** `http://<HOST>:3988`  
+**Dashboard:** `http://<HOST>:3988` default LAN; optional **`https://`** via IT reverse proxy — [ME8-TLS-IT-APPENDIX.md](./ME8-TLS-IT-APPENDIX.md)  
 **MOB:** `mob-me8-security-baseline`  
 **Audience:** Ubitron ship team + customer IT before handoff
 
@@ -14,24 +14,24 @@ Use this **after** auth/secrets MOBs and **before** customer delivery or `me8-v1
 | Rule | Why |
 |------|-----|
 | **Never ship your dev `storage/` folder** | Lab BWCs, GPS cache, operators, and secrets must not go to customers |
-| **Always run factory install on the customer server** | `.\NEW-ME8-INSTALL.ps1` → edit `.env` → `.\RESTART-FLEET.bat` |
-| **Run verify before handoff** | `.\VERIFY-ME8-FRESH.ps1` must pass |
+| **Always ship a BUILD pack from Ubitron** | Partner runs `SETUP-ME8.bat` — no dev tree or lab `storage/` |
+| **Run verify before handoff** | Ubitron ship desk only — see [ME8-INTERNAL-SHIP-DESK.md](./ME8-INTERNAL-SHIP-DESK.md) |
 | **Super admin only** for server config, FTP, users, evidence paths | Operators use assigned permissions only |
-| **Secrets are set once, never shown again** | Dashboard shows *Configured (not shown)* — type a new value only to change |
+| **Secrets are set once, never shown again** | Dashboard shows **Password saved** — leave field blank to keep; type new value only to change |
 
 ---
 
-## 1. Fresh install (customer server)
+## 1. Fresh install (partner — not operators)
+
+See **[ME8-INSTALLER-RUNBOOK.md](./ME8-INSTALLER-RUNBOOK.md)**. Operators use **[ME8-CUSTOMER-INSTALL.md](./ME8-CUSTOMER-INSTALL.md)** / `CUSTOMER-START.txt` only. Ubitron BUILD detail: **[ME8-INTERNAL-SHIP-DESK.md](./ME8-INTERNAL-SHIP-DESK.md)**.
 
 | # | Step | Done? |
 |---|------|-------|
-| 1.1 | Stop any old Fleet / trial instance on shared ports (5060, 21, 3988) | ☐ |
-| 1.2 | Copy **application tree only** — not `storage/` from your bench | ☐ |
-| 1.3 | `.\NEW-ME8-INSTALL.ps1` (optional `-LanIp <customer LAN IP>`) | ☐ |
-| 1.4 | Edit `.env` from `.env.me8.example` — set `HOST`, FTP/SIP bootstrap if used | ☐ |
-| 1.5 | `.\LOCK-SECRETS-ACL.ps1` if `storage/secrets/` existed before this MOB | ☐ |
-| 1.6 | `.\RESTART-FLEET.bat` | ☐ |
-| 1.7 | `.\VERIFY-ME8-FRESH.ps1` — **all checks pass** | ☐ |
+| 1.1 | Ubitron: `BUILD-ME8-CUSTOMER.ps1` — verify PASS, zip to partner | ☐ |
+| 1.2 | Partner: copy pack to server (e.g. `C:\Ubitron-ME8\`) | ☐ |
+| 1.3 | Partner: **`SETUP-ME8.bat`** — leave window open | ☐ |
+| 1.4 | Confirm dashboard at handoff URL (`http://<LAN-IP>:3988`) | ☐ |
+| 1.5 | Hand off **`CUSTOMER-START.txt`** + same URL | ☐ |
 
 **First login:** `global` / `global123` → forced password change → super admin TOTP enroll → dashboard.
 
@@ -51,6 +51,8 @@ Use this **after** auth/secrets MOBs and **before** customer delivery or `me8-v1
 
 **IT action:** Create operator accounts in **Settings → Server Config → Dashboard → Operators**. Assign groups and permissions — not super admin unless needed.
 
+**Locked out (lost authenticator + backup codes):** Partner runs `.\RESET-SUPER-ADMIN-RECOVERY.ps1` on the dispatch PC — [ME8-SUPER-ADMIN-RECOVERY.md](./ME8-SUPER-ADMIN-RECOVERY.md). Operators never edit `.env` or `storage/`.
+
 ---
 
 ## 3. Secrets — where they live
@@ -61,9 +63,9 @@ Use this **after** auth/secrets MOBs and **before** customer delivery or `me8-v1
 | FTP ingest password | Same vault | Never returned |
 | ONVIF / BWC registration passwords | Same vault | Never returned |
 | Server settings (non-secret) | `storage/server-settings.json` | Public view — **no password fields** |
-| Vault encryption key | `storage/secrets/vault-key.dpapi` (Windows DPAPI) or `FM_SECRETS_MASTER_KEY` in `.env` | Never in UI |
+| Vault encryption key | `storage/secrets/vault-key.dpapi` (Windows DPAPI) or optional customer master key (ship desk) | Never in UI |
 | Operator password hashes | `storage/dashboard-users.json` | Never returned |
-| `.env` | Install/bootstrap only | Not committed to git; not in ship zip |
+| Bootstrap server profile | Ship desk only — first Fleet start migrates SIP/FTP into vault | **Operators use Settings only** |
 
 **Honest limit:** A Windows admin on the **same server** who can run as the Fleet user can decrypt DPAPI and read the vault. Encryption stops casual file browsing and unsafe backup copies — not a determined host admin.
 
@@ -122,8 +124,9 @@ Exports, case delete, USB maintenance, and secure export approve/deny already re
 | 7.3 | RDP / SMB restricted to admin jump hosts if remote support needed | ☐ |
 | 7.4 | Dedicated service or admin account runs Fleet — not shared kiosk user | ☐ |
 | 7.5 | `storage/secrets/` ACL locked (`.\LOCK-SECRETS-ACL.ps1`) | ☐ |
-| 7.6 | Antivirus excludes high-churn evidence paths if performance requires (document exception) | ☐ |
-| 7.7 | Backups: include `storage/` for ops continuity; treat backup media as **confidential** | ☐ |
+| 7.6 | **HTTPS operator URL** (optional IT) — reverse proxy to `:3988`; operator login URL `https://…` in Settings; Ubitron bench `VERIFY-TLS-DASHBOARD.ps1` PASS | ☐ |
+| 7.7 | Antivirus excludes high-churn evidence paths if performance requires (document exception) | ☐ |
+| 7.8 | Backups: include `storage/` for ops continuity; treat backup media as **confidential** | ☐ |
 
 **Ports (default ME8):** HTTP **3988**, video WS **3989**, SIP **5060**, FTP **21** + passive range, PTT **29201**, BWC message WS **6000** — confirm in Server Config for this site.
 
@@ -131,11 +134,11 @@ Exports, case delete, USB maintenance, and secure export approve/deny already re
 
 ## 8. Pre-handoff verification
 
-Run on the **customer** tree (not your lab bench):
+Ubitron ship desk only — see [ME8-INTERNAL-SHIP-DESK.md](./ME8-INTERNAL-SHIP-DESK.md):
 
 ```powershell
 cd "C:\Users\user\Desktop\Enterprise Mobility\ME8"
-.\VERIFY-ME8-FRESH.ps1
+.\scripts\me8-ship\VERIFY-ME8-FRESH.ps1 -AppRoot <staged pack>
 ```
 
 Confirm output includes:
@@ -145,13 +148,16 @@ Confirm output includes:
 - `server-settings.json has no inline passwords`
 - `server-secrets.json encrypted at rest` (after first Fleet start)
 - `operatorUrl` matches `:3988` (not trial `:3888`)
-- No `FM_FTP_PASS=000099` or seeded BWC in `.env`
+- No trial FTP default or seeded BWC in bootstrap profile
 
 Optional crypto smoke:
 
 ```powershell
 node scripts\test-secrets-at-rest.js
+.\LOCK-SECRETS-ACL.ps1
 ```
+
+**Lab bench verify (`mob-me8-aes256-verify`, 2026-07-04):** PASS — smoke test OK; live vault `format: me8-secrets-v2`, `cipher: aes-256-gcm`; NTFS ACL locked (`SYSTEM`, `Administrators`, service user); `/api/server-settings` returns `passwordConfigured` flags only (no plaintext). Settings UI shows **Password saved** when secrets are stored (`server.secrets.configured`).
 
 ---
 

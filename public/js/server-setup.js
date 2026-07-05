@@ -81,6 +81,7 @@
     let creatingUser = false;
     let cachedSettingsData = null;
     let loadInFlight = null;
+    let serverFormDirty = false;
     const tabExtrasLoaded = Object.create(null);
 
     function isConfigUnlocked() {
@@ -284,6 +285,9 @@
     }
 
     function setMainTab(tab) {
+        if (activeMainTab === 'server' && tab !== 'server' && !confirmDiscardServerChanges()) {
+            return;
+        }
         activeMainTab = (tab === 'bwc' || tab === 'dashboard' || tab === 'groups' || isAdvancedTab(tab)) ? tab : 'server';
         ['server', 'bwc', 'groups', 'firmware', 'dashboard', 'usb', 'diagnostics', 'lab', 'cloud'].forEach(function (id) {
             const panel = document.getElementById('ss-panel-' + id);
@@ -385,6 +389,78 @@
         if (bwc.passwordStatus === 'pending') return tr('server.secrets.pendingSave');
         if (bwc.passwordStatus === 'missing') return tr('server.secrets.notSet');
         return tr('server.secrets.notSet');
+    }
+
+    function secretStatusForField(inputEl, configured) {
+        if (inputEl && inputEl.value) return 'pending';
+        return configured ? 'configured' : 'missing';
+    }
+
+    function secretStatusLabel(status) {
+        if (status === 'configured') return tr('server.secrets.configured');
+        if (status === 'pending') return tr('server.secrets.pendingSave');
+        return tr('server.secrets.notSet');
+    }
+
+    function secretBadgeClass(status) {
+        if (status === 'configured') return 'ev-st-badge ev-st-ok';
+        if (status === 'pending') return 'ev-st-badge ev-st-warn';
+        return 'ev-st-badge ev-st-bad';
+    }
+
+    function updateSecretFieldUi(inputId, statusId, configured) {
+        const input = document.getElementById(inputId);
+        const badge = document.getElementById(statusId);
+        if (!input) return;
+        const status = secretStatusForField(input, configured);
+        input.dataset.configured = configured ? '1' : '0';
+        if (badge) {
+            badge.textContent = secretStatusLabel(status);
+            badge.className = 'ss-secret-status ' + secretBadgeClass(status);
+        }
+        if (status === 'configured' && !input.value) {
+            input.placeholder = tr('server.secrets.passwordPlaceholderConfigured');
+        } else if (!input.value) {
+            input.placeholder = tr('server.secrets.passwordPlaceholder');
+        }
+    }
+
+    function refreshAllSecretFieldUi(sip, onvif) {
+        sip = sip || {};
+        onvif = onvif || {};
+        updateSecretFieldUi('ss-password', 'ss-password-status', !!sip.passwordConfigured);
+        updateSecretFieldUi('ss-password-alt', 'ss-password-alt-status', !!sip.passwordAltConfigured);
+        updateSecretFieldUi('ss-onvif-pass', 'ss-onvif-pass-status', !!onvif.passwordConfigured);
+    }
+
+    function markServerFormDirty() {
+        if (!canManageServer || activeMainTab !== 'server') return;
+        serverFormDirty = true;
+        const saveBtn = document.getElementById('server-setup-save');
+        if (saveBtn) saveBtn.classList.add('ss-dirty-pulse');
+    }
+
+    function clearServerFormDirty() {
+        serverFormDirty = false;
+        const saveBtn = document.getElementById('server-setup-save');
+        if (saveBtn) saveBtn.classList.remove('ss-dirty-pulse');
+    }
+
+    function confirmDiscardServerChanges() {
+        if (!serverFormDirty || activeMainTab !== 'server') return true;
+        return window.confirm(tr('server.unsavedDiscard'));
+    }
+
+    function showServerSaveStatus(ok, message) {
+        const el = document.getElementById('ss-save-status');
+        if (!el) return;
+        el.textContent = message || '';
+        el.className = ok ? 'ss-save-status ok' : 'ss-save-status err';
+        if (ok) {
+            window.setTimeout(function () {
+                if (el.textContent === message) el.textContent = '';
+            }, 6000);
+        }
     }
 
     function buildPreviewChecklist() {
@@ -847,6 +923,7 @@
             onvifPassEl.value = '';
             onvifPassEl.dataset.configured = onvif.passwordConfigured ? '1' : '0';
         }
+        refreshAllSecretFieldUi(sip, onvif);
         document.getElementById('ss-media-transport').value = sip.mediaTransport === 'tcp' ? 'tcp' : 'udp';
         document.getElementById('ss-onvif-port').value = onvif.port || 80;
         document.getElementById('ss-onvif-user').value = onvif.user || '';
@@ -923,6 +1000,7 @@
     }
 
     function setOpen(open) {
+        if (!open && !confirmDiscardServerChanges()) return;
         if (open && global.EvidenceManager && EvidenceManager.showTab) {
             EvidenceManager.showTab('server');
         }
@@ -934,6 +1012,8 @@
             loadLayoutPref();
             applyPanelLayout(activeMainTab);
         } else {
+            clearServerFormDirty();
+            showServerSaveStatus(false, '');
             if (global.SettingsHub && SettingsHub.onShow) SettingsHub.onShow();
         }
     }
@@ -1283,8 +1363,10 @@
         applyForm(data.settings || {});
         startSiteTimePreviewTick();
         lastBwcDeviceSummary = data.bwcDevices || null;
+        updateSiteTimePreview(lastSiteTimePreview);
         fillBwcChecklist(data.bwc || buildPreviewChecklist(), lastBwcDeviceSummary);
         applyReadOnlyMode();
+        clearServerFormDirty();
     }
 
     function clearTabExtrasCache() {
@@ -1772,18 +1854,29 @@
                 applyForm(data.settings);
                 updateSiteTimePreview(lastSiteTimePreview);
                 fillBwcChecklist(data.bwc, lastBwcDeviceSummary);
-                cachedSettingsData = null;
+                cachedSettingsData = data;
                 if (global.SessionBus && SessionBus.invalidateSettings) SessionBus.invalidateSettings();
                 clearTabExtrasCache();
-                setOpen(false);
-                alert(tr('server.alert.saved'));
+                clearServerFormDirty();
+                showServerSaveStatus(true, tr('server.savedOk'));
             } catch (err) {
-                alert(opMsg(err.opPayload || err.catalogPayload, err));
+                showServerSaveStatus(false, opMsg(err.opPayload || err.catalogPayload, err));
             }
         });
 
         document.querySelectorAll('#server-setup-panel input, #server-setup-panel select').forEach((el) => {
-            el.addEventListener('input', () => fillBwcChecklist(buildPreviewChecklist(), lastBwcDeviceSummary));
+            el.addEventListener('input', function () {
+                markServerFormDirty();
+                fillBwcChecklist(buildPreviewChecklist(), lastBwcDeviceSummary);
+                const sip = {
+                    passwordConfigured: document.getElementById('ss-password')?.dataset.configured === '1',
+                    passwordAltConfigured: document.getElementById('ss-password-alt')?.dataset.configured === '1',
+                };
+                const onvif = {
+                    passwordConfigured: document.getElementById('ss-onvif-pass')?.dataset.configured === '1',
+                };
+                refreshAllSecretFieldUi(sip, onvif);
+            });
         });
         window.addEventListener('fm-i18n-changed', () => {
             fillBwcChecklist(buildPreviewChecklist(), lastBwcDeviceSummary);
@@ -2173,6 +2266,8 @@
         releaseAllSettingsOverlays: releaseAllSettingsOverlays,
         applySession: applySession,
         bindSettingsAsideClicks: bindSettingsAsideClicks,
+        refreshAllSecretFieldUi: refreshAllSecretFieldUi,
+        updateSecretFieldUi: updateSecretFieldUi,
         closeConfig: function () { setOpen(false); },
         openEvidenceStorage: openEvidenceStorage,
         syncAdvancedNav: syncAdvancedNav,

@@ -1,4 +1,4 @@
-# ME8 fresh install — factory storage + customer .env (no lab leftovers).
+# ME8 fresh install — factory storage + bootstrap server profile (no lab leftovers). Ubitron ship desk only.
 param(
     [string]$AppRoot = '',
     [string]$LanIp = '',
@@ -119,15 +119,15 @@ if (Test-Path $aclScript) {
     & $aclScript -AppRoot $AppRoot
 }
 
-Write-Step 'Customer .env from .env.me8.example...'
+Write-Step 'Bootstrap server profile...'
 $envExample = Join-Path $AppRoot '.env.me8.example'
 $envPath = Join-Path $AppRoot '.env'
-if (-not (Test-Path $envExample)) { throw '.env.me8.example missing' }
+if (-not (Test-Path $envExample)) { throw 'Bootstrap template missing (.env.me8.example)' }
 if (-not (Test-Path $envPath) -or $ForceEnv) {
     Copy-Item $envExample $envPath -Force
-    Write-Host '  Created .env from .env.me8.example' -ForegroundColor Gray
+    Write-Host '  Created bootstrap server profile' -ForegroundColor Gray
 } else {
-    Write-Host '  Kept existing .env (use -ForceEnv to replace from template)' -ForegroundColor Yellow
+    Write-Host '  Kept existing bootstrap profile (use -ForceEnv to replace from template)' -ForegroundColor Yellow
 }
 Patch-EnvMe8 -EnvPath $envPath -Ip $LanIp
 
@@ -135,6 +135,7 @@ Write-Host ''
 Write-Host 'ME8 FRESH INSTALL OK' -ForegroundColor Green
 Write-Host "  Storage:  factory template (no lab BWCs, GPS, or users)"
 Write-Host "  Operator: http://${LanIp}:$httpPort"
-Write-Host "  Next:     edit .env (FTP/SIP secrets), then .\RESTART-FLEET.bat"
-Write-Host "  Verify:   .\VERIFY-ME8-FRESH.ps1"
+Write-Host '  Next:     .\RESTART-FLEET.bat'
+Write-Host '  Site admin: Settings -> Server Config (see CUSTOMER-START.txt)'
+Write-Host '  Ship desk:  scripts\me8-ship\VERIFY-ME8-FRESH.ps1 (Ubitron pre-handoff only)'
 Write-Host ''

@@ -3083,9 +3083,15 @@
         #server-setup-bwc { margin: 12px 0; padding: 10px; background: #0f172a; border: 1px dashed #475569; border-radius: 6px; font-size: 11px; line-height: 1.5; color: #cbd5e1; }
         #server-setup-bwc dt { color: #94a3b8; margin-top: 6px; }
         #server-setup-bwc dd { margin: 2px 0 0; font-family: ui-monospace, Consolas, monospace; color: #f8fafc; word-break: break-all; }
-        .server-setup-actions { display: flex; gap: 8px; margin-top: 12px; flex-shrink: 0; }
-        .server-setup-actions button { flex: 1; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; }
+        .server-setup-actions { display: flex; gap: 8px; margin-top: 12px; flex-shrink: 0; flex-wrap: wrap; align-items: center; }
+        .server-setup-actions button { flex: 1; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; min-width: 120px; }
         #server-setup-save { background: #2563eb; color: #fff; border-color: #1d4ed8; }
+        #server-setup-save.ss-dirty-pulse { box-shadow: 0 0 0 2px #f59e0b; }
+        .ss-save-status { flex: 1 1 100%; font-size: 11px; min-height: 14px; margin: 0; }
+        .ss-save-status.ok { color: #22c55e; }
+        .ss-save-status.err { color: #f87171; }
+        .ss-secret-label-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; }
+        .ss-secret-field .ss-secret-status { flex-shrink: 0; font-size: 10px; }
         #server-setup-cancel { background: #334155; color: #e2e8f0; }
         .ss-users-table-wrap { overflow-x: auto; margin: 8px 0; border: 1px solid #334155; border-radius: 6px; }
         .ss-users-table { width: 100%; min-width: 2240px; border-collapse: collapse; font-size: 11px; margin: 0; }
@@ -4104,14 +4110,14 @@
                 <label><span data-i18n="server.sip.port">SIP port</span><input type="number" id="ss-sip-port" value="5060"></label>
                 <label><span data-i18n="server.sip.platformId">Platform / server ID</span><input type="text" id="ss-platform-id"></label>
                 <label><span data-i18n="server.sip.realm">Realm</span><input type="text" id="ss-realm"></label>
-                <label><span data-i18n="server.sip.password">SIP register password</span><input type="password" id="ss-password" data-field="password" autocomplete="new-password" data-i18n-placeholder="server.secrets.passwordPlaceholder" placeholder="Type new password to set or change"></label>
-                <label><span data-i18n="server.sip.passwordAlt">Alt SIP password</span><input type="password" id="ss-password-alt" data-field="password" autocomplete="new-password" data-i18n-placeholder="server.secrets.passwordPlaceholder" placeholder="Type new password to set or change"></label>
+                <label class="ss-secret-field"><span class="ss-secret-label-row"><span data-i18n="server.sip.password">SIP register password</span><span class="ss-secret-status ev-st-badge ev-st-muted" id="ss-password-status" aria-live="polite"></span></span><input type="password" id="ss-password" data-field="password" autocomplete="new-password" data-i18n-placeholder="server.secrets.passwordPlaceholder" placeholder="Type new password to set or change"></label>
+                <label class="ss-secret-field"><span class="ss-secret-label-row"><span data-i18n="server.sip.passwordAlt">Alt SIP password</span><span class="ss-secret-status ev-st-badge ev-st-muted" id="ss-password-alt-status" aria-live="polite"></span></span><input type="password" id="ss-password-alt" data-field="password" autocomplete="new-password" data-i18n-placeholder="server.secrets.passwordPlaceholder" placeholder="Type new password to set or change"></label>
                 <label><span data-i18n="server.sip.mediaTransport">Media transport</span><select id="ss-media-transport"><option value="udp" data-i18n="server.transport.udp">UDP</option><option value="tcp" data-i18n="server.transport.tcp">TCP</option></select></label>
             </div>
             <div id="ss-panel-onvif" class="ss-protocol-panel">
                 <label><span data-i18n="server.onvif.port">ONVIF port</span><input type="number" id="ss-onvif-port" value="80"></label>
                 <label><span data-i18n="server.onvif.user">ONVIF user</span><input type="text" id="ss-onvif-user"></label>
-                <label><span data-i18n="server.onvif.password">ONVIF password</span><input type="password" id="ss-onvif-pass" autocomplete="new-password" data-i18n-placeholder="server.secrets.passwordPlaceholder" placeholder="Type new password to set or change"></label>
+                <label class="ss-secret-field"><span class="ss-secret-label-row"><span data-i18n="server.onvif.password">ONVIF password</span><span class="ss-secret-status ev-st-badge ev-st-muted" id="ss-onvif-pass-status" aria-live="polite"></span></span><input type="password" id="ss-onvif-pass" autocomplete="new-password" data-i18n-placeholder="server.secrets.passwordPlaceholder" placeholder="Type new password to set or change"></label>
                 <label><span data-i18n="server.onvif.path">Device path</span><input type="text" id="ss-onvif-path" value="/onvif/device_service"></label>
                 <label><span data-i18n="server.onvif.rtspUrl">RTSP live URL (from dock / VMS)</span><input type="text" id="ss-rtsp-url" data-i18n-placeholder="server.rtspPlaceholder" placeholder="rtsp://user:pass@192.168.1.50:554/stream1"></label>
                 <label><span data-i18n="server.onvif.rtspTransport">RTSP transport</span><select id="ss-rtsp-transport"><option value="tcp" data-i18n="server.transport.tcp">TCP</option><option value="udp" data-i18n="server.transport.udp">UDP</option></select></label>
@@ -4455,6 +4461,7 @@
                 <button type="button" id="server-setup-save" data-i18n="server.save">Save server settings</button>
                 <button type="button" id="ss-save-bwc-list" hidden data-i18n="server.saveBwcList">Save BWC list</button>
                 <button type="button" id="server-setup-cancel" data-i18n="server.backToSettings">Back to Settings</button>
+                <p id="ss-save-status" class="ss-save-status" aria-live="polite"></p>
             </div>
             </div>
             </div>
@@ -4970,7 +4977,7 @@
                     <h4 data-i18n="evidence.storageIngestTitle">Ingest paths</h4>
                     <div class="ev-ftp-settings-block">
                         <h5 class="ev-ftp-subhead" data-i18n="evidence.ftpCredentialsTitle">FTP upload service</h5>
-                        <p class="setup-hint" style="margin:0" data-i18n="evidence.ftpCredentialsHint">Set credentials for body-worn cameras and docking stations. Enter the same values on each device FTP screen. Password is stored on this server only — not shown again after save.</p>
+                        <p class="setup-hint" style="margin:0" data-i18n="evidence.ftpCredentialsHint">Set credentials for body-worn cameras and docking stations. Enter the same values on each device FTP screen. Passwords are stored on this server only. Leave the field blank to keep the current password.</p>
                         <div class="ev-ftp-form-grid">
                             <label class="ev-ftp-toggle full">
                                 <input type="checkbox" id="ss-ftp-enabled">
@@ -4996,8 +5003,8 @@
                                 <span data-i18n="server.dock.user">FTP username</span>
                                 <input type="text" id="ss-ftp-user" autocomplete="off" spellcheck="false">
                             </label>
-                            <label class="full">
-                                <span data-i18n="evidence.ftpPassword">FTP password</span>
+                            <label class="ss-secret-field full">
+                                <span class="ss-secret-label-row"><span data-i18n="evidence.ftpPassword">FTP password</span><span class="ss-secret-status ev-st-badge ev-st-muted" id="ss-ftp-pass-field-status" aria-live="polite"></span></span>
                                 <input type="password" id="ss-ftp-pass" autocomplete="new-password" data-i18n-placeholder="evidence.ftpPasswordPlaceholder" placeholder="Leave blank to keep current password">
                             </label>
                             <label class="full">
@@ -5254,7 +5261,7 @@
     <script src="/js/auth-reverify.js?v=20260702-admin-action-bus"></script>
     <script src="/js/password-policy-ui.js"></script>
     <script src="/js/tab-lifecycle.js?v=20260702-restore-8wc-v2"></script>
-    <script src="/js/server-setup.js?v=20260702-admin-action-bus"></script>
+    <script src="/js/server-setup.js?v=20260704-secrets-enterprise-ui"></script>
     <script src="/js/settings-hub.js?v=20260702-settings-session-sync"></script>
     <script src="/js/tech-diagnostics.js?v=20260702-restore-8wc-v2"></script>
     <script src="/js/usb-maintenance.js?v=20260609-usb2"></script>
@@ -5269,13 +5276,13 @@
     <script src="/js/operator-error-voice.js?v=20260702-op-voice-unified"></script>
     <script src="/js/operator-ui.js?v=20260702-op-voice-unified"></script>
     <script src="/js/ev-context-rail.js?v=20260627-rail-trim"></script>
-    <script src="/js/evidence-storage-ui.js?v=20260627-hub-rail"></script>
+    <script src="/js/evidence-storage-ui.js?v=20260704-secrets-enterprise-ui"></script>
     <script src="/js/route-trace.js?v=20260621-smart-gps"></script>
     <script src="/js/case-files-ui.js?v=20260627-delete-error-voice"></script>
     <script src="/js/evidence-hub.js?v=20260627-approvals-merge"></script>
     <script src="/js/evidence-manager.js?v=20260702-restore-8wc-v2"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260704-bwc-stop-pin-resync"></script>
+    <script src="/js/video-wall.js?v=20260705-pin-lab-pool"></script>
     <script src="/js/video-matrix.js?v=20260629-live-cap-8"></script>
     <script src="/js/fleet-ui.js?v=20260629-live-cap-8"></script>
     <script src="/js/map-popout-sync.js?v=20260612-mirror"></script>
@@ -5347,9 +5354,13 @@
             pinVideoStoppedByUser[normalizeCamId(camId)] = true;
         }
 
-        function clearPinVideoUserStop(camId) {
+        function clearPinVideoUserStopForPlay(camId) {
             if (!camId) return;
             delete pinVideoStoppedByUser[normalizeCamId(camId)];
+        }
+
+        function clearPinVideoUserStop(camId) {
+            clearPinVideoUserStopForPlay(camId);
         }
 
         function isPinVideoStoppedByUser(camId) {
@@ -5357,11 +5368,11 @@
         }
         window.isPinVideoStoppedByUser = isPinVideoStoppedByUser;
         window.markPinVideoUserStop = markPinVideoUserStop;
-        window.clearPinVideoUserStop = clearPinVideoUserStop;
+        window.clearPinVideoUserStop = clearPinVideoUserStopForPlay;
 
         var MAP_VIEWPORT_NARROW_PX = 900;
-        var MAX_OPEN_PIN_POPUPS = 6;
-        var PIN_LAZY_LIVE_FULL_MAX = 6;
+        var MAX_OPEN_PIN_POPUPS = 8;
+        var PIN_LAZY_LIVE_FULL_MAX = 8;
         var pinOpenOrder = [];
 
         function trackPinPopupOpen(camId) {
@@ -7258,7 +7269,9 @@
                 }
                 var playBtn = e.target.closest('.map-pin-play');
                 if (playBtn && playBtn.closest('.leaflet-popup-content')) {
-                    clearPinVideoUserStop(normalizeCamId(playBtn.getAttribute('data-cam-id')));
+                    var playCamId = normalizeCamId(playBtn.getAttribute('data-cam-id'));
+                    clearPinVideoUserStopForPlay(playCamId);
+                    syncPinVideoFromWall(playCamId);
                 }
                 var minBtn = e.target.closest('.map-pin-minimize');
                 if (!minBtn) return;
@@ -7272,7 +7285,6 @@
                 minBtn.title = dashboardTr(minimized ? 'map.pin.expand' : 'map.pin.minimize');
                 minBtn.setAttribute('aria-label', minBtn.title);
                 if (!minimized) {
-                    clearPinVideoUserStop(camId);
                     if (typeof VideoWall !== 'undefined' && VideoWall.wallHasPlayerForCam && VideoWall.wallHasPlayerForCam(camId)) {
                         syncPinVideoFromWall(camId);
                     } else if (typeof VideoWall !== 'undefined' && VideoWall.playMapPinVideoIfPopupOpen) {
@@ -7928,7 +7940,6 @@
                     if (L && L.DomEvent && L.DomEvent.stopPropagation) L.DomEvent.stopPropagation(e);
                     clearMapPinPopupSuppression(camId);
                     window.mapPinPopupFocusCamId = normalizeCamId(camId);
-                    clearPinVideoUserStop(camId);
                     suppressPttChromeForLivePinOpen(camId);
                     if (typeof expandMapPinVideo === 'function' && expandMapPinVideo(camId)) {
                         setTimeout(function () {
@@ -8368,7 +8379,7 @@
         function resyncPinVideoAfterSosAck(camId) {
             camId = normalizeCamId(camId);
             if (!camId) return;
-            clearPinVideoUserStop(camId);
+            if (isPinVideoStoppedByUser(camId)) return;
             syncPinVideoFromWall(camId);
             setTimeout(function () {
                 if (typeof VideoWall === 'undefined') return;
@@ -8382,6 +8393,7 @@
         function syncPinVideoFromWall(camId) {
             if (window.mapPopoutMirrorActive) return;
             if (!camId || typeof VideoWall === 'undefined') return;
+            /* Read-only: never clears pin stop latch — Play / Open All only. */
             if (shouldLazyPinLive(camId) && !pinPopupHasVisibleVideo(camId)) {
                 if (VideoWall.updateMapPinStopButton) VideoWall.updateMapPinStopButton(camId);
                 return;
@@ -8417,7 +8429,8 @@
             }
             if (deviceMarkers[camId]) refreshPinPopupPosition(deviceMarkers[camId]);
             if (VideoWall.updateMapPinStopButton) VideoWall.updateMapPinStopButton(camId);
-            var pinLive = VideoWall.mapPinHasLiveVideo && VideoWall.mapPinHasLiveVideo(camId);
+            var pinLive = (VideoWall.mapPinHasLiveVideo && VideoWall.mapPinHasLiveVideo(camId))
+                || (VideoWall.mapPinMirrorActive && VideoWall.mapPinMirrorActive(camId));
             if (wallLive && !pinLive) {
                 pinVideoSyncTimers[camId] = setTimeout(function () {
                     pinVideoSyncTimers[camId] = null;
@@ -8886,9 +8899,7 @@
             camId = normalizeCamId(camId);
             var root = mapPopupRootForCam(camId);
             if (!root || !root.classList.contains('pin-popup-minimized')) return false;
-            clearPinVideoUserStop(camId);
             root.classList.remove('pin-popup-minimized');
-            preparePinVideoWallResync(camId);
             if (typeof VideoWall !== 'undefined' && VideoWall.syncMapPopupPlayer) {
                 VideoWall.syncMapPopupPlayer(camId);
             }

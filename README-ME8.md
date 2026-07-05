@@ -45,13 +45,21 @@ Stop trial Fleet before real BWC tests (shared SIP/FTP).
 | `mob-me8-ship-build-customer` | 2026-07-01 | `BUILD-ME8-CUSTOMER.ps1` — ship desk pack builder |
 | `mob-me8-license-ops-doc` | 2026-07-01 | `docs/LICENSE-OPERATIONS.md`, `pack/me8-ship/ship-registry.*` |
 
-**Fresh customer install:** `.\NEW-ME8-INSTALL.ps1` then `.\VERIFY-ME8-FRESH.ps1` (see `pack/me8-fresh/README.txt`).
+**Fresh customer install (operators):** [CUSTOMER-START.txt](CUSTOMER-START.txt) → [docs/ME8-CUSTOMER-INSTALL.md](docs/ME8-CUSTOMER-INSTALL.md)
 
-**Customer pack (ship desk):** `.\BUILD-ME8-CUSTOMER.ps1` — see [docs/LICENSE-OPERATIONS.md](docs/LICENSE-OPERATIONS.md).
+**Partner on site:** [docs/ME8-INSTALLER-RUNBOOK.md](docs/ME8-INSTALLER-RUNBOOK.md) — `SETUP-ME8.bat`
+
+**Commercial install model:** [docs/ME8-COMMERCIAL-INSTALL-PLAN.md](docs/ME8-COMMERCIAL-INSTALL-PLAN.md)
+
+**Customer pack (Ubitron ship desk):** `.\BUILD-ME8-CUSTOMER.ps1` — [docs/ME8-INTERNAL-SHIP-DESK.md](docs/ME8-INTERNAL-SHIP-DESK.md), [docs/LICENSE-OPERATIONS.md](docs/LICENSE-OPERATIONS.md)
 
 **Roadmap:** [docs/ME8-ROADMAP.md](docs/ME8-ROADMAP.md)  
 **Smoke (run before enterprise):** [docs/ME8-SMOKE-CHECKLIST.md](docs/ME8-SMOKE-CHECKLIST.md)  
 **Security (before customer handoff):** [docs/ME8-SECURITY-BASELINE.md](docs/ME8-SECURITY-BASELINE.md)  
+**HTTPS (customer IT appendix):** [docs/ME8-TLS-IT-APPENDIX.md](docs/ME8-TLS-IT-APPENDIX.md)  
+**TLS internal / bench:** [docs/ME8-TLS-DASHBOARD.md](docs/ME8-TLS-DASHBOARD.md)  
+**ZLM live sidecar plan:** [docs/ME8-ZLM-LIVE-MVP.md](docs/ME8-ZLM-LIVE-MVP.md)  
+**ZLM sidecar setup (internal):** [docs/ME8-ZLM-SIDECAR-SETUP.md](docs/ME8-ZLM-SIDECAR-SETUP.md)  
 **License (ship desk internal):** [docs/LICENSE-OPERATIONS.md](docs/LICENSE-OPERATIONS.md)  
 **Compose layout:** [docs/ME8-COMPOSE-LAYOUT.md](docs/ME8-COMPOSE-LAYOUT.md) — `.\SMOKE-COMPOSE.ps1`  
 **Enterprise env:** [docs/ME8-ENV-ENTERPRISE.md](docs/ME8-ENV-ENTERPRISE.md) — `.env.enterprise.example`  

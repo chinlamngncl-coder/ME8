@@ -1,0 +1,15 @@
+# ZLMediaKit sidecar for ME8 lab (mob-me8-zlm-sidecar)
+# Usage: docker compose -f docker/zlm.compose.yaml up -d
+# Fleet bootstrap: FM_ZLM_HTTP_URL=http://127.0.0.1:8080 FM_ZLM_SECRET=me8-zlm-dev-secret-change-in-ship
+services:
+  zlm:
+    image: zlmediakit/zlmediakit:master
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+      - "8443:443"
+      - "554:554"
+      - "1935:1935"
+      - "9000:9000/udp"
+    volumes:
+      - ./zlm/config.ini:/opt/media/conf/config.ini:ro

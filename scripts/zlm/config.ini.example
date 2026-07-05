@@ -1,0 +1,30 @@
+# ZLMediaKit — ME8 sidecar template (mob-me8-zlm-sidecar)
+# Copy to vendor/zlm/config.ini or set FM_ZLM_CONFIG to your path.
+# Match FM_ZLM_SECRET and FM_ZLM_HTTP_URL in bootstrap profile.
+
+[general]
+enableVhost=0
+flowThreshold=1024
+
+[http]
+port=8080
+# sslport=8443
+dirPath=./www
+
+[rtsp]
+port=554
+
+[rtmp]
+port=1935
+
+[rtp]
+# GB28181 / RTP ingest — tuned in ingest-bridge MOB
+audioMtuSize=600
+videoMtuSize=1400
+
+[api]
+apiDebug=1
+secret=me8-zlm-dev-secret-change-in-ship
+
+[hook]
+enable=0

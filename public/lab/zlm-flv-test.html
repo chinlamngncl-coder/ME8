@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ME8 ZLM FLV bench</title>
+    <style>
+        :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+        body { margin: 0; padding: 1.25rem; background: #0f1419; color: #e7ecf1; max-width: 960px; }
+        h1 { font-size: 1.25rem; margin: 0 0 0.25rem; }
+        .sub { color: #8b9aab; font-size: 0.9rem; margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.35rem; color: #8b9aab; font-size: 0.85rem; }
+        input[type=text] {
+            width: 100%; box-sizing: border-box; padding: 0.55rem 0.65rem;
+            border: 1px solid #2a3544; border-radius: 6px; background: #151c26; color: inherit;
+        }
+        .row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.75rem 0 1rem; }
+        button {
+            padding: 0.5rem 0.9rem; border-radius: 6px; border: 1px solid #2f6fed;
+            background: #1a4fb8; color: #fff; cursor: pointer;
+        }
+        button.secondary { background: #1e2835; border-color: #3a4656; color: #c8d2dc; }
+        button:disabled { opacity: 0.45; cursor: not-allowed; }
+        #videoWrap {
+            background: #000; border-radius: 8px; overflow: hidden;
+            aspect-ratio: 16 / 9; max-height: 54vh;
+        }
+        video { width: 100%; height: 100%; display: block; background: #000; }
+        pre {
+            background: #151c26; border: 1px solid #243041; border-radius: 8px;
+            padding: 0.75rem; font-size: 0.78rem; overflow: auto; max-height: 220px;
+        }
+        .pass { color: #3dd68c; }
+        .fail { color: #ff6b6b; }
+        .warn { color: #f0b429; }
+        ul.steps { margin: 0.5rem 0 1rem 1.1rem; color: #a8b6c8; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <h1>ME8 — ZLM backend validate</h1>
+    <p class="sub">mob-me8-zlm-backend-validate · localhost bench · no wall / pin</p>
+
+    <ul class="steps">
+        <li>Copy ZLM keys from <code>.env.me8.example</code> into <code>.env</code>, run <code>VERIFY-ZLM-SIDECAR.ps1</code>, restart Fleet.</li>
+        <li>Start live on a BWC from the dashboard (ffmpeg wall still OK).</li>
+        <li>Enter camId below — FLV should play here when ingest is active.</li>
+    </ul>
+
+    <label for="camId">camId</label>
+    <input id="camId" type="text" placeholder="34020000001329000009" autocomplete="off">
+
+    <div class="row">
+        <button id="btnPoll" type="button">Refresh status</button>
+        <button id="btnPlay" type="button">Play FLV (lab proxy)</button>
+        <button id="btnDirect" type="button" class="secondary">Play direct ZLM URL</button>
+        <button id="btnStop" type="button" class="secondary">Stop</button>
+    </div>
+
+    <div id="videoWrap"><video id="player" controls muted playsinline></video></div>
+
+    <h2 style="font-size:1rem;margin:1rem 0 0.35rem;">Bench status</h2>
+    <pre id="status">Waiting…</pre>
+
+    <script src="/vendor/mpegts.min.js?v=20260705-zlm-bench"></script>
+    <script>
+(function () {
+    var camInput = document.getElementById('camId');
+    var statusEl = document.getElementById('status');
+    var video = document.getElementById('player');
+    var player = null;
+    var pollTimer = null;
+
+    function qsCamId() {
+        var m = /[?&]camId=([^&]+)/.exec(location.search);
+        return m ? decodeURIComponent(m[1]) : '';
+    }
+
+    function camId() {
+        return String(camInput.value || '').trim();
+    }
+
+    function logStatus(obj) {
+        statusEl.textContent = JSON.stringify(obj, null, 2);
+    }
+
+    function destroyPlayer() {
+        if (player) {
+            try { player.destroy(); } catch (_) { /* ignore */ }
+            player = null;
+        }
+        video.removeAttribute('src');
+        video.load();
+    }
+
+    function playUrl(url, label) {
+        destroyPlayer();
+        if (!window.mpegts || !mpegts.isSupported()) {
+            logStatus({ error: 'mpegts.js not supported in this browser', url: url, label: label });
+            return;
+        }
+        if (!mpegts.getFeatureList().mseLivePlayback) {
+            logStatus({ error: 'MSE live playback not supported', url: url, label: label });
+            return;
+        }
+        player = mpegts.createPlayer({
+            type: 'flv',
+            isLive: true,
+            url: url
+        }, { enableStashBuffer: false, stashInitialSize: 128 });
+        player.attachMediaElement(video);
+        player.load();
+        player.play().catch(function (err) {
+            logStatus({ playError: String(err && err.message || err), url: url, label: label });
+        });
+    }
+
+    function fetchBench() {
+        var id = camId();
+        var url = '/api/lab/zlm-bench' + (id ? ('?camId=' + encodeURIComponent(id)) : '');
+        return fetch(url).then(function (r) { return r.json(); });
+    }
+
+    function refreshStatus() {
+        fetchBench().then(function (data) {
+            var lines = data;
+            if (data && data.camId) {
+                var ok = [];
+                var bad = [];
+                if (data.config && data.config.enabled) ok.push('ZLM enabled'); else bad.push('ZLM disabled in env');
+                if (data.zlm && data.zlm.ok) ok.push('sidecar ok'); else bad.push('sidecar not ok');
+                if (data.poolLive) ok.push('pool live'); else bad.push('pool not live — start live from dashboard');
+                if (data.camIngest && data.camIngest.packets > 0) ok.push('RTP mirrored (' + data.camIngest.packets + ' pkts)');
+                else if (data.poolLive) bad.push('no ingest yet');
+                if (data.camIngest && data.camIngest.zlmStreamReady) ok.push('zlm stream ready');
+                else if (data.camIngest && data.camIngest.packets > 0) bad.push('waiting zlm publish');
+                lines = Object.assign({}, data, { checklist: { pass: ok, pending: bad } });
+            }
+            logStatus(lines);
+        }).catch(function (err) {
+            logStatus({ error: String(err && err.message || err), hint: 'Open from http://127.0.0.1:3988/lab/zlm-flv-test.html' });
+        });
+    }
+
+    function startPoll() {
+        if (pollTimer) clearInterval(pollTimer);
+        refreshStatus();
+        pollTimer = setInterval(refreshStatus, 2500);
+    }
+
+    document.getElementById('btnPoll').addEventListener('click', refreshStatus);
+    document.getElementById('btnStop').addEventListener('click', destroyPlayer);
+    document.getElementById('btnPlay').addEventListener('click', function () {
+        var id = camId();
+        if (!id) { logStatus({ error: 'camId required' }); return; }
+        playUrl('/api/lab/live/flv?camId=' + encodeURIComponent(id), 'lab-proxy');
+    });
+    document.getElementById('btnDirect').addEventListener('click', function () {
+        fetchBench().then(function (data) {
+            if (!data.urls || !data.urls.directFlv) {
+                logStatus({ error: 'No direct FLV URL — enter camId and refresh' });
+                return;
+            }
+            playUrl(data.urls.directFlv, 'direct-zlm');
+        });
+    });
+
+    var preset = qsCamId();
+    if (preset) camInput.value = preset;
+    camInput.addEventListener('change', startPoll);
+    camInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') startPoll();
+    });
+    startPoll();
+})();
+    </script>
+</body>
+</html>

@@ -22,7 +22,7 @@ const mediaSession = require('./lib/mediaSession');
 const liveStreamPool = require('./lib/liveStreamPool');
 const { createLiveVoiceHint } = require('./lib/liveVoiceHint');
 const liveViewers = require('./lib/liveViewers');
-const DASHBOARD_MAX_LIVE = parseInt(process.env.FM_MAX_CONCURRENT_LIVE || '6', 10) || 6;
+const DASHBOARD_MAX_LIVE = parseInt(process.env.FM_MAX_CONCURRENT_LIVE || '8', 10) || 8;
 const deviceControl = require('./lib/deviceControl');
 const { amplifyAlaw } = require('./lib/psG711Audio');
 const pttServer = require('./lib/pttServer');
@@ -73,6 +73,9 @@ const dispatchGroups = require('./lib/dispatchGroups');
 const dispatchScope = require('./lib/dispatchScope');
 const firmwareOta = require('./lib/firmwareOta');
 const ffmpegRuntime = require('./lib/ffmpegRuntime');
+const zlmSidecar = require('./lib/zlmSidecar');
+const liveMediaRouter = require('./lib/liveMediaRouter');
+const zlmIngestAdapter = require('./lib/zlmIngestAdapter');
 const platformLimits = require('./lib/platformLimits');
 const scalePrep = require('./lib/scalePrep');
 const staticCache = require('./lib/staticCache');
@@ -183,6 +186,14 @@ function applyLabSecurityRuntime() {
         app.set('trust proxy', false);
     }
     return lab;
+}
+
+function syncTrustProxyForDeploymentSettings() {
+    try {
+        const s = serverSettings.load(STORAGE_DIR);
+        const opUrl = s.deployment && s.deployment.operatorUrl;
+        labSecurity.syncTrustProxyFromOperatorUrl(STORAGE_DIR, opUrl);
+    } catch (_) { /* non-fatal at boot */ }
 }
 platformLicense.init(STORAGE_DIR);
 sosIncidents.init(STORAGE_DIR);
@@ -376,6 +387,7 @@ function getStorageFolders() {
 
 
 const app = express();
+syncTrustProxyForDeploymentSettings();
 applyLabSecurityRuntime();
 
 const server = http.createServer(app);
@@ -451,6 +463,8 @@ liveStreamPool.setOnStreamStop((camId) => {
     liveVoiceHint.clearCam(camId);
     liveCapture.onStreamStopped(camId);
 });
+
+liveMediaRouter.wire({ liveStreamPool, zlmSidecar, log });
 
 
 
@@ -1207,7 +1221,151 @@ app.post('/api/lab-security/test-oidc', techAccess.requireTechAuth, async (req, 
 
 gisOffline.registerGisOfflineRoutes(app);
 
+function reqIsLoopback(req) {
+    const ip = String((req && req.ip) || (req.socket && req.socket.remoteAddress) || '')
+        .replace(/^::ffff:/, '');
+    return ip === '127.0.0.1' || ip === '::1';
+}
+
+function requireLoopbackBench(req, res, next) {
+    if (reqIsLoopback(req)) return next();
+    res.status(403).json({ error: 'Bench route — localhost only' });
+}
+
+app.get('/lab/zlm-flv-test.html', requireLoopbackBench, (req, res) => {
+    res.setHeader('Cache-Control', staticCache.HTML_CACHE_CONTROL);
+    res.sendFile(path.join(__dirname, 'public', 'lab', 'zlm-flv-test.html'));
+});
+
+app.get('/api/lab/zlm-bench', requireLoopbackBench, async (req, res) => {
+    const camId = String(req.query.camId || '').trim();
+    const zlmCfg = zlmSidecar.readConfig();
+    const zlmPub = zlmSidecar.getStatusPublic();
+    const ingest = liveMediaRouter.getPublicStats();
+    let camIngest = null;
+    let zlmMedia = null;
+    if (camId) {
+        const entry = liveMediaRouter.getIngest(camId);
+        if (entry) {
+            camIngest = {
+                camId: entry.camId,
+                zlmPort: entry.zlmPort,
+                packets: entry.packets,
+                zlmStreamReady: !!entry.zlmStreamReady,
+                firstPacketAt: entry.firstPacketAt,
+                playUrl: entry.playUrl,
+            };
+        }
+        if (zlmPub.ok) {
+            try {
+                zlmMedia = await zlmIngestAdapter.getMediaEntry(camId);
+            } catch (_) { /* ignore */ }
+        }
+    }
+    res.json({
+        ok: true,
+        bench: 'mob-me8-zlm-backend-validate',
+        zlm: zlmPub,
+        config: {
+            enabled: zlmCfg.enabled,
+            liveEngine: zlmCfg.liveEngine,
+            fallbackFfmpeg: zlmCfg.fallbackFfmpeg,
+        },
+        ingest: ingest,
+        camId: camId || null,
+        camIngest: camIngest,
+        zlmMedia: zlmMedia,
+        poolLive: camId ? liveStreamPool.isStreamingForCam(camId) : null,
+        urls: camId ? {
+            directFlv: zlmIngestAdapter.flvPlayUrl(camId),
+            labProxy: '/api/lab/live/flv?camId=' + encodeURIComponent(camId),
+            dashboardProxy: '/api/live/flv?camId=' + encodeURIComponent(camId),
+        } : null,
+        testPage: '/lab/zlm-flv-test.html',
+    });
+});
+
+app.get('/api/lab/live/flv', requireLoopbackBench, (req, res) => {
+    const camId = String(req.query.camId || '').trim();
+    if (!camId) {
+        res.status(400).json({ error: 'camId required' });
+        return;
+    }
+    if (!liveStreamPool.isStreamingForCam(camId)) {
+        res.status(404).end();
+        return;
+    }
+    let upstream;
+    try {
+        upstream = new URL(zlmIngestAdapter.flvPlayUrl(camId));
+    } catch (err) {
+        res.status(502).end();
+        return;
+    }
+    const lib = upstream.protocol === 'https:' ? require('https') : require('http');
+    const proxyReq = lib.request(upstream, { method: 'GET' }, (proxyRes) => {
+        if (proxyRes.statusCode !== 200) {
+            res.status(proxyRes.statusCode || 502).end();
+            proxyRes.resume();
+            return;
+        }
+        res.setHeader('Content-Type', 'video/x-flv');
+        res.setHeader('Cache-Control', 'no-cache, no-store');
+        proxyRes.pipe(res);
+        proxyRes.on('error', () => {
+            if (!res.headersSent) res.status(502).end();
+        });
+    });
+    proxyReq.on('error', () => {
+        if (!res.headersSent) res.status(502).end();
+    });
+    req.on('close', () => {
+        try { proxyReq.destroy(); } catch (_) { /* ignore */ }
+    });
+    proxyReq.end();
+});
+
 app.use(dashboardAuth.requireDashboardAuth);
+
+app.get('/api/live/flv', (req, res) => {
+    const camId = String(req.query.camId || '').trim();
+    if (!camId) {
+        res.status(400).json({ error: 'camId required' });
+        return;
+    }
+    if (!liveStreamPool.isStreamingForCam(camId)) {
+        res.status(404).end();
+        return;
+    }
+    let upstream;
+    try {
+        upstream = new URL(zlmIngestAdapter.flvPlayUrl(camId));
+    } catch (err) {
+        res.status(502).end();
+        return;
+    }
+    const lib = upstream.protocol === 'https:' ? require('https') : require('http');
+    const proxyReq = lib.request(upstream, { method: 'GET' }, (proxyRes) => {
+        if (proxyRes.statusCode !== 200) {
+            res.status(proxyRes.statusCode || 502).end();
+            proxyRes.resume();
+            return;
+        }
+        res.setHeader('Content-Type', 'video/x-flv');
+        res.setHeader('Cache-Control', 'no-cache, no-store');
+        proxyRes.pipe(res);
+        proxyRes.on('error', () => {
+            if (!res.headersSent) res.status(502).end();
+        });
+    });
+    proxyReq.on('error', () => {
+        if (!res.headersSent) res.status(502).end();
+    });
+    req.on('close', () => {
+        try { proxyReq.destroy(); } catch (_) { /* ignore */ }
+    });
+    proxyReq.end();
+});
 
 function buildCloudDeploymentOverview() {
     const settings = serverSettings.load(STORAGE_DIR);
@@ -2407,6 +2565,11 @@ app.post('/api/server-settings', dashboardAuth.requireSuperAdmin, (req, res) => 
         const settings = serverSettings.save(STORAGE_DIR, Object.assign({}, current, body));
         if (settings.site && settings.site.timezone) siteTime.configure(settings.site.timezone);
         tenantProfile.save(STORAGE_DIR, settings);
+        labSecurity.syncTrustProxyFromOperatorUrl(
+            STORAGE_DIR,
+            settings.deployment && settings.deployment.operatorUrl
+        );
+        applyLabSecurityRuntime();
         refreshEvidenceStorage();
         auditLog.recordFromRequest(req, 'server.settings.save', {
             target: settings.publicHost,
@@ -3013,6 +3176,9 @@ app.get('/api/platform/status', (req, res) => {
     const profile = tenantProfile.load(STORAGE_DIR, settings);
     const limits = platformLimits.loadLimits();
     const ffmpeg = ffmpegRuntime.getCachedCheck() || { ok: false };
+    const zlm = Object.assign({}, zlmSidecar.getStatusPublic(), {
+        ingest: liveMediaRouter.getPublicStats(),
+    });
     const bwcData = loadBwcDevices();
     const users = dashboardAuth.listUsersPublic();
     const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
@@ -3039,6 +3205,7 @@ app.get('/api/platform/status', (req, res) => {
             path: ffmpeg.path,
             version: ffmpeg.versionLine,
         },
+        zlm,
         capabilities: tenantProfile.capabilities(),
         rentalMode: limits.rentalMode,
         limitsSource: limits.limitsSource,
@@ -3110,6 +3277,27 @@ app.patch('/api/users/:id', dashboardAuth.requireSuperAdmin, (req, res) => {
             detail: { role: updated.role, permissions: updated.permissions },
         });
         res.json({ ok: true, user: updated });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.post('/api/users/:id/totp-reset', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        const body = req.body || {};
+        if (reverifyForbidden(req, res, body)) return;
+        const targetId = String(req.params.id || '').trim();
+        const session = req.dashboardUser || {};
+        if (targetId && session.userId && targetId === session.userId) {
+            return res.status(400).json(opErr('Cannot reset your own authenticator while signed in — use another super admin or ship recovery'));
+        }
+        const out = dashboardAuth.resetSuperAdminTotpById(targetId);
+        log.web.info('super admin totp reset', { target: out.username, actor: session.username });
+        auditLog.recordFromRequest(req, 'user.totp_reset', {
+            target: out.username,
+            detail: { via: 'dashboard' },
+        });
+        res.json({ ok: true, user: out });
     } catch (err) {
         res.status(400).json(opErr(err));
     }
@@ -7786,6 +7974,7 @@ const ports = mediaSession.getPorts();
     }
 
     log.web.info('dashboard listening', { url: `http://${HOST}:${HTTP_PORT}`, folder: __dirname });
+    zlmSidecar.startHealthMonitor(log);
     log.sip.info('telemetry enabled', {
         build: 'v2',
         queryOnRegister: true,

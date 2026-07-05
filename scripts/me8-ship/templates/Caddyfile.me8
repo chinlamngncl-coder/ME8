@@ -1,0 +1,34 @@
+# ME8 dashboard — Caddy reverse proxy (production or lab with real hostname).
+# Replace DISPATCH_HOST with your operator hostname. Fleet stays on loopback :3988.
+
+{
+	# Lab self-signed: use `tls internal` on the site block below instead of customer cert paths.
+}
+
+DISPATCH_HOST {
+	encode gzip
+
+	reverse_proxy 127.0.0.1:3988 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-For {remote_host}
+		transport http {
+			versions 1.1
+		}
+	}
+}
+
+# Lab example (self-signed, port 3443):
+# :3443 {
+# 	tls internal
+# 	reverse_proxy 127.0.0.1:3988 {
+# 		header_up X-Forwarded-Proto {scheme}
+# 		header_up X-Forwarded-Host {host}
+# 	}
+# }
+
+# Site admin: Settings → Operator login URL → https://DISPATCH_HOST → Save
+# Trust reverse proxy enables automatically when URL is https://
+
+# Video WebSocket (JSMpeg) stays on FM_VIDEO_WS_PORT (default HTTP+1, e.g. 3989) — LAN firewall only.
+# Optional second listener if you terminate WSS at the edge (advanced — not required for v1 LAN).

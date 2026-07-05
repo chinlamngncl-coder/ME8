@@ -89,7 +89,7 @@ One **MOB-APPLY** at a time. Detail in [03-ENTERPRISE-PRE-SHIP-PLAN.md](./google
 
 | Wave | MOBs | Notes |
 |------|------|-------|
-| **0** | `mob-enterprise-compose` (file present), `mob-env-enterprise` | Valkey + Postgres env; compose healthy |
+| **0** | `mob-me8-aes256-verify`, `mob-me8-tls-dashboard`, `mob-enterprise-compose` (file present), `mob-env-enterprise` | Vault + HTTPS docs/scripts; then Valkey + Postgres env |
 | **1** | stability MOBs | Debounce, async cache, fatal policy |
 | **2** | Valkey dual-write + hydrate | SOS/live/PTT **never blocked** |
 | **3** | Postgres catalog + degrade | No silent SQLite split-brain — [07](./google-feedback-discussion/07-DEGRADE-TESTS-AND-PG-RESYNC.md) |
@@ -114,6 +114,8 @@ One **MOB-APPLY** at a time. Detail in [03-ENTERPRISE-PRE-SHIP-PLAN.md](./google
 - Multi-tenant SaaS control plane  
 - SIP/media cluster / NLB farm  
 
+**In progress (sidecar — not merged):** [ME8-ZLM-LIVE-MVP.md](./ME8-ZLM-LIVE-MVP.md) — ZLM media sidecar; Fleet keeps SIP/PTT/SOS
+
 ---
 
 ## Run ME8
@@ -131,7 +133,11 @@ Dashboard: `http://<HOST>:3988` — stop trial Fleet before BWC SIP tests.
 
 | Doc | Use |
 |-----|-----|
+| [ME8-ZLM-LIVE-MVP.md](./ME8-ZLM-LIVE-MVP.md) | ZLM sidecar plan — engine flag, migration, PASS gates |
 | [ME8-SMOKE-CHECKLIST.md](./ME8-SMOKE-CHECKLIST.md) | Phase A smoke — before enterprise MOBs |
+| [ME8-CHECKPOINT-RITUAL.md](./ME8-CHECKPOINT-RITUAL.md) | Mini/full checkpoint gate — agent reminds after risky MOBs |
+| [ME8-FLEET-SCALE-SOP.md](./ME8-FLEET-SCALE-SOP.md) | Many registered BWCs, 8 live — operator/partner SOP |
+| [ME8-ZLM-SCALE-8-CHECKLIST.md](./ME8-ZLM-SCALE-8-CHECKLIST.md) | 8 concurrent + ZLM failover drills |
 | [ME8-COMPOSE-LAYOUT.md](./ME8-COMPOSE-LAYOUT.md) | Host Fleet + Docker Valkey/Postgres/LiveKit ports |
 | [ME8-ENV-ENTERPRISE.md](./ME8-ENV-ENTERPRISE.md) | Enterprise `.env` profile (Wave 0) |
 | [ME8-SECURITY-BASELINE.md](./ME8-SECURITY-BASELINE.md) | Pre-ship security SOP — before customer handoff |
@@ -167,3 +173,20 @@ Dashboard: `http://<HOST>:3988` — stop trial Fleet before BWC SIP tests.
 | `mob-me8-vendor-local` | 2026-07-01 | Local `/vendor/` for Leaflet, MarkerCluster, LiveKit (dashboard cold load) |
 | `mob-me8-defer-scripts` | 2026-07-01 | Parallel script fetch via `defer`; `index.html` 682→384 KB |
 | `mob-me8-static-cache` | 2026-07-01 | `lib/staticCache.js` — long-lived cache for versioned `/js` + `/vendor` |
+| `mob-me8-aes256-verify` | 2026-07-04 | Bench verify: `test-secrets-at-rest.js` OK; live `me8-secrets-v2` / AES-256-GCM; `LOCK-SECRETS-ACL.ps1`; API redacts passwords |
+| `mob-me8-tls-dashboard` | 2026-07-04 | HTTPS operator path: SETUP/VERIFY scripts, `me8-tls-proxy.js`, nginx/Caddy templates, `docs/ME8-TLS-DASHBOARD.md` |
+| `mob-me8-secrets-enterprise-ui` | 2026-07-04 | Settings secrets UX: inline badges, save-stays-open, unsaved guard, effective `passwordConfigured`, silent env→vault hydrate |
+| `mob-me8-secrets-copy-enterprise` | 2026-07-04 | Operator copy: **Password saved** / **Enter new password to change** — removed “not shown” from six locales + FTP hint |
+| `mob-me8-customer-install-story` | 2026-07-04 | `CUSTOMER-START.txt`, `ME8-CUSTOMER-INSTALL.md`, `ME8-INSTALLER-RUNBOOK.md`; pack README split; no operator `.env`/verify steps |
+| `mob-me8-no-env-in-handoff` | 2026-07-04 | Zero bootstrap file names in handoff; `ME8-INTERNAL-SHIP-DESK.md`; silent ship-desk script messages |
+| `mob-me8-commercial-install` | 2026-07-04 | `SETUP-ME8.bat`, BUILD bundles `npm install`, `ME8-COMMERCIAL-INSTALL-PLAN.md`; partner path = copy + SETUP + URL |
+| `mob-me8-tls-ship-integrate` | 2026-07-04 | Auto trust proxy when operator URL is https; `HANDOFF-SHEET.txt`; `ME8-TLS-IT-APPENDIX.md`; BUILD `-OperatorHttpsUrl` |
+| `mob-me8-zlm-plan-doc` | 2026-07-04 | `docs/ME8-ZLM-LIVE-MVP.md` — sidecar architecture, `FM_LIVE_ENGINE`, ship-desk switch model, MOB 2–6 order |
+| `mob-me8-zlm-plan-doc-amend-failover` | 2026-07-04 | Plan amend: ZLM primary + invisible ffmpeg fallback before ship; LiveMediaRouter; MOB 5 failover; PASS F1–F6 |
+| `mob-me8-zlm-sidecar` | 2026-07-04 | `lib/zlmSidecar.js`, Start/VERIFY scripts, `docker/zlm.compose.yaml`, platform `zlm` status, RESTART autostart |
+| `mob-me8-zlm-ingest-bridge` | 2026-07-04 | `liveMediaRouter`, `zlmIngestAdapter`, pool RTP hooks, parallel ZLM ingest (wall still ffmpeg) |
+| `mob-me8-zlm-failover` | 2026-07-04 | `zlmFailover.js` — readiness/stall/circuit breaker; silent ffmpeg fallback logs |
+| `mob-me8-zlm-wall-mvp` | 2026-07-04 | Unified `video-stream-ready` + ZLM FLV / ffmpeg JSMpeg dual player |
+| `mob-me8-checkpoint-ritual` | 2026-07-04 | `docs/ME8-CHECKPOINT-RITUAL.md` + agent rule — CHECKPOINT PASS gate |
+| `mob-me8-fleet-scale-sop` | 2026-07-04 | `docs/ME8-FLEET-SCALE-SOP.md` — registered vs online vs live (8 cap) |
+| `mob-me8-zlm-scale-8` | 2026-07-04 | Live cap 6→8 aligned; `ME8-ZLM-SCALE-8-CHECKLIST.md` drills |
