@@ -13,7 +13,7 @@
 |--------------------|----------------|
 | **Live pins / Open All** (what broke, what fixed it) | `docs\MOB-DISC-FIRMWARE-GOLD-PIN-MIRROR.md` |
 | **Google’s pin video questions** (answered) | `docs\MOB-DISC-GOOGLE-PIN-CANVAS-MIRROR-VERIFY.md` |
-| **ZLM next step** (test first, don’t touch the dashboard yet) | `docs\MOB-DISC-ZLM-TEST-FIRST.md` |
+| **ZLM test page** (backend proof — not the dashboard) | `public\test-zlm.html` → open in browser after restart |
 | **Restore if video goes wrong** | `BASELINE-ME8-FIRMWARE-GOLD.md` |
 
 All of those sit inside the **ME8** folder on your Desktop.
@@ -24,7 +24,7 @@ All of those sit inside the **ME8** folder on your Desktop.
 
 - **Pin mirror notes** — why agents kept breaking map video, and what not to do again.  
 - **Google pin answers** — their checklist, our answers.  
-- **ZLM notes** — Google’s plan: test on a small page first; **do not** change the main screen until that works.  
+- **ZLM test page** — `http://YOUR_PC:3988/test-zlm.html` (small video test, not the main app)  
 - **Firmware Gold** — the “put it back” button instructions (`RESTORE-ME8-FIRMWARE-GOLD.ps1`).
 
 ---

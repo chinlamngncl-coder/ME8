@@ -1,6 +1,6 @@
 # MOB DISC — ZLM test-first (Google plan)
 
-**Status:** PARKED — plan only. **No code started.**  
+**Status:** Phase 1 applied (`mob-me8-zlm-backend-proof`) — backend + `test-zlm.html` only. **UI not touched.**  
 **Search:** `ZLM`, `test-zlm`, `ffmpeg fallback`, `decoupled`, `zero UI touch`
 
 **Today’s live video lock (do not break):** `me8-firmware-gold-20260706` — pin mirror, Open All PASS.

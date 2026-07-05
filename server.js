@@ -73,6 +73,8 @@ const dispatchGroups = require('./lib/dispatchGroups');
 const dispatchScope = require('./lib/dispatchScope');
 const firmwareOta = require('./lib/firmwareOta');
 const ffmpegRuntime = require('./lib/ffmpegRuntime');
+const zlmRuntime = require('./lib/zlmRuntime');
+const zlmIngest = require('./lib/zlmIngest');
 const platformLimits = require('./lib/platformLimits');
 const scalePrep = require('./lib/scalePrep');
 const staticCache = require('./lib/staticCache');
@@ -452,6 +454,8 @@ liveStreamPool.setOnStreamStop((camId) => {
     liveCapture.onStreamStopped(camId);
 });
 
+zlmIngest.wire(liveStreamPool, { host: HOST, videoWsPort: VIDEO_WS_PORT });
+
 
 
 const msgWss = new WebSocket.Server({
@@ -666,6 +670,33 @@ app.get('/api/health', (req, res) => {
         at: siteTime.formatEvidence(new Date()),
         uptimeSec: Math.floor(process.uptime()),
     });
+});
+
+/** ZLM test bench — backend status (does not touch dashboard UI). */
+app.get('/api/zlm/status', async (req, res) => {
+    try {
+        await zlmRuntime.healthCheck();
+        res.json({
+            ok: true,
+            zlm: zlmRuntime.getStatus(),
+            ingests: zlmIngest.listIngests(),
+            ffmpegPath: (ffmpegRuntime.getCachedCheck() || {}).ok ? 'ok' : 'missing',
+        });
+    } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+    }
+});
+
+/** Playback info for public/test-zlm.html — ZLM FLV or FFmpeg WS fallback. */
+app.get('/api/zlm/playback', async (req, res) => {
+    const camId = req.query && req.query.camId ? String(req.query.camId).trim() : '';
+    if (!camId) return res.status(400).json({ ok: false, error: 'camId required' });
+    try {
+        await zlmRuntime.healthCheck();
+        res.json(zlmIngest.getPlaybackForCam(camId, req));
+    } catch (err) {
+        res.status(500).json({ ok: false, error: err.message });
+    }
 });
 
 function evidencePathValidation(settings) {
@@ -7765,6 +7796,10 @@ const ports = mediaSession.getPorts();
     syncFleetDeviceMeta();
     seedFleetOnlineFromPersistedState();
     bootstrapOnlineFleetForMap();
+
+    zlmRuntime.warmup(log).catch((err) => {
+        log.media.warn('zlm warmup', { message: err.message });
+    });
 
     mediaSession.startTcpMediaServer(HOST, wss, BASE_DIR);
     if (PTT_ENABLED) {
