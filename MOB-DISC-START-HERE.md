@@ -22,6 +22,7 @@ Then run **`RESTART-FLEET.bat`** and hard refresh once (Ctrl+Shift+R).
 |-------|------|
 | **Live pins / Open All** | `docs\MOB-DISC-FIRMWARE-GOLD-PIN-MIRROR.md` |
 | **ZLM — failed, do not use yet** | `docs\MOB-DISC-ZLM-NOT-READY.md` |
+| **TOTP off for testing** (back on before ship) | `docs\MOB-DISC-TOTP-SUSPENDED-BENCH.md` |
 | **Google pin answers** | `docs\MOB-DISC-GOOGLE-PIN-CANVAS-MIRROR-VERIFY.md` |
 | **Put video back** | `BASELINE-ME8-FIRMWARE-GOLD.md` |
 
@@ -30,7 +31,7 @@ Then run **`RESTART-FLEET.bat`** and hard refresh once (Ctrl+Shift+R).
 ## One sentence each
 
 - **Pin mirror** — what fixed map video; what agents must not break again.  
-- **ZLM** — **not ready**; agent tried backend hook → wall died; **reverted**. No Docker for you. One pack at ship.  
+- **TOTP** — **off on bench** for now (password only). **Must turn back on before ship.**  
 - **Firmware Gold** — restore instructions.
 
 ---
