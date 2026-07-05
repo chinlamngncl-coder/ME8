@@ -22,6 +22,9 @@ baseline/**
 !baseline/**/CREATE-ME8-V1.ps1
 !baseline/**/RESTORE-ME8-V1.ps1
 !baseline/**/VERIFY-ME8-V1.ps1
+!baseline/**/CREATE-ME8-FIRMWARE-GOLD.ps1
+!baseline/**/RESTORE-ME8-FIRMWARE-GOLD.ps1
+!baseline/**/VERIFY-ME8-FIRMWARE-GOLD.ps1
 !baseline/**/MANIFEST.json
 !baseline/**/HASHES.json
 
@@ -38,4 +41,5 @@ scripts/_gen-keys-once.js
 # ---- OS / editor cruft ----
 Thumbs.db
 .DS_Store
-.cursor/
+!.cursor/rules/
+!.cursor/rules/*.mdc

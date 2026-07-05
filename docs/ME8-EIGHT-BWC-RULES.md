@@ -39,7 +39,7 @@
 2. **BWC SIP BYE** — `server.js` alone calls `liveStreamPool.onRemoteBye`; `mediaSession.js` must not consume pool BYE first.
 3. **`video-stream-stopped`** — tear down players + show **Stopped**; no fake "Live streaming" on dead streams.
 4. **No** 450ms pin resync loops, no `repairOpenPinPopupVideos` painting live without decode.
-5. **Restore = 100%** — `RESTORE-ME8-V1.ps1` only. No partial file copy.
+5. **Restore = 100%** — `RESTORE-ME8-FIRMWARE-GOLD.ps1` is primary. `RESTORE-ME8-V1.ps1` is legacy fallback only. No partial file copy.
 
 ---
 

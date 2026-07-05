@@ -5275,7 +5275,7 @@
     <script src="/js/evidence-hub.js?v=20260627-approvals-merge"></script>
     <script src="/js/evidence-manager.js?v=20260702-restore-8wc-v2"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260704-bwc-stop-pin-resync"></script>
+    <script src="/js/video-wall.js?v=20260705-pin-mirror-complete"></script>
     <script src="/js/video-matrix.js?v=20260629-live-cap-8"></script>
     <script src="/js/fleet-ui.js?v=20260629-live-cap-8"></script>
     <script src="/js/map-popout-sync.js?v=20260612-mirror"></script>
@@ -7457,9 +7457,10 @@
                 var ph = box.querySelector('.map-pin-video-placeholder');
                 var canvas = box.querySelector('canvas');
                 var hasLive = typeof VideoWall !== 'undefined' && VideoWall.mapPinHasLiveVideo && VideoWall.mapPinHasLiveVideo(camId);
+                var hasMirror = typeof VideoWall !== 'undefined' && VideoWall.mapPinMirrorActive && VideoWall.mapPinMirrorActive(camId);
                 var hasCanvas = !!(canvas && canvas.width > 8 && canvas.height > 8);
                 var streaming = typeof VideoWall !== 'undefined' && VideoWall.isCameraLive && VideoWall.isCameraLive(camId);
-                if (hasLive) {
+                if (hasLive || hasMirror) {
                     if (ph) ph.hidden = true;
                     box.classList.add('vid-box-live', 'map-pin-has-live');
                     box.querySelectorAll('.map-pin-streaming-label').forEach(function (el) {
@@ -8317,7 +8318,12 @@
             var root = mapPopupRootForCam(camId);
             if (!root || root.classList.contains('pin-popup-minimized')) return false;
             var host = root.querySelector('.map-pin-video') || root.querySelector('.vid-box');
-            if (!host || !host.classList.contains('map-pin-has-live')) return false;
+            if (!host) return false;
+            if (typeof VideoWall !== 'undefined' && VideoWall.mapPinMirrorActive && VideoWall.mapPinMirrorActive(camId)) {
+                var mirrorCanvas = host.querySelector('canvas.map-pin-mirror-canvas');
+                if (mirrorCanvas && mirrorCanvas.width > 8 && mirrorCanvas.height > 8) return true;
+            }
+            if (!host.classList.contains('map-pin-has-live')) return false;
             var canvas = host.querySelector('canvas');
             return !!(canvas && canvas.width > 8 && canvas.height > 8);
         }
@@ -8351,15 +8357,14 @@
         function preparePinVideoWallResync(camId) {
             if (!camId || typeof VideoWall === 'undefined') return;
             if (pinPopupHasVisibleVideo(camId)) return;
-            if (VideoWall.mapPinMirrorActive && VideoWall.mapPinMirrorActive(camId)
-                && VideoWall.wallHasPlayerForCam && VideoWall.wallHasPlayerForCam(camId)
-                && !(VideoWall.mapPinHasLiveVideo && VideoWall.mapPinHasLiveVideo(camId))) {
-                return;
-            }
+            if (VideoWall.mapPinMirrorActive && VideoWall.mapPinMirrorActive(camId)) return;
+            if (VideoWall.wallSlotDecodedForCam && VideoWall.wallSlotDecodedForCam(camId)) return;
+            if (VideoWall.wallHasPlayerForCam && VideoWall.wallHasPlayerForCam(camId)) return;
             var root = mapPopupRootForCam(camId);
             if (!root) return;
             var host = root.querySelector('.map-pin-video');
             if (!host) return;
+            if (host.querySelector('canvas.map-pin-mirror-canvas')) return;
             host.querySelectorAll('canvas.map-pin-video-canvas').forEach(function (c) { c.remove(); });
             host.querySelectorAll('.map-pin-streaming-label').forEach(function (el) { el.remove(); });
             host.classList.remove('vid-box-live', 'map-pin-has-live');
@@ -8418,7 +8423,8 @@
             if (deviceMarkers[camId]) refreshPinPopupPosition(deviceMarkers[camId]);
             if (VideoWall.updateMapPinStopButton) VideoWall.updateMapPinStopButton(camId);
             var pinLive = VideoWall.mapPinHasLiveVideo && VideoWall.mapPinHasLiveVideo(camId);
-            if (wallLive && !pinLive) {
+            var pinMirror = VideoWall.mapPinMirrorActive && VideoWall.mapPinMirrorActive(camId);
+            if (wallLive && !pinLive && !pinMirror) {
                 pinVideoSyncTimers[camId] = setTimeout(function () {
                     pinVideoSyncTimers[camId] = null;
                     syncPinVideoFromWall(camId);

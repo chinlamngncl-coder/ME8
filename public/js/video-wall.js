@@ -1990,8 +1990,9 @@
             return !!(stage && stage.querySelector('canvas'));
         });
         if (wallLive) return true;
+        if (mapPinMirrorActive(camId)) return false;
         const pinHost = mapPinHostForCam(camId);
-        return !!(pinHost && pinHost.querySelector('canvas')
+        return !!(pinHost && pinHost.querySelector('canvas.map-pin-video-canvas')
             && (pinHost.classList.contains('map-pin-has-live') || mapPinHasLiveVideo(camId)));
     }
 
@@ -2872,7 +2873,7 @@
         });
     }
 
-    /** Phase 4a — RAF mirror from wall canvas (not wired to play paths until 4b+). */
+    /** Pin video mirror — RAF copy from wall canvas (one WS per cam). */
     function startMapMirrorFromWall(camId, host) {
         if (!camId || !host) return false;
         camId = String(camId).trim();
@@ -2920,6 +2921,14 @@
                 if (dst.height !== sh) dst.height = sh;
                 const ctx = dst.getContext('2d');
                 if (ctx) ctx.drawImage(srcCanvas, 0, 0, sw, sh);
+                if (!mapPinDecodedCams.has(camId)) {
+                    mapPinDecodedCams.add(camId);
+                    noteVideoFrame(camId);
+                    removeStreamingOverlay(host);
+                    const ph = host.querySelector('.map-pin-video-placeholder');
+                    if (ph) ph.hidden = true;
+                    updateMapPinStopButton(camId);
+                }
             }
             const slotEl = wallSlotElForCam(camId);
             const wallLive = !!(slotEl && slotEl.classList.contains('video-slot-has-live'));
@@ -2976,6 +2985,61 @@
         if (!host) return false;
         const hostCam = host.getAttribute('data-cam-id');
         if (hostCam && hostCam !== camId) return false;
+
+        if (mapPinMirrorActive(camId) && host.querySelector('canvas.map-pin-mirror-canvas')) {
+            host.onclick = null;
+            updateMapPinStopButton(camId);
+            unmuteAudioForSosCam(camId);
+            refreshPinPttAfterLivePin(camId);
+            return true;
+        }
+
+        if (!mapPinHasLiveVideo(camId) && !mapPinMirrorActive(camId)
+            && wallHasPlayerForCam(camId) && !wallSlotDecodedForCam(camId)) {
+            const waitCanvas = host.querySelector('canvas.map-pin-video-canvas');
+            const waitPlayer = getMapPlayer(camId);
+            const hasPinPlayer = !!(waitCanvas && waitPlayer && waitPlayer.canvas === waitCanvas);
+            const hasMirrorCanvas = !!host.querySelector('canvas.map-pin-mirror-canvas');
+            const streamLabel = host.querySelector('.map-pin-streaming-label');
+            const labelVisible = !!(streamLabel && streamLabel.style.display !== 'none'
+                && streamLabel.style.opacity !== '0');
+            if (labelVisible || (!hasPinPlayer && !hasMirrorCanvas)) {
+                if (!labelVisible) showMapPinStreamingOverlay(camId, isAlarmCamId(camId));
+                host.onclick = null;
+                updateMapPinStopButton(camId);
+                unmuteAudioForSosCam(camId);
+                refreshPinPttAfterLivePin(camId);
+                return true;
+            }
+            if (hasPinPlayer) {
+                host.onclick = null;
+                host.classList.remove('vid-box-live', 'map-pin-has-live');
+                if (!labelVisible) showMapPinStreamingOverlay(camId, isAlarmCamId(camId));
+                updateMapPinStopButton(camId);
+                unmuteAudioForSosCam(camId);
+                refreshPinPttAfterLivePin(camId);
+                return true;
+            }
+        }
+
+        if (wallCanvasForCam(camId) && wallSlotDecodedForCam(camId)) {
+            destroyMapPlayer(camId);
+            if (startMapMirrorFromWall(camId, host)) {
+                const mirrorPh = host.querySelector('.map-pin-video-placeholder');
+                if (mirrorPh) mirrorPh.hidden = true;
+                removeStreamingOverlay(host);
+                host.onclick = null;
+                host.style.padding = '0';
+                updateMapPinStopButton(camId);
+                unmuteAudioForSosCam(camId);
+                refreshPinPttAfterLivePin(camId);
+                return true;
+            }
+            showMapPinStreamingOverlay(camId, isAlarmCamId(camId));
+            updateMapPinStopButton(camId);
+            return true;
+        }
+
         stopMapPinMirror(camId);
         const existingCanvas = host.querySelector('canvas.map-pin-video-canvas');
         const existingPlayer = getMapPlayer(camId);
@@ -3000,7 +3064,7 @@
             }
             destroyMapPlayer(camId);
             existingCanvas.remove();
-        } else if (mapPinHasLiveVideo(camId) && getMapPlayer(camId) && existingCanvas && host.contains(existingCanvas)) {
+        } else if (mapPinHasLiveVideo(camId) && existingCanvas && host.contains(existingCanvas)) {
             host.onclick = null;
             host.classList.add('vid-box-live', 'map-pin-has-live');
             removeStreamingOverlay(host);
@@ -3999,6 +4063,10 @@
             return;
         }
         const pinCanvas = host.querySelector('canvas');
+        if (mapPinMirrorActive(camId) && host.querySelector('canvas.map-pin-mirror-canvas')) {
+            updateMapPinStopButton(camId);
+            return;
+        }
         if (getMapPlayer(camId) && pinCanvas && mapPinHasLiveVideo(camId)) {
             updateMapPinStopButton(camId);
             return;
