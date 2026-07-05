@@ -46,6 +46,7 @@ Use this **after** auth/secrets MOBs and **before** customer delivery or `me8-v1
 | Password history | Last **5** passwords cannot be reused |
 | Paste on auth fields | Blocked on login and password-change forms |
 | Super admin TOTP | **Required** — offline authenticator app (6-digit code at login) |
+| Super admin lockout recovery | **Planned** — `docs/MOB-DISC-SUPER-ADMIN-RECOVERY.md` (email + recovery kit + in-app admin reset; **not** `.env`/restart) |
 | Operator TOTP | Optional (not forced in v1) |
 | Session | Cookie-based; sign out clears client reverify token |
 

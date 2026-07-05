@@ -24,6 +24,7 @@ Then run **`RESTART-FLEET.bat`** and hard refresh once (Ctrl+Shift+R).
 | **ZLM — failed, do not use yet** | `docs\MOB-DISC-ZLM-NOT-READY.md` |
 | **TOTP off for testing** (back on before ship) | `docs\MOB-DISC-TOTP-SUSPENDED-BENCH.md` |
 | **What to ask Google (ZLM + “Stopped by BWC”)** | `docs\MOB-DISC-ASK-GOOGLE-ZLM.md` |
+| **Super admin forgot password / lost phone** | `docs\MOB-DISC-SUPER-ADMIN-RECOVERY.md` |
 | **Google pin answers** | `docs\MOB-DISC-GOOGLE-PIN-CANVAS-MIRROR-VERIFY.md` |
 | **Put video back** | `BASELINE-ME8-FIRMWARE-GOLD.md` |
 
@@ -32,7 +33,8 @@ Then run **`RESTART-FLEET.bat`** and hard refresh once (Ctrl+Shift+R).
 ## One sentence each
 
 - **Pin mirror** — what fixed map video; what agents must not break again.  
-- **Ask Google** — ZLM after revert + **“Stopped by BWC”** flicker (paste block in doc).  
+- **Super admin lockout** — email recovery + install kit + Settings reset (planned; see doc). **Not** `.env` or restart.
+- **Ask Google** — ZLM + **“Stopped by BWC”** flicker (paste in doc).  
 - **Firmware Gold** — restore instructions.
 
 ---
