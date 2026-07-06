@@ -12,223 +12,75 @@
     color: #cbd5e1;
     font-size: 14px;
     line-height: 1.6;
-    padding: 40px 24px 80px;
+    padding: 48px 24px 80px;
   }
-  .page { max-width: 860px; margin: 0 auto; }
-  h1 { font-size: 22px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
-  .subtitle { color: #64748b; font-size: 13px; margin-bottom: 32px; }
-  h2 { font-size: 15px; font-weight: 600; color: #94a3b8; text-transform: uppercase;
-       letter-spacing: .06em; margin: 36px 0 12px; border-bottom: 1px solid #1e293b;
-       padding-bottom: 6px; }
-  h3 { font-size: 13px; font-weight: 600; color: #e2e8f0; margin: 20px 0 8px; }
-  p { margin-bottom: 10px; color: #94a3b8; font-size: 13px; }
-  a { color: #60a5fa; text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 13px; }
-  th { text-align: left; color: #64748b; font-weight: 500; padding: 6px 12px 6px 0;
-       border-bottom: 1px solid #1e293b; }
-  td { padding: 7px 12px 7px 0; border-bottom: 1px solid #1e293b; vertical-align: top; }
-  td:first-child { color: #e2e8f0; font-weight: 500; white-space: nowrap; }
-  .badge { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px;
-           font-weight: 600; white-space: nowrap; }
-  .badge-mit    { background: #1e3a2f; color: #4ade80; }
-  .badge-apache { background: #1e3347; color: #60a5fa; }
-  .badge-bsd    { background: #2e2a1e; color: #fbbf24; }
-  .badge-lgpl   { background: #2e1e3a; color: #c084fc; }
-  .badge-gpl    { background: #3a1e1e; color: #f87171; }
-  .badge-pub    { background: #1e2a2a; color: #34d399; }
-  .note { background: #1e293b; border: 1px solid #334155; border-radius: 6px;
-          padding: 12px 16px; margin: 12px 0; font-size: 12px; color: #94a3b8; }
-  .note strong { color: #e2e8f0; }
-  .lic-block { background: #0a0f1a; border: 1px solid #1e293b; border-radius: 6px;
-               padding: 14px 16px; margin: 10px 0; font-size: 11px; color: #64748b;
-               white-space: pre-wrap; font-family: 'Courier New', monospace; line-height: 1.5;
-               max-height: 220px; overflow-y: auto; }
-  .back-btn { display: inline-flex; align-items: center; gap: 6px; color: #60a5fa;
-              font-size: 13px; cursor: pointer; margin-bottom: 28px; background: none;
-              border: none; padding: 0; text-decoration: none; }
-  .back-btn:hover { color: #93c5fd; }
-  .osm-note { border-left: 3px solid #f59e0b; padding-left: 12px; margin: 8px 0; }
-  footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid #1e293b;
-           font-size: 12px; color: #475569; }
+  .page { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+  .product { color: #475569; font-size: 13px; margin-bottom: 6px; }
+  .version { color: #334155; font-size: 12px; margin-bottom: 32px; }
+  .intro { font-size: 13px; color: #64748b; margin-bottom: 28px; line-height: 1.7; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
+  th { text-align: left; font-size: 11px; font-weight: 600; color: #475569;
+       text-transform: uppercase; letter-spacing: .06em;
+       padding: 0 0 8px; border-bottom: 1px solid #1e293b; }
+  td { padding: 9px 0; border-bottom: 1px solid #1e293b; font-size: 13px; vertical-align: middle; }
+  td:first-child { color: #e2e8f0; width: 55%; }
+  td:last-child  { color: #64748b; }
+  .osm { margin-bottom: 28px; padding: 14px 0; border-top: 1px solid #1e293b;
+         border-bottom: 1px solid #1e293b; font-size: 13px; color: #64748b; }
+  .osm strong { color: #94a3b8; }
+  footer { margin-top: 40px; font-size: 12px; color: #334155; line-height: 1.8; }
+  .close-btn { display: inline-flex; align-items: center; gap: 6px; color: #475569;
+               font-size: 12px; cursor: pointer; margin-bottom: 32px; background: none;
+               border: 1px solid #1e293b; border-radius: 4px; padding: 5px 12px;
+               text-decoration: none; }
+  .close-btn:hover { color: #94a3b8; border-color: #334155; }
 </style>
 </head>
 <body>
 <div class="page">
 
-  <a class="back-btn" onclick="window.close();return false;">&#215; Close tab</a>
+  <a class="close-btn" onclick="window.close();return false;">Close</a>
 
   <h1>Legal Notices</h1>
-  <p class="subtitle">Ubitron Mobility C2 — Third-Party Open Source Components</p>
+  <p class="product">Ubitron Mobility C2</p>
+  <p class="version">Open Source Software Acknowledgements</p>
 
-  <div class="note">
-    <strong>This document is required by the open-source licenses of components included in this product.</strong>
-    It lists every third-party library, binary, model, and data source used, along with its license.
-    Your IT or legal team may retain a copy for compliance records.
+  <p class="intro">
+    This product includes open-source software components. The following table lists each component and its license.
+    Full license texts are available at <a href="https://opensource.org/licenses" target="_blank" style="color:#60a5fa">opensource.org/licenses</a>.
+  </p>
+
+  <table>
+    <tr><th>Component</th><th>License</th></tr>
+    <tr><td>Express</td><td>MIT</td></tr>
+    <tr><td>Socket.IO</td><td>MIT</td></tr>
+    <tr><td>ws</td><td>MIT</td></tr>
+    <tr><td>dotenv</td><td>BSD 2-Clause</td></tr>
+    <tr><td>xml2js</td><td>MIT</td></tr>
+    <tr><td>ftp-srv</td><td>MIT</td></tr>
+    <tr><td>nodemailer</td><td>MIT</td></tr>
+    <tr><td>qrcode</td><td>MIT</td></tr>
+    <tr><td>node-llama-cpp / llama.cpp</td><td>MIT</td></tr>
+    <tr><td>sip.js</td><td>MIT</td></tr>
+    <tr><td>livekit-server-sdk</td><td>Apache 2.0</td></tr>
+    <tr><td>Leaflet</td><td>BSD 2-Clause</td></tr>
+    <tr><td>leaflet.markercluster</td><td>MIT</td></tr>
+    <tr><td>livekit-client</td><td>Apache 2.0</td></tr>
+    <tr><td>jsmpeg</td><td>MIT</td></tr>
+    <tr><td>FFmpeg</td><td>LGPL 2.1</td></tr>
+    <tr><td>Qwen2.5 (AI model)</td><td>Apache 2.0</td></tr>
+    <tr><td>Node.js</td><td>MIT</td></tr>
+  </table>
+
+  <div class="osm">
+    <strong>Map data</strong> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" style="color:#60a5fa">OpenStreetMap contributors</a>,
+    available under the Open Database Licence (ODbL).
   </div>
-
-  <!-- ── SERVER DEPENDENCIES ── -->
-  <h2>Server — Node.js components</h2>
-  <table>
-    <tr><th>Component</th><th>License</th><th>Copyright / Source</th></tr>
-    <tr><td>express</td><td><span class="badge badge-mit">MIT</span></td><td>OpenJS Foundation</td></tr>
-    <tr><td>socket.io</td><td><span class="badge badge-mit">MIT</span></td><td>Socket.IO contributors</td></tr>
-    <tr><td>ws</td><td><span class="badge badge-mit">MIT</span></td><td>ws contributors</td></tr>
-    <tr><td>dotenv</td><td><span class="badge badge-bsd">BSD-2-Clause</span></td><td>motdotla</td></tr>
-    <tr><td>xml2js</td><td><span class="badge badge-mit">MIT</span></td><td>Leonidas-from-XIV</td></tr>
-    <tr><td>ftp-srv</td><td><span class="badge badge-mit">MIT</span></td><td>Patrick Silva</td></tr>
-    <tr><td>nodemailer</td><td><span class="badge badge-mit">MIT</span></td><td>Andris Reinman</td></tr>
-    <tr><td>qrcode</td><td><span class="badge badge-mit">MIT</span></td><td>soldair / qrcode contributors</td></tr>
-    <tr><td>node-llama-cpp</td><td><span class="badge badge-mit">MIT</span></td><td>withcatai / llama.cpp authors (MIT)</td></tr>
-    <tr><td>sip (kirm/sip.js)</td><td><span class="badge badge-mit">MIT</span></td><td>Kirill Mikhailov</td></tr>
-    <tr><td>livekit-server-sdk</td><td><span class="badge badge-apache">Apache-2.0</span></td><td>LiveKit, Inc.</td></tr>
-  </table>
-
-  <!-- ── BROWSER COMPONENTS ── -->
-  <h2>Dashboard UI — browser components</h2>
-  <table>
-    <tr><th>Component</th><th>License</th><th>Notes</th></tr>
-    <tr><td>Leaflet</td><td><span class="badge badge-bsd">BSD-2-Clause</span></td><td>Map UI — <a href="https://leafletjs.com" target="_blank">leafletjs.com</a></td></tr>
-    <tr><td>leaflet.markercluster</td><td><span class="badge badge-mit">MIT</span></td><td>Map pin clustering</td></tr>
-    <tr><td>livekit-client</td><td><span class="badge badge-apache">Apache-2.0</span></td><td>Video conference — <a href="https://livekit.io" target="_blank">livekit.io</a></td></tr>
-    <tr><td>jsmpeg</td><td><span class="badge badge-mit">MIT</span></td><td>Live video decode — PhobosLab</td></tr>
-    <tr><td>Socket.IO client</td><td><span class="badge badge-mit">MIT</span></td><td>Served by application server</td></tr>
-  </table>
-
-  <!-- ── MEDIA ENGINE ── -->
-  <h2>Media engine — FFmpeg (LGPL)</h2>
-
-  <div class="note">
-    <strong>This product includes FFmpeg</strong>, a multimedia framework.
-    FFmpeg is licensed under the <strong>GNU Lesser General Public License (LGPL) v2.1 or later</strong>.
-    The bundled build uses the LGPL codec set only (no GPL-only codecs such as x264, x265, or FDK-AAC).
-  </div>
-
-  <table>
-    <tr><th>Item</th><th>Detail</th></tr>
-    <tr><td>Binary</td><td>FFmpeg static Windows x64 build (BtbN/gyan.dev release-essentials)</td></tr>
-    <tr><td>License</td><td><span class="badge badge-lgpl">LGPL v2.1+</span></td></tr>
-    <tr><td>Copyright</td><td>© 2000–2026 the FFmpeg developers</td></tr>
-    <tr><td>Source code</td><td><a href="https://ffmpeg.org/download.html" target="_blank">https://ffmpeg.org/download.html</a></td></tr>
-    <tr><td>License text</td><td><a href="https://www.gnu.org/licenses/lgpl-2.1.html" target="_blank">https://www.gnu.org/licenses/lgpl-2.1.html</a></td></tr>
-  </table>
-
-  <p>Under the LGPL you are entitled to receive the FFmpeg source code. You may obtain it at the link above. The LGPL permits use in proprietary software provided the LGPL library is not statically merged into the proprietary code in a way that prevents user replacement.</p>
-
-  <h3>LGPL v2.1 — key terms (abbreviated)</h3>
-  <div class="lic-block">GNU LESSER GENERAL PUBLIC LICENSE
-Version 2.1, February 1999
-
-Copyright (C) 1991, 1999 Free Software Foundation, Inc.
-
-Everyone is permitted to copy and distribute verbatim copies of this license document,
-but changing it is not allowed.
-
-[This is the first section. Full text: https://www.gnu.org/licenses/lgpl-2.1.html]
-
-TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
-
-0. This License Agreement applies to any software library or other program which contains
-   a notice placed by the copyright holder or other authorized party saying it may be
-   distributed under the terms of this Lesser General Public License (also called "this License").
-
-4. You may copy and distribute the Library (or a portion or derivative of it, under Section 2)
-   in object code or executable form under the terms of Sections 1 and 2 above provided that you
-   accompany it with the complete corresponding machine-readable source code...
-
-   As an exception to the Sections above, you may also combine or link a "work that uses
-   the Library" with the Library to produce a work containing portions of the Library, and
-   distribute that work under terms of your choice...
-
-Full license text: https://www.gnu.org/licenses/lgpl-2.1.html</div>
-
-  <!-- ── AI MODEL ── -->
-  <h2>Centre Summary AI model</h2>
-  <table>
-    <tr><th>Component</th><th>License</th><th>Notes</th></tr>
-    <tr><td>Qwen2.5-1.5B-Instruct (GGUF)</td><td><span class="badge badge-apache">Apache-2.0</span></td><td>Alibaba Cloud — <a href="https://huggingface.co/Qwen" target="_blank">huggingface.co/Qwen</a></td></tr>
-    <tr><td>llama.cpp (inference runtime)</td><td><span class="badge badge-mit">MIT</span></td><td>ggerganov — <a href="https://github.com/ggerganov/llama.cpp" target="_blank">github.com/ggerganov/llama.cpp</a></td></tr>
-  </table>
-  <div class="note">
-    <strong>Apache 2.0 notice (Qwen2.5-1.5B-Instruct):</strong> Licensed under the Apache License, Version 2.0.
-    You may obtain a copy at <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank">apache.org/licenses/LICENSE-2.0</a>.
-    The product name is <em>Ubitron Mobility C2</em>; "Qwen" is a trademark of Alibaba Cloud and is not used as a product name.
-  </div>
-
-  <!-- ── MAP DATA ── -->
-  <h2>Map data — OpenStreetMap</h2>
-  <div class="osm-note">
-    <p><strong>© OpenStreetMap contributors</strong></p>
-    <p>Map data is © OpenStreetMap contributors, available under the Open Database Licence (ODbL).
-    You are free to copy, distribute, transmit and adapt the data, as long as you credit OpenStreetMap and its contributors.
-    See <a href="https://www.openstreetmap.org/copyright" target="_blank">openstreetmap.org/copyright</a>.</p>
-  </div>
-
-  <!-- ── SERVER INFRASTRUCTURE ── -->
-  <h2>Server infrastructure (not distributed to end users)</h2>
-  <p>The following components run on the operator's server infrastructure. They are not included in end-user software and are not redistributed to customers.</p>
-  <table>
-    <tr><th>Component</th><th>License</th><th>Notes</th></tr>
-    <tr><td>Node.js</td><td><span class="badge badge-mit">MIT</span></td><td>Server runtime — <a href="https://nodejs.org" target="_blank">nodejs.org</a></td></tr>
-    <tr><td>MySQL 8 (wvp database)</td><td><span class="badge badge-gpl">GPL v2</span></td><td>Server-side only, not distributed. Standard enterprise practice.</td></tr>
-    <tr><td>Valkey (cache)</td><td><span class="badge badge-bsd">BSD-3-Clause</span></td><td>Linux Foundation Redis-compatible cache — <a href="https://valkey.io" target="_blank">valkey.io</a></td></tr>
-    <tr><td>ZLMediaKit (lab)</td><td><span class="badge badge-mit">MIT</span></td><td>Lab media server — not included in customer delivery</td></tr>
-    <tr><td>LiveKit Server (optional)</td><td><span class="badge badge-apache">Apache-2.0</span></td><td>Video conference — separate Docker container, operator-managed</td></tr>
-  </table>
-
-  <!-- ── APACHE NOTICE ── -->
-  <h2>Apache License 2.0 — Required notice</h2>
-  <p>The following components are licensed under the Apache License, Version 2.0:</p>
-  <ul style="margin: 8px 0 12px 20px; color: #94a3b8; font-size: 13px; line-height: 1.8;">
-    <li>livekit-server-sdk — Copyright © LiveKit, Inc.</li>
-    <li>livekit-client — Copyright © LiveKit, Inc.</li>
-    <li>Qwen2.5-1.5B-Instruct model — Copyright © Alibaba Cloud</li>
-    <li>LiveKit Server — Copyright © LiveKit, Inc.</li>
-  </ul>
-  <div class="lic-block">                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.</div>
-
-  <!-- ── MIT NOTICE ── -->
-  <h2>MIT License — Representative text</h2>
-  <p>The following components are licensed under the MIT License (individual copyright holders listed above):</p>
-  <p style="color:#64748b; font-size:12px;">express, socket.io, ws, xml2js, ftp-srv, nodemailer, qrcode, node-llama-cpp, llama.cpp, sip.js, leaflet.markercluster, jsmpeg, Socket.IO client, Node.js, ZLMediaKit</p>
-  <div class="lic-block">MIT License
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.</div>
 
   <footer>
-    <p>Ubitron Mobility C2 — Legal Notices</p>
-    <p>For open-source compliance enquiries or to request source code for LGPL components, contact your vendor support representative.</p>
-    <p style="margin-top:8px;">Full license texts: <a href="https://opensource.org/licenses" target="_blank">opensource.org/licenses</a></p>
+    <p>For open-source compliance enquiries, contact your vendor support representative.</p>
+    <p>FFmpeg source code is available at <a href="https://ffmpeg.org/download.html" target="_blank" style="color:#60a5fa">ffmpeg.org/download.html</a>.</p>
   </footer>
 
 </div>
