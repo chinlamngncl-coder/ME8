@@ -1,8 +1,8 @@
-# 06 — Open source & license audit (MOB DISC)
+﻿# 06 — Open source & license audit (MOB DISC)
 
-**Date:** 2026-06-27  
-**Scope:** Mobility C2 ship stack + planned enterprise pack (Redis/Postgres)  
-**Baseline:** trial-gold-1.9  
+**Date:** 2026-06-27 — updated 2026-07-07  
+**Scope:** Mobility C2 ship stack + ME8 enterprise pack  
+**Baseline:** trial-gold-1.9 → ME8 Firmware Gold  
 
 > **Not legal advice.** This is an engineering audit for discussion with Google / your counsel. Confirm commercial terms before customer contracts.
 
@@ -14,8 +14,9 @@
 |---------|-------|
 | **OK for commercial use** (with notices) | Most of stack |
 | **OK but fix attribution / usage rules** | OpenStreetMap tiles, Leaflet |
-| **Review before ship** | **FFmpeg (GPL)**, Redis license choice |
-| **Planned additions — prefer BSD-friendly** | Use **Valkey** not Redis CE; **PostgreSQL** OK |
+| **RESOLVED 2026-07-07** | ~~FFmpeg GPL~~ → LGPL vendor build; ~~Redis SSPL~~ → Valkey BSD |
+| **Server-side only, not distributed** | MySQL in wvp Docker — GPL exposure minimal (see §4a) |
+| **Pending before ship** | OSM attribution, Leaflet vendor copy, Legal Notices tab |
 | **Not shipped in product** | Claude, Google APIs (dev/advisor only) |
 
 ---
@@ -58,21 +59,23 @@
 
 ---
 
-## 3. FFmpeg — highest priority review
+## 3. FFmpeg — ✅ RESOLVED 2026-07-07
 
-**Today:** `ffmpeg-static` npm package, license **GPL-3.0-or-later**, used for live transcode (BWC → JSMpeg).
+~~**Today:** `ffmpeg-static` npm package, license **GPL-3.0-or-later**~~
+
+**Resolved:** `ffmpeg-static` removed from `package.json`. Replaced with a vendored LGPL static Windows build at `vendor/ffmpeg-lgpl/ffmpeg.exe` (BtbN/gyan.dev release-essentials, LGPL-only codec set).
 
 | Topic | Detail |
 |-------|--------|
-| Risk | GPL may require **source offer** and affect **distribution** of a proprietary binary if FFmpeg is linked/bundled as GPL build with GPL codecs |
-| Common mitigations | (a) Use **LGPL** FFmpeg build without GPL-only codecs; (b) Document FFmpeg use + offer source; (c) Require customer to install system FFmpeg (`lib/resolveFfmpeg.js` path) |
-| MOB DISC recommendation | Before enterprise ship: **`mob-compliance-ffmpeg-notice`** — THIRD-PARTY-NOTICES + counsel sign-off on `ffmpeg-static` vs system FFmpeg |
-
-**Not infringement if handled** — FFmpeg is widely used commercially with proper compliance.
+| Old risk | GPL `ffmpeg-static` bundled in customer pack |
+| Fix applied | `lib/resolveFfmpeg.js` now resolves `vendor/ffmpeg-lgpl/ffmpeg.exe` first; `ffmpeg-static` dependency deleted |
+| LGPL compliance | No GPL-only codecs (no x264, x265, FDK-AAC). Bundling LGPL FFmpeg with a proprietary app is permitted. |
+| Notices | `THIRD-PARTY-NOTICES.ship.md` updated — FFmpeg listed as LGPL 2.1+ |
+| Verify | `VERIFY-ME8-FRESH.ps1` hard-fails if `ffmpeg.exe` missing from pack |
 
 ---
 
-## 4. Redis / Postgres (enterprise pre-ship plan)
+## 4. Redis / Valkey / MySQL (enterprise stack)
 
 ### PostgreSQL
 
@@ -181,13 +184,15 @@
 
 ## 10. Recommended ship pack (compliance MOBs — after counsel)
 
-| MOB ID | Purpose |
-|--------|---------|
-| `mob-compliance-third-party-notices` | `THIRD-PARTY-NOTICES.md` from `npm licenses` + vendored JS |
-| `mob-compliance-osm-attribution` | Restore visible map attribution |
-| `mob-compliance-vendor-cdn` | Copy Leaflet + livekit-client to `public/vendor/` |
-| `mob-compliance-ffmpeg-review` | FFmpeg GPL posture documented |
-| `mob-enterprise-valkey` | Valkey not Redis CE in compose |
+| MOB ID | Purpose | Status |
+|--------|---------|--------|
+| `mob-ffmpeg-lgpl-bundle` | Swap GPL `ffmpeg-static` → LGPL vendor build | ✅ Done 2026-07-07 |
+| `mob-swap-redis-to-valkey` | Valkey not Redis CE in compose | ✅ Done 2026-07-07 |
+| `mob-license-audit-mysql-note` | Document MySQL server-side GPL posture | ✅ Done 2026-07-07 |
+| `mob-settings-legal-notices-tab` | Legal Notices tab in Settings UI | Pending |
+| `mob-compliance-osm-attribution` | Restore visible map attribution | Pending |
+| `mob-compliance-vendor-cdn` | Copy Leaflet + livekit-client to `public/vendor/` | Pending |
+| `mob-compliance-third-party-notices` | Full `THIRD-PARTY-NOTICES.md` from `npm licenses` | Pending |
 
 Add to [05-REVIEW-GATE-BEFORE-SHIP.md](./05-REVIEW-GATE-BEFORE-SHIP.md) §9 Legal.
 
