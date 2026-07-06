@@ -1,0 +1,63 @@
+# wvp-GB28181-pro lab stack — ME8 tender track (Gate C).
+# Handles GB28181 camera registration at scale; feeds media into existing ZLM.
+#
+# Start:  docker compose -p me8-wvp -f docker/wvp/docker-compose.wvp.yml up -d
+# Stop:   docker compose -p me8-wvp -f docker/wvp/docker-compose.wvp.yml down
+# Logs:   docker compose -p me8-wvp -f docker/wvp/docker-compose.wvp.yml logs -f wvp
+#
+# Requires: ZLM already running  (docker compose -p me8-zlm -f docker/zlm.compose.yml up -d)
+
+services:
+
+  wvp:
+    image: registry.cn-hangzhou.aliyuncs.com/sip_proxy/wvp-pro:latest
+    container_name: me8-wvp
+    restart: unless-stopped
+    depends_on:
+      - wvp-mysql
+      - wvp-redis
+    ports:
+      - "18080:18080"       # wvp web UI + REST API
+      - "5061:5061/udp"     # GB28181 SIP (5061 avoids conflict with existing sipServer on 5060)
+      - "5061:5061/tcp"
+    environment:
+      TZ: Asia/Singapore
+      WVP_SIP_IP: ${WVP_HOST_IP:-127.0.0.1}
+      WVP_SIP_DOMAIN: ${WVP_SIP_DOMAIN:-me8.local}
+      WVP_DB_PASSWORD: ${WVP_DB_PASSWORD:-wvp_lab_pass}
+      WVP_ZLM_SECRET: ${WVP_ZLM_SECRET:-035c73f7-bb6b-4889-a715-d9eb2d1925cc}
+    volumes:
+      - ./wvp-config/application.yml:/app/config/application.yml:ro
+    networks:
+      - me8-zlm_default
+      - wvp-internal
+
+  wvp-mysql:
+    image: mysql:8.0
+    container_name: me8-wvp-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${WVP_DB_ROOT_PASSWORD:-wvp_root_pass}
+      MYSQL_DATABASE: wvp
+      MYSQL_USER: wvp
+      MYSQL_PASSWORD: ${WVP_DB_PASSWORD:-wvp_lab_pass}
+    volumes:
+      - wvp-mysql-data:/var/lib/mysql
+    networks:
+      - wvp-internal
+
+  wvp-redis:
+    image: redis:7-alpine
+    container_name: me8-wvp-redis
+    restart: unless-stopped
+    networks:
+      - wvp-internal
+
+networks:
+  me8-zlm_default:
+    external: true       # ZLM's existing network — wvp reaches me8-zlm by name
+  wvp-internal:
+    driver: bridge       # private network for wvp + mysql + redis only
+
+volumes:
+  wvp-mysql-data:

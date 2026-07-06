@@ -1,0 +1,48 @@
+# wvp-GB28181-pro configuration — ME8 lab
+# Mounted read-only into the wvp container at /app/config/application.yml
+
+server:
+  port: 18080
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://wvp-mysql:3306/wvp?useUnicode=true&characterEncoding=UTF8&rewriteBatchedStatements=true&serverTimezone=Asia/Shanghai
+    username: wvp
+    password: ${WVP_DB_PASSWORD:wvp_lab_pass}
+
+  redis:
+    host: wvp-redis
+    port: 6379
+    database: 6
+
+# GB28181 SIP server — cameras register here
+sip:
+  # Must match what BWC cameras are configured to register to
+  ip: ${WVP_SIP_IP:127.0.0.1}
+  port: 5061
+  domain: ${WVP_SIP_DOMAIN:me8.local}
+  # 20-digit national standard device ID for this server node
+  id: 34020000002000000001
+  password: ${WVP_SIP_PASSWORD:gb28181}
+  log-message: false
+
+# ZLM media node wvp controls
+media:
+  id: me8-zlm-node
+  # ZLM container reachable via the shared me8-zlm_default Docker network
+  ip: me8-zlm
+  http-port: 80
+  secret: ${WVP_ZLM_SECRET:035c73f7-bb6b-4889-a715-d9eb2d1925cc}
+  # wvp tells ZLM to push hooks back to this address
+  callback-ip: me8-wvp
+  callback-port: 18080
+  auto-config: true
+  rtp-proxy-port: 10000
+  rtmp-port: 1935
+
+# Keep stream alive settings
+user-setting:
+  stream-on-demand: true
+  auto-close-stream-delay: 60
+  push-authority: false
