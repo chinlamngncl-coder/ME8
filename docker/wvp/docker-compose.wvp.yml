@@ -47,7 +47,7 @@ services:
       - wvp-internal
 
   wvp-redis:
-    image: redis:7-alpine
+    image: valkey/valkey:7-alpine
     container_name: me8-wvp-redis
     restart: unless-stopped
     networks:
