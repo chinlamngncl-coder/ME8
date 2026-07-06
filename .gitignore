@@ -38,6 +38,9 @@ logs/
 scripts/_keys-output.txt
 scripts/_gen-keys-once.js
 
+# ZLM lab runtime config (secret generated on first container start)
+docker/zlm-config/config.ini
+
 # ---- OS / editor cruft ----
 Thumbs.db
 .DS_Store

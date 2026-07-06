@@ -4,15 +4,18 @@
 #
 # Match FM_ZLM_HTTP and FM_ZLM_SECRET in .env
 
+# Ports offset from LiveKit ingress (1935) — lab bench only.
+# Start: docker compose -p me8-zlm -f docker/zlm.compose.yml up -d
+
 services:
   zlmediakit:
     image: zlmediakit/zlmediakit:master
     container_name: me8-zlm
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "1935:1935"
-      - "554:554"
+      - "8080:80"
+      - "19350:1935"
+      - "8554:554"
     environment:
       TZ: UTC
     volumes:

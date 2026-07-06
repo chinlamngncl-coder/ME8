@@ -2799,6 +2799,76 @@ app.post('/api/platform/smtp/test', dashboardAuth.requireSuperAdmin, async (req,
     }
 });
 
+// --- Gate B: ZLM lab bench (FM_LAB_ZLM=1). No pool hooks; no start-video changes. ---
+if (process.env.FM_LAB_ZLM === '1') {
+    const livePlaybackBroker = require('./lib/livePlaybackBroker');
+    const zlmLabRelay = require('./lib/zlmLabRelay');
+    const zlmProcess = require('./lib/zlmProcess');
+
+    function labZlmOnly(req, res, next) {
+        if (process.env.FM_LAB_ZLM !== '1') {
+            return res.status(404).json(opErr('Lab ZLM disabled (FM_LAB_ZLM=0)'));
+        }
+        return next();
+    }
+
+    app.get('/api/lab/zlm/status', dashboardAuth.requireDashboardAuth, labZlmOnly, async (req, res) => {
+        try {
+            await zlmProcess.healthCheck(false);
+            res.json({
+                ok: true,
+                status: zlmProcess.getPublicStatus(),
+                relays: zlmLabRelay.listStates(),
+            });
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
+    app.get('/api/lab/playback', dashboardAuth.requireDashboardAuth, labZlmOnly, async (req, res) => {
+        try {
+            const camId = req.query && req.query.camId ? String(req.query.camId).trim() : '';
+            await zlmProcess.healthCheck(false);
+            res.json(livePlaybackBroker.getDescriptor(camId, {
+                req,
+                publicHost: HOST,
+                videoWsPort: VIDEO_WS_PORT,
+                isStreamingForCam: (id) => liveStreamPool.isStreamingForCam(id),
+                relay: zlmLabRelay,
+                zlm: zlmProcess,
+            }));
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
+    app.post('/api/lab/relay/start', dashboardAuth.requireDashboardAuth, labZlmOnly, async (req, res) => {
+        try {
+            const camId = String((req.body && req.body.camId) || (req.query && req.query.camId) || '').trim();
+            if (!camId) return res.status(400).json(opErr('camId required'));
+            if (!liveStreamPool.isStreamingForCam(camId)) {
+                return res.status(400).json(opErr('No active pool stream — start live on the dashboard wall first.'));
+            }
+            const relay = await zlmLabRelay.start(camId, { host: HOST, videoWsPort: VIDEO_WS_PORT });
+            res.json({ ok: true, relay });
+        } catch (err) {
+            res.status(400).json(opErr(err));
+        }
+    });
+
+    app.post('/api/lab/relay/stop', dashboardAuth.requireDashboardAuth, labZlmOnly, (req, res) => {
+        try {
+            const camId = String((req.body && req.body.camId) || (req.query && req.query.camId) || '').trim();
+            if (!camId) return res.status(400).json(opErr('camId required'));
+            res.json(zlmLabRelay.stop(camId));
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
+    log.media.info('zlm lab gate B routes enabled', { testPage: '/test-zlm.html' });
+}
+
 function requireMapDeviceControl(req, res, next) {
     const session = req.dashboardUser;
     const perms = session && dashboardAuth.getPermissionsForSession(session);

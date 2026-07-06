@@ -1,168 +1,220 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ME8 ZLM test bench</title>
-    <style>
-        * { box-sizing: border-box; }
-        body { font-family: system-ui, sans-serif; margin: 0; padding: 1rem; background: #111; color: #eee; }
-        h1 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.5rem; }
-        p { margin: 0 0 1rem; color: #aaa; font-size: 0.9rem; }
-        label { display: block; margin-bottom: 0.25rem; font-size: 0.85rem; }
-        input { width: 100%; max-width: 28rem; padding: 0.5rem; margin-bottom: 0.75rem; border: 1px solid #444; background: #222; color: #fff; border-radius: 4px; }
-        button { padding: 0.5rem 1rem; margin-right: 0.5rem; margin-bottom: 0.5rem; border: 0; border-radius: 4px; background: #2a6df4; color: #fff; cursor: pointer; }
-        button.secondary { background: #444; }
-        #stage { width: 100%; max-width: 640px; aspect-ratio: 4/3; background: #000; border: 1px solid #333; border-radius: 4px; position: relative; }
-        #stage video, #stage canvas { width: 100%; height: 100%; display: block; object-fit: contain; }
-        #log { margin-top: 1rem; padding: 0.75rem; background: #1a1a1a; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 0.75rem; white-space: pre-wrap; max-height: 12rem; overflow: auto; }
-        .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; margin-left: 0.5rem; }
-        .badge.zlm { background: #1b5e20; }
-        .badge.ffmpeg { background: #5d4037; }
-        .badge.idle { background: #555; }
-    </style>
-</head>
-<body>
-    <h1>ME8 ZLM test bench <span id="modeBadge" class="badge idle">idle</span></h1>
-    <p>Isolated test page — not connected to Command Wall or map pins. Enter a BWC cam ID from your fleet list.</p>
-
-    <label for="camId">Camera ID</label>
-    <input id="camId" type="text" placeholder="from storage/bwc-devices.json" autocomplete="off">
-
-    <div>
-        <button type="button" id="btnPlay">Play</button>
-        <button type="button" id="btnStop" class="secondary">Stop</button>
-        <button type="button" id="btnStatus" class="secondary">Refresh status</button>
-    </div>
-
-    <div id="stage"></div>
-    <div id="log"></div>
-
-    <script src="/vendor/mpegts.min.js"></script>
-    <script src="/vendor/jsmpeg.min.js"></script>
-    <script>
-(function () {
-    var camInput = document.getElementById('camId');
-    var stage = document.getElementById('stage');
-    var logEl = document.getElementById('log');
-    var modeBadge = document.getElementById('modeBadge');
-    var flvPlayer = null;
-    var jsmpegPlayer = null;
-
-    var params = new URLSearchParams(window.location.search);
-    if (params.get('camId')) camInput.value = params.get('camId');
-
-    function log(msg) {
-        var line = new Date().toLocaleTimeString() + ' — ' + msg;
-        logEl.textContent = line + '\n' + logEl.textContent;
-    }
-
-    function setMode(mode) {
-        modeBadge.textContent = mode || 'idle';
-        modeBadge.className = 'badge ' + (mode || 'idle');
-    }
-
-    function destroyPlayers() {
-        if (flvPlayer) {
-            try { flvPlayer.destroy(); } catch (_) {}
-            flvPlayer = null;
-        }
-        if (jsmpegPlayer) {
-            try { jsmpegPlayer.destroy(); } catch (_) {}
-            jsmpegPlayer = null;
-        }
-        stage.innerHTML = '';
-    }
-
-    function playZlm(flvUrl) {
-        if (typeof mpegts === 'undefined' || !mpegts.isSupported()) {
-            log('mpegts.js not supported in this browser');
-            return;
-        }
-        var video = document.createElement('video');
-        video.controls = true;
-        video.autoplay = true;
-        video.muted = true;
-        video.playsInline = true;
-        stage.appendChild(video);
-        flvPlayer = mpegts.createPlayer({
-            type: 'flv',
-            isLive: true,
-            url: flvUrl,
-        }, { enableWorker: true, lazyLoad: false });
-        flvPlayer.attachMediaElement(video);
-        flvPlayer.load();
-        flvPlayer.play();
-        log('ZLM FLV: ' + flvUrl);
-    }
-
-    function playFfmpeg(wsUrl) {
-        var canvas = document.createElement('canvas');
-        canvas.style.width = '100%';
-        canvas.style.height = '100%';
-        stage.appendChild(canvas);
-        jsmpegPlayer = new JSMpeg.Player(wsUrl, {
-            canvas: canvas,
-            autoplay: true,
-            audio: false,
-            videoBufferSize: 1024 * 512,
-        });
-        log('FFmpeg fallback WS: ' + wsUrl);
-    }
-
-    async function refreshStatus() {
-        try {
-            var res = await fetch('/api/zlm/status');
-            var data = await res.json();
-            log('ZLM enabled=' + (data.zlm && data.zlm.enabled) + ' healthy=' + (data.zlm && data.zlm.health && data.zlm.health.ok)
-                + ' ingests=' + (data.ingests ? data.ingests.length : 0));
-        } catch (e) {
-            log('status error: ' + e.message);
-        }
-    }
-
-    async function play() {
-        var camId = (camInput.value || '').trim();
-        if (!camId) {
-            log('Enter a cam ID');
-            return;
-        }
-        destroyPlayers();
-        try {
-            var res = await fetch('/api/zlm/playback?camId=' + encodeURIComponent(camId));
-            var data = await res.json();
-            if (!data.ok && data.error) {
-                log(data.error);
-                return;
-            }
-            if (data.mode === 'zlm' && data.flvUrl) {
-                setMode('zlm');
-                playZlm(data.flvUrl);
-                return;
-            }
-            if (data.mode === 'ffmpeg' && data.wsUrl) {
-                setMode('ffmpeg');
-                log('ZLM unavailable (' + (data.reason || '') + ') — using FFmpeg');
-                playFfmpeg(data.wsUrl);
-                return;
-            }
-            setMode('idle');
-            log('No active stream for this cam. Start live on the dashboard wall first, then Play here.');
-        } catch (e) {
-            log('play error: ' + e.message);
-        }
-    }
-
-    document.getElementById('btnPlay').addEventListener('click', play);
-    document.getElementById('btnStop').addEventListener('click', function () {
-        destroyPlayers();
-        setMode('idle');
-        log('stopped');
-    });
-    document.getElementById('btnStatus').addEventListener('click', refreshStatus);
-
-    refreshStatus();
-})();
-    </script>
-</body>
-</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ME8 ZLM test bench (Gate B)</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, sans-serif; margin: 0; padding: 1rem; background: #111; color: #eee; }
+        h1 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.5rem; }
+        p { margin: 0 0 1rem; color: #aaa; font-size: 0.9rem; }
+        label { display: block; margin-bottom: 0.25rem; font-size: 0.85rem; }
+        input { width: 100%; max-width: 28rem; padding: 0.5rem; margin-bottom: 0.75rem; border: 1px solid #444; background: #222; color: #fff; border-radius: 4px; }
+        button { padding: 0.5rem 1rem; margin-right: 0.5rem; margin-bottom: 0.5rem; border: 0; border-radius: 4px; background: #2a6df4; color: #fff; cursor: pointer; }
+        button.secondary { background: #444; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #stage { width: 100%; max-width: 640px; aspect-ratio: 4/3; background: #000; border: 1px solid #333; border-radius: 4px; position: relative; }
+        #stage video, #stage canvas { width: 100%; height: 100%; display: block; object-fit: contain; }
+        #log { margin-top: 1rem; padding: 0.75rem; background: #1a1a1a; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 0.75rem; white-space: pre-wrap; max-height: 14rem; overflow: auto; }
+        .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; margin-left: 0.5rem; }
+        .badge.zlm { background: #1b5e20; }
+        .badge.ffmpeg { background: #5d4037; }
+        .badge.idle { background: #555; }
+        ol { margin: 0 0 1rem 1.2rem; color: #aaa; font-size: 0.85rem; }
+    </style>
+</head>
+<body>
+    <h1>ME8 ZLM test bench (Gate B) <span id="modeBadge" class="badge idle">idle</span></h1>
+    <p>Isolated lab page — not connected to Command Wall or map pins. Requires <code>FM_LAB_ZLM=1</code> and ZLM sidecar.</p>
+    <ol>
+        <li>Start live on the <strong>dashboard wall</strong> for this cam ID.</li>
+        <li>Click <strong>Play</strong> — relay subscribes to pool WS and publishes to ZLM.</li>
+        <li>Video plays here via ZLM FLV, or FFmpeg WS fallback if ZLM is down.</li>
+    </ol>
+
+    <label for="camId">Camera ID</label>
+    <input id="camId" type="text" placeholder="from BWC list" autocomplete="off">
+
+    <div>
+        <button type="button" id="btnPlay">Play</button>
+        <button type="button" id="btnStop" class="secondary">Stop</button>
+        <button type="button" id="btnStatus" class="secondary">Refresh status</button>
+    </div>
+
+    <div id="stage"></div>
+    <div id="log"></div>
+
+    <script src="/vendor/mpegts.min.js"></script>
+    <script src="/vendor/jsmpeg.min.js"></script>
+    <script>
+(function () {
+    var camInput = document.getElementById('camId');
+    var stage = document.getElementById('stage');
+    var logEl = document.getElementById('log');
+    var modeBadge = document.getElementById('modeBadge');
+    var btnPlay = document.getElementById('btnPlay');
+    var flvPlayer = null;
+    var jsmpegPlayer = null;
+
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('camId')) camInput.value = params.get('camId');
+
+    function log(msg) {
+        var line = new Date().toLocaleTimeString() + ' — ' + msg;
+        logEl.textContent = line + '\n' + logEl.textContent;
+    }
+
+    function setMode(mode) {
+        modeBadge.textContent = mode || 'idle';
+        modeBadge.className = 'badge ' + (mode || 'idle');
+    }
+
+    function destroyPlayers() {
+        if (flvPlayer) {
+            try { flvPlayer.destroy(); } catch (_) {}
+            flvPlayer = null;
+        }
+        if (jsmpegPlayer) {
+            try { jsmpegPlayer.destroy(); } catch (_) {}
+            jsmpegPlayer = null;
+        }
+        stage.innerHTML = '';
+    }
+
+    function playZlm(flvUrl) {
+        if (typeof mpegts === 'undefined' || !mpegts.isSupported()) {
+            log('mpegts.js not supported in this browser');
+            return;
+        }
+        var video = document.createElement('video');
+        video.controls = true;
+        video.autoplay = true;
+        video.muted = true;
+        video.playsInline = true;
+        stage.appendChild(video);
+        flvPlayer = mpegts.createPlayer({
+            type: 'flv',
+            isLive: true,
+            url: flvUrl,
+        }, { enableWorker: true, lazyLoad: false });
+        flvPlayer.attachMediaElement(video);
+        flvPlayer.on(mpegts.Events.ERROR, function () {
+            log('ZLM FLV player error — try Refresh status or FFmpeg fallback');
+        });
+        flvPlayer.load();
+        flvPlayer.play();
+        log('ZLM FLV play ok: ' + flvUrl);
+    }
+
+    function playFfmpeg(wsUrl) {
+        var canvas = document.createElement('canvas');
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        stage.appendChild(canvas);
+        jsmpegPlayer = new JSMpeg.Player(wsUrl, {
+            canvas: canvas,
+            autoplay: true,
+            audio: false,
+            videoBufferSize: 1024 * 512,
+        });
+        log('FFmpeg fallback WS: ' + wsUrl);
+    }
+
+    async function refreshStatus() {
+        try {
+            var res = await fetch('/api/lab/zlm/status', { credentials: 'same-origin' });
+            var data = await res.json();
+            if (!res.ok) {
+                log((data && data.error) || 'status HTTP ' + res.status);
+                return;
+            }
+            var z = data.status && data.status.zlm;
+            log('lab=' + (data.status && data.status.labEnabled)
+                + ' zlmHealthy=' + (z && z.health && z.health.ok)
+                + ' relays=' + (data.relays ? data.relays.length : 0));
+        } catch (e) {
+            log('status error: ' + e.message);
+        }
+    }
+
+    async function play() {
+        var camId = (camInput.value || '').trim();
+        if (!camId) {
+            log('Enter a cam ID');
+            return;
+        }
+        destroyPlayers();
+        btnPlay.disabled = true;
+        try {
+            log('Starting lab relay…');
+            var startRes = await fetch('/api/lab/relay/start', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ camId: camId }),
+            });
+            var startData = await startRes.json();
+            if (!startRes.ok) {
+                log((startData && startData.error) || 'relay start failed');
+                return;
+            }
+            if (startData.relay && startData.relay.firstFrameAt) {
+                log('relay first frame (' + (startData.relay.bytes || 0) + ' bytes)');
+            } else if (startData.relay && startData.relay.error) {
+                log('relay warn: ' + startData.relay.error);
+            }
+
+            var res = await fetch('/api/lab/playback?camId=' + encodeURIComponent(camId), { credentials: 'same-origin' });
+            var data = await res.json();
+            if (!res.ok || (data.error && !data.engine)) {
+                log((data && data.error) || 'playback failed');
+                return;
+            }
+            if (data.engine === 'zlm' && data.flvUrl) {
+                setMode('zlm');
+                playZlm(data.flvUrl);
+                return;
+            }
+            if (data.engine === 'ffmpeg' && data.wsUrl) {
+                setMode('ffmpeg');
+                log('Broker fallback (' + (data.reason || '') + ')');
+                playFfmpeg(data.wsUrl);
+                return;
+            }
+            setMode('idle');
+            log(data.hint || data.reason || 'No active stream — start live on dashboard first.');
+        } catch (e) {
+            log('play error: ' + e.message);
+        } finally {
+            btnPlay.disabled = false;
+        }
+    }
+
+    async function stopAll() {
+        var camId = (camInput.value || '').trim();
+        destroyPlayers();
+        setMode('idle');
+        if (camId) {
+            try {
+                await fetch('/api/lab/relay/stop', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ camId: camId }),
+                });
+            } catch (_) { /* ignore */ }
+        }
+        log('stopped');
+    }
+
+    btnPlay.addEventListener('click', play);
+    document.getElementById('btnStop').addEventListener('click', stopAll);
+    document.getElementById('btnStatus').addEventListener('click', refreshStatus);
+
+    refreshStatus();
+})();
+    </script>
+</body>
+</html>
+
