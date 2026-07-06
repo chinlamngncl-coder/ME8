@@ -46,10 +46,10 @@ if not exist .env (
   powershell -NoProfile -Command "$ip = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -notlike '127.*' -and $_.PrefixOrigin -ne 'WellKnown' } | Select-Object -First 1).IPAddress; if (-not $ip) { exit 0 }; $p='.env'; $raw = Get-Content $p -Raw; $raw = $raw -replace '(?m)^HOST=.*','HOST='+$ip; $raw = $raw -replace '(?m)^FM_GB28181_PUBLIC_HOST=.*','FM_GB28181_PUBLIC_HOST='+$ip; $raw = $raw -replace '(?m)^FM_SEED_BWC_ID=.*','FM_SEED_BWC_ID='; if ($raw -notmatch 'FM_SEED_BWC_ID=') { $raw += \"`r`nFM_SEED_BWC_ID=`r`n\" }; if ($raw -notmatch 'FM_LIVEKIT_PUBLIC_WS=') { $raw += \"`r`nFM_LIVEKIT_PUBLIC_WS=ws://$ip`:7880`r`n\" } else { $raw = $raw -replace '(?m)^FM_LIVEKIT_PUBLIC_WS=.*',\"FM_LIVEKIT_PUBLIC_WS=ws://$ip`:7880\" }; Set-Content $p $raw -Encoding UTF8"
 )
 
-echo [2/3] Start LiveKit video engine ^(Docker^)...
+echo [2/3] Start video conference service ^(Docker^)...
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\START-LIVEKIT.ps1
 if errorlevel 1 (
-  echo LiveKit start failed — open Docker Desktop and try again.
+  echo Video conference service start failed — open Docker Desktop and try again.
   pause
   exit /b 1
 )

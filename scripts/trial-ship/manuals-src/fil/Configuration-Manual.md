@@ -1,4 +1,4 @@
-# Mobility Axiom — Manwal ng Configuration
+﻿# Mobility Axiom — Manwal ng Configuration
 
 **Para sa:** IT, super admin, installer.  
 **Basahin kasama:** **Quick Guide** · **User Manual**
@@ -116,7 +116,7 @@ Opsyonal: **Auto-record server video on SOS alarm**.
 ## 8. Video Conference
 
 1. Docker Desktop.
-2. `Install-Mobility.bat` — LiveKit.
+2. `Install-Mobility.bat` — layanan konferensi video.
 3. **Video Conference → Settings** — WebSocket URL para sa phone (hal. `ws://192.168.1.10:7880`).
 
 I-distribute ang `MobilityConference-1.5.6.apk`.
@@ -125,7 +125,7 @@ I-distribute ang `MobilityConference-1.5.6.apk`.
 
 ## 9. Centre Summary AI
 
-Model sa `Mobility-Axiom\vendor\llm\` (~2 GB). Walang download on-site. Unang **Ask** 1–2 minuto mag-load.
+- Kasama ang assistant sa installer (~1 GB). Walang download on-site. Unang **Ask** 1–2 minuto. Super admin lamang.
 
 ---
 
@@ -136,7 +136,7 @@ Model sa `Mobility-Axiom\vendor\llm\` (~2 GB). Walang download on-site. Unang **
 | 3888 | Dashboard HTTP |
 | 3889 | Live video WebSocket |
 | 5060 | SIP |
-| 7880 | LiveKit |
+| 7880 | บริการประชุมทางวิดีโอ |
 | 40130+ UDP | RTP |
 
 ---

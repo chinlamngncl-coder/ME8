@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "description": "Customer packs must not contain these paths, files, or private-key material",
+  "purgeFromCustomerPack": [
+    "docs\\LICENSE-OPERATIONS.md",
+    "MOB-DISC-START-HERE.md"
+  ],
+  "forbiddenPathSegments": [
+    "ME8-INTERNAL",
+    "MobilityC2-VENDOR-IMPORTANT",
+    "LicenseIssuer"
+  ],
+  "forbiddenFileNames": [
+    "license-private.pem",
+    "INHOUSE-SHIP-DESK-GUIDE.md",
+    "MOB-DISC-INTERNAL-PACK-AND-LICENSE-STEP-BY-STEP.md",
+    "MOB-DISC-COMMERCIAL-SAFE-STACK-REPLACEMENTS.md",
+    "MOB-DISC-OPEN-SOURCE-NOTICES-BEFORE-SHIP.md",
+    "MOB-DISC-INHOUSE-SHIP-DESK-GUIDE.md",
+    "!!! READ FIRST — CONFIDENTIAL VENDOR TOOLS.txt",
+    "!!! READ FIRST — NEVER SHIP WITH CUSTOMER PACK.txt",
+    "generate-keys.js",
+    "export-public-to-server.js",
+    "qwen2.5-3b-instruct-q4_k_m.gguf",
+    "test-zlm.html"
+  ],
+  "forbiddenRelativePaths": [
+    "docs\\LICENSE-OPERATIONS.md"
+  ],
+  "forbiddenContentMarkers": [
+    "BEGIN PRIVATE KEY",
+    "BEGIN RSA PRIVATE KEY",
+    "BEGIN EC PRIVATE KEY",
+    "BEGIN OPENSSH PRIVATE KEY"
+  ]
+}

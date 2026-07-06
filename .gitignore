@@ -4,12 +4,16 @@
 !.env.example
 !.env.me8.example
 !.env.enterprise.example
+!scripts/trial-ship/.env.example.ship
 keys/
 storage/
 
 # ---- Dependencies ----
 node_modules/
 vendor/node-win-x64-cache/
+# Centre Summary weights — download locally; bundled in customer pack only
+vendor/llm/*.gguf
+vendor/llm/*.part
 
 # ---- Android build output ----
 mobile-android/**/build/

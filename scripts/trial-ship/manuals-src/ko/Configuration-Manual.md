@@ -1,4 +1,4 @@
-# Mobility Axiom — 구성 매뉴얼
+﻿# Mobility Axiom — 구성 매뉴얼
 
 **대상:** IT 담당자, 슈퍼 관리자, 설치 담당자.  
 **함께 읽기:** **빠른 시작 가이드** · **사용자 매뉴얼**
@@ -116,7 +116,7 @@ SOS 시 자동 서버 녹화 옵션 활성화 가능.
 ## 8. Video Conference
 
 1. Docker Desktop 설치.
-2. `Install-Mobility.bat` — LiveKit 시작.
+2. `Install-Mobility.bat` — บริการประชุมทางวิดีโอ 시작.
 3. **Video Conference → Settings** — 휴대폰용 WebSocket URL(예: `ws://192.168.1.10:7880`).
 
 `MobilityConference-1.5.6.apk` 배포.
@@ -125,7 +125,7 @@ SOS 시 자동 서버 녹화 옵션 활성화 가능.
 
 ## 9. Centre Summary AI
 
-모델: `Mobility-Axiom\vendor\llm\` (~2GB), 현장 다운로드 없음. 첫 **Ask** 시 1–2분 로딩.
+- 어시스턴트는 설치 패키지에 포함(~1GB). 현장 다운로드 없음. 첫 **Ask** 1–2분. 슈퍼 관리자만.
 
 ---
 
@@ -136,7 +136,7 @@ SOS 시 자동 서버 녹화 옵션 활성화 가능.
 | 3888 | 대시보드 HTTP |
 | 3889 | 라이브 비디오 WS |
 | 5060 | SIP |
-| 7880 | LiveKit |
+| 7880 | บริการประชุมทางวิดีโอ |
 | 40130+ UDP | RTP |
 
 ---

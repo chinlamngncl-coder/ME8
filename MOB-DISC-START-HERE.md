@@ -1,4 +1,4 @@
-# MOB notes — start here
+﻿# MOB notes — start here
 
 **You are not expected to read code.** Plain-English notes for you and the next agent.
 
@@ -18,6 +18,21 @@ Then run **`RESTART-FLEET.bat`** and hard refresh once (Ctrl+Shift+R).
 
 ---
 
+## Genres and git (plain English)
+
+| Word | Meaning |
+|------|---------|
+| **MOB DISC** | Notes only — no change until you say **MOB-APPLY** |
+| **MOB-APPLY** | One fix on the bench → you test → PASS/FAIL |
+| **Genre** | Related MOBs you finished testing (e.g. Centre Summary AI) |
+| **lab-git-push-…** | Save that genre to GitHub — **only when you ask** |
+
+**Centre Summary AI genre (2026-07-07):** 1.5B Apache model, ship bundle rules, customer-facing doc scrub, install progress on Centre Summary tab. **CHECKPOINT PASS** on LLM.
+
+To back up this genre: **`MOB-APPLY lab-git-push-centre-llm`**
+
+---
+
 ## What to open
 
 | Topic | File |
@@ -29,6 +44,18 @@ Then run **`RESTART-FLEET.bat`** and hard refresh once (Ctrl+Shift+R).
 | **What to ask Google (ZLM + “Stopped by BWC”)** | `docs\MOB-DISC-ASK-GOOGLE-ZLM.md` |
 | **Super admin forgot password / lost phone** | `docs\MOB-DISC-SUPER-ADMIN-RECOVERY.md` |
 | **SMTP settings — where in UI (this MOB)** | `docs\MOB-DISC-SMTP-SETTINGS-UI.md` |
+| **Customer-facing naming — no internal stack/OEM in UI or manuals** | `docs\MOB-DISC-CUSTOMER-FACING-NAMING.md` |
+| **Centre Summary AI — customers do not download** | `docs\MOB-DISC-CENTRE-LLM-SHIP-NO-CLIENT-DOWNLOAD.md` |
+| **Enterprise VMS — six domains + risk order** | `docs\MOB-DISC-ENTERPRISE-VMS-SIX-DOMAINS.md` |
+| **SOS clear / keep files / audit** | `docs\MOB-DISC-SOS-LEDGER-GOVERNANCE.md` |
+| **Redaction — in-app only (no external tool)** | `docs\MOB-DISC-EVIDENCE-REDACT-IN-APP.md` |
+| **Face / ANPR / Weapon — licensed Analytics hub** | `docs\MOB-DISC-ANALYTICS-LICENSE-HUB.md` |
+| **Analytics stack UX + industry study** | `docs\MOB-DISC-ANALYTICS-STACK-UX.md` |
+| **Module licensing (BWC · VC · Face · ANPR · Weapon)** | `docs\MOB-DISC-MODULE-LICENSING.md` |
+| **How to pack + issue license (teach-yourself)** | `ME8-INTERNAL\ship-desk\MOB-DISC-INTERNAL-PACK-AND-LICENSE-STEP-BY-STEP.md` *(start here)* |
+| **Internal vs customer docs — who reads what** | `ME8-INTERNAL\ship-desk\MOB-DISC-INTERNAL-DOC-AUDIENCE.md` |
+| **Open source notices before ship** | `ME8-INTERNAL\ship-desk\MOB-DISC-OPEN-SOURCE-NOTICES-BEFORE-SHIP.md` |
+| **Remove GPL FFmpeg + Qwen 3B (replacements)** | `ME8-INTERNAL\ship-desk\MOB-DISC-COMMERCIAL-SAFE-STACK-REPLACEMENTS.md` |
 | **ZLM architecture (awaiting “Approved”)** | `docs\MOB-DISC-ZLM-ARCHITECTURE-PROPOSAL.md` |
 | **Google pin answers** | `docs\MOB-DISC-GOOGLE-PIN-CANVAS-MIRROR-VERIFY.md` |
 | **Put video back** | `BASELINE-ME8-FIRMWARE-GOLD.md` |

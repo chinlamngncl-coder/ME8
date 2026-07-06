@@ -346,16 +346,51 @@
 
     let llmPollTimer = null;
 
+    function isLlmBusy(status) {
+        return !!(status && (status.downloading || status.installing || status.loading));
+    }
+
     function isLlmOnline(status) {
         return !!(status && status.ok && status.modelReady && !status.loading
             && !status.downloading && !status.installing);
     }
 
+    function setLlmAskEnabled(on) {
+        const btn = el('llmAsk');
+        if (btn) btn.disabled = !on;
+    }
+
+    function llmStatusLabel(status) {
+        if (!status) return tr('centre.llm.offline');
+        if (status.installing) {
+            const pct = typeof status.downloadPct === 'number' ? status.downloadPct : null;
+            if (pct != null && pct > 0) {
+                return tr('centre.llm.installingPct', { pct: pct });
+            }
+            return tr('centre.llm.installing');
+        }
+        if (status.downloading) {
+            const pct = typeof status.downloadPct === 'number' ? status.downloadPct : null;
+            if (pct != null && pct > 0) {
+                return tr('centre.llm.downloadingPct', { pct: pct });
+            }
+            return tr('centre.llm.downloading');
+        }
+        if (status.loading) return tr('centre.llm.loading');
+        if (status.needsInstall || (status.ok === false && !status.modelReady && !status.error)) {
+            return tr('centre.llm.modelMissing');
+        }
+        if (!status.modelReady && status.ok && status.hint) {
+            return tr('centre.llm.willDownload');
+        }
+        return tr('centre.llm.offline');
+    }
+
     function renderLlmStatus(status) {
         const node = el('llmStatus');
         if (!node) return;
-        if (status && (status.downloading || status.installing)) {
-            if (!llmPollTimer) llmPollTimer = setInterval(loadLlmStatus, 2500);
+        if (isLlmBusy(status)) {
+            if (!llmPollTimer) llmPollTimer = setInterval(loadLlmStatus, 1000);
         } else if (llmPollTimer) {
             clearInterval(llmPollTimer);
             llmPollTimer = null;
@@ -363,10 +398,12 @@
         if (isLlmOnline(status)) {
             node.className = 'cs-llm-status online';
             node.textContent = tr('centre.llm.online');
+            setLlmAskEnabled(true);
             return;
         }
         node.className = 'cs-llm-status offline';
-        node.textContent = tr('centre.llm.offline');
+        node.textContent = llmStatusLabel(status);
+        setLlmAskEnabled(false);
     }
 
     function appendChat(role, text) {

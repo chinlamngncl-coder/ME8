@@ -116,7 +116,8 @@
 |-----------|---------|----------------|-------|
 | **node-llama-cpp** | MIT | Yes | |
 | **llama.cpp** (underlying) | MIT | Yes | |
-| **Qwen2.5-3B-Instruct GGUF** | Apache-2.0 (Alibaba) | Yes | Model card terms — attribution in docs |
+| **Qwen2.5-1.5B-Instruct GGUF** | Apache-2.0 (Alibaba) | Yes | Default ship model — `vendor/llm/` |
+| **Qwen2.5-3B / 72B GGUF** | Qwen Research License | **No** | Blocked by `centreLlm.js` for commercial ship |
 | **“Qwen” trademark** | Alibaba | Don’t brand product as Qwen | “Local AI assistant” / “Centre Summary” |
 | **FM_LLM_AUTO_DOWNLOAD** | Hugging Face URL | OK for lab | Ship **bundled** `vendor/llm/*.gguf` for customers (no HF ToS surprise) |
 

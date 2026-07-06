@@ -1,4 +1,4 @@
-# Mobility Axiom — คู่มือการตั้งค่า
+﻿# Mobility Axiom — คู่มือการตั้งค่า
 
 **สำหรับ:** IT ผู้ดูแลระบบ ติดตั้ง  
 **อ่านคู่กับ:** **Quick Guide** · **คู่มือผู้ใช้**
@@ -116,7 +116,7 @@ NAS: ต่อกับ Windows ก่อน
 ## 8. Video Conference
 
 1. Docker Desktop
-2. `Install-Mobility.bat` — LiveKit
+2. `Install-Mobility.bat` — บริการประชุมทางวิดีโอ
 3. **Video Conference → Settings** — WebSocket สำหรับมือถือ (เช่น `ws://192.168.1.10:7880`)
 
 แจก `MobilityConference-1.5.6.apk`
@@ -125,7 +125,7 @@ NAS: ต่อกับ Windows ก่อน
 
 ## 9. Centre Summary AI
 
-โมเดลใน `Mobility-Axiom\vendor\llm\` (~2 GB) ไม่ดาวน์โหลดที่ไซต์ ครั้งแรก **Ask** โหลด 1–2 นาที
+- ผู้ช่วยรวมอยู่ในตัวติดตั้ง (~1 GB) ไม่ดาวน์โหลดที่ไซต์ **Ask** ครั้งแรก 1–2 นาที ซูเปอร์แอดมินเท่านั้น
 
 ---
 
@@ -136,7 +136,7 @@ NAS: ต่อกับ Windows ก่อน
 | 3888 | Dashboard HTTP |
 | 3889 | Live video WebSocket |
 | 5060 | SIP |
-| 7880 | LiveKit |
+| 7880 | บริการประชุมทางวิดีโอ |
 | 40130+ UDP | RTP |
 
 ---

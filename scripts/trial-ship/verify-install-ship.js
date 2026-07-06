@@ -33,18 +33,27 @@ let bundled;
 try {
   bundled = require('ffmpeg-static');
 } catch (_) {
-  fail('ffmpeg-static not installed — run: npm install');
+  fail('Media engine not installed — re-download the trial pack or contact your vendor.');
 }
 if (!bundled || !fs.existsSync(bundled)) {
-  fail('ffmpeg-static binary missing — run: npm install');
+  fail('Media engine binary missing — re-download the trial pack or contact your vendor.');
 }
-ok('ffmpeg-static ready');
+ok('Media engine ready');
 
 const nodeMajor = parseInt(process.versions.node.split('.')[0], 10);
 if (nodeMajor < 18) fail('Node 18+ required (found ' + process.version + ')');
 ok('Node ' + process.version);
 
-const vendorModel = path.join(root, 'vendor', 'llm', 'qwen2.5-3b-instruct-q4_k_m.gguf');
+const modelFile = String(process.env.FM_LLM_MODEL_FILE || 'qwen2.5-1.5b-instruct-q4_k_m.gguf').trim();
+if (/qwen2\.5-3b/i.test(modelFile) || /qwen2\.5-72b/i.test(modelFile)) {
+  fail('Centre Summary assistant model is not approved for this package — contact your vendor.');
+}
+
+const vendorModel = path.join(root, 'vendor', 'llm', modelFile);
+const legacyBlocked = path.join(root, 'vendor', 'llm', 'qwen2.5-3b-instruct-q4_k_m.gguf');
+if (fs.existsSync(legacyBlocked)) {
+  fail('Remove legacy assistant model from install folder — contact your vendor for the current package.');
+}
 if (fs.existsSync(vendorModel)) {
   ok('Centre Summary AI model bundled');
 } else if (!quiet) {

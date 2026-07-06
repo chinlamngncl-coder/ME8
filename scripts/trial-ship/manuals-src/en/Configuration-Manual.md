@@ -16,7 +16,7 @@ This manual covers **server setup**, **BWC camera registration**, **operators**,
 5. [Map groups](#5-map-groups)
 6. [Dashboard Auth (operators)](#6-dashboard-auth)
 7. [Evidence storage paths](#7-evidence-storage)
-8. [Video Conference (Docker / LiveKit)](#8-video-conference)
+8. [Video Conference (Docker)](#8-video-conference)
 9. [Centre Summary AI](#9-centre-summary-ai)
 10. [Firewall & ports](#10-firewall)
 11. [Trial license limits](#11-trial-license)
@@ -193,10 +193,10 @@ Per-user checkboxes control each tab and export capabilities. Always click **Sav
 
 ## 8. Video Conference
 
-### 8.1 Docker / LiveKit
+### 8.1 Docker — video conference service
 
 1. Install Docker Desktop.
-2. Run `Install-Mobility.bat` — starts LiveKit container.
+2. Run `Install-Mobility.bat` — starts the video conference media service.
 3. Verify: Video Conference tab connects.
 
 ### 8.2 VC Settings (in app)
@@ -212,11 +212,10 @@ Distribute `MobilityConference-1.5.6.apk` — server URL = dashboard URL.
 
 ---
 
-## 9. Centre Summary AI
+## 9. Centre Summary assistant
 
-- Model file bundled: `Mobility-Axiom\vendor\llm\` (~2 GB).
-- No download on site (`FM_LLM_AUTO_DOWNLOAD=0`).
-- First **Ask** may take 1–2 minutes to load model into RAM.
+- Assistant components are **bundled in your installer** (~1 GB). No download at your site.
+- First **Ask** may take 1–2 minutes while the server prepares the assistant.
 - Super admin only.
 
 ---
@@ -231,8 +230,8 @@ Allow on server host and perimeter:
 | 3889 | TCP | Live video WebSocket |
 | 3890 | TCP | Audio WebSocket |
 | 5060 | UDP/TCP | SIP (BWC registration) |
-| 7880 | TCP | LiveKit HTTP |
-| 7881 | TCP | LiveKit RTC |
+| 7880 | TCP | Video conference HTTP |
+| 7881 | TCP | Video conference media |
 | 40130–40200 | UDP | RTP media (range may vary) |
 | 21 | TCP | FTP dock (if enabled) |
 | 20000–20100 | TCP | FTP passive (default range) |

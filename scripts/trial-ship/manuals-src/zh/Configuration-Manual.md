@@ -1,4 +1,4 @@
-# Mobility Axiom — 配置手册
+﻿# Mobility Axiom — 配置手册
 
 **适用：** IT、超级管理员、安装人员。  
 **配合阅读：** **快速指南** · **用户手册**
@@ -116,7 +116,7 @@ NAS 须先在 Windows 挂载。
 ## 8. Video Conference
 
 1. Docker Desktop。
-2. `Install-Mobility.bat` — 启动 LiveKit。
+2. `Install-Mobility.bat` — 启动 视频会议服务。
 3. **Video Conference → Settings** — 手机 WebSocket（如 `ws://192.168.1.10:7880`）。
 
 分发 `MobilityConference-1.5.6.apk`。
@@ -125,7 +125,7 @@ NAS 须先在 Windows 挂载。
 
 ## 9. Centre Summary AI
 
-模型位于 `Mobility-Axiom\vendor\llm\`（约 2 GB），现场无需下载。首次 **Ask** 加载 1–2 分钟。
+模型位于 `Mobility-Axiom\vendor\llm\`（约 1 GB），现场无需下载。首次 **Ask** 加载 1–2 分钟。
 
 ---
 
@@ -136,7 +136,7 @@ NAS 须先在 Windows 挂载。
 | 3888 | 控制台 HTTP |
 | 3889 | 实时视频 WebSocket |
 | 5060 | SIP |
-| 7880 | LiveKit |
+| 7880 | บริการประชุมทางวิดีโอ |
 | 40130+ UDP | RTP |
 
 ---

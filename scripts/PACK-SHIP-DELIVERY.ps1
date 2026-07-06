@@ -18,7 +18,8 @@ function Copy-Tree($src, $dst) {
 }
 
 $ForbiddenNames = @(
-    'server.js', 'BASELINE-TRIAL-GOLD.md', 'CS.md', 'CLAUDE.md', 'RESTORE-TRIAL-GOLD.ps1', 'VERIFY-TRIAL-GOLD.ps1'
+    'server.js', 'BASELINE-TRIAL-GOLD.md', 'CS.md', 'CLAUDE.md', 'RESTORE-TRIAL-GOLD.ps1', 'VERIFY-TRIAL-GOLD.ps1',
+    'test-zlm.html'
 )
 $ForbiddenDirs = @(
     'lib', '.cursor', '.git', 'baseline', 'docs', 'mobile-android',
@@ -38,9 +39,10 @@ else { $OutRoot = if ($OutRoot) { $OutRoot } else { Join-Path $env:USERPROFILE "
 
 Write-Step "Delivery pack ($Variant) -> $OutRoot"
 
-$llmSrc = Join-Path $AppRoot 'storage\llm\qwen2.5-3b-instruct-q4_k_m.gguf'
-if (-not (Test-Path $llmSrc)) { $llmSrc = Join-Path $AppRoot 'vendor\llm\qwen2.5-3b-instruct-q4_k_m.gguf' }
-if (-not (Test-Path $llmSrc)) { throw 'LLM model missing in storage\llm or vendor\llm' }
+$llmFile = 'qwen2.5-1.5b-instruct-q4_k_m.gguf'
+$llmSrc = Join-Path $AppRoot "storage\llm\$llmFile"
+if (-not (Test-Path $llmSrc)) { $llmSrc = Join-Path $AppRoot "vendor\llm\$llmFile" }
+if (-not (Test-Path $llmSrc)) { throw "LLM model missing: vendor\llm\$llmFile (run scripts\download-centre-llm.ps1)" }
 
 $apkSrc = Join-Path $AppRoot 'mobile-android\MobilityConference\app\build\outputs\apk\debug\MobilityConference-1.5.6.apk'
 if (-not (Test-Path $apkSrc)) { $apkSrc = Join-Path $AppRoot 'mobile-android\MobilityConference\MobilityConference.apk' }
@@ -69,6 +71,8 @@ New-Item -ItemType Directory -Force -Path $appDir | Out-Null
 
 Write-Step 'Stage public UI...'
 Copy-Tree (Join-Path $AppRoot 'public') (Join-Path $appDir 'public')
+$labZlmPage = Join-Path $appDir 'public\test-zlm.html'
+if (Test-Path $labZlmPage) { Remove-Item $labZlmPage -Force }
 
 if ($Variant -eq 'Cn') {
     $locDir = Join-Path $appDir 'public\locales'
@@ -119,7 +123,7 @@ if ($LASTEXITCODE -ne 0) { throw 'build-ship-runtime failed' }
 Write-Step 'Bundle LLM...'
 $vendorLlm = Join-Path $appDir 'vendor\llm'
 New-Item -ItemType Directory -Force -Path $vendorLlm | Out-Null
-Copy-Item $llmSrc (Join-Path $vendorLlm 'qwen2.5-3b-instruct-q4_k_m.gguf') -Force
+Copy-Item $llmSrc (Join-Path $vendorLlm $llmFile) -Force
 
 Write-Step 'Clean trial storage only...'
 $storage = Join-Path $appDir 'storage'
