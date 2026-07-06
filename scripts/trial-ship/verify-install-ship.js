@@ -29,14 +29,9 @@ if (!fs.existsSync(path.join(root, 'package.json'))) {
   fail('package.json missing');
 }
 
-let bundled;
-try {
-  bundled = require('ffmpeg-static');
-} catch (_) {
-  fail('Media engine not installed — re-download the trial pack or contact your vendor.');
-}
-if (!bundled || !fs.existsSync(bundled)) {
-  fail('Media engine binary missing — re-download the trial pack or contact your vendor.');
+const vendorFfmpeg = path.join(root, 'vendor', 'ffmpeg-lgpl', 'ffmpeg.exe');
+if (!fs.existsSync(vendorFfmpeg)) {
+  fail('Media engine not found in installation package — contact your vendor to re-issue the pack.');
 }
 ok('Media engine ready');
 

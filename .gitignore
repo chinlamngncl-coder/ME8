@@ -15,6 +15,10 @@ vendor/node-win-x64-cache/
 vendor/llm/*.gguf
 vendor/llm/*.part
 
+# Media engine (LGPL) binary — download via scripts/download-ffmpeg-lgpl.ps1; bundled in customer pack only
+vendor/ffmpeg-lgpl/*.exe
+vendor/ffmpeg-lgpl/*.dll
+
 # ---- Android build output ----
 mobile-android/**/build/
 mobile-android/**/.gradle/

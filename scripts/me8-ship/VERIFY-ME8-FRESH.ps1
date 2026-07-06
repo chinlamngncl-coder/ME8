@@ -166,6 +166,26 @@ if (Test-Path $secretsPath) {
     Write-Ok 'server-secrets.json not created yet (first configure or start)'
 }
 
+$ffmpegBin = Join-Path $AppRoot 'vendor\ffmpeg-lgpl\ffmpeg.exe'
+if (Test-Path $ffmpegBin) {
+    $ffSize = [math]::Round((Get-Item $ffmpegBin).Length / 1MB, 0)
+    if ($ffSize -lt 50) {
+        Write-Fail "vendor\ffmpeg-lgpl\ffmpeg.exe is too small ($ffSize MB) — re-run scripts\download-ffmpeg-lgpl.ps1 to get the static LGPL build"
+    } else {
+        Write-Ok "Media engine present: vendor\ffmpeg-lgpl\ffmpeg.exe ($ffSize MB)"
+    }
+} else {
+    Write-Fail 'vendor\ffmpeg-lgpl\ffmpeg.exe MISSING — run scripts\download-ffmpeg-lgpl.ps1 before packing'
+}
+
+$llmBin = Join-Path $AppRoot 'vendor\llm'
+$llmFiles = @(Get-ChildItem $llmBin -Filter '*.gguf' -ErrorAction SilentlyContinue)
+if ($llmFiles.Count -gt 0) {
+    Write-Ok "Centre LLM model present: $($llmFiles[0].Name)"
+} else {
+    Write-Warn 'vendor\llm\ has no .gguf model — run scripts\download-centre-llm.ps1 before packing (required for Centre Summary feature)'
+}
+
 $envPath = Join-Path $AppRoot '.env'
 if (Test-Path $envPath) {
     $envRaw = Get-Content $envPath -Raw -Encoding UTF8

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Verify rental install: Node, npm deps, bundled ffmpeg-static.
+ * Verify rental install: Node, npm deps, bundled media engine (LGPL).
  * Usage: node scripts/verify-install.js [--quiet]
  */
 const fs = require('fs');
@@ -24,18 +24,11 @@ function fail(msg) {
 const pkgPath = path.join(root, 'package.json');
 if (!fs.existsSync(pkgPath)) fail('package.json not found — run from FleetBackend folder');
 
-let bundled;
-try {
-    bundled = require('ffmpeg-static');
-} catch (_) {
-    fail('ffmpeg-static not installed — run: npm install');
+const vendorFfmpeg = path.join(root, 'vendor', 'ffmpeg-lgpl', 'ffmpeg.exe');
+if (!fs.existsSync(vendorFfmpeg)) {
+    fail('Media engine not found — run scripts/download-ffmpeg-lgpl.ps1 to install the LGPL build.');
 }
-
-if (!bundled || !fs.existsSync(bundled)) {
-    fail('ffmpeg-static binary missing — run: npm install');
-}
-
-ok('ffmpeg-static at ' + bundled);
+ok('Media engine (LGPL) at ' + vendorFfmpeg);
 
 const nodeMajor = parseInt(process.versions.node.split('.')[0], 10);
 if (nodeMajor < 18) {
