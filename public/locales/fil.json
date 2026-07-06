@@ -1,4 +1,4 @@
-{
+﻿{
   "adminAction.adminRequired": "Kailangan ang super admin access para sa aksyong ito.",
   "adminAction.diagnosticsStep1": "Hakbang 1 ng 2: kumpirmahin ang dashboard password.",
   "adminAction.diagnosticsSteps": "Hakbang 2 ng 2: ilagay ang engineer PIN.",
@@ -1446,6 +1446,7 @@
   "server.secrets.passwordPlaceholder": "Mag-type ng bagong password para i-set o palitan",
   "server.secrets.pendingSave": "Hindi pa na-save na pagbabago",
   "server.setupHint": "I-set ang mga address at SIP isang beses para sa lahat ng BWC. Irehistro ang bawat device sa All BWCs.",
+    "server.legalNotices": "Mga Legal na Abiso",
   "server.signOut": "Mag-sign out",
   "server.signedIn": "Naka-sign in",
   "server.sip.mediaTransport": "Transport ng media",

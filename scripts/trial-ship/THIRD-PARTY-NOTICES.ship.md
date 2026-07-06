@@ -1,4 +1,4 @@
-# Third-Party Notices — Mobility Axiom
+﻿# Third-Party Notices — Mobility Axiom
 
 **Product:** Mobility Axiom (on-prem fleet platform)  
 **Date:** 2026-07-07  
@@ -6,7 +6,7 @@
 This product includes open-source software. The tables below list components for **license compliance**. Product manuals use Mobility Axiom names only; this file is the legal appendix for IT and contracts.
 
 > **Not legal advice.** Have counsel review before customer contracts.  
-> **Media tools:** The installer includes bundled FFmpeg-based media tools (GPL). Enterprise deployments may use customer-installed media tools per your support agreement.
+> **Media tools:** The installer includes a bundled FFmpeg LGPL build (no GPL-only codecs). Source: ffmpeg.org/download.html Enterprise deployments may use customer-installed media tools per your support agreement.
 
 ---
 
@@ -19,11 +19,15 @@ This product includes open-source software. The tables below list components for
 | ws | MIT | ws contributors |
 | dotenv | BSD-2-Clause | motdotla |
 | xml2js | MIT | Leonidas-from-XIV |
-| ftp-srv | MIT | Patrick Silva |
+| ftp-srv | MIT | Patrick Silva |
+
+|| nodemailer | MIT | Andris Reinman |
+
+|| qrcode | MIT | soldair / qrcode contributors |
 | livekit-server-sdk | Apache-2.0 | LiveKit, Inc. |
 | node-llama-cpp | MIT | withcatai / llama.cpp authors |
 | sip (kirm/sip.js) | MIT | Kirill Mikhailov |
-| ffmpeg-static | GPL-3.0-or-later | FFmpeg project (bundled binary) |
+| FFmpeg (vendor/ffmpeg-lgpl) | LGPL-2.1-or-later | FFmpeg project — LGPL static build (no GPL codecs) |
 
 ---
 

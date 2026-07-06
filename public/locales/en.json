@@ -1,4 +1,4 @@
-{
+﻿{
   "app.documentTitle": "Mobility Axiom",
   "audio.gutterAria": "Live audio volume",
   "audio.listenLive": "Listen to live audio",
@@ -1504,6 +1504,7 @@
   "server.save": "Save changes",
   "server.saveBwcList": "Save BWC list",
   "server.setupHint": "Network and SIP in Server Config apply to every BWC. Register each camera on the BWCs tab with its device ID and officer name.",
+    "server.legalNotices": "Legal Notices",
   "server.signOut": "Sign Out",
   "server.signedIn": "Signed In",
   "server.sip.mediaTransport": "Media transport",

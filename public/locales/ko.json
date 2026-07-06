@@ -1,4 +1,4 @@
-{
+﻿{
   "adminAction.adminRequired": "이 작업에는 슈퍼 관리자 권한이 필요합니다.",
   "adminAction.diagnosticsStep1": "1/2단계: 대시보드 비밀번호를 확인하세요.",
   "adminAction.diagnosticsSteps": "2/2단계: 엔지니어 PIN을 입력하세요.",
@@ -1446,6 +1446,7 @@
   "server.secrets.passwordPlaceholder": "새 비밀번호 입력하여 설정 또는 변경",
   "server.secrets.pendingSave": "저장되지 않은 변경",
   "server.setupHint": "주소와 SIP를 한 번 설정하면 모든 BWC에 적용됩니다. 전체 BWC에서 각 단말을 등록하세요.",
+    "server.legalNotices": "법적 고지",
   "server.signOut": "로그아웃",
   "server.signedIn": "로그인됨",
   "server.sip.mediaTransport": "미디어 전송",

@@ -1,4 +1,4 @@
-{
+﻿{
   "adminAction.adminRequired": "ต้องมีสิทธิ์ผู้ดูแลระบบสูงสุดสำหรับการดำเนินการนี้",
   "adminAction.diagnosticsStep1": "ขั้นที่ 1 จาก 2: ยืนยันรหัสผ่านแดชบอร์ด",
   "adminAction.diagnosticsSteps": "ขั้นที่ 2 จาก 2: ป้อน PIN วิศวกร",
@@ -1446,6 +1446,7 @@
   "server.secrets.passwordPlaceholder": "ป้อนรหัสผ่านใหม่เพื่อตั้งหรือเปลี่ยน",
   "server.secrets.pendingSave": "การเปลี่ยนแปลงที่ยังไม่บันทึก",
   "server.setupHint": "ตั้งที่อยู่และ SIP ครั้งเดียวสำหรับทุก BWC ลงทะเบียนแต่ละอุปกรณ์ใน BWC ทั้งหมด",
+    "server.legalNotices": "ประกาศทางกฎหมาย",
   "server.signOut": "ออกจากระบบ",
   "server.signedIn": "เข้าสู่ระบบแล้ว",
   "server.sip.mediaTransport": "การส่งสื่อ",

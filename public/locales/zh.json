@@ -1,4 +1,4 @@
-{
+﻿{
   "adminAction.adminRequired": "此操作需要超级管理员权限。",
   "adminAction.diagnosticsStep1": "第 1 步（共 2 步）：确认控制台登录密码。",
   "adminAction.diagnosticsSteps": "第 2 步（共 2 步）：输入工程师 PIN。",
@@ -1446,6 +1446,7 @@
   "server.secrets.passwordPlaceholder": "输入新密码以设置或更改",
   "server.secrets.pendingSave": "未保存的更改",
   "server.setupHint": "服务器配置中的网络和SIP适用于每个BWC。在 BWCs 选项卡上注册每个摄像机及其设备 ID 和官员姓名。",
+    "server.legalNotices": "法律声明",
   "server.signOut": "登出",
   "server.signedIn": "已登录",
   "server.sip.mediaTransport": "媒体传输",

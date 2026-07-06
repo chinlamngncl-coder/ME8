@@ -1,4 +1,4 @@
-{
+﻿{
   "adminAction.adminRequired": "Akses super admin diperlukan untuk tindakan ini.",
   "adminAction.diagnosticsStep1": "Langkah 1 dari 2: konfirmasi kata sandi dashboard.",
   "adminAction.diagnosticsSteps": "Langkah 2 dari 2: masukkan PIN engineer.",
@@ -1446,6 +1446,7 @@
   "server.secrets.passwordPlaceholder": "Ketik kata sandi baru untuk mengatur atau mengubah",
   "server.secrets.pendingSave": "Perubahan belum disimpan",
   "server.setupHint": "Atur alamat dan SIP sekali untuk semua BWC. Daftarkan setiap perangkat di Semua BWC.",
+    "server.legalNotices": "Pemberitahuan Hukum",
   "server.signOut": "Keluar",
   "server.signedIn": "Sudah masuk",
   "server.sip.mediaTransport": "Transport media",
