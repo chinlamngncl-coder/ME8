@@ -22,7 +22,7 @@ const mediaSession = require('./lib/mediaSession');
 const liveStreamPool = require('./lib/liveStreamPool');
 const { createLiveVoiceHint } = require('./lib/liveVoiceHint');
 const liveViewers = require('./lib/liveViewers');
-const DASHBOARD_MAX_LIVE = parseInt(process.env.FM_MAX_CONCURRENT_LIVE || '6', 10) || 6;
+const DASHBOARD_MAX_LIVE = parseInt(process.env.FM_MAX_CONCURRENT_LIVE || '8', 10) || 8;
 const deviceControl = require('./lib/deviceControl');
 const { amplifyAlaw } = require('./lib/psG711Audio');
 const pttServer = require('./lib/pttServer');
@@ -55,6 +55,7 @@ process.on('unhandledRejection', (reason) => {
 });
 const serverSettings = require('./lib/serverSettings');
 const platformSmtp = require('./lib/platformSmtp');
+const authRecoveryEmail = require('./lib/authRecoveryEmail');
 const serverSecrets = require('./lib/serverSecrets');
 const siteTime = require('./lib/siteTime');
 const telemetryFromXml = require('./lib/telemetryFromXml');
@@ -902,6 +903,7 @@ app.post('/api/auth/login', (req, res) => {
             canManageUsers: dashboardAuth.roleCanManageUsers(user.role),
             permissions: dashboardAuth.getPermissionsForSession(session),
             dispatchScope: dispatchScopePayloadForSession(session),
+            ...dashboardAuth.recoveryEmailSessionPayload(fullUser || user),
         });
     } catch (err) {
         res.status(500).json(opErr(err));
@@ -954,6 +956,7 @@ app.post('/api/auth/login/totp', (req, res) => {
             canManageUsers: dashboardAuth.roleCanManageUsers(fullUser.role),
             permissions: dashboardAuth.getPermissionsForSession(session),
             dispatchScope: dispatchScopePayloadForSession(session),
+            ...dashboardAuth.recoveryEmailSessionPayload(fullUser),
         });
     } catch (err) {
         res.status(500).json(opErr(err));
@@ -1027,6 +1030,120 @@ app.post('/api/auth/totp/enroll/confirm', (req, res) => {
     }
 });
 
+function smtpConfiguredForRecovery() {
+    const current = serverSettings.load(STORAGE_DIR);
+    const runtime = platformSmtp.resolveSmtpRuntime(current);
+    return platformSmtp.validateForSend(runtime).length === 0;
+}
+
+async function sendRecoveryEmailVerifyForUser(req, res, user, email, isResend) {
+    if (!authRecoveryEmail.isValidEmail(email)) {
+        return res.status(400).json(opErr('Enter a valid recovery email address.'));
+    }
+    if (isResend && !authRecoveryEmail.canResend(user.id)) {
+        return res.status(429).json(opErr('Too many verification emails. Try again in an hour.'));
+    }
+    const current = serverSettings.load(STORAGE_DIR);
+    const runtime = platformSmtp.resolveSmtpRuntime(current);
+    if (platformSmtp.validateForSend(runtime).length) {
+        return res.status(400).json(opErr(
+            'Outbound email is not configured. Set up SMTP under Settings → Server Config → Dashboard Auth.'
+        ));
+    }
+    const started = dashboardAuth.beginRecoveryEmailVerify(user.id, email);
+    if (!started) return res.status(404).json(opErr('User not found'));
+    const baseUrl = authRecoveryEmail.resolvePublicBaseUrl(req, current);
+    const verifyUrl = authRecoveryEmail.buildVerifyUrl(baseUrl, started.token);
+    try {
+        await authRecoveryEmail.sendVerificationEmail(runtime, email, verifyUrl, started.user.username);
+    } catch (sendErr) {
+        const errMsg = sendErr && sendErr.message ? sendErr.message : String(sendErr);
+        auditLog.recordFromRequest(req, 'auth.recovery_email.send_fail', {
+            target: started.user.username,
+            detail: { email, error: errMsg },
+        });
+        return res.status(400).json(opErr(errMsg));
+    }
+    if (isResend) authRecoveryEmail.recordResend(user.id);
+    auditLog.recordFromRequest(req, isResend ? 'auth.recovery_email.resend' : 'auth.recovery_email.request', {
+        target: started.user.username,
+        detail: { email },
+    });
+    return res.json({
+        ok: true,
+        pending: true,
+        recoveryEmail: authRecoveryEmail.normalizeEmail(email),
+        smtpConfigured: true,
+        expiresAt: started.user.recoveryEmailVerifyExpiresAt,
+    });
+}
+
+app.get('/api/auth/recovery-email/status', (req, res) => {
+    try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        if (!session) return res.status(401).json(opErr('Unauthorized'));
+        const user = dashboardAuth.findUserById(session.userId);
+        if (!user) return res.status(404).json(opErr('User not found'));
+        const status = authRecoveryEmail.recoveryStatus(user);
+        res.json({
+            ok: true,
+            smtpConfigured: smtpConfiguredForRecovery(),
+            ...status,
+            mustVerifyRecoveryEmail: authRecoveryEmail.mustVerifyRecoveryEmail(user),
+        });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.post('/api/auth/recovery-email/request', async (req, res) => {
+    try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        if (!session) return res.status(401).json(opErr('Unauthorized'));
+        const user = dashboardAuth.findUserById(session.userId);
+        if (!user) return res.status(404).json(opErr('User not found'));
+        const email = String((req.body && req.body.email) || '').trim();
+        await sendRecoveryEmailVerifyForUser(req, res, user, email, false);
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.post('/api/auth/recovery-email/resend', async (req, res) => {
+    try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        if (!session) return res.status(401).json(opErr('Unauthorized'));
+        const user = dashboardAuth.findUserById(session.userId);
+        if (!user) return res.status(404).json(opErr('User not found'));
+        const email = authRecoveryEmail.normalizeEmail(user.recoveryEmail);
+        if (!email) return res.status(400).json(opErr('Enter a recovery email first.'));
+        await sendRecoveryEmailVerifyForUser(req, res, user, email, true);
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.get('/api/auth/recovery-email/confirm', (req, res) => {
+    try {
+        const token = String(req.query.token || '').trim();
+        if (!token) return res.status(400).json(opErr('Verification link is invalid or expired.'));
+        const user = dashboardAuth.completeRecoveryEmailVerify(token);
+        if (!user) return res.status(400).json(opErr('Verification link is invalid or expired.'));
+        auditLog.recordFromRequest(req, 'auth.recovery_email.verified', {
+            target: user.username,
+            detail: { email: user.recoveryEmail },
+        });
+        res.json({
+            ok: true,
+            verified: true,
+            recoveryEmail: user.recoveryEmail,
+            recoveryEmailVerifiedAt: user.recoveryEmailVerifiedAt,
+        });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
 app.get('/api/auth/password-policy', (req, res) => {
     const session = dashboardAuth.sessionFromRequest(req);
     const role = session && session.role ? session.role : 'super_admin';
@@ -1062,6 +1179,7 @@ app.get('/api/auth/session', (req, res) => {
         canManageUsers: dashboardAuth.roleCanManageUsers(session.role),
         permissions: dashboardAuth.getPermissionsForSession(session),
         dispatchScope: dispatchScopePayloadForSession(session),
+        ...dashboardAuth.recoveryEmailSessionPayload(user),
     });
 });
 
@@ -1352,9 +1470,11 @@ app.get('/api/storage', (req, res) => {
 
 app.get('/api/sos-incidents', (req, res) => {
     try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
         const limit = req.query && req.query.limit;
         const days = req.query && req.query.days;
-        res.json(sosIncidents.getDashboard(limit, days));
+        const canSee = (camId) => sessionCanSeeCam(session, camId);
+        res.json(sosIncidents.getDashboard(limit, days, canSee));
     } catch (err) {
         res.status(500).json(opErr(err, { entries: [], chart: [] }));
     }
@@ -1362,8 +1482,10 @@ app.get('/api/sos-incidents', (req, res) => {
 
 app.get('/api/sos-incidents/export', (req, res) => {
     try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
         const days = req.query && req.query.days;
-        const csv = sosIncidents.exportCsv(days);
+        const canSee = (camId) => sessionCanSeeCam(session, camId);
+        const csv = sosIncidents.exportCsv(days, canSee);
         const span = Math.max(1, parseInt(days || sosIncidents.DEFAULT_DASHBOARD_DAYS, 10) || sosIncidents.DEFAULT_DASHBOARD_DAYS);
         const stamp = siteTime.formatEvidenceDate(new Date());
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -1386,7 +1508,10 @@ app.post('/api/sos-incidents/clear', (req, res) => {
 
 app.post('/api/sos-incidents/open', (req, res) => {
     try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
         const incidentId = req.body && req.body.incidentId;
+        const entry = incidentId ? sosIncidents.findEntryById(incidentId) : null;
+        if (entry && entry.cameraId) assertSessionCanAccessCam(session, entry.cameraId);
         const folderPath = sosIncidents.getIncidentFolderPath(incidentId);
         if (!folderPath || !fs.existsSync(folderPath)) {
             return res.status(404).json(opErr("Incident folder not found"));
@@ -1402,7 +1527,7 @@ app.post('/api/sos-incidents/open', (req, res) => {
         }
         res.json({ ok: false, path: folderPath, hint: 'Open this path on the server PC' });
     } catch (err) {
-        res.status(500).json(opErr(err));
+        res.status(err.status || 500).json(opErr(err));
     }
 });
 
@@ -2804,6 +2929,8 @@ if (process.env.FM_LAB_ZLM === '1') {
     const livePlaybackBroker = require('./lib/livePlaybackBroker');
     const zlmLabRelay = require('./lib/zlmLabRelay');
     const zlmProcess = require('./lib/zlmProcess');
+    const zlmFlvProxy = require('./lib/zlmFlvProxy');
+    const zlmIngestLab = require('./lib/zlmIngestLab');
 
     function labZlmOnly(req, res, next) {
         if (process.env.FM_LAB_ZLM !== '1') {
@@ -2825,11 +2952,36 @@ if (process.env.FM_LAB_ZLM === '1') {
         }
     });
 
+    app.get('/api/lab/zlm/flv/:streamFile', labZlmOnly, zlmFlvProxy.requireLabFlvAccess, (req, res) => {
+        try {
+            zlmFlvProxy.proxyFlv(req, res, req.params && req.params.streamFile);
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
+    /** B1 agent proof — localhost issues labFlv play URL (no dashboard login). */
+    app.get('/api/lab/zlm/b1/flv-url', labZlmOnly, (req, res) => {
+        const remote = (req.socket && req.socket.remoteAddress) || '';
+        const loopback = remote === '127.0.0.1' || remote === '::ffff:127.0.0.1' || remote === '::1';
+        if (!loopback) {
+            return res.status(403).json(opErr('B1 agent proof: localhost only'));
+        }
+        const camId = String((req.query && req.query.camId) || '').trim();
+        if (!camId) return res.status(400).json(opErr('camId required'));
+        const streamId = zlmIngestLab.streamIdForCam(camId);
+        res.json({
+            ok: true,
+            streamId,
+            flvUrl: zlmIngestLab.flvPlayUrl(streamId, { req }),
+        });
+    });
+
     app.get('/api/lab/playback', dashboardAuth.requireDashboardAuth, labZlmOnly, async (req, res) => {
         try {
             const camId = req.query && req.query.camId ? String(req.query.camId).trim() : '';
             await zlmProcess.healthCheck(false);
-            res.json(livePlaybackBroker.getDescriptor(camId, {
+            res.json(await livePlaybackBroker.getDescriptor(camId, {
                 req,
                 publicHost: HOST,
                 videoWsPort: VIDEO_WS_PORT,
@@ -2866,7 +3018,10 @@ if (process.env.FM_LAB_ZLM === '1') {
         }
     });
 
-    log.media.info('zlm lab gate B routes enabled', { testPage: '/test-zlm.html' });
+    log.media.info('zlm lab gate B routes enabled', {
+        testPage: '/test-zlm.html',
+        flvProxy: '/api/lab/zlm/flv/:stream.live.flv',
+    });
 }
 
 function requireMapDeviceControl(req, res, next) {
@@ -3230,9 +3385,13 @@ app.get('/api/platform/status', (req, res) => {
 app.get('/api/users/me', (req, res) => {
     const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
     if (!session) return res.status(401).json(opErr("Unauthorized"));
+    const full = dashboardAuth.findUserById(session.userId);
     const user = dashboardAuth.listUsersPublic(true).find((u) => u.id === session.userId);
-    if (!user) return res.status(404).json(opErr("User not found"));
-    return res.json({ ok: true, user });
+    if (!user || !full) return res.status(404).json(opErr("User not found"));
+    return res.json({
+        ok: true,
+        user: Object.assign({}, user, dashboardAuth.recoveryEmailSessionPayload(full)),
+    });
 });
 
 app.get('/api/users', dashboardAuth.requireSuperAdmin, (req, res) => {
@@ -4133,6 +4292,51 @@ app.post('/api/evidence/detail/:fileId/trim-export', requireEvidenceExport, asyn
     }
 });
 
+app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin, express.json({ limit: '256kb' }), async (req, res) => {
+    try {
+        const regions = req.body && req.body.regions;
+        auditLog.recordFromRequest(req, 'evidence.redact_start', {
+            target: req.params.fileId,
+            detail: { regionCount: Array.isArray(regions) ? regions.length : 0 },
+        });
+        const out = await evidenceWorkflow.applyRedaction(req.params.fileId, regions, req.dashboardUser);
+        auditLog.recordFromRequest(req, 'evidence.redact_save', {
+            target: req.params.fileId,
+            detail: { exportId: out.exportId, regionCount: out.regionCount },
+        });
+        res.json({ ok: true, export: out });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.patch('/api/evidence/redact/:exportId/note', requireEvidenceEdit, express.json({ limit: '32kb' }), (req, res) => {
+    try {
+        const body = req.body || {};
+        const result = evidenceWorkflow.saveRedactNote(req.params.exportId, body, req.dashboardUser);
+        auditLog.recordFromRequest(req, 'evidence.redact_note_draft', {
+            target: req.params.exportId,
+            detail: { reason: result.meta.redactionReason },
+        });
+        res.json({ ok: true, exportId: result.exportId, meta: result.meta });
+    } catch (err) {
+        res.status(err.message && err.message.includes('finalized') ? 409 : 400).json(opErr(err));
+    }
+});
+
+app.post('/api/evidence/redact/:exportId/finalize', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        const out = evidenceWorkflow.finalizeRedactExport(req.params.exportId, req.dashboardUser);
+        auditLog.recordFromRequest(req, 'evidence.redact_finalize', {
+            target: req.params.exportId,
+            detail: { fileName: out.fileName },
+        });
+        res.json({ ok: true, export: out });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
 app.get('/api/evidence/export-stream/:exportId', requireEvidenceExport, (req, res) => {
     try {
         const resolved = evidenceWorkflow.resolveExportStream(req.params.exportId);
@@ -4150,9 +4354,11 @@ app.get('/api/evidence/export-stream/:exportId', requireEvidenceExport, (req, re
 
 app.get('/api/evidence/sos-incidents', requireEvidenceView, (req, res) => {
     try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
         const days = req.query && req.query.days ? parseInt(req.query.days, 10) : 90;
         const limit = req.query && req.query.limit ? parseInt(req.query.limit, 10) : 100;
-        res.json({ ok: true, incidents: sosIncidents.getDashboard(limit, days) });
+        const canSee = (camId) => sessionCanSeeCam(session, camId);
+        res.json({ ok: true, incidents: sosIncidents.getDashboard(limit, days, canSee) });
     } catch (err) {
         res.status(500).json(opErr(err));
     }
@@ -4201,8 +4407,11 @@ app.post('/api/case-files', requireEvidenceEdit, express.json({ limit: '256kb' }
 
 app.post('/api/case-files/from-sos', requireEvidenceEdit, express.json({ limit: '64kb' }), (req, res) => {
     try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
         const incidentId = (req.body && req.body.incidentId) ? String(req.body.incidentId).trim() : '';
         if (!incidentId) return res.status(400).json(opErr('SOS incident ID required'));
+        const entry = sosIncidents.findEntryById(incidentId);
+        if (entry && entry.cameraId) assertSessionCanAccessCam(session, entry.cameraId);
         const detail = caseFiles.createFromSos(incidentId, req.dashboardUser, sosIncidents);
         auditLog.recordFromRequest(req, 'case_file.create_from_sos', {
             target: detail.caseFile.id,
@@ -4210,7 +4419,7 @@ app.post('/api/case-files/from-sos', requireEvidenceEdit, express.json({ limit: 
         });
         res.json({ ok: true, detail: detail });
     } catch (err) {
-        res.status(400).json(opErr(err));
+        res.status(err.status || 400).json(opErr(err));
     }
 });
 

@@ -5,6 +5,9 @@ param(
     [switch]$SkipZip
 )
 $ErrorActionPreference = 'Stop'
+$denylistScript = Join-Path $PSScriptRoot 'SHIP-CONFIDENTIAL-DENYLIST.ps1'
+if (-not (Test-Path $denylistScript)) { throw 'SHIP-CONFIDENTIAL-DENYLIST.ps1 missing' }
+. $denylistScript
 
 function Write-Step($msg) { Write-Host $msg -ForegroundColor Cyan }
 
@@ -45,6 +48,21 @@ Get-ChildItem $AppRoot -Force | ForEach-Object {
     $dest = Join-Path $OutRoot $_.Name
     if ($_.PSIsContainer) { Copy-Tree $_.FullName $dest }
     else { Copy-Item $_.FullName $dest -Force }
+}
+
+Write-Step 'Purge internal-only docs and confidential filenames...'
+$purged = Remove-ShipConfidentialArtifacts -PackRoot $OutRoot -DenylistSourceRoot $AppRoot
+if ($purged.Count -gt 0) {
+    Write-Host "  Removed $($purged.Count) internal artifact(s)" -ForegroundColor Gray
+}
+
+Write-Step 'Scan staged pack for confidential artifacts...'
+$denyScan = Test-ShipConfidentialDenylist -PackRoot $OutRoot -DenylistSourceRoot $AppRoot -OnFail {
+    param($msg)
+    Write-Host "[fail] confidential artifact: $msg" -ForegroundColor Red
+} -OnOk { }
+if (-not $denyScan.ok) {
+    throw 'Confidential artifact denylist failed on staged pack — remove internal docs/keys before shipping'
 }
 
 Write-Step 'Factory storage template (no lab bench data)...'
@@ -90,7 +108,7 @@ See ME8-FRESH-INSTALL.txt for detail.
 
 Write-Step 'VERIFY staged pack (must pass)...'
 $verifyScript = Join-Path $AppRoot 'scripts\me8-ship\VERIFY-ME8-FRESH.ps1'
-& $verifyScript -AppRoot $OutRoot -Quiet
+& $verifyScript -AppRoot $OutRoot -CustomerPack -Quiet
 if ($LASTEXITCODE -ne 0) {
     throw 'VERIFY-ME8-FRESH failed on staged pack — fix before shipping'
 }

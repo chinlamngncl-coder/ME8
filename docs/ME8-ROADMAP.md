@@ -1,4 +1,4 @@
-# ME8 roadmap — commercial Enterprise 8 BWC
+﻿# ME8 roadmap — commercial Enterprise 8 BWC
 
 **Tree:** `C:\Users\user\Desktop\Enterprise Mobility\ME8`  
 **Ship lock (future):** `me8-v1`  
@@ -166,4 +166,6 @@ Dashboard: `http://<HOST>:3988` — stop trial Fleet before BWC SIP tests.
 | `mob-stability-async-cache` | 2026-06-30 | Async `fs.promises` cache flush; sync final write on SIGINT/SIGTERM |
 | `mob-me8-vendor-local` | 2026-07-01 | Local `/vendor/` for Leaflet, MarkerCluster, LiveKit (dashboard cold load) |
 | `mob-me8-defer-scripts` | 2026-07-01 | Parallel script fetch via `defer`; `index.html` 682→384 KB |
+| `mob-me8-sos-ledger-dispatch-scope` | 2026-07-06 | SOS ledger/CSV/evidence list scoped by dispatch group; checkpoint **skipped** (recorded in `MOB-DISC-ENTERPRISE-VMS-SIX-DOMAINS.md`) |
+| `mob-evidence-redact-simple-flow-with-draft-note` | 2026-07-06 | In-app redact in Evidence Hub; server ffmpeg; officer draft note; super-admin finalize; audit |
 | `mob-me8-static-cache` | 2026-07-01 | `lib/staticCache.js` — long-lived cache for versioned `/js` + `/vendor` |

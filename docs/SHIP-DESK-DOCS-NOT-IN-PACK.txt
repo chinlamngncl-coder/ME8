@@ -1,0 +1,6 @@
+Ubitron ship-desk documentation (license issuing and customer pack build)
+is maintained outside this product tree and is not included in customer deliveries.
+
+Ubitron staff — open on the ship-desk PC:
+  ME8-INTERNAL\ship-desk\MOB-DISC-INTERNAL-PACK-AND-LICENSE-STEP-BY-STEP.md  (start here)
+  ME8-INTERNAL\ship-desk\INHOUSE-SHIP-DESK-GUIDE.md                           (short reference)

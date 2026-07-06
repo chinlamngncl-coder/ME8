@@ -22,7 +22,7 @@
 
 | Gate | What | Touches dashboard? |
 |------|------|-------------------|
-| **A — Stability** | Open All 2 cams, 10+ min, no false “Stopped by BWC” | Maybe `video-wall.js` **only** with named MOB + your approval |
+| **A — Stability** | Open All 2 cams, 10+ min, no false “Stopped by BWC” | **Soak PASS** 2026-07-06 (~33 min) — see `MOB-DISC-GATE-A-SOAK-PASS.md` |
 | **B — ZLM lab** | `test-zlm.html` plays live cam via ZLM path | **PASS** 2026-07-06 — lab relay + test page only |
 | **C — Adapter wire** | Server uses adapter; dashboard still JSMpeg | **No** — `server.js` thin glue only |
 | **D — UI player** | Wall/pin use adapter playback descriptor | **Yes** — later MOB, checkpoint ritual |

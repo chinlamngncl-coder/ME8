@@ -156,6 +156,14 @@
     }
 
     document.getElementById('enroll-finish').addEventListener('click', function () {
-        window.location.replace('/');
+        fetch('/api/auth/session', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (session) {
+            if (session && session.ok && session.mustVerifyRecoveryEmail) {
+                window.location.replace('/recovery-email.html');
+            } else {
+                window.location.replace('/');
+            }
+        }).catch(function () {
+            window.location.replace('/');
+        });
     });
 })();

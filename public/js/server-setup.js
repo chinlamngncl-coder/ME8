@@ -566,6 +566,51 @@
             + '<dt>' + tr('server.users.colAuditView') + '</dt><dd>' + permYesNo(p.auditView || p.auditExport) + '</dd>'
             + '<dt>' + tr('server.users.colAuditExport') + '</dt><dd>' + permYesNo(p.auditExport) + '</dd>'
             + '<dt>' + tr('server.users.colExpiry') + '</dt><dd>' + permDate(p.evidenceDownloadExpiresAt) + '</dd>';
+        renderRecoveryEmailMyAccount(u);
+    }
+
+    function renderRecoveryEmailMyAccount(u) {
+        const statusEl = document.getElementById('ss-recovery-email-status');
+        const inputEl = document.getElementById('ss-recovery-email-input');
+        const resendBtn = document.getElementById('ss-recovery-email-resend');
+        const msgEl = document.getElementById('ss-recovery-email-msg');
+        if (!statusEl) return;
+        if (msgEl) msgEl.textContent = '';
+        const email = u.recoveryEmail || '';
+        if (u.recoveryEmailVerified) {
+            statusEl.textContent = tr('recoveryEmail.verifiedStatus', { email: email });
+            if (resendBtn) resendBtn.hidden = true;
+        } else if (u.recoveryEmailPending && email) {
+            statusEl.textContent = tr('recoveryEmail.pendingStatus', { email: email });
+            if (resendBtn) resendBtn.hidden = false;
+        } else {
+            statusEl.textContent = tr('recoveryEmail.notSet');
+            if (resendBtn) resendBtn.hidden = true;
+        }
+        if (inputEl && email) inputEl.value = email;
+    }
+
+    async function sendRecoveryEmailFromSettings(isResend) {
+        const msgEl = document.getElementById('ss-recovery-email-msg');
+        const inputEl = document.getElementById('ss-recovery-email-input');
+        const email = inputEl ? inputEl.value.trim() : '';
+        const url = isResend ? '/api/auth/recovery-email/resend' : '/api/auth/recovery-email/request';
+        const body = isResend ? '{}' : JSON.stringify({ email: email });
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: body,
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throwOpErr(data);
+        if (msgEl) {
+            msgEl.textContent = isResend
+                ? tr('recoveryEmail.resent', { email: data.recoveryEmail || email })
+                : tr('recoveryEmail.sent', { email: data.recoveryEmail || email });
+        }
+        const resendBtn = document.getElementById('ss-recovery-email-resend');
+        if (resendBtn) resendBtn.hidden = false;
+        await loadMyAccount();
     }
 
     async function refreshDeviceSummary() {
@@ -1621,6 +1666,29 @@
                 alert(opMsg(err.opPayload || err.catalogPayload, err));
             }
         });
+
+        const recoverySendBtn = document.getElementById('ss-recovery-email-send');
+        if (recoverySendBtn) {
+            recoverySendBtn.addEventListener('click', async () => {
+                try {
+                    await sendRecoveryEmailFromSettings(false);
+                } catch (err) {
+                    const msgEl = document.getElementById('ss-recovery-email-msg');
+                    if (msgEl) msgEl.textContent = opMsg(err.opPayload || err.catalogPayload, err);
+                }
+            });
+        }
+        const recoveryResendBtn = document.getElementById('ss-recovery-email-resend');
+        if (recoveryResendBtn) {
+            recoveryResendBtn.addEventListener('click', async () => {
+                try {
+                    await sendRecoveryEmailFromSettings(true);
+                } catch (err) {
+                    const msgEl = document.getElementById('ss-recovery-email-msg');
+                    if (msgEl) msgEl.textContent = opMsg(err.opPayload || err.catalogPayload, err);
+                }
+            });
+        }
 
         document.getElementById('ss-add-user').addEventListener('click', async () => {
             if (!canManageUsers || creatingUser) return;

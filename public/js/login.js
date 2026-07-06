@@ -83,6 +83,8 @@
             window.location.replace('/must-change-password.html');
         } else if (data && data.mustEnrollTotp) {
             window.location.replace('/enroll-totp.html');
+        } else if (data && data.mustVerifyRecoveryEmail) {
+            window.location.replace('/recovery-email.html');
         } else {
             window.location.replace('/');
         }

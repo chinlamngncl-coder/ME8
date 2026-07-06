@@ -190,7 +190,7 @@ if (Test-Path $aclScript) {
 if (-not $SkipVerify) {
     $verifyScript = Join-Path $AppRoot 'scripts\me8-ship\VERIFY-ME8-FRESH.ps1'
     Write-Step 'VERIFY staged customer pack...'
-    & $verifyScript -AppRoot $OutRoot -Quiet
+    & $verifyScript -AppRoot $OutRoot -CustomerPack -Quiet
     if ($LASTEXITCODE -ne 0) { throw 'VERIFY-ME8-FRESH failed — fix before handoff' }
 }
 

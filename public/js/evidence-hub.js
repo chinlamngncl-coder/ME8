@@ -895,12 +895,16 @@
                 ) : '')
                 + renderAttachments(d.attachments)
                 + renderExports(d.exports)
+                + (perms.superAdmin ? (
+                    '<div class="ev-export-actions">'
+                    + '<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-redact">' + tr('evidenceHub.openRedact') + '</button>'
+                    + '</div>'
+                ) : '')
                 + (perms.download ? (
                     '<div class="ev-export-actions">'
                     + (perms.superAdmin || !secureExportEnabled
                         ? '<button type="button" class="btn btn-action btn-sm" id="ev-detail-download">' + tr('evidenceHub.download') + '</button>'
                         : '<button type="button" class="btn btn-action btn-sm" id="ev-detail-secure">' + tr('evidenceHub.requestSecure') + '</button>')
-                    + '<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-redact">' + tr('evidenceHub.openRedact') + '</button>'
                     + '</div>'
                 ) : '')
                 + '</div></div>';
@@ -925,9 +929,24 @@
     function renderExports(list) {
         if (!list || !list.length) return '';
         return '<h4>' + tr('evidenceHub.priorExports') + '</h4><ul class="ev-attach-list">' + list.map(function (e) {
-            return '<li>' + esc(e.fileName) + ' · ' + fmtBytes(e.byteSize)
-                + (perms.export ? ' <a href="/api/evidence/export-stream/' + encodeURIComponent(e.exportId) + '">' + tr('evidenceHub.download') + '</a>' : '')
-                + '</li>';
+            const isRedact = e.exportType === 'redact';
+            const meta = e.meta || {};
+            let status = '';
+            if (isRedact) {
+                if (meta.status === 'finalized') status = ' · ' + tr('evidenceHub.redactFinalized');
+                else if (meta.status === 'draft') status = ' · ' + tr('evidenceHub.redactDraft');
+                else status = ' · ' + tr('evidenceHub.redactPendingNote');
+            }
+            let noteBtn = '';
+            if (isRedact && (perms.edit || perms.superAdmin) && meta.status !== 'finalized') {
+                noteBtn = ' <button type="button" class="btn btn-ghost btn-sm ev-redact-note-btn" data-export-id="'
+                    + esc(e.exportId) + '">' + tr('evidenceHub.redactEditNote') + '</button>';
+            }
+            const typeLabel = isRedact ? ('[' + tr('evidenceHub.redactType') + '] ') : '';
+            const dl = (perms.export && (!isRedact || meta.status === 'finalized'))
+                ? ' <a href="/api/evidence/export-stream/' + encodeURIComponent(e.exportId) + '">' + tr('evidenceHub.download') + '</a>'
+                : '';
+            return '<li>' + typeLabel + esc(e.fileName) + ' · ' + fmtBytes(e.byteSize) + status + dl + noteBtn + '</li>';
         }).join('') + '</ul>';
     }
 
@@ -967,7 +986,346 @@
         const secBtn = document.getElementById('ev-detail-secure');
         if (secBtn) secBtn.addEventListener('click', function () { requestSecureExport(fileId, secBtn); });
         const redactBtn = document.getElementById('ev-detail-redact');
-        if (redactBtn) redactBtn.addEventListener('click', function () { openRedactTool(fileId); });
+        if (redactBtn) redactBtn.addEventListener('click', function () { openRedactWorkspace(fileId); });
+        document.querySelectorAll('.ev-redact-note-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                openRedactNoteDialog(btn.getAttribute('data-export-id'), fileId, null);
+            });
+        });
+    }
+
+    function ensureRedactDialog() {
+        let dlg = document.getElementById('ev-redact-dialog');
+        if (dlg) return dlg;
+        dlg = document.createElement('div');
+        dlg.id = 'ev-redact-dialog';
+        dlg.hidden = true;
+        dlg.innerHTML =
+            '<div class="ev-redact-dialog-inner" role="dialog" aria-modal="true">'
+            + '<div id="ev-redact-mark-panel">'
+            + '<h4 id="ev-redact-title"></h4>'
+            + '<p class="hint" id="ev-redact-hint"></p>'
+            + '<div class="ev-redact-toolbar">'
+            + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-pause"></button>'
+            + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-undo"></button>'
+            + '<button type="button" class="btn btn-action btn-sm" id="ev-redact-save"></button>'
+            + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-cancel">' + esc(tr('common.cancel')) + '</button>'
+            + '</div>'
+            + '<div class="ev-redact-stage" id="ev-redact-stage">'
+            + '<video id="ev-redact-video" playsinline></video>'
+            + '<canvas id="ev-redact-canvas"></canvas>'
+            + '</div>'
+            + '<ul class="ev-redact-regions" id="ev-redact-region-list"></ul>'
+            + '</div>'
+            + '<div id="ev-redact-note-panel" hidden>'
+            + '<h4 id="ev-redact-note-title"></h4>'
+            + '<p class="hint" id="ev-redact-note-hint"></p>'
+            + '<div class="ev-redact-note-inner">'
+            + '<label class="full"><span id="ev-redact-lbl-reason"></span>'
+            + '<select id="ev-redact-reason">'
+            + '<option value="face"></option><option value="child"></option><option value="bystander"></option>'
+            + '<option value="plate"></option><option value="other"></option>'
+            + '</select></label>'
+            + '<label class="full"><span id="ev-redact-lbl-visible"></span>'
+            + '<input type="text" id="ev-redact-visible" maxlength="500"></label>'
+            + '<label class="full"><span id="ev-redact-lbl-incident"></span>'
+            + '<textarea id="ev-redact-incident" rows="3" maxlength="2000"></textarea></label>'
+            + '<div class="ev-dock-dialog-actions">'
+            + '<button type="button" class="btn btn-action btn-sm" id="ev-redact-save-note"></button>'
+            + '<button type="button" class="btn btn-action btn-sm" id="ev-redact-finalize"></button>'
+            + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-note-close">' + esc(tr('common.close')) + '</button>'
+            + '</div></div></div>'
+            + '</div>';
+        document.body.appendChild(dlg);
+        dlg.addEventListener('click', function (e) {
+            if (e.target === dlg) closeRedactDialog();
+        });
+        return dlg;
+    }
+
+    const redactState = {
+        fileId: null,
+        exportId: null,
+        regions: [],
+        drawing: false,
+        startX: 0,
+        startY: 0,
+        scale: 1,
+    };
+
+    function closeRedactDialog() {
+        const dlg = document.getElementById('ev-redact-dialog');
+        if (!dlg) return;
+        dlg.hidden = true;
+        const vid = document.getElementById('ev-redact-video');
+        if (vid) {
+            vid.pause();
+            vid.removeAttribute('src');
+            vid.load();
+        }
+        redactState.fileId = null;
+        redactState.exportId = null;
+        redactState.regions = [];
+    }
+
+    function syncRedactCanvas() {
+        const vid = document.getElementById('ev-redact-video');
+        const canvas = document.getElementById('ev-redact-canvas');
+        if (!vid || !canvas) return;
+        canvas.width = vid.clientWidth;
+        canvas.height = vid.clientHeight;
+        redactState.scale = vid.videoWidth ? vid.clientWidth / vid.videoWidth : 1;
+        redrawRedactRegions();
+    }
+
+    function redrawRedactRegions() {
+        const canvas = document.getElementById('ev-redact-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const scale = redactState.scale;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        redactState.regions.forEach(function (r) {
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(r.x * scale, r.y * scale, r.w * scale, r.h * scale);
+            ctx.fillStyle = 'rgba(56,189,248,0.15)';
+            ctx.fillRect(r.x * scale, r.y * scale, r.w * scale, r.h * scale);
+        });
+    }
+
+    function renderRedactRegionList() {
+        const list = document.getElementById('ev-redact-region-list');
+        if (!list) return;
+        if (!redactState.regions.length) {
+            list.innerHTML = '<li class="hint">' + esc(tr('evidenceHub.redactNoRegions')) + '</li>';
+            return;
+        }
+        list.innerHTML = redactState.regions.map(function (r, i) {
+            return '<li>' + esc(tr('evidenceHub.redactRegionLine', {
+                n: i + 1,
+                t0: r.t0.toFixed(1),
+                t1: r.t1.toFixed(1),
+                w: r.w,
+                h: r.h,
+            })) + '</li>';
+        }).join('');
+    }
+
+    function fillRedactNoteLabels() {
+        const set = function (id, key) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = tr(key);
+        };
+        set('ev-redact-note-title', 'evidenceHub.redactNoteTitle');
+        set('ev-redact-note-hint', 'evidenceHub.redactNoteHint');
+        set('ev-redact-lbl-reason', 'evidenceHub.redactReason');
+        set('ev-redact-lbl-visible', 'evidenceHub.redactVisible');
+        set('ev-redact-lbl-incident', 'evidenceHub.redactIncident');
+        set('ev-redact-save-note', 'evidenceHub.redactSaveNote');
+        set('ev-redact-finalize', 'evidenceHub.redactFinalize');
+        const reason = document.getElementById('ev-redact-reason');
+        if (reason && reason.options.length >= 5) {
+            reason.options[0].text = tr('evidenceHub.redactReasonFace');
+            reason.options[1].text = tr('evidenceHub.redactReasonChild');
+            reason.options[2].text = tr('evidenceHub.redactReasonBystander');
+            reason.options[3].text = tr('evidenceHub.redactReasonPlate');
+            reason.options[4].text = tr('evidenceHub.redactReasonOther');
+        }
+        const vis = document.getElementById('ev-redact-visible');
+        if (vis) vis.placeholder = tr('evidenceHub.redactVisiblePh');
+        const inc = document.getElementById('ev-redact-incident');
+        if (inc) inc.placeholder = tr('evidenceHub.redactIncidentPh');
+    }
+
+    function bindRedactMarkHandlers(fileId) {
+        const vid = document.getElementById('ev-redact-video');
+        const canvas = document.getElementById('ev-redact-canvas');
+        const pauseBtn = document.getElementById('ev-redact-pause');
+        const undoBtn = document.getElementById('ev-redact-undo');
+        const saveBtn = document.getElementById('ev-redact-save');
+        const cancelBtn = document.getElementById('ev-redact-cancel');
+        if (!vid || !canvas) return;
+
+        vid.onloadedmetadata = syncRedactCanvas;
+        if (pauseBtn) pauseBtn.onclick = function () {
+            if (vid.paused) vid.play(); else vid.pause();
+        };
+        if (undoBtn) undoBtn.onclick = function () {
+            redactState.regions.pop();
+            redrawRedactRegions();
+            renderRedactRegionList();
+        };
+        if (cancelBtn) cancelBtn.onclick = closeRedactDialog;
+
+        canvas.onmousedown = function (e) {
+            if (!vid.videoWidth) return;
+            redactState.drawing = true;
+            const rect = canvas.getBoundingClientRect();
+            redactState.startX = (e.clientX - rect.left) / redactState.scale;
+            redactState.startY = (e.clientY - rect.top) / redactState.scale;
+        };
+        canvas.onmousemove = function (e) {
+            if (!redactState.drawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / redactState.scale;
+            const y = (e.clientY - rect.top) / redactState.scale;
+            redrawRedactRegions();
+            const ctx = canvas.getContext('2d');
+            const scale = redactState.scale;
+            ctx.strokeStyle = '#fbbf24';
+            ctx.strokeRect(
+                redactState.startX * scale, redactState.startY * scale,
+                (x - redactState.startX) * scale, (y - redactState.startY) * scale
+            );
+        };
+        if (!global._evRedactMouseUp) {
+            global._evRedactMouseUp = true;
+            window.addEventListener('mouseup', function (e) {
+                if (!redactState.drawing) return;
+                const canvasEl = document.getElementById('ev-redact-canvas');
+                const vidEl = document.getElementById('ev-redact-video');
+                if (!canvasEl || !vidEl || document.getElementById('ev-redact-dialog').hidden) return;
+                redactState.drawing = false;
+                const rect = canvasEl.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / redactState.scale;
+                const y = (e.clientY - rect.top) / redactState.scale;
+                const left = Math.min(redactState.startX, x);
+                const top = Math.min(redactState.startY, y);
+                const w = Math.abs(x - redactState.startX);
+                const h = Math.abs(y - redactState.startY);
+                if (w < 8 || h < 8) return redrawRedactRegions();
+                const t = vidEl.currentTime || 0;
+                redactState.regions.push({
+                    x: Math.round(left),
+                    y: Math.round(top),
+                    w: Math.round(w),
+                    h: Math.round(h),
+                    t0: Math.max(0, t - 1),
+                    t1: t + 1,
+                });
+                redrawRedactRegions();
+                renderRedactRegionList();
+            });
+        }
+
+        if (saveBtn) saveBtn.onclick = function () {
+            if (!redactState.regions.length) {
+                alert(tr('evidenceHub.redactNoRegions'));
+                return;
+            }
+            saveBtn.disabled = true;
+            saveBtn.textContent = tr('evidenceHub.redactSaving');
+            fetch('/api/evidence/detail/' + encodeURIComponent(fileId) + '/redact', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ regions: redactState.regions }),
+            }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                .then(function (res) {
+                    if (!res.ok || !res.data.ok) throwCatalogErr(res.data);
+                    document.getElementById('ev-redact-mark-panel').hidden = true;
+                    openRedactNoteDialog(res.data.export.exportId, fileId, null);
+                    loadDetail(fileId, true);
+                })
+                .catch(function (err) {
+                    alert(catalogMsg(err.opPayload || err.catalogPayload, err));
+                })
+                .finally(function () {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = tr('evidenceHub.redactSave');
+                });
+        };
+    }
+
+    function openRedactNoteDialog(exportId, fileId, meta) {
+        ensureRedactDialog();
+        fillRedactNoteLabels();
+        redactState.exportId = exportId;
+        redactState.fileId = fileId;
+        const dlg = document.getElementById('ev-redact-dialog');
+        const markPanel = document.getElementById('ev-redact-mark-panel');
+        const notePanel = document.getElementById('ev-redact-note-panel');
+        if (markPanel) markPanel.hidden = true;
+        if (notePanel) notePanel.hidden = false;
+        dlg.hidden = false;
+        meta = meta || {};
+        const reason = document.getElementById('ev-redact-reason');
+        const vis = document.getElementById('ev-redact-visible');
+        const inc = document.getElementById('ev-redact-incident');
+        if (reason) reason.value = meta.redactionReason || 'face';
+        if (vis) vis.value = meta.visibleDescription || '';
+        if (inc) inc.value = meta.incidentNote || '';
+        const fin = document.getElementById('ev-redact-finalize');
+        if (fin) fin.hidden = !perms.superAdmin;
+
+        const saveNote = document.getElementById('ev-redact-save-note');
+        const closeBtn = document.getElementById('ev-redact-note-close');
+        if (saveNote) saveNote.onclick = function () { saveRedactNote(exportId, fileId); };
+        if (fin) fin.onclick = function () { finalizeRedactNote(exportId, fileId); };
+        if (closeBtn) closeBtn.onclick = closeRedactDialog;
+    }
+
+    async function saveRedactNote(exportId, fileId) {
+        const body = {
+            redactionReason: (document.getElementById('ev-redact-reason') || {}).value || '',
+            visibleDescription: (document.getElementById('ev-redact-visible') || {}).value || '',
+            incidentNote: (document.getElementById('ev-redact-incident') || {}).value || '',
+        };
+        const res = await fetch('/api/evidence/redact/' + encodeURIComponent(exportId) + '/note', {
+            method: 'PATCH',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throwCatalogErr(data);
+        if (fileId) loadDetail(fileId, true);
+    }
+
+    async function finalizeRedactNote(exportId, fileId) {
+        try {
+            await saveRedactNote(exportId, fileId);
+        } catch (err) {
+            alert(catalogMsg(err.opPayload || err.catalogPayload, err));
+            return;
+        }
+        const res = await fetch('/api/evidence/redact/' + encodeURIComponent(exportId) + '/finalize', {
+            method: 'POST',
+            credentials: 'same-origin',
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+            alert(catalogMsg(data));
+            return;
+        }
+        closeRedactDialog();
+        if (fileId) loadDetail(fileId, true);
+    }
+
+    function openRedactWorkspace(fileId) {
+        if (!perms.superAdmin) return;
+        ensureRedactDialog();
+        fillRedactNoteLabels();
+        redactState.fileId = fileId;
+        redactState.regions = [];
+        const dlg = document.getElementById('ev-redact-dialog');
+        const markPanel = document.getElementById('ev-redact-mark-panel');
+        const notePanel = document.getElementById('ev-redact-note-panel');
+        if (markPanel) markPanel.hidden = false;
+        if (notePanel) notePanel.hidden = true;
+        document.getElementById('ev-redact-title').textContent = tr('evidenceHub.redactTitle');
+        document.getElementById('ev-redact-hint').textContent = tr('evidenceHub.redactHint');
+        document.getElementById('ev-redact-pause').textContent = tr('evidenceHub.redactPause');
+        document.getElementById('ev-redact-undo').textContent = tr('evidenceHub.redactUndo');
+        document.getElementById('ev-redact-save').textContent = tr('evidenceHub.redactSave');
+        const vid = document.getElementById('ev-redact-video');
+        if (vid) {
+            vid.src = '/api/evidence/preview/' + encodeURIComponent(fileId);
+            vid.load();
+        }
+        renderRedactRegionList();
+        bindRedactMarkHandlers(fileId);
+        dlg.hidden = false;
     }
 
     function exportStatusLabel(status) {
@@ -976,10 +1334,6 @@
         if (status === 'denied') return tr('evidenceHub.statusDenied');
         if (status === 'consumed') return tr('evidenceHub.statusDownloaded');
         return status || '—';
-    }
-
-    function openRedactTool() {
-        alert(tr('evidenceHub.redactHelp') + '\n\n' + tr('evidenceHub.redactPath'));
     }
 
     function renderApprovalCards(rows) {

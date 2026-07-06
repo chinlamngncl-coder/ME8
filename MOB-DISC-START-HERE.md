@@ -18,6 +18,13 @@ Then run **`RESTART-FLEET.bat`** and hard refresh once (Ctrl+Shift+R).
 
 ---
 
+## ⏰ Pending re-tests (operator said "remind me later" — 2026-07-07)
+
+1. **SOS ledger scope checkpoint** (skipped 2026-07-06) — scoped operator sees group-only rows + CSV; out-of-scope folder → 403. Say **CHECKPOINT sos-ledger** for click steps.
+2. **TOTP bench state** — confirm whether `FM_TOTP_SUSPENDED=1` is active; must be **off** before ship.
+
+---
+
 ## Genres and git (plain English)
 
 | Word | Meaning |
@@ -45,6 +52,7 @@ To back up this genre: **`MOB-APPLY lab-git-push-centre-llm`**
 | **Super admin forgot password / lost phone** | `docs\MOB-DISC-SUPER-ADMIN-RECOVERY.md` |
 | **SMTP settings — where in UI (this MOB)** | `docs\MOB-DISC-SMTP-SETTINGS-UI.md` |
 | **Customer-facing naming — no internal stack/OEM in UI or manuals** | `docs\MOB-DISC-CUSTOMER-FACING-NAMING.md` |
+| **Risk analysis + what to do when something breaks** | `docs\MOB-DISC-RISK-AND-DEBUG-PLAYBOOK.md` |
 | **Centre Summary AI — customers do not download** | `docs\MOB-DISC-CENTRE-LLM-SHIP-NO-CLIENT-DOWNLOAD.md` |
 | **Enterprise VMS — six domains + risk order** | `docs\MOB-DISC-ENTERPRISE-VMS-SIX-DOMAINS.md` |
 | **SOS clear / keep files / audit** | `docs\MOB-DISC-SOS-LEDGER-GOVERNANCE.md` |

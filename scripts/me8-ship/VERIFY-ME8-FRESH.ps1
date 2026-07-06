@@ -1,9 +1,12 @@
 # ME8 fresh install verify — fails on lab leftovers (bench or ship folder).
 param(
     [string]$AppRoot = '',
-    [switch]$Quiet
+    [switch]$Quiet,
+    [switch]$CustomerPack
 )
 $ErrorActionPreference = 'Stop'
+$denylistScript = Join-Path $PSScriptRoot 'SHIP-CONFIDENTIAL-DENYLIST.ps1'
+if (Test-Path $denylistScript) { . $denylistScript }
 
 $script:FailCount = 0
 $script:WarnCount = 0
@@ -189,6 +192,32 @@ if (Test-Path $envPath) {
     }
 } else {
     Write-Warn '.env missing - copy from .env.me8.example before ship'
+}
+
+if ($CustomerPack) {
+    if (-not (Test-Path $denylistScript)) {
+        Write-Fail 'SHIP-CONFIDENTIAL-DENYLIST.ps1 missing — cannot verify customer pack'
+    } else {
+        $denySource = $AppRoot
+        if (-not (Test-Path (Join-Path $AppRoot 'pack\me8-fresh\SHIP-CONFIDENTIAL-DENYLIST.json'))) {
+            $here = $PSScriptRoot
+            $parent = Split-Path $here -Parent
+            $grand = Split-Path $parent -Parent
+            if (Test-Path (Join-Path $grand 'pack\me8-fresh\SHIP-CONFIDENTIAL-DENYLIST.json')) {
+                $denySource = $grand
+            }
+        }
+        $denyScan = Test-ShipConfidentialDenylist -PackRoot $AppRoot -DenylistSourceRoot $denySource -OnFail {
+            param($msg)
+            Write-Fail "confidential artifact: $msg"
+        } -OnOk {
+            param($msg)
+            Write-Ok $msg
+        }
+        if (-not $denyScan.ok) {
+            Write-Fail 'customer pack contains confidential artifacts — do not ship'
+        }
+    }
 }
 
 Write-Host ''

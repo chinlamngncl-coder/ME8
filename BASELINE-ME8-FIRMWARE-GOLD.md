@@ -46,8 +46,6 @@ cd "C:\Users\user\Desktop\Enterprise Mobility\ME8"
 
 Expect: `VERIFY OK` + file count match.
 
-**Agent post-mortem (what not to do):** `docs/MOB-DISC-FIRMWARE-GOLD-PIN-MIRROR.md`
-
 ---
 
 ## Re-lock (after authorized MOBs only)

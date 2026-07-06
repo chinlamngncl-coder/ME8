@@ -1,6 +1,6 @@
 # MOB DISC — “Stopped by BWC” flicker (bench)
 
-**Status:** Open — **log-verified 2026-07-06 ~01:10 and ~01:20**  
+**Status:** Open — **soak PASS 2026-07-06** (`docs/MOB-DISC-GATE-A-SOAK-PASS.md`); alt-tab retest optional  
 **Search:** `Stopped by BWC`, `stoppedOnDevice`, `device_bye`, `stall`, `background tab`, `Opera`, `Cursor`
 
 **100% fallback floor:** `BASELINE-ME8-FIRMWARE-GOLD.md` → `RUN RESTORE-ME8-FIRMWARE-GOLD`  

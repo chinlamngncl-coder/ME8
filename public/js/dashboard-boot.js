@@ -70,8 +70,8 @@
         window.clearPinVideoUserStop = clearPinVideoUserStop;
 
         var MAP_VIEWPORT_NARROW_PX = 900;
-        var MAX_OPEN_PIN_POPUPS = 6;
-        var PIN_LAZY_LIVE_FULL_MAX = 6;
+        var MAX_OPEN_PIN_POPUPS = 8;
+        var PIN_LAZY_LIVE_FULL_MAX = 8;
         var pinOpenOrder = [];
 
         function trackPinPopupOpen(camId) {

@@ -3,6 +3,8 @@
 **Audience:** Ubitron technical staff (installers, sales engineering, support)  
 **Not for end-customer dispatchers** — they never issue, edit, or see license tooling.
 
+**Full teach-yourself guide (license + pack, step by step):** `ME8-INTERNAL\ship-desk\INHOUSE-SHIP-DESK-GUIDE.md` on the ship-desk PC (outside ME8 product tree — never in customer zip). Customer-safe pointer: [`SHIP-DESK-DOCS-NOT-IN-PACK.txt`](./SHIP-DESK-DOCS-NOT-IN-PACK.txt)
+
 **Issue licenses (management / senior tech only):**
 
 `C:\Users\user\Desktop\Enterprise Mobility\MobilityC2-VENDOR-IMPORTANT\LicenseIssuer\`
