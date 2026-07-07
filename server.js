@@ -31,6 +31,7 @@ const fleetRegistry = require('./lib/fleetRegistry');
 const bwcDevices = require('./lib/bwcDevices');
 const facePlateIngest = require('./lib/facePlateIngest');
 const ftpIngest = require('./lib/ftpIngest');
+const multer = require('multer');
 const log = require('./lib/fleetLog');
 
 process.on('uncaughtException', (err) => {
@@ -228,6 +229,7 @@ const MSG_WS_URL = `ws://${HOST}:${MSG_WS_PORT}`;
 const HTTP_PORT = parseInt(process.env.FM_HTTP_PORT || process.env.PORT || '3888', 10);
 /** Optional PIN to open SOS log detail (full notes). Empty = no lock. Set FM_SOS_LEDGER_PIN in .env */
 const SOS_LEDGER_PIN = (process.env.FM_SOS_LEDGER_PIN || '').trim();
+const HTTPS_UPLOAD_TOKEN = (process.env.FM_HTTPS_UPLOAD_TOKEN || '').trim();
 const VIDEO_WS_PORT = parseInt(process.env.FM_VIDEO_WS_PORT || String(HTTP_PORT + 1), 10);
 const AUDIO_WS_PORT = parseInt(process.env.FM_AUDIO_WS_PORT || String(HTTP_PORT + 2), 10);
 const PTT_ENABLED = process.env.FM_PTT_ENABLED === '1';
@@ -339,6 +341,7 @@ function startFtpServerRuntime() {
         log.ftp.err('not running — set FTP username and password in Evidence → Storage, then save');
         return { ok: false, reason: 'credentials_missing' };
     }
+    log.media.warn('FTP evidence upload active — ensure port ' + FTP_PORT + ' is blocked at network firewall for hybrid deployments (LAN-only service)');
     ftpServerInstance = ftpIngest.startFtpServer({
         host: HOST,
         port: FTP_PORT,
@@ -4138,6 +4141,51 @@ app.get('/api/evidence/downloads', dashboardAuth.requireSuperAdmin, (req, res) =
     } catch (err) {
         res.status(500).json(opErr(err));
     }
+});
+
+// HTTPS evidence upload — secure alternative to FTP for hybrid deployments.
+// Camera docking station software or relay agents POST files here using a bearer token.
+// FTP stays enabled for LAN hardware docking stations; this endpoint is the internet-safe path.
+const httpsUploadStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, FTP_ROOT),
+    filename: (_req, file, cb) => cb(null, file.originalname),
+});
+const httpsUploadMiddleware = multer({
+    storage: httpsUploadStorage,
+    limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2 GB max
+    fileFilter: (_req, file, cb) => {
+        const allowed = /\.(mp4|avi|mov|mkv|jpg|jpeg|png|pdf|zip|bin|h264|h265|ts|dat)$/i;
+        if (allowed.test(file.originalname)) return cb(null, true);
+        cb(new Error('File type not permitted'));
+    },
+});
+
+app.post('/api/evidence/upload', (req, res) => {
+    if (!HTTPS_UPLOAD_TOKEN) {
+        return res.status(503).json({ ok: false, error: 'HTTPS evidence upload is not configured on this server.' });
+    }
+    const auth = (req.headers['authorization'] || '').trim();
+    const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+    if (!token || token !== HTTPS_UPLOAD_TOKEN) {
+        return res.status(401).json({ ok: false, error: 'Invalid or missing upload token.' });
+    }
+    httpsUploadMiddleware.single('file')(req, res, (err) => {
+        if (err) {
+            log.ftp.warn('https-upload rejected', { message: err.message, ip: req.ip });
+            return res.status(400).json({ ok: false, error: err.message });
+        }
+        if (!req.file) {
+            return res.status(400).json({ ok: false, error: 'No file received. Send a multipart/form-data request with field name "file".' });
+        }
+        const info = {
+            fileName: req.file.filename,
+            fullPath: req.file.path,
+            peer: req.ip,
+        };
+        log.ftp.info('https-upload received', { file: info.fileName, peer: info.peer });
+        handleFtpFileUploaded(info);
+        res.json({ ok: true, fileName: info.fileName });
+    });
 });
 
 app.post('/api/evidence/request-secure-export', requireEvidenceDownload, (req, res) => {

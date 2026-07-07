@@ -36,9 +36,9 @@
     let fleetList = [];
     let fleetById = {};
     let selectedCamId = null;
-    /** Up to 6 cams with map pin popups open (matches wall + MAX_OPEN_PIN_POPUPS). */
+    /** Up to 8 cams with map pin popups open (matches pool cap + MAX_OPEN_PIN_POPUPS). */
     const selectedCamIds = new Set();
-    const MAX_PIN_SELECT = 6;
+    const MAX_PIN_SELECT = 8;
     let searchQuery = '';
     let statusFilter = 'all';
     let canClearMapPins = false;

@@ -15,6 +15,28 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.0.4] — 2026-07-07 — HTTPS evidence upload
+
+### Added
+- `POST /api/evidence/upload` — secure HTTPS alternative to FTP for hybrid deployments
+- Bearer token auth via `FM_HTTPS_UPLOAD_TOKEN` env var (disabled by default, opt-in)
+- Multer multipart file handling; 2 GB max; same evidence pipeline as FTP (audit log, SOS attachment, evidence registry)
+- Post-sales installation guide updated with HTTPS upload switchover steps
+
+### Security
+- FTP can now be fully disabled (`FM_FTP_ENABLED=0`) for hybrid deployments; HTTPS endpoint replaces it
+
+---
+
+## [1.0.3] — 2026-07-07 — Hybrid firewall rules documented
+
+### Security
+- Server startup log now warns when FTP is active — reminder to block port 21 at firewall for hybrid deployments
+- Post-sales installation guide updated with mandatory hybrid firewall rules (port 21, 5060, 10000–20000 must be LAN-only)
+- Pre-sales guide updated — account managers must confirm IT capability before committing to hybrid deployment
+
+---
+
 ## [1.0.2] — 2026-07-07 — Security hardening
 
 ### Security

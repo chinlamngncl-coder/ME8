@@ -17,7 +17,7 @@
     }
 
     const SLOT_COUNT = 6;
-    const MAX_LIVE_STREAMS = 6;
+    const MAX_LIVE_STREAMS = 8;
     const OPS_VIEWER_SURFACE = 'ops';
     function alarmStreamLabel() { return tr('video.stream.sos'); }
     function liveStreamLabel() { return tr('video.stream.live'); }
@@ -2394,6 +2394,14 @@
         return !!(pending && pending !== camId);
     }
 
+    /** First free wall panel, or null when all 6 are claimed by other cams (pin-only live). */
+    function freeWallSlotForCam(camId) {
+        for (let i = 0; i < SLOT_COUNT; i += 1) {
+            if (!wallSlotTaken(i, camId)) return i;
+        }
+        return null;
+    }
+
     function findWallSlotForCam(camId) {
         const existing = findSlotByCamId(camId);
         if (existing) return findSlotIndex(existing);
@@ -3947,6 +3955,16 @@
                 playMapPinVideoIfPopupOpenWithSlot(staggerCamId, staggerSlotId, 0, liveOpts);
             }, i * OPEN_ALL_DEVICE_STAGGER_MS);
         }
+        let pinOnlyIdx = 0;
+        ids.forEach(function (camId) {
+            if (built.slotByCam[camId] != null) return;
+            const stagger = assignmentPairs.length + pinOnlyIdx;
+            pinOnlyIdx += 1;
+            setTimeout(function () {
+                playMapPinVideoIfPopupOpen(camId, 0, liveOpts);
+            }, stagger * OPEN_ALL_DEVICE_STAGGER_MS);
+        });
+        const totalStaggerMs = Math.max(0, ids.length - 1) * OPEN_ALL_DEVICE_STAGGER_MS;
         if (openAllLivePinsSyncTimer) clearTimeout(openAllLivePinsSyncTimer);
         openAllLivePinsSyncTimer = setTimeout(function () {
             openAllLivePinsSyncTimer = null;
@@ -3969,7 +3987,7 @@
                 syncAllOpenPinVideoLayout();
                 syncAllPttRxUi();
             }, 1200);
-        }, (assignmentPairs.length - 1) * OPEN_ALL_DEVICE_STAGGER_MS + 1500);
+        }, totalStaggerMs + 1500);
     }
 
     function playOnMapPopup(camId, element, forcedWallSlot, opts) {
@@ -4011,21 +4029,28 @@
         }
         if (guardFieldPttCommInsteadOfPinAutoPlay(camId, 0, opts)) return;
         requestStreamForCam(camId, !!opts.forceLive);
-        const slotIndex = (forcedWallSlot != null && forcedWallSlot >= 0)
-            ? forcedWallSlot
-            : reserveWallSlotForCam(camId);
-        pendingWallSlots[slotIndex] = camId;
-        assignCamToSlot(camId, slotIndex, opts.forceLive ? {
-            forceInvite: true,
-            keepAlarm: true,
-            wallSlotReserved: true,
-            alarm: wallAlarm,
-        } : {
-            skipInvite: true,
-            keepAlarm: true,
-            wallSlotReserved: true,
-            alarm: wallAlarm,
-        });
+        let wallSlot = null;
+        if (forcedWallSlot != null && forcedWallSlot >= 0) {
+            wallSlot = forcedWallSlot;
+        } else {
+            const resolved = resolvePinWallSlot(camId);
+            if (resolved != null) wallSlot = resolved;
+            else wallSlot = freeWallSlotForCam(camId);
+        }
+        if (wallSlot != null && wallSlot >= 0) {
+            pendingWallSlots[wallSlot] = camId;
+            assignCamToSlot(camId, wallSlot, opts.forceLive ? {
+                forceInvite: true,
+                keepAlarm: true,
+                wallSlotReserved: true,
+                alarm: wallAlarm,
+            } : {
+                skipInvite: true,
+                keepAlarm: true,
+                wallSlotReserved: true,
+                alarm: wallAlarm,
+            });
+        }
         let canvas = element.querySelector('canvas');
         if (!canvas) {
             canvas = document.createElement('canvas');
