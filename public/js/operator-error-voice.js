@@ -164,6 +164,7 @@
     }
 
     function fromPayload(data, fallbackKey) {
+        if (data && data.error && !looksTechnical(data.error)) return data.error;
         if (data && data.errorKey) return tr(data.errorKey);
         if (data && data.error) return tr(keyFromRaw(data.error));
         return tr(fallbackKey || 'errors.generic');

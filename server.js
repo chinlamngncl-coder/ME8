@@ -96,6 +96,7 @@ const usbMaintenance = require('./lib/usbMaintenance');
 const evidenceRegistry = require('./lib/evidenceRegistry');
 const evidenceSecureExport = require('./lib/evidenceSecureExport');
 const evidenceWorkflow = require('./lib/evidenceWorkflow');
+const faceTrackSidecar = require('./lib/faceTrackSidecar');
 const evidenceCustodyAudit = require('./lib/evidenceCustodyAudit');
 const dockRegistry = require('./lib/dockRegistry');
 const conferenceModule = require('./lib/conferenceModule');
@@ -4447,6 +4448,31 @@ app.get('/api/evidence/preview/:fileId', requireEvidenceView, (req, res) => {
         else if (/\.mkv$/i.test(ext)) res.setHeader('Content-Type', 'video/x-matroska');
         else if (/\.ts$/i.test(ext)) res.setHeader('Content-Type', 'video/mp2t');
         else res.setHeader('Content-Type', 'video/mp4');
+        // Plaintext files: serve with HTTP Range so the <video> preview is
+        // seekable (scrub + Use playhead across the whole clip). Encrypted
+        // files fall back to the full decrypt pipe.
+        if (!evidenceCrypto.isEncryptedFile(fullPath)) {
+            const total = fs.statSync(fullPath).size;
+            res.setHeader('Accept-Ranges', 'bytes');
+            const range = req.headers.range;
+            if (range) {
+                const m = /bytes=(\d*)-(\d*)/.exec(range);
+                let start = m && m[1] !== '' ? parseInt(m[1], 10) : 0;
+                let end = m && m[2] !== '' ? parseInt(m[2], 10) : total - 1;
+                if (Number.isNaN(start) || start < 0) start = 0;
+                if (Number.isNaN(end) || end >= total) end = total - 1;
+                if (start > end) {
+                    res.status(416).setHeader('Content-Range', 'bytes */' + total);
+                    return res.end();
+                }
+                res.status(206);
+                res.setHeader('Content-Range', 'bytes ' + start + '-' + end + '/' + total);
+                res.setHeader('Content-Length', (end - start) + 1);
+                return fs.createReadStream(fullPath, { start: start, end: end }).pipe(res);
+            }
+            res.setHeader('Content-Length', total);
+            return fs.createReadStream(fullPath).pipe(res);
+        }
         return evidenceCrypto.pipeDecrypted(fullPath, res);
     } catch (err) {
         res.status(500).json(opErr(err));
@@ -4552,6 +4578,23 @@ app.post('/api/evidence/redact/:exportId/finalize', dashboardAuth.requireSuperAd
         res.json({ ok: true, export: out });
     } catch (err) {
         res.status(400).json(opErr(err));
+    }
+});
+
+// Face-track detection scaffold — diagnostics only. Reports whether the
+// optional detection sidecar (OpenCV + YuNet) is installed. Detection itself
+// stays gated behind the analyticsFace ("fr") entitlement and is not wired
+// into any redaction UI yet.
+app.get('/api/evidence/redact/track-selfcheck', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        const report = await faceTrackSidecar.selfCheck();
+        res.json({
+            ok: true,
+            featureEnabled: licenseFeatures.isFeatureEnabled('fr'),
+            runtime: report,
+        });
+    } catch (err) {
+        res.status(500).json(opErr(err));
     }
 });
 

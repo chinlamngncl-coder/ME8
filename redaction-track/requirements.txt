@@ -1,0 +1,13 @@
+# Evidence face-track detection sidecar dependencies.
+# Legal-free: all permissive licenses (no copyleft, no fees).
+#   opencv-python  Apache-2.0   video decode + DNN inference + drawing
+#   numpy          BSD-3-Clause array math
+#
+# The YuNet face detector model (MIT, OpenCV Zoo) is NOT a pip package.
+# Download face_detection_yunet_2023mar.onnx from:
+#   https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet
+# and save it to: redaction-track/models/face_detection_yunet.onnx
+#
+# Install (bench):  py -3 -m pip install -r requirements.txt
+opencv-python>=4.9,<5
+numpy>=1.24

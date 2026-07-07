@@ -924,13 +924,27 @@
             const previewBlock = d.storageAvailable === false
                 ? renderMissingPreview(d)
                 : renderControlledPreview(f);
+            const trimBar = (perms.export && d.storageAvailable !== false && !isImageEvidenceName(f.fileName)) ? (
+                '<div class="ev-trim-bar" id="ev-trim-bar">'
+                + '<span class="ev-trim-bar-title">' + tr('evidenceHub.trimExport') + '</span>'
+                + '<span class="ev-trim-field"><label>' + tr('evidenceHub.trimStartShort') + '</label>'
+                + '<input type="number" id="ev-trim-start" min="0" step="0.1" value="0">'
+                + '<button type="button" class="btn btn-ghost btn-sm ev-trim-mark" id="ev-trim-set-start" title="' + esc(tr('evidenceHub.trimUsePlayheadTitle')) + '">' + tr('evidenceHub.trimUsePlayhead') + '</button></span>'
+                + '<span class="ev-trim-field"><label>' + tr('evidenceHub.trimEndShort') + '</label>'
+                + '<input type="number" id="ev-trim-end" min="0" step="0.1" value="" placeholder="' + esc(tr('evidenceHub.trimEndAuto')) + '">'
+                + '<button type="button" class="btn btn-ghost btn-sm ev-trim-mark" id="ev-trim-set-end" title="' + esc(tr('evidenceHub.trimUsePlayheadTitle')) + '">' + tr('evidenceHub.trimUsePlayhead') + '</button></span>'
+                + '<button type="button" class="btn btn-action btn-sm" id="ev-trim-export">' + tr('evidenceHub.exportTrim') + '</button>'
+                + '<span class="ev-trim-len" id="ev-trim-len"></span>'
+                + '<span class="ev-trim-hint hint">' + tr('evidenceHub.trimHint') + '</span>'
+                + '</div>'
+            ) : '';
             wrap.innerHTML =
                 '<div class="ev-detail-head">'
                 + '<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-back">← ' + tr('evidenceHub.backCatalog') + '</button>'
                 + '<h3>' + esc(f.fileName) + '</h3>'
                 + '<code>' + esc(f.id) + '</code></div>'
                 + '<div class="ev-detail-grid">'
-                + '<div class="ev-detail-video">' + previewBlock + '</div>'
+                + '<div class="ev-detail-video">' + previewBlock + trimBar + '</div>'
                 + '<div class="ev-detail-side">'
                 + '<dl class="ss-dock-ro"><dt>' + tr('evidence.colOfficer') + '</dt><dd>' + esc(f.operatorName || '—') + '</dd>'
                 + '<dt>' + tr('evidence.colUploaded') + '</dt><dd>' + esc(fmtTime(f.uploadedAt)) + '</dd>'
@@ -945,12 +959,6 @@
                     + '<input type="file" id="ev-detail-photo" accept="image/*"></label>'
                     + '<button type="button" class="btn btn-action btn-sm" id="ev-detail-save-meta">' + tr('evidenceHub.saveMeta') + '</button>'
                     + '<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-add-case">' + tr('caseFiles.addToCase') + '</button>'
-                ) : '')
-                + (perms.export ? (
-                    '<div class="ev-trim-block"><h4>' + tr('evidenceHub.trimExport') + '</h4>'
-                    + '<label><span>' + tr('evidenceHub.trimStart') + '</span><input type="number" id="ev-trim-start" min="0" step="0.1" value="' + (m.trimStartSec != null ? m.trimStartSec : 0) + '"></label>'
-                    + '<label><span>' + tr('evidenceHub.trimEnd') + '</span><input type="number" id="ev-trim-end" min="0" step="0.1" value="' + (m.trimEndSec != null ? m.trimEndSec : '') + '" placeholder="auto"></label>'
-                    + '<button type="button" class="btn btn-action btn-sm" id="ev-trim-export">' + tr('evidenceHub.exportTrim') + '</button></div>'
                 ) : '')
                 + renderAttachments(d.attachments)
                 + renderExports(d.exports)
@@ -1070,6 +1078,15 @@
         if (photo) photo.addEventListener('change', function () { uploadDetailPhoto(fileId, photo); });
         const trimBtn = document.getElementById('ev-trim-export');
         if (trimBtn) trimBtn.addEventListener('click', function () { runTrimExport(fileId); });
+        const setStartBtn = document.getElementById('ev-trim-set-start');
+        if (setStartBtn) setStartBtn.addEventListener('click', function () { setTrimFromPlayhead('ev-trim-start'); updateTrimLen(); });
+        const setEndBtn = document.getElementById('ev-trim-set-end');
+        if (setEndBtn) setEndBtn.addEventListener('click', function () { setTrimFromPlayhead('ev-trim-end'); updateTrimLen(); });
+        const trimStartEl = document.getElementById('ev-trim-start');
+        const trimEndEl = document.getElementById('ev-trim-end');
+        if (trimStartEl) trimStartEl.addEventListener('input', updateTrimLen);
+        if (trimEndEl) trimEndEl.addEventListener('input', updateTrimLen);
+        updateTrimLen();
         const dlBtn = document.getElementById('ev-detail-download');
         if (dlBtn) dlBtn.addEventListener('click', function () { requestDownload(fileId, dlBtn); });
         const secBtn = document.getElementById('ev-detail-secure');
@@ -1097,6 +1114,10 @@
             + '<div class="ev-redact-toolbar">'
             + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-pause"></button>'
             + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-undo"></button>'
+            + '<label class="ev-redact-span"><span id="ev-redact-span-lbl"></span> '
+            + '<select id="ev-redact-span-mode" class="ev-redact-span-sel">'
+            + '<option value="whole"></option><option value="from"></option><option value="window"></option>'
+            + '</select></label>'
             + '<button type="button" class="btn btn-action btn-sm" id="ev-redact-save"></button>'
             + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-cancel">' + esc(tr('common.cancel')) + '</button>'
             + '</div>'
@@ -1190,14 +1211,71 @@
             return;
         }
         list.innerHTML = redactState.regions.map(function (r, i) {
-            return '<li>' + esc(tr('evidenceHub.redactRegionLine', {
-                n: i + 1,
-                t0: r.t0.toFixed(1),
-                t1: r.t1.toFixed(1),
-                w: r.w,
-                h: r.h,
-            })) + '</li>';
+            return '<li class="ev-redact-region-row">'
+                + '<span class="ev-redact-region-tag">' + esc(tr('evidenceHub.redactRegionTag', {
+                    n: i + 1, w: r.w, h: r.h,
+                })) + '</span>'
+                + '<label class="ev-redact-time">' + esc(tr('evidenceHub.redactStart'))
+                + ' <input type="number" min="0" step="0.1" class="ev-redact-t0" data-idx="' + i + '" value="' + r.t0.toFixed(1) + '"></label>'
+                + '<label class="ev-redact-time">' + esc(tr('evidenceHub.redactEnd'))
+                + ' <input type="number" min="0" step="0.1" class="ev-redact-t1" data-idx="' + i + '" value="' + r.t1.toFixed(1) + '"></label>'
+                + '<button type="button" class="btn btn-ghost btn-sm ev-redact-whole" data-idx="' + i + '">' + esc(tr('evidenceHub.redactWholeClip')) + '</button>'
+                + '<button type="button" class="btn btn-ghost btn-sm ev-redact-del" data-idx="' + i + '" aria-label="' + esc(tr('common.delete')) + '">✕</button>'
+                + '</li>';
         }).join('');
+        bindRedactRegionRowHandlers();
+    }
+
+    function redactClipDuration() {
+        const vid = document.getElementById('ev-redact-video');
+        return vid && isFinite(vid.duration) && vid.duration > 0 ? vid.duration : 0;
+    }
+
+    function bindRedactRegionRowHandlers() {
+        const list = document.getElementById('ev-redact-region-list');
+        if (!list) return;
+        const dur = redactClipDuration();
+        list.querySelectorAll('.ev-redact-t0').forEach(function (inp) {
+            inp.onchange = function () {
+                const i = Number(inp.getAttribute('data-idx'));
+                const r = redactState.regions[i];
+                if (!r) return;
+                let v = Math.max(0, parseFloat(inp.value) || 0);
+                if (v >= r.t1) v = Math.max(0, r.t1 - 0.1);
+                r.t0 = v;
+                renderRedactRegionList();
+            };
+        });
+        list.querySelectorAll('.ev-redact-t1').forEach(function (inp) {
+            inp.onchange = function () {
+                const i = Number(inp.getAttribute('data-idx'));
+                const r = redactState.regions[i];
+                if (!r) return;
+                let v = parseFloat(inp.value) || 0;
+                if (dur) v = Math.min(dur, v);
+                if (v <= r.t0) v = r.t0 + 0.1;
+                r.t1 = v;
+                renderRedactRegionList();
+            };
+        });
+        list.querySelectorAll('.ev-redact-whole').forEach(function (btn) {
+            btn.onclick = function () {
+                const i = Number(btn.getAttribute('data-idx'));
+                const r = redactState.regions[i];
+                if (!r) return;
+                r.t0 = 0;
+                r.t1 = dur || r.t1;
+                renderRedactRegionList();
+            };
+        });
+        list.querySelectorAll('.ev-redact-del').forEach(function (btn) {
+            btn.onclick = function () {
+                const i = Number(btn.getAttribute('data-idx'));
+                redactState.regions.splice(i, 1);
+                redrawRedactRegions();
+                renderRedactRegionList();
+            };
+        });
     }
 
     function fillRedactNoteLabels() {
@@ -1284,13 +1362,27 @@
                 const h = Math.abs(y - redactState.startY);
                 if (w < 8 || h < 8) return redrawRedactRegions();
                 const t = vidEl.currentTime || 0;
+                const dur = isFinite(vidEl.duration) && vidEl.duration > 0 ? vidEl.duration : (t + 2);
+                const modeEl = document.getElementById('ev-redact-span-mode');
+                const mode = modeEl ? modeEl.value : 'whole';
+                let t0, t1;
+                if (mode === 'window') {
+                    t0 = Math.max(0, t - 1);
+                    t1 = Math.min(dur, t + 1);
+                } else if (mode === 'from') {
+                    t0 = Math.max(0, t);
+                    t1 = dur;
+                } else {
+                    t0 = 0;
+                    t1 = dur;
+                }
                 redactState.regions.push({
                     x: Math.round(left),
                     y: Math.round(top),
                     w: Math.round(w),
                     h: Math.round(h),
-                    t0: Math.max(0, t - 1),
-                    t1: t + 1,
+                    t0: t0,
+                    t1: t1,
                 });
                 redrawRedactRegions();
                 renderRedactRegionList();
@@ -1407,6 +1499,15 @@
         document.getElementById('ev-redact-pause').textContent = tr('evidenceHub.redactPause');
         document.getElementById('ev-redact-undo').textContent = tr('evidenceHub.redactUndo');
         document.getElementById('ev-redact-save').textContent = tr('evidenceHub.redactSave');
+        const spanLbl = document.getElementById('ev-redact-span-lbl');
+        if (spanLbl) spanLbl.textContent = tr('evidenceHub.redactSpanLabel');
+        const spanSel = document.getElementById('ev-redact-span-mode');
+        if (spanSel && spanSel.options.length >= 3) {
+            spanSel.options[0].text = tr('evidenceHub.redactSpanWhole');
+            spanSel.options[1].text = tr('evidenceHub.redactSpanFrom');
+            spanSel.options[2].text = tr('evidenceHub.redactSpanWindow');
+            spanSel.value = 'whole';
+        }
         const vid = document.getElementById('ev-redact-video');
         if (vid) {
             vid.src = '/api/evidence/preview/' + encodeURIComponent(fileId);
@@ -1551,6 +1652,44 @@
             input.value = '';
         };
         reader.readAsDataURL(file);
+    }
+
+    function setTrimFromPlayhead(inputId) {
+        const player = document.getElementById('ev-detail-player');
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        if (!player || typeof player.currentTime !== 'number' || player.tagName !== 'VIDEO') {
+            alert(tr('evidenceHub.trimOpenVideoFirst'));
+            return;
+        }
+        input.value = (Math.round(player.currentTime * 10) / 10).toFixed(1);
+    }
+
+    var TRIM_MIN_SECONDS = 1;
+
+    function updateTrimLen() {
+        const out = document.getElementById('ev-trim-len');
+        const startEl = document.getElementById('ev-trim-start');
+        const endEl = document.getElementById('ev-trim-end');
+        if (!out || !startEl) return;
+        const start = Number(startEl.value) || 0;
+        if (!endEl || endEl.value === '') {
+            out.className = 'ev-trim-len';
+            out.textContent = tr('evidenceHub.trimLenToEnd');
+            return;
+        }
+        const end = Number(endEl.value);
+        const len = end - start;
+        if (Number.isNaN(end) || len <= 0) {
+            out.className = 'ev-trim-len ev-trim-len-bad';
+            out.textContent = tr('evidenceHub.trimLenInvalid');
+        } else if (len < TRIM_MIN_SECONDS) {
+            out.className = 'ev-trim-len ev-trim-len-bad';
+            out.textContent = tr('evidenceHub.trimLenTooShort', { min: TRIM_MIN_SECONDS });
+        } else {
+            out.className = 'ev-trim-len';
+            out.textContent = tr('evidenceHub.trimLen', { len: len.toFixed(1) });
+        }
     }
 
     async function runTrimExport(fileId) {

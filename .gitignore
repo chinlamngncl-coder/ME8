@@ -6,6 +6,8 @@
 !.env.enterprise.example
 !scripts/trial-ship/.env.example.ship
 keys/
+secrets/
+redaction-track/models/
 storage/
 
 # ---- Dependencies ----

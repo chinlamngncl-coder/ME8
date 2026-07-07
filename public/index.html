@@ -1179,9 +1179,29 @@
             border-radius: 10px;
             background: #020617;
             display: flex;
+            flex-direction: column;
+            gap: 12px;
             align-items: center;
             justify-content: center;
         }
+        .ev-trim-bar {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+        }
+        .ev-trim-bar-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #94a3b8; }
+        .ev-trim-field { display: inline-flex; align-items: center; gap: 6px; }
+        .ev-trim-field label { font-size: 12px; color: #cbd5e1; }
+        .ev-trim-field input { width: 78px; background: #020617; color: #e2e8f0; border: 1px solid #475569; border-radius: 6px; padding: 5px 7px; font-size: 12px; }
+        .ev-trim-bar .ev-trim-hint { flex-basis: 100%; margin: 0; font-size: 11px; }
+        .ev-trim-len { font-size: 12px; font-weight: 600; color: #38bdf8; }
+        .ev-trim-len-bad { color: #f87171; }
         .ev-preview-shell { width: 100%; display: flex; flex-direction: column; gap: 12px; }
         .ev-preview-note { text-align: center; color: #cbd5e1; }
         .ev-preview-note h4 { margin: 0 0 8px; font-size: 16px; color: #f8fafc; }
@@ -1332,6 +1352,14 @@
         .ev-redact-stage video, .ev-redact-stage canvas { display: block; max-width: 100%; max-height: 52vh; }
         .ev-redact-stage canvas { position: absolute; left: 0; top: 0; cursor: crosshair; }
         .ev-redact-regions { margin: 8px 0; padding-left: 18px; font-size: 11px; color: #cbd5e1; }
+        .ev-trim-row { display: inline-flex; align-items: center; gap: 6px; }
+        .ev-trim-row input { width: 90px; }
+        .ev-redact-span { font-size: 11px; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px; }
+        .ev-redact-span-sel { background: #0f172a; color: #e2e8f0; border: 1px solid #475569; border-radius: 6px; padding: 3px 6px; font-size: 11px; }
+        .ev-redact-regions li.ev-redact-region-row { list-style: none; margin-left: -18px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid #334155; }
+        .ev-redact-region-tag { min-width: 92px; color: #93c5fd; }
+        .ev-redact-time { display: inline-flex; align-items: center; gap: 3px; color: #94a3b8; }
+        .ev-redact-time input { width: 62px; background: #0f172a; color: #e2e8f0; border: 1px solid #475569; border-radius: 6px; padding: 2px 5px; font-size: 11px; }
         .ev-redact-note-inner label.full { display: block; font-size: 11px; color: #94a3b8; margin-bottom: 8px; }
         .ev-redact-note-inner label.full input,
         .ev-redact-note-inner label.full select,
@@ -3145,6 +3173,14 @@
         #server-setup-panel label.ss-voice-check input[type="checkbox"] {
             width: auto; margin: 0; padding: 0; flex-shrink: 0; cursor: pointer;
         }
+        #server-setup-panel label.ss-dispatch-row {
+            display: flex; align-items: flex-start; gap: 8px;
+            margin: 0; font-size: 10px; color: #cbd5e1; cursor: pointer; line-height: 1.35;
+        }
+        #server-setup-panel label.ss-dispatch-row input[type="checkbox"] {
+            width: auto; margin: 2px 0 0; padding: 0; flex-shrink: 0; cursor: pointer;
+            border: none; background: transparent; box-shadow: none;
+        }
         #server-setup-panel input, #server-setup-panel select { width: 100%; margin-top: 4px; padding: 8px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #f8fafc; box-sizing: border-box; }
         .ss-protocol-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
         .ss-protocol-tabs button { flex: 1; padding: 8px; font-size: 11px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #94a3b8; cursor: pointer; }
@@ -3276,7 +3312,18 @@
         .ss-perm-always { font-size: 10px; color: #64748b; font-style: italic; }
         .ss-users-table th.ss-perm-col-h,
         .ss-users-table td.ss-perm-col { text-align: center; vertical-align: middle; }
-        .ss-users-table td.ss-dispatch-grps-col { text-align: left; vertical-align: top; }
+        .ss-users-table td.ss-dispatch-grps-col {
+            text-align: left;
+            vertical-align: top;
+            min-width: 200px;
+            max-width: 300px;
+        }
+        .ss-users-table td.ss-actions-col {
+            vertical-align: top;
+            min-width: 108px;
+            width: 108px;
+            white-space: nowrap;
+        }
         .ss-users-table td.ss-perm-col.ss-perm-all .ss-perm-badge-all,
         .ss-users-table td.ss-perm-col.ss-perm-all > .ss-perm-badge-all { margin: 0 auto; }
         .ss-perm-badge-all {
@@ -3299,9 +3346,27 @@
         .ss-user-reset, .ss-user-remove { padding: 4px 8px; font-size: 10px; border-radius: 4px; border: 1px solid #475569; background: #334155; color: #e2e8f0; cursor: pointer; }
         .ss-user-remove { border-color: #7f1d1d; background: #450a0a; color: #fecaca; }
         .ss-users-table tr.ss-user-dirty td { background: rgba(37, 99, 235, 0.06); }
-        .ss-user-dispatch-grps { display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px; min-width: 160px; }
-        .ss-dispatch-grp-check { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; white-space: nowrap; background: rgba(51,65,85,0.6); border: 1px solid #334155; border-radius: 12px; padding: 2px 8px; }
-        .ss-user-see-all-groups-wrap { margin-bottom: 4px; font-size: 10px; }
+        .ss-dispatch-cell { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+        .ss-dispatch-row-text { flex: 1; min-width: 0; word-break: break-word; }
+        .ss-dispatch-section-title {
+            margin: 0 0 2px;
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+        .ss-user-dispatch-grps {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 132px;
+            overflow-x: hidden;
+            overflow-y: auto;
+            min-width: 0;
+            padding-top: 6px;
+            border-top: 1px solid #1e293b;
+        }
         #ss-main-tab-usb[hidden] { display: none !important; }
         #ss-panel-usb .usb-maint-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
         #ss-panel-usb .usb-maint-device { padding: 8px 10px; margin: 4px 0; border: 1px solid #334155; border-radius: 6px; cursor: pointer; font-size: 11px; }
@@ -5432,7 +5497,7 @@
                 <input type="password" id="ss-reset-new-pass" autocomplete="new-password">
             </label>
             <label for="ss-reset-admin-pass"><span data-i18n="server.users.adminConfirm">Your password (to confirm)</span>
-                <input type="password" id="ss-reset-admin-pass" autocomplete="off">
+                <input type="password" id="ss-reset-admin-pass" autocomplete="current-password">
             </label>
             <p id="ss-reset-pwd-error" class="ss-gate-error" hidden></p>
             <div class="ss-gate-actions">
@@ -5508,7 +5573,7 @@
     <script src="/js/auth-reverify.js?v=20260702-admin-action-bus"></script>
     <script src="/js/password-policy-ui.js"></script>
     <script src="/js/tab-lifecycle.js?v=20260702-restore-8wc-v2"></script>
-    <script src="/js/server-setup.js?v=20260702-admin-action-bus"></script>
+    <script src="/js/server-setup.js?v=20260707-users-dispatch-align"></script>
     <script src="/js/platform-smtp.js?v=20260706-smtp-settings"></script>
     <script src="/js/settings-hub.js?v=20260702-settings-session-sync"></script>
     <script src="/js/tech-diagnostics.js?v=20260702-restore-8wc-v2"></script>
@@ -5522,13 +5587,13 @@
     <script src="/js/ptt-rx.js?v=20260629-live-toast"></script>
     <script src="/js/audit-trail-hub.js?v=20260630-audit-preset-ux"></script>
     <script src="/js/license-features.js?v=20260707-license-gate"></script>
-    <script src="/js/operator-error-voice.js?v=20260702-op-voice-unified"></script>
+    <script src="/js/operator-error-voice.js?v=20260707-redact-lgpl-compat"></script>
     <script src="/js/operator-ui.js?v=20260702-op-voice-unified"></script>
     <script src="/js/ev-context-rail.js?v=20260627-rail-trim"></script>
     <script src="/js/evidence-storage-ui.js?v=20260627-hub-rail"></script>
     <script src="/js/route-trace.js?v=20260621-smart-gps"></script>
     <script src="/js/case-files-ui.js?v=20260627-delete-error-voice"></script>
-    <script src="/js/evidence-hub.js?v=20260707-evidence-custody-fix"></script>
+    <script src="/js/evidence-hub.js?v=20260708-trim-rules-preview-range"></script>
     <script src="/js/evidence-manager.js?v=20260702-restore-8wc-v2"></script>
     <script src="/js/chat-ui.js"></script>
     <script src="/js/video-wall.js?v=20260706-eight-pin-only-live"></script>
