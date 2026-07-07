@@ -20,19 +20,23 @@
     let docksCache = [];
     let selectedDockId = null;
     const panelLoadedAt = Object.create(null);
+    let panelLoadedDetailId = null;
 
     function staleMs() {
         return (global.TabLifecycle && TabLifecycle.STALE_MS) || 60000;
     }
 
-    function panelWarm(name, force) {
+    function panelWarm(name, force, detailId) {
         if (force) return false;
         const t = panelLoadedAt[name];
-        return !!(t && (Date.now() - t < staleMs()));
+        if (!t || (Date.now() - t >= staleMs())) return false;
+        if (name === 'detail' && detailId && panelLoadedDetailId !== detailId) return false;
+        return true;
     }
 
-    function markPanelLoaded(name) {
+    function markPanelLoaded(name, detailId) {
         panelLoadedAt[name] = Date.now();
+        if (name === 'detail' && detailId) panelLoadedDetailId = detailId;
         if (global.TabLifecycle) TabLifecycle.markLoaded('evidence');
     }
 
@@ -70,6 +74,54 @@
     function fmtTime(iso) {
         if (!iso) return '—';
         try { return new Date(iso).toLocaleString(); } catch (_) { return iso; }
+    }
+
+    function isImageEvidenceName(name) {
+        return /\.(jpe?g|png|gif|webp|bmp)$/i.test(String(name || ''));
+    }
+
+    function renderControlledPreview(file) {
+        const isImage = isImageEvidenceName(file.fileName);
+        const kind = isImage ? tr('evidenceHub.previewKindImage') : tr('evidenceHub.previewKindVideo');
+        return '<div class="ev-preview-shell">'
+            + '<div class="ev-preview-note">'
+            + '<h4>' + tr('evidenceHub.previewLockedTitle') + '</h4>'
+            + '<p>' + tr('evidenceHub.previewLockedBody', { kind: kind }) + '</p>'
+            + '</div>'
+            + '<div class="ev-preview-actions">'
+            + '<button type="button" class="btn btn-action btn-sm" id="ev-detail-open-preview">' + tr('evidenceHub.openPreview') + '</button>'
+            + '</div>'
+            + '<div class="ev-preview-stage" id="ev-preview-stage" hidden></div>'
+            + '</div>';
+    }
+
+    function renderMissingPreview(detail) {
+        return '<div class="ev-preview-shell">'
+            + '<div class="ev-preview-note">'
+            + '<h4>' + tr('evidenceHub.missingTitle') + '</h4>'
+            + '<p>' + tr('evidenceHub.missingBody') + '</p>'
+            + '</div>'
+            + '</div>';
+    }
+
+    function mountPreview(fileName, previewUrl) {
+        const host = document.getElementById('ev-preview-stage');
+        if (!host) return;
+        const isImage = isImageEvidenceName(fileName);
+        host.innerHTML = isImage
+            ? '<div class="ev-preview-stage-head"><button type="button" class="btn btn-ghost btn-sm" id="ev-detail-hide-preview">' + tr('common.close') + '</button></div>'
+                + '<img id="ev-detail-player" alt="' + esc(fileName) + '" src="' + esc(previewUrl) + '">'
+            : '<div class="ev-preview-stage-head"><button type="button" class="btn btn-ghost btn-sm" id="ev-detail-hide-preview">' + tr('common.close') + '</button></div>'
+                + '<video id="ev-detail-player" controls playsinline src="' + esc(previewUrl) + '"></video>';
+        host.hidden = false;
+        const openBtn = document.getElementById('ev-detail-open-preview');
+        if (openBtn) openBtn.hidden = true;
+        const hideBtn = document.getElementById('ev-detail-hide-preview');
+        if (hideBtn) hideBtn.addEventListener('click', function () {
+            host.hidden = true;
+            host.innerHTML = '';
+            if (openBtn) openBtn.hidden = false;
+        });
     }
 
     function applyPermissions(p, role) {
@@ -704,13 +756,16 @@
             showCatalogTable(true);
             if (meta) meta.textContent = files.length + ' file(s)';
             tbody.innerHTML = files.map(function (f) {
+                const statusText = f.storageAvailable === false
+                    ? tr('evidenceHub.statusMissing')
+                    : (f.storageRepaired ? tr('evidenceHub.statusRepaired') : tr('evidenceHub.statusAvailable'));
                 return '<tr data-file-id="' + esc(f.id) + '">'
                     + '<td><code>' + esc(f.id) + '</code></td>'
                     + '<td>' + esc(f.fileName) + '<br><span class="hint">' + fmtBytes(f.byteSize) + '</span></td>'
                     + '<td>' + esc(f.operatorName || '—') + '</td>'
                     + '<td>' + esc(fmtTime(f.uploadedAt)) + '</td>'
                     + '<td>' + esc(f.storageTier || f.source || 'local') + '</td>'
-                    + '<td><button type="button" class="btn btn-ghost btn-sm ev-open-detail" data-file-id="' + esc(f.id) + '">' + tr('evidenceHub.open') + '</button></td>'
+                    + '<td><button type="button" class="btn btn-ghost btn-sm ev-open-detail" data-file-id="' + esc(f.id) + '">' + tr('evidenceHub.open') + '</button><br><span class="hint">' + esc(statusText) + '</span></td>'
                     + '<td>' + (perms.download
                         ? (perms.superAdmin || !secureExportEnabled
                             ? '<button type="button" class="btn btn-action btn-sm evidence-dl-btn" data-file-id="' + esc(f.id) + '">' + tr('evidenceHub.download') + '</button>'
@@ -852,7 +907,7 @@
         currentDetailId = fileId;
         const wrap = document.getElementById('ev-detail-body');
         if (!wrap) return;
-        if (panelWarm('detail', force)) {
+        if (panelWarm('detail', force, fileId)) {
             showPanel('detail', { skipRefresh: true });
             return;
         }
@@ -866,17 +921,21 @@
             const f = d.file;
             const m = d.meta || {};
             const sosOpts = await fetchSosOptions(f.deviceId);
+            const previewBlock = d.storageAvailable === false
+                ? renderMissingPreview(d)
+                : renderControlledPreview(f);
             wrap.innerHTML =
                 '<div class="ev-detail-head">'
                 + '<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-back">← ' + tr('evidenceHub.backCatalog') + '</button>'
                 + '<h3>' + esc(f.fileName) + '</h3>'
                 + '<code>' + esc(f.id) + '</code></div>'
                 + '<div class="ev-detail-grid">'
-                + '<div class="ev-detail-video"><video id="ev-detail-player" controls playsinline src="' + esc(d.previewUrl) + '"></video></div>'
+                + '<div class="ev-detail-video">' + previewBlock + '</div>'
                 + '<div class="ev-detail-side">'
                 + '<dl class="ss-dock-ro"><dt>' + tr('evidence.colOfficer') + '</dt><dd>' + esc(f.operatorName || '—') + '</dd>'
                 + '<dt>' + tr('evidence.colUploaded') + '</dt><dd>' + esc(fmtTime(f.uploadedAt)) + '</dd>'
-                + '<dt>' + tr('evidenceHub.size') + '</dt><dd>' + fmtBytes(f.byteSize) + '</dd></dl>'
+                + '<dt>' + tr('evidenceHub.size') + '</dt><dd>' + fmtBytes(f.byteSize) + '</dd>'
+                + '<dt>' + tr('evidenceHub.colStatus') + '</dt><dd>' + esc(d.storageAvailable === false ? tr('evidenceHub.statusMissing') : tr('evidenceHub.statusAvailable')) + '</dd></dl>'
                 + (perms.edit ? (
                     '<label class="full"><span>' + tr('evidenceHub.notes') + '</span>'
                     + '<textarea id="ev-detail-notes" rows="3">' + esc(m.notes || '') + '</textarea></label>'
@@ -895,6 +954,7 @@
                 ) : '')
                 + renderAttachments(d.attachments)
                 + renderExports(d.exports)
+                + renderCustodyLog(d.custodyLog, d.storageAvailable === false, !!d.custodyUnavailable)
                 + (perms.superAdmin ? (
                     '<div class="ev-export-actions">'
                     + '<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-redact">' + tr('evidenceHub.openRedact') + '</button>'
@@ -912,11 +972,35 @@
                 const sel = document.getElementById('ev-detail-sos');
                 if (sel) sel.value = m.sosIncidentId;
             }
-            bindDetailActions(fileId);
-            markPanelLoaded('detail');
+            bindDetailActions(fileId, f, d.previewUrl, d.storageAvailable !== false);
+            markPanelLoaded('detail', fileId);
         } catch (err) {
-            wrap.innerHTML = '<p class="hint">' + esc(catalogMsg(err.opPayload || err.catalogPayload, err)) + '</p>';
+            wrap.innerHTML = '<p class="hint">' + esc(tr('evidenceHub.detailLoadFailed')) + '</p>';
         }
+    }
+
+    function renderCustodyLog(log, storageMissing, auditUnavailable) {
+        const rows = Array.isArray(log) ? log : [];
+        let html = '<div class="ev-custody-block"><h4>' + tr('evidenceHub.custodyTitle') + '</h4>';
+        if (auditUnavailable) {
+            html += '<p class="hint ev-custody-missing-note">' + esc(tr('evidenceHub.custodyUnavailable')) + '</p>';
+        } else if (storageMissing) {
+            html += '<p class="hint ev-custody-missing-note">' + esc(tr('evidenceHub.custodyMissingNote')) + '</p>';
+        }
+        if (!rows.length) {
+            html += '<p class="hint">' + esc(tr(auditUnavailable ? 'evidenceHub.custodyEmptyUnavailable' : 'evidenceHub.custodyEmpty')) + '</p></div>';
+            return html;
+        }
+        html += '<ul class="ev-custody-list">' + rows.map(function (row) {
+            const summary = row.summary ? '<span class="ev-custody-summary">' + esc(row.summary) + '</span>' : '';
+            return '<li class="ev-custody-row">'
+                + '<span class="ev-custody-time mono">' + esc(fmtTime(row.ts)) + '</span>'
+                + '<span class="ev-custody-actor">' + esc(row.actor || '—') + '</span>'
+                + '<span class="ev-custody-action">' + esc(row.label || row.action || '—') + '</span>'
+                + summary
+                + '</li>';
+        }).join('') + '</ul></div>';
+        return html;
     }
 
     function renderAttachments(list) {
@@ -964,9 +1048,14 @@
         return html;
     }
 
-    function bindDetailActions(fileId) {
+    function bindDetailActions(fileId, file, previewUrl, canPreview) {
         const back = document.getElementById('ev-detail-back');
         if (back) back.addEventListener('click', function () { showPanel('catalog'); });
+        const openPreview = document.getElementById('ev-detail-open-preview');
+        if (openPreview && canPreview) openPreview.addEventListener('click', function () {
+            const bust = previewUrl + (previewUrl.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(file.uploadedAt || fileId);
+            mountPreview(file.fileName, bust);
+        });
         const save = document.getElementById('ev-detail-save-meta');
         if (save) save.addEventListener('click', function () { saveDetailMeta(fileId); });
         const addCase = document.getElementById('ev-detail-add-case');

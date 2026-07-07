@@ -32,6 +32,7 @@ const bwcDevices = require('./lib/bwcDevices');
 const facePlateIngest = require('./lib/facePlateIngest');
 const ftpIngest       = require('./lib/ftpIngest');
 const fixedCamRegistry = require('./lib/fixedCamRegistry');
+const evidenceCrypto   = require('./lib/evidenceCrypto');
 const multer = require('multer');
 const log = require('./lib/fleetLog');
 
@@ -88,12 +89,14 @@ const siteDb = require('./lib/siteDb');
 const gpsTrack = require('./lib/gpsTrack');
 const smartGpsTrack = require('./lib/smartGpsTrack');
 const auditLog = require('./lib/auditLog');
+const licenseFeatures = require('./lib/licenseFeatures');
 const auditTrail = require('./lib/auditTrail');
 const killSwitchFourEyes = require('./lib/killSwitchFourEyes');
 const usbMaintenance = require('./lib/usbMaintenance');
 const evidenceRegistry = require('./lib/evidenceRegistry');
 const evidenceSecureExport = require('./lib/evidenceSecureExport');
 const evidenceWorkflow = require('./lib/evidenceWorkflow');
+const evidenceCustodyAudit = require('./lib/evidenceCustodyAudit');
 const dockRegistry = require('./lib/dockRegistry');
 const conferenceModule = require('./lib/conferenceModule');
 const conferenceConfig = require('./lib/conferenceConfig');
@@ -171,6 +174,7 @@ function refreshEvidenceStorage() {
     evidenceRegistry.init(STORAGE_DIR, { ftpRoot: FTP_ROOT, liveCaptureRoot: lcRoot });
     evidenceWorkflow.init(STORAGE_DIR);
     evidenceSecureExport.init(STORAGE_DIR);
+    evidenceCrypto.init(STORAGE_DIR);
     fixedCamRegistry.init(STORAGE_DIR);
     return { ftpRoot: FTP_ROOT, liveCaptureRoot: lcRoot };
 }
@@ -318,6 +322,11 @@ function handleFtpFileUploaded(info) {
     });
     if (snap && snap.snapshotUrl) {
         emitToDashboardSockets('sos-snapshot', { cameraId: snapCam, snapshotUrl: snap.snapshotUrl }, snapCam);
+    }
+    // Encrypt file at rest (AES-256-GCM). Runs after snapshot copy so the raw
+    // snapshot.jpg is already saved; only the evidence copy is encrypted.
+    if (info.fullPath) {
+        setImmediate(() => evidenceCrypto.encryptFileInPlace(info.fullPath));
     }
 }
 
@@ -2691,9 +2700,11 @@ app.post('/api/evidence-settings/test-paths', dashboardAuth.requireSuperAdmin, (
 app.post('/api/evidence/scan-catalog', dashboardAuth.requireSuperAdmin, (req, res) => {
     try {
         refreshEvidenceStorage();
-        const count = evidenceRegistry.scanFtpRoot(req.body && req.body.limit ? req.body.limit : 400);
-        auditLog.recordFromRequest(req, 'evidence.catalog.scan', { detail: { indexed: count } });
-        res.json({ ok: true, indexed: count });
+        const limit = req.body && req.body.limit ? req.body.limit : 400;
+        const count = evidenceRegistry.scanFtpRoot(limit);
+        const repair = evidenceRegistry.repairCatalog(2000);
+        auditLog.recordFromRequest(req, 'evidence.catalog.scan', { detail: { indexed: count, repaired: repair.repaired, missing: repair.missing } });
+        res.json({ ok: true, indexed: count, repair });
     } catch (err) {
         log.web.warn('evidence catalog scan failed', { message: err.message });
         res.status(500).json(opErr(err));
@@ -3430,6 +3441,11 @@ app.get('/api/platform/status', (req, res) => {
     });
 });
 
+// License feature flags — authenticated users only; returns plain booleans (no env keys exposed).
+app.get('/api/license-features', dashboardAuth.requireDashboardAuth, (req, res) => {
+    res.json({ ok: true, features: licenseFeatures.getFeatures() });
+});
+
 app.get('/api/users/me', (req, res) => {
     const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
     if (!session) return res.status(401).json(opErr("Unauthorized"));
@@ -4131,7 +4147,7 @@ app.get('/api/evidence/stream/:downloadId', requireEvidenceDownload, (req, res) 
         evidenceRegistry.markConsumed(dl.downloadId);
         res.setHeader('X-Evidence-Download-Id', dl.downloadId);
         res.setHeader('Content-Disposition', 'attachment; filename="' + String(file.fileName).replace(/"/g, '') + '"');
-        return res.sendFile(fullPath);
+        return evidenceCrypto.pipeDecrypted(fullPath, res);
     } catch (err) {
         res.status(500).json(opErr(err));
     }
@@ -4394,8 +4410,15 @@ app.get('/api/evidence/secure-export/stream/:requestId', requireEvidenceDownload
 
 app.get('/api/evidence/detail/:fileId', requireEvidenceView, (req, res) => {
     try {
-        const detail = evidenceWorkflow.getDetail(req.params.fileId, sosIncidentLookup);
+        const fileId = req.params.fileId;
+        const detail = evidenceWorkflow.getDetail(fileId, sosIncidentLookup);
         if (!detail) return res.status(404).json(opErr("Evidence not found"));
+        if (detail.storageAvailable === false && detail.file) {
+            evidenceCustodyAudit.recordMissingObserved(req, detail.file);
+            const custody = evidenceCustodyAudit.listForFile(fileId);
+            detail.custodyLog = custody.rows;
+            detail.custodyUnavailable = !!custody.unavailable;
+        }
         res.json({ ok: true, detail: detail });
     } catch (err) {
         res.status(500).json(opErr(err));
@@ -4404,11 +4427,27 @@ app.get('/api/evidence/detail/:fileId', requireEvidenceView, (req, res) => {
 
 app.get('/api/evidence/preview/:fileId', requireEvidenceView, (req, res) => {
     try {
-        const fullPath = evidenceWorkflow.resolvePreviewPath(req.params.fileId);
-        if (!fullPath) return res.status(404).json(opErr("File not found"));
+        const file = evidenceRegistry.getFile(req.params.fileId);
+        if (!file) return res.status(404).json(opErr("File not found"));
+        if (file.storageAvailable === false) {
+            return res.status(404).json(opErr("File is missing from server storage."));
+        }
+        const fullPath = evidenceRegistry.resolveFilePath(file);
+        if (!fullPath) return res.status(404).json(opErr("File is missing from server storage."));
         auditLog.recordFromRequest(req, 'evidence.preview', { target: req.params.fileId });
-        res.setHeader('Content-Type', 'video/mp4');
-        return res.sendFile(fullPath);
+        res.setHeader('Cache-Control', 'no-store, private');
+        const ext = String(file.fileName || '').toLowerCase();
+        if (/\.(jpe?g)$/i.test(ext)) res.setHeader('Content-Type', 'image/jpeg');
+        else if (/\.png$/i.test(ext)) res.setHeader('Content-Type', 'image/png');
+        else if (/\.gif$/i.test(ext)) res.setHeader('Content-Type', 'image/gif');
+        else if (/\.webp$/i.test(ext)) res.setHeader('Content-Type', 'image/webp');
+        else if (/\.bmp$/i.test(ext)) res.setHeader('Content-Type', 'image/bmp');
+        else if (/\.mov$/i.test(ext)) res.setHeader('Content-Type', 'video/quicktime');
+        else if (/\.avi$/i.test(ext)) res.setHeader('Content-Type', 'video/x-msvideo');
+        else if (/\.mkv$/i.test(ext)) res.setHeader('Content-Type', 'video/x-matroska');
+        else if (/\.ts$/i.test(ext)) res.setHeader('Content-Type', 'video/mp2t');
+        else res.setHeader('Content-Type', 'video/mp4');
+        return evidenceCrypto.pipeDecrypted(fullPath, res);
     } catch (err) {
         res.status(500).json(opErr(err));
     }
@@ -4451,7 +4490,7 @@ app.get('/api/evidence/attachment/:attachmentId', requireEvidenceView, (req, res
     try {
         const resolved = evidenceWorkflow.resolveAttachmentStream(req.params.attachmentId);
         if (!resolved) return res.status(404).json(opErr("Attachment not found"));
-        return res.sendFile(resolved.fullPath);
+        return evidenceCrypto.pipeDecrypted(resolved.fullPath, res);
     } catch (err) {
         res.status(500).json(opErr(err));
     }
@@ -4525,7 +4564,7 @@ app.get('/api/evidence/export-stream/:exportId', requireEvidenceExport, (req, re
             detail: { fileId: resolved.row.evidenceFileId },
         });
         res.setHeader('Content-Disposition', 'attachment; filename="' + String(resolved.row.fileName).replace(/"/g, '') + '"');
-        return res.sendFile(resolved.fullPath);
+        return evidenceCrypto.pipeDecrypted(resolved.fullPath, res);
     } catch (err) {
         res.status(500).json(opErr(err));
     }
