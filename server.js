@@ -657,6 +657,49 @@ msgWss.on('connection', (ws, req) => {
 });
 app.use(express.json({ limit: '2mb' }));
 
+// ── Security headers ──────────────────────────────────────────────────────────
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'geolocation=()');
+    next();
+});
+
+// ── Login rate limiter (no external dependency) ───────────────────────────────
+const _loginAttempts = new Map();
+const _LOGIN_MAX   = 10;
+const _LOGIN_WIN   = 15 * 60 * 1000;
+const _LOGIN_BLOCK = 15 * 60 * 1000;
+
+function loginRateLimit(req, res, next) {
+    const ip  = req.ip || 'unknown';
+    const now = Date.now();
+    const rec = _loginAttempts.get(ip) || { count: 0, firstAt: now, blockedUntil: 0 };
+    if (rec.blockedUntil > now) {
+        res.setHeader('Retry-After', Math.ceil((rec.blockedUntil - now) / 1000));
+        return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
+    }
+    if (now - rec.firstAt > _LOGIN_WIN) { rec.count = 0; rec.firstAt = now; }
+    rec.count++;
+    if (rec.count > _LOGIN_MAX) {
+        rec.blockedUntil = now + _LOGIN_BLOCK;
+        _loginAttempts.set(ip, rec);
+        return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
+    }
+    _loginAttempts.set(ip, rec);
+    next();
+}
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, rec] of _loginAttempts) {
+        if (rec.blockedUntil < now && now - rec.firstAt > _LOGIN_WIN) _loginAttempts.delete(ip);
+    }
+}, 5 * 60 * 1000);
+// ─────────────────────────────────────────────────────────────────────────────
+
 function labSettingsLive() {
     return labSecurity.load(STORAGE_DIR);
 }
@@ -840,7 +883,7 @@ app.get('/api/auth/oidc/callback', (req, res) => {
     return oidcAuth.handleCallback(req, res, labSettingsLive(), dashboardAuth);
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', loginRateLimit, (req, res) => {
     try {
         const lab = labSettingsLive();
         if (lab.oidcEnabled && !lab.localLoginEnabled) {
@@ -910,7 +953,7 @@ app.post('/api/auth/login', (req, res) => {
     }
 });
 
-app.post('/api/auth/login/totp', (req, res) => {
+app.post('/api/auth/login/totp', loginRateLimit, (req, res) => {
     try {
         const body = req.body || {};
         const challenge = String(body.challenge || '').trim();
@@ -1198,7 +1241,7 @@ function techHealthDeps() {
     };
 }
 
-app.post('/api/tech/login', techAccess.loginHandler(log));
+app.post('/api/tech/login', loginRateLimit, techAccess.loginHandler(log));
 app.post('/api/tech/logout', techAccess.logoutHandler);
 app.get('/api/tech/session', techAccess.sessionHandler);
 

@@ -15,6 +15,15 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.0.2] — 2026-07-07 — Security hardening
+
+### Security
+- Added HTTP security headers: `X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `Referrer-Policy`, `Permissions-Policy`
+- Removed `X-Powered-By: Express` header — server fingerprint no longer exposed
+- Added login rate limiter — blocks an IP after 10 failed attempts for 15 minutes; applies to all three login endpoints (`/api/auth/login`, `/api/auth/login/totp`, `/api/tech/login`)
+
+---
+
 ## [1.0.1] — 2026-07-07 — Security patch
 
 ### Security
