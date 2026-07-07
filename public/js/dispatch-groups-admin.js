@@ -44,8 +44,10 @@
     function bwcPickOptionsHtml(selectedId) {
         var opts = '<option value="">' + esc(tr('groups.pickBwc')) + '</option>';
         registeredBwcs().forEach(function (d) {
-            var label = (d.operatorName ? d.operatorName + ' — ' : '') + d.deviceId;
+            // Show officer name only — device ID in title tooltip to keep the select narrow.
+            var label = d.operatorName ? d.operatorName : d.deviceId.slice(-6);
             opts += '<option value="' + esc(d.deviceId) + '" data-name="' + esc(d.operatorName || '') + '"'
+                + ' title="' + esc(d.deviceId) + '"'
                 + (d.deviceId === selectedId ? ' selected' : '') + '>' + esc(label) + '</option>';
         });
         return opts;

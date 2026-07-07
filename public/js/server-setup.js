@@ -172,7 +172,13 @@
         if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
         backdrop.hidden = false;
         setModalA11y('ss-reset-pwd-backdrop', true);
-        setTimeout(function () { newEl.focus(); }, 50);
+        // Double-clear after a tick — prevents browser password manager
+        // from re-populating the confirmation field before user interaction.
+        setTimeout(function () {
+            adminEl.value = '';
+            newEl.value = '';
+            newEl.focus();
+        }, 80);
     }
 
     function closeResetPwdDialog() {

@@ -1,6 +1,6 @@
 {
   "name": "fleet-backend",
-  "version": "1.0.4",
+  "version": "1.0.6",
   "description": "Ubitron Mobility C2 — Enterprise BWC Fleet Platform",
   "main": "server.js",
   "scripts": {

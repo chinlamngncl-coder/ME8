@@ -12,6 +12,28 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Playback broker fallback (ZLM primary + FFmpeg fallback descriptor)
 - OSM map attribution restore
 - Replace ftp-srv with maintained alternative (ip package has no patch)
+- Audit / operation log tab (mob-audit-log)
+- FR / ANPR / Video Redaction license-gate (mob-license-feature-gate)
+
+---
+
+## [1.0.6] — 2026-07-07 — Settings & users genre
+
+### Added
+- `lib/fixedCamRegistry.js` — per-camera storage with GPS, ONVIF config, RTSP URL, PTZ flag, Haversine radius query
+- `public/js/fixed-cams-ui.js` — Fixed Cameras dialog logic (CRUD, CSV import, template download)
+- Fixed Cameras admin moved from standalone page into main dashboard `<dialog>` — consistent theme, no route change for end-users
+
+### Changed
+- Fixed Cameras admin now lives inside Settings hub as a card → dialog (same `ss-*` CSS, no fleet-ui.js dependency)
+- Dispatch group assignment display changed from vertical scroll box to horizontal pill chips — all groups visible at a glance, no scrollbar
+- BWC group member picker shows officer name only (device ID in tooltip) — prevents narrow column overflow
+- Set-password dialog: `autocomplete="off"` on admin confirm field + delayed double-clear prevents browser password manager pre-fill
+- Multi-group operator assignment was already supported in backend; UI now correctly exposes it (pill fix)
+
+### Fixed
+- `/fixed-cams-admin.html` route now correctly requires super admin auth
+- Fixed cam CSV column reference table replaces raw example text (no raw credential strings visible in UI)
 
 ---
 

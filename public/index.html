@@ -3099,6 +3099,67 @@
         .ss-bwc-table .ss-bwc-del { padding: 4px 8px; font-size: 10px; border-radius: 4px; border: 1px solid #475569; background: #334155; color: #fca5a5; cursor: pointer; }
         .ss-dock-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin: 8px 0; }
         .ss-dock-grid .full { grid-column: 1 / -1; }
+        /* Fixed cameras dialog */
+        #fixed-cams-dlg { padding:0; border:1px solid #334155; border-radius:10px; background:#1e293b; width:min(95vw,960px); max-height:min(90vh,820px); overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,.6); }
+        #fixed-cams-dlg[open] { display:flex; flex-direction:column; }
+        #fixed-cams-dlg::backdrop { background:rgba(0,0,0,.7); }
+        #fixed-cams-dlg .fc-head { flex-shrink:0; padding:16px 20px 10px; border-bottom:1px solid #334155; }
+        #fixed-cams-dlg .fc-head-top { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+        #fixed-cams-dlg .fc-head-top h3 { margin:0; font-size:15px; font-weight:600; color:#f1f5f9; }
+        #fixed-cams-dlg .fc-hint { font-size:11px; color:#94a3b8; margin:0; line-height:1.45; }
+        #fixed-cams-dlg .fc-toolbar { flex-shrink:0; display:flex; gap:6px; padding:10px 20px; border-bottom:1px solid #1e293b; flex-wrap:wrap; }
+        #fixed-cams-dlg .fc-toolbar button { padding:6px 12px; font-size:11px; font-weight:600; border-radius:6px; border:1px solid #475569; background:#0f172a; color:#cbd5e1; cursor:pointer; }
+        #fixed-cams-dlg .fc-toolbar button:hover { background:#334155; color:#f1f5f9; }
+        #fixed-cams-dlg .fc-toolbar button.fc-btn-accent { background:#2563eb; border-color:#1d4ed8; color:#fff; }
+        #fixed-cams-dlg .fc-toolbar button.fc-btn-accent:hover { background:#1d4ed8; }
+        #fixed-cams-dlg .fc-scroll { flex:1; overflow-y:auto; min-height:0; }
+        #fixed-cams-dlg .fc-table-wrap { margin:12px 20px; border:1px solid #334155; border-radius:6px; overflow:auto; }
+        #fixed-cams-dlg .fc-table { width:100%; border-collapse:collapse; font-size:11px; }
+        #fixed-cams-dlg .fc-table th { position:sticky; top:0; z-index:1; background:#0f172a; color:#94a3b8; text-align:left; padding:8px 10px; border-bottom:1px solid #334155; white-space:nowrap; }
+        #fixed-cams-dlg .fc-table td { padding:7px 10px; border-bottom:1px solid #1e293b; vertical-align:middle; }
+        #fixed-cams-dlg .fc-table tr:last-child td { border-bottom:none; }
+        #fixed-cams-dlg .fc-table .fc-mono { font-family:ui-monospace,Consolas,monospace; font-size:10px; }
+        #fixed-cams-dlg .fc-badge { display:inline-block; padding:2px 7px; border-radius:4px; font-size:10px; font-weight:600; }
+        #fixed-cams-dlg .fc-badge-onvif { background:#1d4ed8; color:#bfdbfe; }
+        #fixed-cams-dlg .fc-badge-rtsp  { background:#065f46; color:#a7f3d0; }
+        #fixed-cams-dlg .fc-badge-none  { background:#1e293b; color:#64748b; border:1px solid #334155; }
+        #fixed-cams-dlg .fc-badge-on    { background:#14532d; color:#86efac; }
+        #fixed-cams-dlg .fc-badge-off   { background:#3f1515; color:#fca5a5; }
+        #fixed-cams-dlg .fc-act-btn { padding:4px 9px; font-size:10px; border-radius:4px; border:1px solid #475569; background:#1e293b; color:#cbd5e1; cursor:pointer; }
+        #fixed-cams-dlg .fc-act-btn:hover { background:#334155; }
+        #fixed-cams-dlg .fc-act-btn.del { color:#fca5a5; border-color:#7f1d1d; }
+        #fixed-cams-dlg .fc-act-btn.del:hover { background:#7f1d1d; }
+        #fixed-cams-dlg .fc-empty { text-align:center; color:#475569; padding:32px; font-size:12px; }
+        /* form */
+        #fixed-cams-dlg .fc-form { padding:16px 20px; border-top:1px solid #334155; }
+        #fixed-cams-dlg .fc-form h4 { margin:0 0 12px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; }
+        #fixed-cams-dlg .fc-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
+        #fixed-cams-dlg .fc-grid .full { grid-column:1/-1; }
+        #fixed-cams-dlg .fc-grid .fc-section-lbl { grid-column:1/-1; font-size:10px; font-weight:600; color:#3b82f6; text-transform:uppercase; letter-spacing:.07em; padding-top:8px; border-top:1px solid #334155; }
+        #fixed-cams-dlg label { display:block; font-size:10px; color:#64748b; margin-bottom:4px; }
+        #fixed-cams-dlg input, #fixed-cams-dlg select { width:100%; padding:7px 9px; font-size:12px; border-radius:6px; border:1px solid #475569; background:#0f172a; color:#f8fafc; font-family:inherit; }
+        #fixed-cams-dlg input:focus, #fixed-cams-dlg select:focus { outline:none; border-color:#3b82f6; }
+        #fixed-cams-dlg .fc-form-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
+        #fixed-cams-dlg .fc-form-actions button { padding:7px 16px; font-size:12px; font-weight:500; border-radius:6px; cursor:pointer; }
+        #fixed-cams-dlg .fc-form-actions .save { background:#2563eb; border:none; color:#fff; }
+        #fixed-cams-dlg .fc-form-actions .cancel { background:#1e293b; border:1px solid #475569; color:#94a3b8; }
+        /* csv panel */
+        #fixed-cams-dlg .fc-csv { padding:16px 20px; border-top:1px solid #334155; }
+        #fixed-cams-dlg .fc-csv h4 { margin:0 0 10px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; }
+        #fixed-cams-dlg .fc-csv-ref { width:100%; border-collapse:collapse; font-size:11px; margin-bottom:12px; }
+        #fixed-cams-dlg .fc-csv-ref th { background:#0f172a; color:#94a3b8; padding:6px 10px; text-align:left; border-bottom:1px solid #334155; font-size:10px; text-transform:uppercase; letter-spacing:.05em; }
+        #fixed-cams-dlg .fc-csv-ref td { padding:6px 10px; border-bottom:1px solid #1e293b; color:#e2e8f0; vertical-align:top; }
+        #fixed-cams-dlg .fc-csv-ref td:first-child { font-family:ui-monospace,Consolas,monospace; color:#a5b4fc; font-size:10px; }
+        #fixed-cams-dlg .fc-csv-ref td:nth-child(2) { color:#86efac; font-size:10px; width:60px; }
+        #fixed-cams-dlg .fc-csv-ref tr:last-child td { border-bottom:none; }
+        #fixed-cams-dlg .fc-csv-paste { width:100%; min-height:80px; padding:8px 10px; font-family:ui-monospace,Consolas,monospace; font-size:11px; border-radius:6px; border:1px solid #475569; background:#0f172a; color:#f8fafc; resize:vertical; margin-bottom:10px; }
+        #fixed-cams-dlg .fc-csv-paste:focus { outline:none; border-color:#3b82f6; }
+        #fixed-cams-dlg .fc-csv-actions { display:flex; gap:8px; }
+        /* toast */
+        #fc-toast { position:fixed; bottom:24px; right:24px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:11px 18px; font-size:12px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:9999; max-width:300px; }
+        #fc-toast.show { opacity:1; }
+        #fc-toast.ok  { border-color:#22c55e; color:#86efac; }
+        #fc-toast.err { border-color:#ef4444; color:#fca5a5; }
         .ss-dock-ro { margin: 0; padding: 10px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; font-size: 11px; line-height: 1.6; color: #cbd5e1; }
         .ss-dock-ro dt { color: #64748b; font-size: 10px; margin-top: 6px; }
         .ss-dock-ro dt:first-child { margin-top: 0; }
@@ -3146,8 +3207,8 @@
         .ss-user-reset, .ss-user-remove { padding: 4px 8px; font-size: 10px; border-radius: 4px; border: 1px solid #475569; background: #334155; color: #e2e8f0; cursor: pointer; }
         .ss-user-remove { border-color: #7f1d1d; background: #450a0a; color: #fecaca; }
         .ss-users-table tr.ss-user-dirty td { background: rgba(37, 99, 235, 0.06); }
-        .ss-user-dispatch-grps { display: flex; flex-direction: column; gap: 2px; max-height: 120px; overflow-y: auto; min-width: 140px; }
-        .ss-dispatch-grp-check { display: flex; align-items: center; gap: 4px; font-size: 10px; white-space: nowrap; }
+        .ss-user-dispatch-grps { display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px; min-width: 160px; }
+        .ss-dispatch-grp-check { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; white-space: nowrap; background: rgba(51,65,85,0.6); border: 1px solid #334155; border-radius: 12px; padding: 2px 8px; }
         .ss-user-see-all-groups-wrap { margin-bottom: 4px; font-size: 10px; }
         #ss-main-tab-usb[hidden] { display: none !important; }
         #ss-panel-usb .usb-maint-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
@@ -3977,6 +4038,11 @@
                             <h4 data-i18n="settingsHub.card.firmware">Firmware</h4>
                             <p class="settings-lifecycle-status" id="settings-status-firmware">—</p>
                             <button type="button" class="btn btn-ghost btn-sm settings-lifecycle-open" data-i18n="settingsHub.openInventory">View inventory</button>
+                        </article>
+                        <article class="settings-lifecycle-card">
+                            <h4>Fixed Cameras</h4>
+                            <p class="settings-lifecycle-status">Street &amp; building IP cameras</p>
+                            <button type="button" id="fc-open-btn" class="btn btn-ghost btn-sm">Manage</button>
                         </article>
                     </div>
                 </section>
@@ -5274,7 +5340,7 @@
                 <input type="password" id="ss-reset-new-pass" autocomplete="new-password">
             </label>
             <label for="ss-reset-admin-pass"><span data-i18n="server.users.adminConfirm">Your password (to confirm)</span>
-                <input type="password" id="ss-reset-admin-pass" autocomplete="current-password">
+                <input type="password" id="ss-reset-admin-pass" autocomplete="off">
             </label>
             <p id="ss-reset-pwd-error" class="ss-gate-error" hidden></p>
             <div class="ss-gate-actions">
@@ -11657,5 +11723,121 @@
         })();
     </script>
     <script defer src="/js/vc-lazy.js?v=20260702-restore-8wc-v2"></script>
+    <script defer src="/js/fixed-cams-ui.js?v=20260707"></script>
+
+<!-- Fixed Cameras dialog — opens from Settings card, fully self-contained, no fleet-ui.js dependency -->
+<dialog id="fixed-cams-dlg" aria-labelledby="fc-dlg-title">
+  <div class="fc-head">
+    <div class="fc-head-top">
+      <button type="button" id="fc-close-btn" class="ss-config-back-btn">← Back to Settings</button>
+      <h3 id="fc-dlg-title">Fixed Cameras</h3>
+    </div>
+    <p class="fc-hint">Street and building IP cameras — manage locations, stream source, ONVIF credentials, and PTZ capability.</p>
+  </div>
+  <div class="fc-toolbar">
+    <button type="button" id="fc-add-btn" class="fc-btn-accent">+ Add camera</button>
+    <button type="button" id="fc-csv-btn">Batch CSV import</button>
+    <button type="button" id="fc-tpl-btn">Download template</button>
+    <span id="fc-cam-count" style="margin-left:auto;font-size:11px;color:#64748b;align-self:center"></span>
+  </div>
+  <div class="fc-scroll">
+    <div class="fc-table-wrap">
+      <table class="fc-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Zone</th>
+            <th>GPS coordinates</th>
+            <th>Stream</th>
+            <th>PTZ</th>
+            <th>Status</th>
+            <th style="width:120px"></th>
+          </tr>
+        </thead>
+        <tbody id="fc-tbody"><tr><td colspan="7" class="fc-empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- Add / Edit form -->
+    <div id="fc-form" class="fc-form" hidden>
+      <h4 id="fc-form-title">Add camera</h4>
+      <div class="fc-grid">
+        <div class="full"><label>Camera name *<input id="fc-f-name" type="text" placeholder="e.g. Jalan Ampang Cam 1" autocomplete="off"></label></div>
+        <div><label>Latitude * <input id="fc-f-lat" type="number" step="any" placeholder="3.1575"></label></div>
+        <div><label>Longitude * <input id="fc-f-lng" type="number" step="any" placeholder="101.7115"></label></div>
+        <div><label>Zone / area <input id="fc-f-zone" type="text" placeholder="e.g. KL Central"></label></div>
+        <div>
+          <label>Stream source
+            <select id="fc-f-source">
+              <option value="none">None (location only)</option>
+              <option value="onvif">ONVIF (auto-discover stream)</option>
+              <option value="rtsp">RTSP URL (manual)</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="fc-section-lbl" id="fc-onvif-lbl" hidden>ONVIF settings</div>
+        <div id="fc-onvif-host-row" hidden><label>Camera IP / host * <input id="fc-f-ohost" type="text" placeholder="192.168.1.50" autocomplete="off"></label></div>
+        <div id="fc-onvif-port-row" hidden><label>Port <input id="fc-f-oport" type="number" value="80"></label></div>
+        <div id="fc-onvif-user-row" hidden><label>Username <input id="fc-f-ouser" type="text" placeholder="admin" autocomplete="off"></label></div>
+        <div id="fc-onvif-pass-row" hidden><label>Password <input id="fc-f-opass" type="password" autocomplete="new-password"></label></div>
+        <div id="fc-onvif-path-row" hidden><label>Device path <input id="fc-f-opath" type="text" value="/onvif/device_service"></label></div>
+        <div id="fc-onvif-tp-row" hidden>
+          <label>RTSP transport
+            <select id="fc-f-otp"><option value="tcp">TCP</option><option value="udp">UDP</option></select>
+          </label>
+        </div>
+
+        <div class="full" id="fc-rtsp-row" hidden><label>RTSP stream URL * <input id="fc-f-rtsp" type="text" placeholder="rtsp://192.168.1.51/stream1" autocomplete="off"></label></div>
+
+        <div>
+          <label>PTZ capable
+            <select id="fc-f-ptz"><option value="false">No</option><option value="true">Yes</option></select>
+          </label>
+        </div>
+        <div>
+          <label>Status
+            <select id="fc-f-enabled"><option value="true">Enabled</option><option value="false">Disabled</option></select>
+          </label>
+        </div>
+        <div class="full"><label>Internal notes <input id="fc-f-notes" type="text" placeholder="Optional — not shown to officers"></label></div>
+      </div>
+      <div class="fc-form-actions">
+        <button type="button" class="cancel" id="fc-form-cancel">Cancel</button>
+        <button type="button" class="save" id="fc-form-save">Save camera</button>
+      </div>
+    </div>
+
+    <!-- CSV import -->
+    <div id="fc-csv" class="fc-csv" hidden>
+      <h4>Batch CSV import</h4>
+      <table class="fc-csv-ref">
+        <thead><tr><th>Column name</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>Name</td><td>Yes</td><td>Camera label shown to officers</td></tr>
+          <tr><td>Lat</td><td>Yes</td><td>Latitude (e.g. 3.1575)</td></tr>
+          <tr><td>Lng</td><td>Yes</td><td>Longitude (e.g. 101.7115)</td></tr>
+          <tr><td>Zone</td><td>No</td><td>Area name (e.g. KL Central)</td></tr>
+          <tr><td>StreamSource</td><td>No</td><td>onvif, rtsp, or leave blank</td></tr>
+          <tr><td>OnvifHost</td><td>If ONVIF</td><td>Camera IP address</td></tr>
+          <tr><td>OnvifPort</td><td>If ONVIF</td><td>Camera web port — usually 80</td></tr>
+          <tr><td>OnvifUser</td><td>If ONVIF</td><td>Camera admin username</td></tr>
+          <tr><td>OnvifPassword</td><td>If ONVIF</td><td>Camera admin password</td></tr>
+          <tr><td>StreamUrl</td><td>If RTSP</td><td>Full RTSP address</td></tr>
+          <tr><td>PtzEnabled</td><td>No</td><td>true or false</td></tr>
+          <tr><td>Enabled</td><td>No</td><td>true or false — defaults to true</td></tr>
+          <tr><td>Notes</td><td>No</td><td>Internal note, not shown to officers</td></tr>
+        </tbody>
+      </table>
+      <textarea id="fc-csv-paste" class="fc-csv-paste" rows="5" placeholder="Paste CSV rows here (first row must be the column headers listed above)…"></textarea>
+      <div class="fc-csv-actions">
+        <button type="button" id="fc-csv-import-btn" class="fc-btn-accent" style="padding:7px 14px;font-size:11px;font-weight:600;border-radius:6px;border:none;color:#fff;background:#2563eb;cursor:pointer;">Import</button>
+        <button type="button" id="fc-csv-cancel" style="padding:7px 14px;font-size:11px;border-radius:6px;border:1px solid #475569;background:#1e293b;color:#94a3b8;cursor:pointer;">Cancel</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div id="fc-toast"></div>
 </body>
 </html>

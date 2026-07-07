@@ -30,7 +30,8 @@ const fleetRoster = require('./lib/fleetRoster');
 const fleetRegistry = require('./lib/fleetRegistry');
 const bwcDevices = require('./lib/bwcDevices');
 const facePlateIngest = require('./lib/facePlateIngest');
-const ftpIngest = require('./lib/ftpIngest');
+const ftpIngest       = require('./lib/ftpIngest');
+const fixedCamRegistry = require('./lib/fixedCamRegistry');
 const multer = require('multer');
 const log = require('./lib/fleetLog');
 
@@ -170,6 +171,7 @@ function refreshEvidenceStorage() {
     evidenceRegistry.init(STORAGE_DIR, { ftpRoot: FTP_ROOT, liveCaptureRoot: lcRoot });
     evidenceWorkflow.init(STORAGE_DIR);
     evidenceSecureExport.init(STORAGE_DIR);
+    fixedCamRegistry.init(STORAGE_DIR);
     return { ftpRoot: FTP_ROOT, liveCaptureRoot: lcRoot };
 }
 
@@ -4143,7 +4145,93 @@ app.get('/api/evidence/downloads', dashboardAuth.requireSuperAdmin, (req, res) =
     }
 });
 
-// HTTPS evidence upload — secure alternative to FTP for hybrid deployments.
+// ─── Fixed camera registry ───────────────────────────────────────────────────
+
+function parseCsvText(text) {
+    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
+    if (lines.length < 2) return [];
+    const headers = splitCsvRow(lines[0]);
+    return lines.slice(1).map(line => {
+        const vals = splitCsvRow(line);
+        const row = {};
+        headers.forEach((h, i) => { row[h.trim()] = (vals[i] || '').trim(); });
+        return row;
+    });
+}
+
+function splitCsvRow(line) {
+    const result = [];
+    let cur = '';
+    let inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"' && !inQuote) { inQuote = true; continue; }
+        if (ch === '"' && inQuote && line[i + 1] === '"') { cur += '"'; i++; continue; }
+        if (ch === '"' && inQuote) { inQuote = false; continue; }
+        if (ch === ',' && !inQuote) { result.push(cur); cur = ''; continue; }
+        cur += ch;
+    }
+    result.push(cur);
+    return result;
+}
+
+app.get('/api/fixed-cams', dashboardAuth.requireSuperAdmin, (_req, res) => {
+    try { res.json({ ok: true, cams: fixedCamRegistry.list() }); }
+    catch (err) { res.status(500).json(opErr(err)); }
+});
+
+app.get('/api/fixed-cams/public', (req, res) => {
+    // Officers read cam list (no credentials included).
+    try {
+        const cams = fixedCamRegistry.listEnabled().map(c => ({
+            id: c.id, name: c.name, lat: c.lat, lng: c.lng,
+            zone: c.zone, streamSource: c.streamSource,
+            ptzEnabled: c.ptzEnabled, enabled: c.enabled,
+        }));
+        res.json({ ok: true, cams });
+    } catch (err) { res.status(500).json(opErr(err)); }
+});
+
+app.post('/api/fixed-cams', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        const cam = fixedCamRegistry.add(req.body || {});
+        log.web.info('fixed-cam added', { id: cam.id, name: cam.name });
+        res.json({ ok: true, cam });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+app.put('/api/fixed-cams/:id', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        const cam = fixedCamRegistry.update(req.params.id, req.body || {});
+        if (!cam) return res.status(404).json({ ok: false, error: 'Camera not found.' });
+        log.web.info('fixed-cam updated', { id: cam.id, name: cam.name });
+        res.json({ ok: true, cam });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+app.delete('/api/fixed-cams/:id', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        const ok = fixedCamRegistry.remove(req.params.id);
+        if (!ok) return res.status(404).json({ ok: false, error: 'Camera not found.' });
+        log.web.info('fixed-cam deleted', { id: req.params.id });
+        res.json({ ok: true });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+app.post('/api/fixed-cams/import-csv', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        const body = req.body || {};
+        const csv  = String(body.csv || '').trim();
+        if (!csv) return res.status(400).json({ ok: false, error: 'No CSV data received.' });
+        const rows = parseCsvText(csv);
+        if (!rows.length) return res.status(400).json({ ok: false, error: 'CSV is empty or has no data rows.' });
+        const imported = fixedCamRegistry.importRows(rows);
+        log.web.info('fixed-cams csv import', { count: imported.length });
+        res.json({ ok: true, imported: imported.length, cams: imported });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+// ─── HTTPS evidence upload — secure alternative to FTP for hybrid deployments.
 // Camera docking station software or relay agents POST files here using a bearer token.
 // FTP stays enabled for LAN hardware docking stations; this endpoint is the internet-safe path.
 const httpsUploadStorage = multer.diskStorage({
@@ -5181,6 +5269,7 @@ app.get('/', (req, res) => {
     res.setHeader('Cache-Control', staticCache.HTML_CACHE_CONTROL);
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
 
 staticCache.registerDashboardStatic(app, path.join(__dirname, 'public'));
 
