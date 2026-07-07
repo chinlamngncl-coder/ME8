@@ -1,6 +1,6 @@
 {
   "name": "fleet-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Ubitron Mobility C2 — Enterprise BWC Fleet Platform",
   "main": "server.js",
   "scripts": {
@@ -8,13 +8,17 @@
     "verify": "node scripts/verify-install.js",
     "postinstall": "node scripts/verify-install.js --quiet"
   },
+  "overrides": {
+    "ip": "^2.0.1",
+    "uuid": "^11.1.1"
+  },
   "dependencies": {
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "ftp-srv": "^4.6.3",
     "livekit-server-sdk": "^2.9.7",
     "node-llama-cpp": "^3.18.1",
-    "nodemailer": "^6.10.1",
+    "nodemailer": "^9.0.3",
     "qrcode": "^1.5.4",
     "sip": "0.0.6",
     "socket.io": "^4.8.3",

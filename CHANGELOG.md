@@ -11,6 +11,21 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - wvp-GB28181-pro integration (Gate C — tender scale camera ingestion)
 - Playback broker fallback (ZLM primary + FFmpeg fallback descriptor)
 - OSM map attribution restore
+- Replace ftp-srv with maintained alternative (ip package has no patch)
+
+---
+
+## [1.0.1] — 2026-07-07 — Security patch
+
+### Security
+- Fixed `ws` memory exhaustion DoS (GHSA-96hv-2xvq-fx4p) via `npm audit fix`
+- Fixed `nodemailer` SMTP injection and SSRF vulnerabilities — upgraded to v9.0.3 (GHSA-mm7p-fcc7-pg87 and 7 others)
+- Fixed `uuid` buffer bounds issue (GHSA-w5hq-g745-h8pq) via package.json override to v11
+- Documented `ip` (via ftp-srv) as accepted risk — no patch available upstream; internal LAN only, low exploitability
+
+- wvp-GB28181-pro integration (Gate C — tender scale camera ingestion)
+- Playback broker fallback (ZLM primary + FFmpeg fallback descriptor)
+- OSM map attribution restore
 - Full npm audit pass and CVE remediation log
 
 ---
