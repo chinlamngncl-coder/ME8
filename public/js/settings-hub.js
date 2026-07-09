@@ -17,6 +17,7 @@
         ftpEnabled: false,
         uptimeSec: 0,
         licenseValid: null,
+        licenseExpiry: null,
         deploymentMode: '',
         firmwareCount: 0,
     };
@@ -110,7 +111,10 @@
             setChipState('settings-chip-ftp', snapshot.ftpEnabled ? 'ok' : 'warn');
 
             if (snapshot.licenseValid === true) {
-                setText('settings-val-license', tr('settingsHub.strip.licenseOk'));
+                var expLabel = snapshot.licenseExpiry
+                    ? tr('settingsHub.strip.licenseOk') + ' · exp ' + snapshot.licenseExpiry
+                    : tr('settingsHub.strip.licenseOk');
+                setText('settings-val-license', expLabel);
                 setChipState('settings-chip-license', 'ok');
             } else if (snapshot.licenseValid === false) {
                 setText('settings-val-license', tr('settingsHub.strip.licenseIssue'));
@@ -219,7 +223,12 @@
 
         var pdata = adminCore[1];
         if (pdata) {
-            if (pdata.license) snapshot.licenseValid = !!pdata.license.valid;
+            if (pdata.license) {
+                snapshot.licenseValid = !!pdata.license.valid;
+                if (pdata.license.expiresAt) {
+                    snapshot.licenseExpiry = pdata.license.expiresAt.slice(0, 10);
+                }
+            }
             if (pdata.usage && pdata.usage.bwcDevices != null && !snapshot.bwcRegistered) {
                 snapshot.bwcRegistered = pdata.usage.bwcDevices;
             }

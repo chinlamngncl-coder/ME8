@@ -1,4 +1,4 @@
-﻿# Snapshot live ME8 into ME8 Firmware Gold baseline (code + site config).
+# Snapshot live ME8 into ME8 Firmware Gold baseline (code + site config).
 # Run once after MOB sign-off. Re-run only when user authorizes a new lock.
 param([string]$AppRoot = '')
 $ErrorActionPreference = 'Stop'

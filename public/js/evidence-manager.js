@@ -60,6 +60,11 @@
         if (global.AuditTrailHub && AuditTrailHub.applyPermissions) {
             AuditTrailHub.applyPermissions(perms);
         }
+        // Fetch license feature flags once after login so FR/ANPR/Redaction modules
+        // can check LicenseFeatures.isEnabled('fr') etc. on boot.
+        if (global.LicenseFeatures && LicenseFeatures.fetch) {
+            LicenseFeatures.fetch();
+        }
         const banner = document.getElementById('evidence-perm-banner');
         if (banner && !global.EvidenceHub) {
             if (!canEvidenceDownload) {
@@ -341,6 +346,9 @@
         }
         if (tab === 'command-wall' && global.CommandWall && global.CommandWall.init) {
             global.CommandWall.init(global.__mobilityDashboardSocket);
+            if (opts.panel && global.CommandWall.showPanel) {
+                global.CommandWall.showPanel(opts.panel);
+            }
             if (global.TabLifecycle) TabLifecycle.markLoaded('command-wall');
         }
         if (tab === 'centre-summary' && global.CentreSummary && global.CentreSummary.init) {

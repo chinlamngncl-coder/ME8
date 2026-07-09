@@ -1,6 +1,8 @@
 (function (global) {
     'use strict';
 
+    var DEFAULT_EXAMPLE = 'Ab12cd34!@#$';
+
     var AUTH_PASSWORD_SELECTORS = [
         '#login-pass',
         '#ss-gate-password',
@@ -35,8 +37,9 @@
     function policyHintText(policy) {
         if (!policy) return '';
         return tr('auth.passwordPolicy.hint', {
-            min: policy.minLength,
-            special: policy.specialChars,
+            min: policy.minLength || 12,
+            example: policy.example || DEFAULT_EXAMPLE,
+            special: policy.specialChars || '',
         });
     }
 
@@ -56,12 +59,11 @@
             var res = await fetch('/api/auth/password-policy', { credentials: 'same-origin' });
             var data = await res.json();
             if (!res.ok || !data.ok || !data.policy) return null;
-            var policy = data.policy;
-            if (role === 'super_admin' || role === 'operator') {
-                policy = Object.assign({}, policy, {
-                    minLength: role === 'super_admin' ? policy.minLengthSuperAdmin : policy.minLengthOperator,
-                });
-            }
+            var policy = Object.assign({}, data.policy, {
+                minLength: data.policy.minLength || data.policy.minLengthOperator || 12,
+            });
+            // role kept for callers; min length is unified for all dashboard roles
+            if (role) { /* no-op: both roles share minLength */ }
             el.textContent = policyHintText(policy);
             return policy;
         } catch (_) {
@@ -74,6 +76,7 @@
         loadPolicyHint: loadPolicyHint,
         applyMinLength: applyMinLength,
         policyHintText: policyHintText,
+        DEFAULT_EXAMPLE: DEFAULT_EXAMPLE,
     };
 
     if (document.readyState === 'loading') {
@@ -81,4 +84,4 @@
     } else {
         bindNoPaste(document);
     }
-})(typeof window !== 'undefined' ? window : this);
+})(window);

@@ -40,6 +40,37 @@
     var leafletMap = null;
     var countryCode = 'sg';
     var toolbarBuilt = false;
+    var placeSearchBound = false;
+
+    function tr(key, params) {
+        if (global.I18n && I18n.t) return I18n.t(key, params);
+        return key;
+    }
+
+    function hasMetaFlag(name, value) {
+        try {
+            var meta = document.querySelector('meta[name="' + name + '"]');
+            return !!(meta && String(meta.content || '').trim() === value);
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function isOfflineOnly() {
+        return hasMetaFlag('fm-map-offline-only', '1');
+    }
+
+    function isPopoutMirror() {
+        try {
+            return document.documentElement.classList.contains('map-popout-mode');
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function placeSearchEnabled() {
+        return !isOfflineOnly() && !isPopoutMirror();
+    }
 
     function packCountryCodes() {
         try {
@@ -106,6 +137,128 @@
         }).join('');
     }
 
+    function hidePlaceResults() {
+        var box = document.getElementById('map-place-search-results');
+        if (box) {
+            box.hidden = true;
+            box.innerHTML = '';
+        }
+    }
+
+    function flyToPlace(lat, lon, zoom) {
+        if (!leafletMap) return;
+        var z = zoom != null ? zoom : Math.max(leafletMap.getZoom(), 14);
+        leafletMap.setView([lat, lon], z);
+        hidePlaceResults();
+        if (global.MapPopoutSync && MapPopoutSync.publishDebounced) {
+            MapPopoutSync.publishDebounced();
+        }
+    }
+
+    function showPlaceResults(results) {
+        var box = document.getElementById('map-place-search-results');
+        if (!box) return;
+        if (!results || !results.length) {
+            hidePlaceResults();
+            return;
+        }
+        box.innerHTML = results.map(function (row, idx) {
+            return '<button type="button" data-place-idx="' + idx + '">' + escHtml(row.label) + '</button>';
+        }).join('');
+        box.hidden = false;
+        box._placeRows = results;
+        box.querySelectorAll('button[data-place-idx]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var i = parseInt(btn.getAttribute('data-place-idx'), 10);
+                var row = box._placeRows && box._placeRows[i];
+                if (row) flyToPlace(row.lat, row.lon, row.zoom);
+            });
+        });
+    }
+
+    function escHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = s == null ? '' : String(s);
+        return d.innerHTML;
+    }
+
+    function setPlaceSearchStatus(msg) {
+        var hint = document.getElementById('map-place-search-hint');
+        if (!hint) return;
+        var text = msg || '';
+        hint.textContent = text;
+        hint.hidden = !text;
+    }
+
+    function runPlaceSearch() {
+        var input = document.getElementById('map-place-search-input');
+        var btn = document.getElementById('map-place-search-btn');
+        if (!input || !leafletMap) return;
+        var q = String(input.value || '').trim();
+        if (!q) return;
+        hidePlaceResults();
+        setPlaceSearchStatus(tr('map.placeSearch.searching'));
+        if (btn) btn.disabled = true;
+        fetch('/api/gis/geocode?q=' + encodeURIComponent(q), { credentials: 'same-origin', cache: 'no-cache' })
+            .then(function (res) {
+                return res.json().then(function (data) { return { res: res, data: data }; });
+            })
+            .then(function (pack) {
+                if (!pack.res.ok || !pack.data.ok) {
+                    var key = (pack.data && pack.data.errorKey) || 'map.placeSearch.failed';
+                    throw new Error(tr(key));
+                }
+                var results = pack.data.results || [];
+                setPlaceSearchStatus('');
+                if (results.length === 1) {
+                    flyToPlace(results[0].lat, results[0].lon, results[0].zoom);
+                    return;
+                }
+                showPlaceResults(results);
+            })
+            .catch(function (err) {
+                setPlaceSearchStatus((err && err.message) || tr('map.placeSearch.failed'));
+                hidePlaceResults();
+            })
+            .finally(function () {
+                if (btn) btn.disabled = false;
+            });
+    }
+
+    function bindPlaceSearch() {
+        if (placeSearchBound || !placeSearchEnabled()) return;
+        var input = document.getElementById('map-place-search-input');
+        var btn = document.getElementById('map-place-search-btn');
+        if (!input || !btn) return;
+        placeSearchBound = true;
+        btn.addEventListener('click', runPlaceSearch);
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                runPlaceSearch();
+            }
+            if (e.key === 'Escape') hidePlaceResults();
+        });
+        document.addEventListener('click', function (e) {
+            var wrap = document.getElementById('map-place-search-wrap');
+            if (!wrap || wrap.contains(e.target)) return;
+            hidePlaceResults();
+        });
+    }
+
+    function buildPlaceSearchHtml() {
+        if (!placeSearchEnabled()) return '';
+        return '<div class="map-place-search-wrap" id="map-place-search-wrap">'
+            + '<input type="search" id="map-place-search-input" autocomplete="off" spellcheck="false"'
+            + ' data-i18n-placeholder="map.placeSearch.placeholder" placeholder="City, address, country…"'
+            + ' data-i18n-aria="map.placeSearch.aria" aria-label="Search place">'
+            + '<button type="button" id="map-place-search-btn" data-i18n="map.placeSearch.button"'
+            + ' data-i18n-title="map.placeSearch.buttonTitle" title="Search place">Go</button>'
+            + '<div id="map-place-search-results" class="map-place-search-results" hidden></div>'
+            + '</div>'
+            + '<span class="map-place-search-hint" id="map-place-search-hint" hidden aria-live="polite"></span>';
+    }
+
     function buildToolbar() {
         if (toolbarBuilt) return;
         var wrap = document.querySelector('.map-canvas-wrap');
@@ -113,6 +266,7 @@
         var bar = document.createElement('div');
         bar.id = 'map-view-controls';
         bar.innerHTML = '<button type="button" id="map-fit-pins-btn" data-i18n="map.fitPins" data-i18n-title="map.fitPinsTitle">Fit pins</button>' +
+            buildPlaceSearchHtml() +
             '<select id="map-country-select" aria-label="Country"></select>';
         wrap.appendChild(bar);
         document.getElementById('map-fit-pins-btn').addEventListener('click', function () {
@@ -122,6 +276,7 @@
             countryCode = this.value || countryCode;
             applyCountryPreset(true);
         });
+        bindPlaceSearch();
         if (global.I18n && I18n.applyPage) I18n.applyPage(bar);
         toolbarBuilt = true;
         rebuildCountrySelect();
@@ -145,9 +300,7 @@
         init: init,
         getInitialView: getInitialView,
         flyTo: function (lat, lon, zoom) {
-            if (!leafletMap) return;
-            var z = zoom != null ? zoom : Math.max(leafletMap.getZoom(), 14);
-            leafletMap.setView([lat, lon], z);
+            flyToPlace(lat, lon, zoom);
         },
         invalidateSize: function () {
             if (leafletMap) try { leafletMap.invalidateSize(); } catch (e) { /* ignore */ }

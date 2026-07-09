@@ -72,7 +72,7 @@
         { re: /ptt/i, key: 'errors.pttDisabled' },
     ];
 
-    const TECH_LEAK_RE = /fm_|\.env\b|fleet\.log|storage\/|node_modules|restart\s+fleet|errno|eaddrinuse|enotfound/i;
+    const TECH_LEAK_RE = /fm_|\.env\b|fleet\.log|storage\/|node_modules|restart\s+fleet|errno|eaddrinuse|enotfound|unexpected token|<!doctype|not valid json|syntaxerror|is not defined|referenceerror/i;
 
     const FALLBACK_EN = {
         'errors.generic': 'Something went wrong. Try again or contact your IT administrator.',
@@ -130,6 +130,8 @@
         'totpEnroll.error': 'Could not complete authenticator setup. Try again.',
         'usbMaint.clearNotConfigured': 'Automatic media wipe is not enabled on this server.',
         'usbMaint.adbMissing': 'Device connection tool not available — contact your IT administrator.',
+        'server.readiness.loadFailed': 'Could not load readiness checklist. Restart the server or contact your IT administrator.',
+        'server.productionAccess.loadFailed': 'Could not load reverse proxy settings. Restart the server or contact your IT administrator.',
     };
 
     function tr(key) {

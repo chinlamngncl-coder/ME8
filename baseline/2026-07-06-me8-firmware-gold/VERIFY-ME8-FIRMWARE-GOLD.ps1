@@ -1,4 +1,4 @@
-﻿# Verify live ME8 matches ME8 Firmware Gold baseline (SHA256).
+# Verify live ME8 matches ME8 Firmware Gold baseline (SHA256).
 param([string]$AppRoot = '')
 $ErrorActionPreference = 'Stop'
 $baseline = $PSScriptRoot

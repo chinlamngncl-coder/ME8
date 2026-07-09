@@ -1,4 +1,4 @@
-﻿# MOB notes — start here
+# MOB notes — start here
 
 **You are not expected to read code.** Plain-English notes for you and the next agent.
 

@@ -48,34 +48,37 @@
 
 
 
-    function openWindow(url, winName) {
-
-        let win = tracked[winName];
-
-        if (win && !win.closed) {
-
-            try {
-
-                win.location.href = url;
-
-                win.focus();
-
-                return win;
-
-            } catch (_) {
-
-                tracked[winName] = null;
-
-            }
-
+    function needsNavigate(win, url) {
+        try {
+            if (!win || !win.location) return false;
+            const path = win.location.pathname || '';
+            // Already on Command Wall — never reload (reload = blink + stuck Loading roster).
+            if (path === '/command-wall.html') return false;
+            if (path === '/' || path === '/index.html' || path.indexOf('/login') === 0) return true;
+            const want = new URL(url, window.location.origin);
+            return path !== want.pathname;
+        } catch (_) {
+            // about:blank / not readable yet — window.open already has the URL; do not assign again.
+            return false;
         }
+    }
 
+    function openWindow(url, winName) {
+        let win = tracked[winName];
+        if (win && !win.closed) {
+            try {
+                if (needsNavigate(win, url)) win.location.href = url;
+                try { win.focus(); } catch (_) { /* ignore */ }
+                return win;
+            } catch (_) {
+                tracked[winName] = null;
+            }
+        }
         win = window.open(url, winName, POPOUT_FEATURES);
-
         if (win) tracked[winName] = win;
-
+        // Do not set location.href after open — aborts first navigation and causes blink loop.
+        try { if (win) win.focus(); } catch (_) { /* ignore */ }
         return win;
-
     }
 
 
@@ -148,44 +151,36 @@
 
         params.set('layout', layout || '16');
 
+        params.set('panel', 'live');
+
         return '/command-wall.html?' + params.toString();
 
     }
 
 
 
-    function openCommandWallPopout(url) {
-
-        return openWindow(url || '/command-wall.html', 'mobility-command-wall');
-
+    function openCommandWallPopout(url, winName) {
+        // Fresh unique name each time — named reuse caused blink / reload / repeat INVITE storms.
+        const target = url || '/command-wall.html?panel=live';
+        const name = winName === '_blank' || !winName
+            ? ('mobility-wall-' + String(Date.now()))
+            : winName;
+        return openWindow(target, name);
     }
-
-
 
     function openMapPopout() {
-
-        const url = window.location.pathname + '?popout=map';
-
-        const win = openWindow(url, 'mobility-map-wall');
-
+        // Always main app map URL — never command-wall.html?popout=map (broken if opened from CW Control room).
+        const url = '/?popout=map';
+        const win = openWindow(url, 'mobility-map-' + String(Date.now()));
         if (global.MapPopoutSync) {
-
             setTimeout(function () { MapPopoutSync.publishDebounced(); }, 600);
-
             setTimeout(function () { MapPopoutSync.publish(); }, 1500);
-
         }
-
         return win;
-
     }
 
-
-
     function openCentreSummaryPopout() {
-
-        return openWindow('/command-centre.html', 'mobility-centre-summary');
-
+        return openWindow('/command-centre.html', 'mobility-centre-' + String(Date.now()));
     }
 
 
@@ -220,47 +215,35 @@
 
         node.textContent = msg || '';
 
-        node.className = 'dr-status' + (ok === false ? ' dr-status-err' : ok === true ? ' dr-status-ok' : '');
+        let cls = 'dr-status';
+
+        if (ok === false) cls += ' dr-status-err dr-status-banner';
+
+        else if (ok === true) cls += ' dr-status-ok dr-status-banner';
+
+        node.className = cls;
+
+        node.setAttribute('role', ok === false ? 'alert' : 'status');
+
+        node.setAttribute('aria-live', ok === false ? 'assertive' : 'polite');
 
     }
 
 
 
-    function autoPlaceChecked() {
+    function scrollStatusIntoView() {
 
-        const box = el('dr-auto-screens');
+        const node = el('dr-status');
 
-        return !!(box && box.checked);
-
-    }
-
-
-
-    async function placeOnScreen(win, screenIndex) {
-
-        if (!win || win.closed || screenIndex < 1) return false;
+        if (!node || !node.scrollIntoView) return;
 
         try {
 
-            if (!('getScreenDetails' in window)) return false;
-
-            const details = await window.getScreenDetails();
-
-            const screens = details.screens || [];
-
-            if (screenIndex >= screens.length) return false;
-
-            const s = screens[screenIndex];
-
-            win.moveTo(s.availLeft, s.availTop);
-
-            win.resizeTo(s.availWidth, s.availHeight);
-
-            return true;
+            node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 
         } catch (_) {
 
-            return false;
+            node.scrollIntoView(false);
 
         }
 
@@ -268,24 +251,166 @@
 
 
 
+    const statusWatchTimers = [];
+
+    function clearStatusWatchers() {
+        while (statusWatchTimers.length) {
+            clearInterval(statusWatchTimers.pop());
+        }
+    }
+
+    function watchPopoutClosed(win) {
+        if (!win) return;
+        const timer = setInterval(function () {
+            try {
+                if (!win.closed) return;
+            } catch (_) {
+                /* treat as closed */
+            }
+            clearInterval(timer);
+            const idx = statusWatchTimers.indexOf(timer);
+            if (idx >= 0) statusWatchTimers.splice(idx, 1);
+            setStatus('', null);
+        }, 400);
+        statusWatchTimers.push(timer);
+    }
+
+    function placeFailMessage(reason, monitorTitleKey) {
+        const monitor = tr(monitorTitleKey);
+        if (reason === 'no_api') return tr('displayRoom.placeFailNoApi', { monitor: monitor });
+        if (reason === 'denied') return tr('displayRoom.placeFailDenied', { monitor: monitor });
+        if (reason === 'no_screen') return tr('displayRoom.placeFailNoScreen', { monitor: monitor });
+        if (reason === 'closed') return tr('displayRoom.placeFailClosed', { monitor: monitor });
+        return tr('displayRoom.placeFailManual', { monitor: monitor });
+    }
+
+    function openWithFeedback(openFn, successKey, monitorTitleKey, screenIndex) {
+        const win = openFn();
+        if (!win) {
+            setStatus(tr('displayRoom.popupBlocked', { list: tr(monitorTitleKey) }), false);
+            scrollStatusIntoView();
+            return Promise.resolve(null);
+        }
+
+        function finishOpenedOnly() {
+            setStatus(tr(successKey), true);
+            scrollStatusIntoView();
+            try { win.focus(); } catch (_) {}
+            watchPopoutClosed(win);
+        }
+
+        function finishPlacedOk() {
+            setStatus(tr('displayRoom.popupOpenedPlaced', { monitor: tr(monitorTitleKey) }), true);
+            scrollStatusIntoView();
+            try { win.focus(); } catch (_) {}
+            watchPopoutClosed(win);
+        }
+
+        function finishPlaceFailed(reason) {
+            // Amber/false — never leave sticky green "opened" when place was requested and failed.
+            setStatus(placeFailMessage(reason, monitorTitleKey), false);
+            scrollStatusIntoView();
+            try { win.focus(); } catch (_) {}
+            watchPopoutClosed(win);
+        }
+
+        if (typeof screenIndex === 'number' && screenIndex >= 1 && autoPlaceChecked()) {
+            return placeOnScreen(win, screenIndex).then(function (result) {
+                if (result && result.ok) finishPlacedOk();
+                else finishPlaceFailed(result && result.reason ? result.reason : 'move_failed');
+                return win;
+            });
+        }
+
+        finishOpenedOnly();
+        return Promise.resolve(win);
+    }
+
+    function autoPlaceChecked() {
+        const box = el('dr-auto-screens');
+        return !!(box && box.checked);
+    }
+
+    function waitPopoutSettled(win) {
+        return new Promise(function (resolve) {
+            let done = false;
+            function finish() {
+                if (done) return;
+                done = true;
+                resolve();
+            }
+            try {
+                if (win.document && win.document.readyState === 'complete') {
+                    setTimeout(finish, 80);
+                    return;
+                }
+            } catch (_) { /* ignore */ }
+            try {
+                win.addEventListener('load', function () { setTimeout(finish, 120); });
+            } catch (_) { /* ignore */ }
+            setTimeout(finish, 1500);
+        });
+    }
+
+    /** @returns {Promise<{ok:boolean, reason?:string}>} */
+    async function placeOnScreen(win, screenIndex) {
+        if (!win || win.closed) return { ok: false, reason: 'closed' };
+        if (screenIndex < 1) return { ok: false, reason: 'no_screen' };
+
+        await waitPopoutSettled(win);
+        if (win.closed) return { ok: false, reason: 'closed' };
+
+        if (!('getScreenDetails' in window)) {
+            return { ok: false, reason: 'no_api' };
+        }
+
+        let details;
+        try {
+            details = await window.getScreenDetails();
+        } catch (_) {
+            // Permission denied or transient activation failure — not a silent green success.
+            return { ok: false, reason: 'denied' };
+        }
+
+        const screens = (details && details.screens) || [];
+        if (screenIndex >= screens.length) {
+            return { ok: false, reason: 'no_screen' };
+        }
+
+        const s = screens[screenIndex];
+        if (!s) return { ok: false, reason: 'no_screen' };
+
+        try {
+            win.moveTo(s.availLeft, s.availTop);
+            win.resizeTo(s.availWidth, s.availHeight);
+            return { ok: true };
+        } catch (_) {
+            return { ok: false, reason: 'move_failed' };
+        }
+    }
+
     async function placeDisplayWindows(wallWin, mapWin, centreWin) {
+        if (!autoPlaceChecked()) return { placed: 0, api: true, attempted: false };
 
-        if (!autoPlaceChecked()) return { placed: 0, api: true };
-
-        const hasApi = 'getScreenDetails' in window;
-
-        if (!hasApi) return { placed: 0, api: false };
+        if (!('getScreenDetails' in window)) {
+            return { placed: 0, api: false, attempted: true, reason: 'no_api' };
+        }
 
         let placed = 0;
-
-        if (await placeOnScreen(wallWin, 1)) placed += 1;
-
-        if (await placeOnScreen(mapWin, 2)) placed += 1;
-
-        if (await placeOnScreen(centreWin, 3)) placed += 1;
-
-        return { placed: placed, api: true };
-
+        let lastFail = null;
+        const jobs = [
+            { win: wallWin, idx: 1 },
+            { win: mapWin, idx: 2 },
+            { win: centreWin, idx: 3 },
+        ];
+        for (let i = 0; i < jobs.length; i += 1) {
+            const job = jobs[i];
+            if (!job.win) continue;
+            const result = await placeOnScreen(job.win, job.idx);
+            if (result && result.ok) placed += 1;
+            else if (result && result.reason) lastFail = result.reason;
+        }
+        return { placed: placed, api: true, attempted: true, reason: lastFail };
     }
 
 
@@ -357,96 +482,63 @@
 
 
     async function applySosRoomPreset() {
-
-        const groupIds = selectedGroupIds();
-
-        if (!groupIds.length) {
-
-            setStatus(tr('displayRoom.selectGroup'), false);
-
-            return;
-
-        }
-
-
-
+        // Same as Monitor 2 + 3 + 4 — convenience open only. No autofill, no auto INVITE, no layout-1 shrink.
         setStatus(tr('displayRoom.launching'), true);
-
         goOperationsTab();
 
-
-
-        let groupsPayload = [];
-
-        try {
-
-            const res = await fetch('/api/dispatch-groups', { credentials: 'same-origin' });
-
-            const data = await res.json();
-
-            groupsPayload = (data && data.groups) || [];
-
-        } catch (_) { /* ignore */ }
-
-
-
-        const onlineCount = countOnlineInGroups(groupIds, groupsPayload);
-
-        const layout = pickLayoutForCount(onlineCount || 1);
-
-        const wallUrl = buildWallUrl(groupIds, layout);
-
-
-
         const blocked = [];
-
-        const cw = openCommandWallPopout(wallUrl);
-
+        const cw = openCommandWallPopout('/command-wall.html?panel=live', '_blank');
         const map = openMapPopout();
-
         const centre = openCentreSummaryPopout();
 
         if (!cw) blocked.push(tr('displayRoom.monitor2Title'));
-
         if (!map) blocked.push(tr('displayRoom.monitor3Title'));
-
         if (!centre) blocked.push(tr('displayRoom.monitor4Title'));
 
         if (blocked.length) {
-
             setStatus(tr('displayRoom.popupBlocked', { list: blocked.join(', ') }), false);
-
+            scrollStatusIntoView();
             return;
-
         }
-
-
 
         const place = await placeDisplayWindows(cw, map, centre);
 
-        if (!place.api) {
-
-            setStatus(tr('displayRoom.launchOkManual'), true);
-
+        if (place.attempted && !place.api) {
+            setStatus(tr('displayRoom.placeFailNoApiLaunch'), false);
+            scrollStatusIntoView();
+            watchPopoutClosed(cw);
+            watchPopoutClosed(map);
+            watchPopoutClosed(centre);
             return;
+        }
 
+        if (place.attempted && place.placed === 0) {
+            setStatus(placeFailMessage(place.reason || 'move_failed', 'displayRoom.monitor2Title'), false);
+            scrollStatusIntoView();
+            watchPopoutClosed(cw);
+            watchPopoutClosed(map);
+            watchPopoutClosed(centre);
+            return;
         }
 
         if (place.placed > 0) {
-
             setStatus(tr('displayRoom.launchOkPlaced', { n: String(place.placed) }), true);
-
         } else {
-
             setStatus(tr('displayRoom.launchOkManual'), true);
-
         }
 
+        scrollStatusIntoView();
+        watchPopoutClosed(cw);
+        watchPopoutClosed(map);
+        watchPopoutClosed(centre);
     }
 
 
 
     function bindUi() {
+        if (window._cwDisplayRoomBound) return;
+        window._cwDisplayRoomBound = true;
+        syncAutoPlaceHint();
 
         const applyBtn = el('dr-apply-sos');
 
@@ -468,31 +560,26 @@
 
             setStatus(tr('displayRoom.opsHint'), true);
 
+            scrollStatusIntoView();
+
         });
 
         if (m2Btn) m2Btn.addEventListener('click', function () {
-
-            const ids = selectedGroupIds();
-
-            const url = ids.length ? buildWallUrl(ids, '16') : '/command-wall.html';
-
-            if (!openCommandWallPopout(url)) {
-
-                setStatus(tr('displayRoom.popupBlocked', { list: tr('displayRoom.monitor2Title') }), false);
-
-            }
-
+            // Empty wall only — no autofill. Same rule as Open all monitors.
+            openWithFeedback(function () {
+                return openCommandWallPopout('/command-wall.html?panel=live', '_blank');
+            }, 'displayRoom.popupOpenedWall', 'displayRoom.monitor2Title', 1);
         });
 
         if (m3Btn) m3Btn.addEventListener('click', function () {
 
-            if (!openMapPopout()) setStatus(tr('displayRoom.popupBlocked', { list: tr('displayRoom.monitor3Title') }), false);
+            openWithFeedback(openMapPopout, 'displayRoom.popupOpenedMap', 'displayRoom.monitor3Title', 2);
 
         });
 
         if (m4Btn) m4Btn.addEventListener('click', function () {
 
-            if (!openCentreSummaryPopout()) setStatus(tr('displayRoom.popupBlocked', { list: tr('displayRoom.monitor4Title') }), false);
+            openWithFeedback(openCentreSummaryPopout, 'displayRoom.popupOpenedCentre', 'displayRoom.monitor4Title', 3);
 
         });
 
@@ -501,11 +588,22 @@
 
 
     function onShow() {
-
+        clearStatusWatchers();
         setStatus('', null);
-
         loadGroups();
+        syncAutoPlaceHint();
+    }
 
+    function syncAutoPlaceHint() {
+        const hint = el('dr-auto-place-hint');
+        if (!hint) return;
+        if (!('getScreenDetails' in window)) {
+            hint.textContent = tr('displayRoom.autoScreensUnsupported');
+            hint.hidden = false;
+            return;
+        }
+        hint.textContent = tr('displayRoom.autoScreensHint');
+        hint.hidden = false;
     }
 
 

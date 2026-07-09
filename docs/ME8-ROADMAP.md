@@ -1,4 +1,4 @@
-﻿# ME8 roadmap — commercial Enterprise 8 BWC
+# ME8 roadmap — commercial Enterprise 8 BWC
 
 **Tree:** `C:\Users\user\Desktop\Enterprise Mobility\ME8`  
 **Ship lock (future):** `me8-v1`  

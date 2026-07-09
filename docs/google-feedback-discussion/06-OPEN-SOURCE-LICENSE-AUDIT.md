@@ -1,4 +1,4 @@
-﻿# 06 — Open source & license audit (MOB DISC)
+# 06 — Open source & license audit (MOB DISC)
 
 **Date:** 2026-06-27 — updated 2026-07-07  
 **Scope:** Mobility C2 ship stack + ME8 enterprise pack  

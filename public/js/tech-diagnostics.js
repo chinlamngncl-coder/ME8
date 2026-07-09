@@ -318,11 +318,19 @@
 
     function refreshAll() {
         loadHealth();
+        loadLiveViewers();
         loadRunbooks();
+    }
+
+    function loadLiveViewers() {
+        const el = document.getElementById('ss-tech-live-viewers');
+        if (!el || !global.LiveViewerTelemetry) return;
+        LiveViewerTelemetry.loadInto(el, { useTechApi: true });
     }
 
     function onTabShown() {
         loadHealth();
+        loadLiveViewers();
     }
 
     function isAuthenticated() {
@@ -371,6 +379,8 @@
         if (traceToggle) traceToggle.addEventListener('click', toggleTrace);
         const healthRefresh = document.getElementById('ss-tech-health-refresh');
         if (healthRefresh) healthRefresh.addEventListener('click', loadHealth);
+        const lvRefresh = document.getElementById('ss-tech-live-viewers-refresh');
+        if (lvRefresh) lvRefresh.addEventListener('click', loadLiveViewers);
         const diagTab = document.getElementById('ss-main-tab-diagnostics');
         if (diagTab) {
             diagTab.addEventListener('click', function () {

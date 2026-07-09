@@ -1,7 +1,7 @@
-﻿# MOB DISC — SOS ledger clear, retention, download, audit
+# MOB DISC — SOS ledger clear, retention, download, audit
 
 **Status:** DISC only — clarifies **today** vs **target** for tender / enterprise.  
-**Related:** `mob-me8-sos-ledger-dispatch-scope` (applied), VMS domain **B** (auth/audit).  
+**Related:** `mob-me8-sos-ledger-dispatch-scope` (applied), PNP domain **B** (auth/audit).  
 **Search:** `SOS clear`, `ledger governance`, `super admin clear`, `audit`
 
 ---
@@ -71,7 +71,7 @@ Super-admin always has all evidence permissions. Operators get download/edit onl
 
 ---
 
-## Target behaviour (enterprise + audit requirement S4-6)
+## Target behaviour (enterprise + PNP S4-6)
 
 Matches your intent and tender **operation log / chain of custody**:
 
@@ -123,7 +123,7 @@ Audit trail UI + CSV export (domain **B**) — investigator sees: *“SuperAdmin
 
 **Does not touch:** wall, PTT, SIP, `video-wall.js`.
 
-Fits auth/audit wave **5** (`mob-auth-audit-ship`) or can run early as small governance MOB before live POC waves.
+Fits PNP wave **5** (`pnp-auth-audit-ship`) or can run early as small governance MOB before live POC waves.
 
 ---
 

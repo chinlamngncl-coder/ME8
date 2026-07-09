@@ -63,6 +63,47 @@
         .header-voice-btn:hover { background: #334155; }
         .header-voice-btn[aria-pressed="true"] { border-color: #64748b; opacity: 0.85; }
         #header-voice-repeat { font-size: 11px; padding: 4px 10px; }
+        .header-bell {
+            position: relative; display: inline-flex; align-items: center; gap: 6px;
+            padding: 5px 10px; line-height: 1; cursor: pointer;
+            background: #1e293b; border: 1px solid #475569; border-radius: 8px; color: #cbd5e1;
+        }
+        .header-bell:hover { background: #334155; color: #e2e8f0; }
+        .header-bell-icon { width: 16px; height: 16px; flex-shrink: 0; }
+        .header-bell-label { font-size: 12px; font-weight: 600; letter-spacing: 0.01em; }
+        .header-bell.has-alert { border-color: #ef4444; color: #fecaca; animation: ma-bell-pulse 1s ease-in-out infinite; }
+        @keyframes ma-bell-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); } 50% { box-shadow: 0 0 0 5px rgba(239,68,68,0); } }
+        .header-bell-badge {
+            position: absolute; top: -6px; right: -6px; min-width: 17px; height: 17px; padding: 0 4px;
+            border-radius: 9px; background: #ef4444; color: #fff; font-size: 10px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center; line-height: 1;
+        }
+        .header-bell-badge[hidden] { display: none !important; }
+        .ma-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 998; }
+        .ma-overlay[hidden] { display: none !important; }
+        .ma-drawer {
+            position: fixed; top: 0; right: 0; width: 360px; max-width: 92vw; height: 100vh; z-index: 999;
+            background: #0f172a; border-left: 1px solid #334155; box-shadow: -8px 0 24px rgba(0,0,0,0.4);
+            display: flex; flex-direction: column;
+        }
+        .ma-drawer[hidden] { display: none !important; }
+        .ma-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #334155; }
+        .ma-drawer-head h3 { margin: 0; font-size: 14px; color: #f1f5f9; }
+        .ma-drawer-close { background: none; border: none; color: #94a3b8; font-size: 16px; cursor: pointer; }
+        .ma-drawer-close:hover { color: #e2e8f0; }
+        .ma-drawer-list { flex: 1; overflow-y: auto; padding: 8px; }
+        .ma-empty { padding: 24px 12px; text-align: center; color: #64748b; font-size: 12px; }
+        .ma-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin-bottom: 6px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; cursor: pointer; }
+        .ma-item:hover { border-color: #64748b; }
+        .ma-item.ma-sos { border-left: 3px solid #ef4444; }
+        .ma-item.ma-fall { border-left: 3px solid #f59e0b; }
+        .ma-item.ma-ptt { border-left: 3px solid #38bdf8; }
+        .ma-item-body { flex: 1; min-width: 0; }
+        .ma-item-title { font-size: 12px; font-weight: 700; color: #f1f5f9; }
+        .ma-item-sub { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+        .ma-item-tag { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 6px; border-radius: 4px; background: #ef4444; color: #fff; flex-shrink: 0; }
+        .ma-item.ma-fall .ma-item-tag { background: #f59e0b; color: #1e293b; }
+        .ma-item.ma-ptt .ma-item-tag { background: #38bdf8; color: #0f172a; }
         #header-sub { font-size: 11px; color: var(--muted); margin: 2px 0 0; }
         #header-brand { display: flex; align-items: center; min-width: 0; }
         .header-brand-lockup {
@@ -586,13 +627,16 @@
         #app-view-command-wall .dr-monitor-num { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin-bottom: 4px; }
         #app-view-command-wall .dr-monitor-title { font-size: 13px; font-weight: 700; color: #e2e8f0; margin-bottom: 4px; }
         #app-view-command-wall .dr-monitor-hint { font-size: 10px; color: #94a3b8; line-height: 1.4; margin-bottom: 8px; min-height: 2.8em; }
+        #app-view-command-wall .dr-launch-warn { margin: 0 0 10px; font-size: 11px; color: #fbbf24; line-height: 1.45; max-width: 720px; }
         #app-view-command-wall .dr-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
         #app-view-command-wall .dr-steps { margin: 0; padding-left: 18px; font-size: 11px; color: #94a3b8; line-height: 1.55; max-width: 720px; }
-        #app-view-command-wall .dr-status { font-size: 11px; color: #94a3b8; margin-top: 8px; min-height: 1.2em; }
-        #app-view-command-wall .dr-status-ok { color: #86efac; }
-        #app-view-command-wall .dr-status-err { color: #fca5a5; }
+        #app-view-command-wall .dr-status { font-size: 11px; color: #94a3b8; margin-top: 10px; min-height: 1.2em; line-height: 1.45; }
+        #app-view-command-wall .dr-status-banner { padding: 10px 12px; border-radius: 8px; margin-top: 12px; }
+        #app-view-command-wall .dr-status-ok { color: #86efac; background: rgba(6, 78, 59, 0.35); border: 1px solid rgba(34, 197, 94, 0.4); }
+        #app-view-command-wall .dr-status-err { color: #fecaca; background: rgba(69, 10, 10, 0.9); border: 1px solid rgba(248, 113, 113, 0.55); font-weight: 600; }
         #app-view-command-wall .dr-note { margin-top: 14px; padding: 10px 12px; border-radius: 8px; border: 1px solid #334155; background: #172033; font-size: 10px; color: #94a3b8; line-height: 1.45; max-width: 720px; }
-        #app-view-command-wall .dr-auto-place { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #cbd5e1; margin: 0 0 10px; cursor: pointer; }
+        #app-view-command-wall .dr-auto-place { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #cbd5e1; margin: 0 0 6px; cursor: pointer; }
+        #app-view-command-wall .dr-auto-place-hint { margin: 0 0 10px; font-size: 10px; color: #94a3b8; line-height: 1.4; max-width: 720px; }
         #app-view-command-wall .dr-groups-label { margin: 0 0 6px; font-size: 11px; font-weight: 600; color: #e2e8f0; }
         #app-view-command-wall .dr-groups-hint { margin: 0 0 8px; font-size: 10px; color: #94a3b8; }
         #app-view-command-wall .dr-groups-list { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 12px; max-width: 720px; }
@@ -627,7 +671,10 @@
         #app-view-centre-summary .cs-kpi { display: flex; gap: 10px; align-items: flex-start; background: linear-gradient(145deg, #1e293b, #172033); border: 1px solid #334155; border-radius: 12px; padding: 12px 14px; }
         #app-view-centre-summary .cs-kpi-green { border-color: rgba(34,197,94,0.35); }
         #app-view-centre-summary .cs-kpi-alert { border-color: rgba(248,113,113,0.45); background: linear-gradient(145deg, #2a1a1a, #1e293b); }
-        #app-view-centre-summary .cs-kpi-icon { font-size: 18px; line-height: 1; opacity: 0.9; }
+        #app-view-centre-summary .cs-kpi-icon { line-height: 1; color: #94a3b8; }
+        #app-view-centre-summary .cs-kpi-icon svg { width: 20px; height: 20px; display: block; }
+        #app-view-centre-summary .cs-kpi-green .cs-kpi-icon { color: #22c55e; }
+        #app-view-centre-summary .cs-kpi-alert .cs-kpi-icon { color: #f87171; }
         #app-view-centre-summary .cs-kpi-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.07em; color: #94a3b8; margin-bottom: 4px; }
         #app-view-centre-summary .cs-kpi-value { font-size: 24px; font-weight: 800; color: #f1f5f9; line-height: 1; }
         #app-view-centre-summary .cs-kpi-value.cs-kpi-sm { font-size: 16px; }
@@ -746,7 +793,11 @@
         .settings-lifecycle-status { margin: 0; font-size: 11px; color: #94a3b8; line-height: 1.4; flex: 1; }
         .settings-lifecycle-open { align-self: flex-start; margin-top: 2px; }
         .settings-lifecycle-card[hidden] { display: none !important; }
-        #evidence-panel { flex: 1; overflow-y: auto; padding: 16px 20px; background: var(--bg); }
+        #evidence-panel { flex: 1; overflow-y: auto; padding: 16px 20px; background: var(--bg); display: flex; flex-direction: column; min-height: 0; }
+        #evidence-panel.ev-detail-active { overflow: hidden; }
+        #evidence-panel > h2,
+        #evidence-panel > .evidence-hub-nav,
+        #evidence-panel > #evidence-perm-banner { flex-shrink: 0; }
         #evidence-panel h2 { margin: 0 0 12px; font-size: 18px; color: #f1f5f9; }
         .evidence-dock-section { margin-bottom: 20px; }
         .ss-dock-ro { margin: 0 0 12px; padding: 12px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; font-size: 12px; }
@@ -797,6 +848,29 @@
             border: 1px solid rgba(245, 158, 11, 0.35); color: #fcd34d; font-size: 11px; margin-bottom: 10px;
         }
         .evidence-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; align-items: center; }
+        .ev-tag-filter-label { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+        .ev-tag-filter-input {
+            min-width: 140px; max-width: 220px; padding: 5px 8px; border-radius: 6px;
+            border: 1px solid #475569; background: #0f172a; color: #e2e8f0; font-size: 12px;
+        }
+        .ev-crypto-chip {
+            display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+            font-size: 10px; font-weight: 600; letter-spacing: .02em; vertical-align: middle;
+        }
+        .ev-crypto-chip.encrypted { background: rgba(34, 197, 94, 0.18); color: #86efac; border: 1px solid #16a34a; }
+        .ev-crypto-chip.plaintext { background: rgba(234, 179, 8, 0.15); color: #fde68a; border: 1px solid #a16207; }
+        .ev-crypto-chip.missing { background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid #64748b; }
+        .ev-tag-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+        .ev-tag-chip {
+            display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 10px;
+            background: rgba(59, 130, 246, 0.15); color: #93c5fd; border: 1px solid #2563eb;
+        }
+        .ev-catalog-pager { display: inline-flex; align-items: center; gap: 8px; margin-left: 4px; }
+        .ev-catalog-pager[hidden] { display: none !important; }
+        .ev-catalog-status-toggle { display: inline-flex; gap: 4px; }
+        .ev-catalog-status-btn.is-active {
+            background: #1d4ed8; border-color: #2563eb; color: #fff;
+        }
         .ss-evidence-table-wrap { max-height: 280px; overflow: auto; border: 1px solid #334155; border-radius: 6px; }
         #ev-panel-catalog .ss-evidence-table-wrap {
             max-height: calc(100vh - 220px); min-height: 200px;
@@ -1107,6 +1181,95 @@
         @media (max-width: 720px) {
             .ev-ftp-form-grid { grid-template-columns: 1fr; }
         }
+        /* Evidence → Storage: compact fields/buttons (same rule as Server Config). */
+        #ev-panel-settings .ev-ftp-form-grid {
+            max-width: 40rem;
+        }
+        #ev-panel-settings .ev-ftp-form-grid input:not([type="checkbox"]),
+        #ev-panel-settings .ev-ftp-form-grid select {
+            max-width: 22rem;
+        }
+        #ev-panel-settings .ev-ftp-form-grid label.full > input:not([type="checkbox"]),
+        #ev-panel-settings .ev-ftp-form-grid label.full > select,
+        #ev-panel-settings .ev-ftp-pasv-row {
+            max-width: 40rem;
+        }
+        #ev-panel-settings .ev-ftp-pasv-row input {
+            max-width: 10rem; flex: 0 1 10rem;
+        }
+        #ev-panel-settings #ss-ftp-port {
+            max-width: 8rem;
+        }
+        #ev-panel-settings .ev-ftp-save-row .btn,
+        #ev-panel-settings .ev-storage-action-bar .btn,
+        #ev-panel-settings .ev-path-row .btn {
+            width: auto;
+            max-width: none;
+            flex: 0 0 auto;
+            white-space: nowrap;
+            pointer-events: auto;
+            cursor: pointer;
+        }
+        #ev-panel-settings #ev-ftp-save {
+            width: auto !important;
+            min-width: 7.5rem;
+            display: inline-block;
+        }
+        #ev-panel-settings .ev-path-row {
+            display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+            max-width: 40rem;
+        }
+        #ev-panel-settings .ev-path-row input {
+            flex: 1 1 14rem; min-width: 0; max-width: 28rem;
+            width: auto; box-sizing: border-box;
+        }
+        /* Full-width twin cards so long SAN hint fits without orphaning a word. */
+        #ev-panel-settings .ev-tier-pick {
+            max-width: none;
+            width: 100%;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            align-items: stretch;
+        }
+        #ev-panel-settings .ev-tier-card {
+            height: 100%;
+            display: flex;
+            min-width: 0;
+        }
+        #ev-panel-settings .ev-tier-card-body {
+            flex: 1;
+            min-height: 4.25rem;
+            height: 100%;
+            box-sizing: border-box;
+            border-width: 1px;
+            border-color: #334155;
+            border-radius: 8px;
+            background: #0f172a;
+            padding: 12px 14px;
+            gap: 6px;
+            justify-content: flex-start;
+        }
+        #ev-panel-settings .ev-tier-card input:checked + .ev-tier-card-body {
+            border-color: #2563eb;
+            background: #1e293b;
+            box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.35);
+        }
+        #ev-panel-settings .ev-tier-card-body strong {
+            font-size: 12px; font-weight: 600; color: #e2e8f0;
+        }
+        #ev-panel-settings .ev-tier-card-body .hint {
+            font-size: 11px; line-height: 1.4; color: #94a3b8;
+            margin: 0;
+        }
+        /* Flatten nested FTP box so it matches storage cards (no box-in-box). */
+        #ev-panel-settings .ev-ftp-settings-block {
+            margin: 0 0 12px; padding: 0 0 12px;
+            background: transparent; border: none; border-radius: 0;
+            border-bottom: 1px solid #334155;
+        }
+        #ev-panel-settings .ev-ftp-subhead {
+            color: #94a3b8; font-size: 10px; letter-spacing: 0.05em;
+        }
         #ev-panel-settings .ev-storage-action-bar { margin-top: 10px; padding-top: 10px; }
         #ev-panel-settings .setup-hint.ev-storage-foot { margin: 8px 0 0; font-size: 11px; }
         #ev-panel-settings .ev-context-rail-inner { padding: 10px 12px; }
@@ -1120,9 +1283,9 @@
         .ev-tier-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
         .ev-tier-card { display: block; cursor: pointer; margin: 0; }
         .ev-tier-card input { position: absolute; opacity: 0; pointer-events: none; }
-        .ev-tier-card-body { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 2px solid #334155; border-radius: 8px; background: #1e293b; min-height: 72px; transition: border-color 0.15s, background 0.15s; }
-        .ev-tier-card input:checked + .ev-tier-card-body { border-color: #3b82f6; background: rgba(37, 99, 235, 0.1); }
-        .ev-tier-card-body strong { font-size: 12px; color: #f1f5f9; }
+        .ev-tier-card-body { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid #334155; border-radius: 8px; background: #0f172a; min-height: 72px; transition: border-color 0.15s, background 0.15s, box-shadow 0.15s; }
+        .ev-tier-card input:checked + .ev-tier-card-body { border-color: #2563eb; background: #1e293b; box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.35); }
+        .ev-tier-card-body strong { font-size: 12px; color: #e2e8f0; }
         .ev-storage-status-row { font-size: 11px; color: #94a3b8; margin: 6px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
         .ev-st-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
         .ev-st-ok { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
@@ -1168,12 +1331,25 @@
         .ev-bay-n { font-weight: 700; color: #94a3b8; font-size: 9px; text-transform: uppercase; }
         .ev-bay-body { color: #e2e8f0; margin-top: 4px; line-height: 1.3; }
         .ev-sdk-note { margin-top: 8px; }
-        .ev-detail-head { margin-bottom: 12px; }
+        .ev-detail-head { margin-bottom: 12px; flex-shrink: 0; }
         .ev-detail-head h3 { margin: 8px 0 4px; font-size: 14px; color: #f1f5f9; }
-        .ev-detail-grid { display: grid; grid-template-columns: 1fr minmax(260px, 340px); gap: 16px; align-items: start; }
-        @media (max-width: 900px) { .ev-detail-grid { grid-template-columns: 1fr; } }
+        #ev-panel-detail:not([hidden]) {
+            flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; margin-top: 0;
+        }
+        #ev-panel-detail #ev-detail-body {
+            flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
+        }
+        .ev-detail-grid {
+            display: grid; grid-template-columns: 1fr minmax(260px, 340px); gap: 16px;
+            flex: 1; min-height: 0; overflow: hidden; align-items: stretch;
+        }
+        @media (max-width: 900px) {
+            #evidence-panel.ev-detail-active { overflow-y: auto; }
+            .ev-detail-grid { grid-template-columns: 1fr; overflow: visible; flex: none; }
+        }
         .ev-detail-video {
-            min-height: 520px;
+            min-height: 0;
+            height: 100%;
             padding: 10px;
             border: 1px solid #334155;
             border-radius: 10px;
@@ -1181,8 +1357,19 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            align-items: center;
-            justify-content: center;
+            align-items: stretch;
+            justify-content: flex-start;
+            overflow: hidden;
+        }
+        .ev-detail-side {
+            min-height: 0;
+            overflow-y: auto;
+            padding-right: 4px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(51, 65, 85, 0.45) transparent;
+        }
+        @media (max-width: 900px) {
+            .ev-detail-side { overflow-y: visible; max-height: none; }
         }
         .ev-trim-bar {
             width: 100%;
@@ -1194,6 +1381,7 @@
             background: #0f172a;
             border: 1px solid #334155;
             border-radius: 8px;
+            flex-shrink: 0;
         }
         .ev-trim-bar-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #94a3b8; }
         .ev-trim-field { display: inline-flex; align-items: center; gap: 6px; }
@@ -1202,27 +1390,29 @@
         .ev-trim-bar .ev-trim-hint { flex-basis: 100%; margin: 0; font-size: 11px; }
         .ev-trim-len { font-size: 12px; font-weight: 600; color: #38bdf8; }
         .ev-trim-len-bad { color: #f87171; }
-        .ev-preview-shell { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+        .ev-preview-shell { width: 100%; display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; }
         .ev-preview-note { text-align: center; color: #cbd5e1; }
         .ev-preview-note h4 { margin: 0 0 8px; font-size: 16px; color: #f8fafc; }
         .ev-preview-note p { margin: 0; font-size: 13px; line-height: 1.5; color: #94a3b8; }
         .ev-preview-actions { display: flex; justify-content: center; }
-        .ev-preview-stage { width: 100%; display: flex; flex-direction: column; gap: 10px; }
-        .ev-preview-stage-head { display: flex; justify-content: flex-end; }
+        .ev-preview-stage { width: 100%; display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
+        .ev-preview-stage-head { display: flex; justify-content: flex-end; flex-shrink: 0; }
         .ev-detail-video video,
         .ev-detail-video img {
             width: 100%;
             max-width: 100%;
-            max-height: 500px;
+            flex: 1;
+            min-height: 120px;
+            max-height: calc(100vh - 300px);
             background: #000;
             border-radius: 8px;
             object-fit: contain;
             display: block;
         }
         @media (max-width: 900px) {
-            .ev-detail-video { min-height: 340px; }
+            .ev-detail-video { min-height: 240px; height: auto; }
             .ev-detail-video video,
-            .ev-detail-video img { max-height: 320px; }
+            .ev-detail-video img { max-height: 320px; flex: none; }
         }
         .ev-detail-side input[type="file"] {
             width: 100%;
@@ -1343,20 +1533,84 @@
         }
         #ev-redact-dialog[hidden] { display: none !important; }
         .ev-redact-dialog-inner {
-            width: 100%; max-width: 920px; max-height: 92vh; overflow-y: auto;
-            padding: 16px 18px; background: #1e293b; border: 1px solid #475569; border-radius: 10px;
+            width: 100%; max-width: 1100px; max-height: 92vh;
+            display: flex; flex-direction: column; overflow: hidden;
+            background: #1e293b; border: 1px solid #475569; border-radius: 10px;
         }
-        .ev-redact-dialog-inner h4 { margin: 0 0 8px; font-size: 14px; color: #f1f5f9; }
-        .ev-redact-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; align-items: center; }
-        .ev-redact-stage { position: relative; display: inline-block; max-width: 100%; background: #000; border-radius: 8px; overflow: hidden; }
-        .ev-redact-stage video, .ev-redact-stage canvas { display: block; max-width: 100%; max-height: 52vh; }
-        .ev-redact-stage canvas { position: absolute; left: 0; top: 0; cursor: crosshair; }
-        .ev-redact-regions { margin: 8px 0; padding-left: 18px; font-size: 11px; color: #cbd5e1; }
+        #ev-redact-mark-panel {
+            display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;
+        }
+        .ev-redact-head {
+            flex-shrink: 0; padding: 14px 16px 10px; border-bottom: 1px solid #334155;
+        }
+        .ev-redact-dialog-inner h4 { margin: 0 0 6px; font-size: 14px; color: #f1f5f9; }
+        .ev-redact-head .hint { margin: 0; font-size: 12px; line-height: 1.45; }
+        .ev-redact-workspace {
+            display: grid; grid-template-columns: 1fr minmax(280px, 360px);
+            flex: 1; min-height: 0; overflow: hidden;
+        }
+        @media (max-width: 860px) {
+            .ev-redact-workspace { grid-template-columns: 1fr; overflow-y: auto; }
+            .ev-redact-main { min-height: 240px; }
+        }
+        .ev-redact-main {
+            display: flex; align-items: center; justify-content: center;
+            padding: 12px; background: #020617; min-height: 0; overflow: hidden;
+        }
+        .ev-redact-rail {
+            display: flex; flex-direction: column; min-height: 0; height: 100%;
+            overflow: hidden;
+            border-left: 1px solid #334155; background: #1e293b;
+        }
+        @media (max-width: 860px) {
+            .ev-redact-rail { border-left: none; border-top: 1px solid #334155; max-height: 38vh; height: auto; }
+        }
+        .ev-redact-toolbar {
+            display: flex; flex-wrap: wrap; gap: 8px; margin: 0;
+            padding: 10px 12px; align-items: center; flex-shrink: 0;
+            border-bottom: 1px solid #334155;
+        }
+        .ev-redact-stage {
+            position: relative; width: 100%; max-width: 100%;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .ev-redact-stage-inner {
+            position: relative; display: inline-block; max-width: 100%;
+            background: #000; border-radius: 8px; overflow: hidden;
+        }
+        .ev-redact-stage-inner video, .ev-redact-stage-inner canvas {
+            display: block; max-width: 100%; max-height: calc(92vh - 130px); width: auto; height: auto;
+        }
+        .ev-redact-stage-inner canvas { position: absolute; left: 0; top: 0; cursor: crosshair; }
+        .ev-redact-regions-wrap {
+            flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px;
+        }
+        .ev-redact-regions {
+            margin: 0; padding: 8px 0; font-size: 11px; color: #cbd5e1; list-style: none;
+        }
+        .ev-redact-footer {
+            flex-shrink: 0; border-top: 1px solid #334155; background: #172033;
+            padding: 12px 16px;
+        }
+        .ev-redact-actions {
+            flex-shrink: 0; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+            margin: 0; padding: 0; border: none; background: transparent;
+        }
+        .ev-redact-actions #ev-redact-save { flex: 1 1 200px; min-width: 160px; }
+        #ev-redact-note-panel {
+            display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;
+            padding: 14px 16px 0;
+        }
+        #ev-redact-note-panel[hidden] { display: none !important; }
+        .ev-redact-note-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
+        #ev-redact-note-panel .ev-dock-dialog-actions {
+            flex-shrink: 0; margin: 0; padding: 10px 0 14px; border-top: 1px solid #334155;
+        }
         .ev-trim-row { display: inline-flex; align-items: center; gap: 6px; }
         .ev-trim-row input { width: 90px; }
         .ev-redact-span { font-size: 11px; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px; }
         .ev-redact-span-sel { background: #0f172a; color: #e2e8f0; border: 1px solid #475569; border-radius: 6px; padding: 3px 6px; font-size: 11px; }
-        .ev-redact-regions li.ev-redact-region-row { list-style: none; margin-left: -18px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid #334155; }
+        .ev-redact-regions li.ev-redact-region-row { list-style: none; margin-left: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid #334155; }
         .ev-redact-region-tag { min-width: 92px; color: #93c5fd; }
         .ev-redact-time { display: inline-flex; align-items: center; gap: 3px; color: #94a3b8; }
         .ev-redact-time input { width: 62px; background: #0f172a; color: #e2e8f0; border: 1px solid #475569; border-radius: 6px; padding: 2px 5px; font-size: 11px; }
@@ -1467,6 +1721,32 @@
         #map-pmtiles-3d-btn:hover { border-color: #60a5fa; background: #334155; }
         #map-pmtiles-3d-btn.is-on { border-color: #38bdf8; color: #7dd3fc; background: #0c4a6e; }
         #map-fit-pins-btn:focus { outline: none; border-color: #3b82f6; }
+        .map-place-search-wrap { position: relative; display: flex; align-items: center; gap: 4px; }
+        #map-place-search-input {
+            background: #1e293b; color: #e2e8f0; border: 1px solid #334155;
+            border-radius: 6px; font-size: 11px; padding: 5px 8px; width: 150px; max-width: 34vw;
+        }
+        #map-place-search-input:focus { outline: none; border-color: #3b82f6; }
+        #map-place-search-input::placeholder { color: #64748b; }
+        #map-place-search-btn {
+            background: #1e293b; color: #e2e8f0; border: 1px solid #334155;
+            border-radius: 6px; font-size: 11px; padding: 5px 8px; cursor: pointer; white-space: nowrap;
+        }
+        #map-place-search-btn:hover { border-color: #60a5fa; background: #334155; }
+        #map-place-search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .map-place-search-results {
+            position: absolute; top: calc(100% + 4px); right: 0; min-width: 220px; max-width: 320px;
+            background: rgba(15, 23, 42, 0.98); border: 1px solid #475569; border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.45); z-index: 700; max-height: 220px; overflow-y: auto;
+        }
+        .map-place-search-results button {
+            display: block; width: 100%; text-align: left; background: transparent; border: none;
+            color: #e2e8f0; font-size: 11px; line-height: 1.35; padding: 8px 10px; cursor: pointer;
+            border-bottom: 1px solid #334155;
+        }
+        .map-place-search-results button:last-child { border-bottom: none; }
+        .map-place-search-results button:hover { background: #1e293b; color: #93c5fd; }
+        .map-place-search-hint { font-size: 10px; color: #94a3b8; padding: 6px 8px 0; max-width: 180px; line-height: 1.3; }
         .map-toolbar-divider { flex-shrink: 0; height: 1px; background: linear-gradient(90deg, transparent, #475569 20%, #64748b 50%, #475569 80%, transparent); }
         #map-controls {
             flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
@@ -2985,6 +3265,8 @@
             position: fixed; inset: 0; z-index: 21000; background: rgba(15, 23, 42, 0.92);
             display: flex; align-items: center; justify-content: center; padding: 16px;
         }
+        /* Login reverify must sit above IT PIN set dialog (was buried → stuck on Saving…). */
+        #ss-gate-backdrop { z-index: 23100; }
         #ss-tech-provision-backdrop { z-index: 22050; }
         #ss-tech-provision-backdrop .ss-gate-panel { pointer-events: auto; }
         #ss-gate-backdrop[hidden], #ss-reset-pwd-backdrop[hidden], #ss-tech-gate-backdrop[hidden], #ss-tech-provision-backdrop[hidden] { display: none !important; }
@@ -2994,8 +3276,29 @@
         .lab-readiness-bar { height: 6px; background: #334155; border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
         .lab-readiness-bar span { display: block; height: 100%; background: #22c55e; transition: width 0.3s; }
         .lab-readiness-row { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; font-size: 11px; }
-        .lab-readiness-dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-top: 4px; flex-shrink: 0; }
+        .lab-readiness-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-top: 4px; flex-shrink: 0;
+            box-shadow: none; filter: none; outline: none;
+        }
         .lab-readiness-row.ok .lab-readiness-dot { background: #22c55e; }
+        .lab-readiness-row.warn .lab-readiness-dot { background: #f59e0b; }
+        .ss-readiness-row { cursor: pointer; align-items: center; }
+        .ss-readiness-row:hover { background: rgba(37, 99, 235, 0.06); border-radius: 4px; }
+        .ss-readiness-row-body { flex: 1; min-width: 0; }
+        .ss-readiness-fix { font-size: 10px; color: #60a5fa; margin-left: 8px; flex-shrink: 0; white-space: nowrap; }
+        .ss-command-displays-note {
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid #334155;
+        }
+        .ss-command-displays-note h5 {
+            margin: 0 0 6px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #cbd5e1;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
         .lab-ok { color: #86efac; font-size: 11px; }
         .lab-err { color: #fca5a5; font-size: 11px; }
         #ss-panel-lab label { display: block; margin-bottom: 8px; font-size: 11px; color: #94a3b8; }
@@ -3045,6 +3348,9 @@
         #ss-tech-unlock:hover { color: #64748b; }
         .ss-tech-section { margin: 12px 0; padding: 10px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; }
         .ss-tech-section h5 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
+        .ss-live-viewer-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
+        .ss-live-viewer-table th, .ss-live-viewer-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #334155; vertical-align: top; }
+        .ss-live-viewer-table th { color: #94a3b8; font-size: 9px; text-transform: uppercase; }
         .ss-tech-toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
         .ss-tech-toolbar input, .ss-tech-toolbar select { width: auto; min-width: 100px; margin: 0; padding: 6px; font-size: 11px; }
         .ss-tech-toolbar button { padding: 6px 10px; font-size: 10px; border-radius: 6px; border: 1px solid #475569; background: #334155; color: #e2e8f0; cursor: pointer; }
@@ -3149,6 +3455,18 @@
         .ss-config-section:last-of-type { border-bottom: none; }
         .ss-config-section[hidden] { display: none !important; }
         .ss-config-section[id] { scroll-margin-top: 52px; }
+        .ss-portal-url-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+        .ss-portal-url-row > label.ss-portal-url-field { flex: 1 1 240px; margin: 0; }
+        .ss-portal-url-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-bottom: 2px; }
+        .ss-tls-badge {
+            display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+            letter-spacing: 0.02em; border: 1px solid transparent; white-space: nowrap;
+        }
+        .ss-tls-badge.is-https { background: rgba(22, 163, 74, 0.18); color: #86efac; border-color: rgba(34, 197, 94, 0.45); }
+        .ss-tls-badge.is-http { background: rgba(234, 179, 8, 0.16); color: #fde68a; border-color: rgba(234, 179, 8, 0.4); }
+        .ss-tls-badge.is-empty { background: rgba(148, 163, 184, 0.14); color: #94a3b8; border-color: rgba(148, 163, 184, 0.35); }
+        #ss-section-production label.ss-lab-check { display: flex; align-items: center; gap: 8px; }
+        #ss-section-production label.ss-lab-check input { width: auto; margin: 0; }
         .ss-network-section-nav {
             display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 12px; padding: 6px;
             background: #111827; border: 1px solid #334155; border-radius: 8px;
@@ -3181,7 +3499,94 @@
             width: auto; margin: 2px 0 0; padding: 0; flex-shrink: 0; cursor: pointer;
             border: none; background: transparent; box-shadow: none;
         }
-        #server-setup-panel input, #server-setup-panel select { width: 100%; margin-top: 4px; padding: 8px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #f8fafc; box-sizing: border-box; }
+        #server-setup-panel input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]):not([type="hidden"]),
+        #server-setup-panel select {
+            width: 100%; margin-top: 4px; padding: 8px; font-size: 12px; border-radius: 6px;
+            border: 1px solid #475569; background: #0f172a; color: #f8fafc; box-sizing: border-box;
+            max-width: 22rem;
+        }
+        #server-setup-panel input[type="checkbox"],
+        #server-setup-panel input[type="radio"] {
+            width: auto; max-width: none; margin: 0; padding: 0;
+            flex-shrink: 0; cursor: pointer;
+        }
+        #server-setup-panel textarea {
+            width: 100%; max-width: 40rem; box-sizing: border-box;
+        }
+        /* Short fields stay capped; long URLs / full-row labels can use more width. */
+        #server-setup-panel label.full > input:not([type="checkbox"]):not([type="radio"]),
+        #server-setup-panel label.full > select,
+        #server-setup-panel .ss-portal-url-field input,
+        #server-setup-panel #ss-operator-url {
+            max-width: 40rem;
+        }
+        #server-setup-panel .ss-network-grid input:not([type="checkbox"]):not([type="radio"]),
+        #server-setup-panel .ss-network-grid select {
+            max-width: 100%;
+        }
+        #server-setup-panel .ss-users-table input:not([type="checkbox"]):not([type="radio"]),
+        #server-setup-panel .ss-users-table select,
+        #server-setup-panel .ss-bwc-table input:not([type="checkbox"]):not([type="radio"]),
+        #server-setup-panel .ss-bwc-table select,
+        #server-setup-panel .ss-group-members-table input:not([type="checkbox"]):not([type="radio"]),
+        #server-setup-panel .ss-group-members-table select {
+            max-width: none;
+        }
+        /* Action buttons: content-sized (not full-page bars). Nav tabs stay full-width. */
+        #server-setup-panel .btn,
+        #server-setup-panel button.btn-action,
+        #server-setup-panel button.btn-ghost,
+        #server-setup-panel button.btn-sm {
+            width: auto;
+            max-width: none;
+            flex: 0 0 auto;
+            white-space: nowrap;
+            pointer-events: auto;
+            cursor: pointer;
+        }
+        #server-setup-panel .evidence-toolbar,
+        #server-setup-panel .ev-ftp-save-row,
+        #server-setup-panel .ss-portal-url-actions,
+        #server-setup-panel .ss-tech-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        #server-setup-panel .server-setup-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            align-items: center;
+        }
+        #server-setup-panel .server-setup-actions button {
+            flex: 0 0 auto;
+            width: auto;
+            min-width: 7.5rem;
+            padding: 8px 14px;
+            font-size: 12px;
+            border-radius: 6px;
+            border: 1px solid #475569;
+            cursor: pointer;
+            font-weight: 600;
+            pointer-events: auto;
+        }
+        #server-setup-panel #cd-save {
+            width: auto !important;
+            max-width: none;
+            display: inline-block;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+        /* Keep left section nav full-width (tabs, not action bars). */
+        #server-setup-panel .ss-config-nav button {
+            width: 100%;
+            max-width: none;
+            white-space: normal;
+        }
         .ss-protocol-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
         .ss-protocol-tabs button { flex: 1; padding: 8px; font-size: 11px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #94a3b8; cursor: pointer; }
         .ss-protocol-tabs button.active { background: #2563eb; color: #fff; border-color: #1d4ed8; }
@@ -3299,8 +3704,8 @@
         #server-setup-bwc { margin: 12px 0; padding: 10px; background: #0f172a; border: 1px dashed #475569; border-radius: 6px; font-size: 11px; line-height: 1.5; color: #cbd5e1; }
         #server-setup-bwc dt { color: #94a3b8; margin-top: 6px; }
         #server-setup-bwc dd { margin: 2px 0 0; font-family: ui-monospace, Consolas, monospace; color: #f8fafc; word-break: break-all; }
-        .server-setup-actions { display: flex; gap: 8px; margin-top: 12px; flex-shrink: 0; }
-        .server-setup-actions button { flex: 1; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; }
+        .server-setup-actions { display: flex; gap: 8px; margin-top: 12px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-start; }
+        .server-setup-actions button { flex: 0 0 auto; width: auto; min-width: 7.5rem; padding: 8px 14px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; }
         #server-setup-save { background: #2563eb; color: #fff; border-color: #1d4ed8; }
         #server-setup-cancel { background: #334155; color: #e2e8f0; }
         .ss-users-table-wrap { overflow-x: auto; margin: 8px 0; border: 1px solid #334155; border-radius: 6px; }
@@ -3338,6 +3743,34 @@
             white-space: nowrap;
             line-height: 1.4;
             text-align: center;
+        }
+        .ss-role-scope-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+        .ss-scope-badge {
+            display: inline-block;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            line-height: 1.35;
+            border: 1px solid transparent;
+            white-space: nowrap;
+        }
+        .ss-scope-badge.ss-scope-all {
+            background: rgba(37, 99, 235, 0.16);
+            color: #93c5fd;
+            border-color: rgba(59, 130, 246, 0.4);
+        }
+        .ss-scope-badge.ss-scope-station {
+            background: rgba(15, 118, 110, 0.16);
+            color: #5eead4;
+            border-color: rgba(45, 212, 191, 0.35);
+        }
+        .ss-hierarchy-hint {
+            margin: 0;
+            font-size: 10px;
+            line-height: 1.4;
+            color: #64748b;
         }
         .ss-user-signin-from, .ss-user-signin-exp, .ss-user-evidence-exp { width: 100%; min-width: 118px; max-width: 140px; margin: 0; padding: 4px 6px; font-size: 11px; box-sizing: border-box; }
         .ss-user-actions { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -3378,19 +3811,34 @@
         .ss-user-add { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
         .ss-user-add label { margin-bottom: 0; }
         .ss-user-add .ss-user-add-full { grid-column: 1 / -1; }
-        .ss-user-add button { grid-column: 1 / -1; padding: 10px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid #1d4ed8; background: #2563eb; color: #fff; cursor: pointer; }
+        .ss-user-add button {
+            grid-column: 1 / -1; justify-self: start;
+            width: auto; min-width: 7.5rem; max-width: none;
+            padding: 8px 14px; font-size: 12px; font-weight: 600; border-radius: 6px;
+            border: 1px solid #1d4ed8; background: #2563eb; color: #fff; cursor: pointer;
+        }
         .ss-user-add button:hover { background: #1d4ed8; }
+        #server-setup-panel #ss-change-pass {
+            width: auto !important; max-width: none; display: inline-block;
+            margin-top: 6px; padding: 8px 14px; font-size: 11px; border-radius: 6px;
+            border: 1px solid #475569; background: #334155; color: #e2e8f0; cursor: pointer;
+        }
         .ss-role-badge { display: inline-block; font-size: 9px; text-transform: none; letter-spacing: 0; padding: 2px 6px; border-radius: 4px; background: #334155; color: #94a3b8; margin-left: 4px; }
         .ss-role-badge.super_admin { background: #1e3a5f; color: #7dd3fc; }
         #ss-users-section.ss-highlight-grant {
             outline: 2px solid #fbbf24; outline-offset: 4px; border-radius: 8px;
             animation: ss-grant-pulse 1.2s ease-in-out 2;
         }
-        .ss-dash-subtabs { display: flex; gap: 6px; margin: 0 0 12px; flex-wrap: wrap; }
-        .ss-dash-subtabs button {
-            padding: 6px 12px; font-size: 11px; font-weight: 600; border-radius: 6px;
-            border: 1px solid #475569; background: #1e293b; color: #cbd5e1; cursor: pointer;
+        .ss-dash-subtabs {
+            display: inline-flex; gap: 4px; margin: 0 0 14px; flex-wrap: wrap;
+            padding: 3px; background: #0f172a; border: 1px solid #334155; border-radius: 8px;
         }
+        .ss-dash-subtabs button {
+            padding: 7px 14px; font-size: 11px; font-weight: 600; border-radius: 6px;
+            border: 1px solid transparent; background: transparent; color: #94a3b8; cursor: pointer;
+            width: auto; min-width: 0;
+        }
+        .ss-dash-subtabs button:hover { color: #e2e8f0; background: #1e293b; }
         .ss-dash-subtabs button.active { background: #2563eb; border-color: #1d4ed8; color: #fff; }
         #ss-my-account-section .ss-my-perms { margin: 10px 0; padding: 10px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; font-size: 11px; }
         #ss-my-account-section .ss-my-perms dt { color: #64748b; font-size: 10px; text-transform: uppercase; margin-top: 6px; }
@@ -3890,6 +4338,11 @@
             </div>
         </div>
         <div id="header-actions">
+            <button type="button" id="missed-activity-bell" class="header-bell" data-i18n-title="missedActivity.title" aria-label="Missed activity" hidden>
+                <svg class="header-bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                <span id="missed-activity-label" class="header-bell-label">Missed</span>
+                <span id="missed-activity-badge" class="header-bell-badge" hidden>0</span>
+            </button>
             <div id="header-session-chip" class="header-session-chip" hidden>
                 <span class="header-session-label" data-i18n="header.signedIn">Signed in</span>
                 <span id="header-session-user" class="header-session-user">—</span>
@@ -4146,7 +4599,7 @@
                     <div class="status-box">
                         <h3 data-i18n="server.title">Server</h3>
                         <p class="stat-row"><span class="stat-label" data-i18n="server.bwcSipIp">BWC register IP</span><span id="display-server-host" class="stat-value mono">—</span></p>
-                        <p class="stat-row"><span class="stat-label" data-i18n="server.customerLogin">Operator login</span><span id="display-operator-url" class="stat-value mono" style="font-size:10px;word-break:break-all">—</span></p>
+                        <p class="stat-row"><span class="stat-label" data-i18n="server.customerLogin">Operator portal</span><span id="display-operator-url" class="stat-value mono" style="font-size:10px;word-break:break-all">—</span></p>
                         <p class="stat-row"><span class="stat-label" data-i18n="server.deploymentMode">Deployment</span><span id="display-deployment-mode" class="stat-value">—</span></p>
                         <p class="stat-row"><span class="stat-label" data-i18n="server.signedIn">Signed in</span><span id="display-dashboard-user" class="stat-value">—</span><span id="display-dashboard-role" class="ss-role-badge" hidden></span></p>
                         <div class="btn-row" id="server-setup-row"><button type="button" id="server-setup-open" class="btn btn-ghost btn-sm" data-i18n="server.configBtn">Server Config</button></div>
@@ -4184,7 +4637,7 @@
                         <article class="settings-lifecycle-card" data-settings-action="faults">
                             <h4 data-i18n="settingsHub.card.faults">Faults &amp; SOS</h4>
                             <p class="settings-lifecycle-status" id="settings-status-faults">—</p>
-                            <button type="button" class="btn btn-ghost btn-sm settings-lifecycle-open" data-i18n="settingsHub.openCentre">Centre summary</button>
+                            <button type="button" class="btn btn-ghost btn-sm settings-lifecycle-open" data-i18n="settingsHub.openCentre">Centre summary (this window)</button>
                         </article>
                         <article class="settings-lifecycle-card" data-settings-action="monitor">
                             <h4 data-i18n="settingsHub.card.monitor">Monitoring</h4>
@@ -4235,7 +4688,7 @@
                     <button type="button" id="ss-main-tab-usb" hidden data-i18n="server.tab.usbMaint">USB maintenance</button>
                     <button type="button" id="ss-main-tab-cloud" hidden data-i18n="server.tab.cloud">Cloud Deployment</button>
                     <button type="button" id="ss-main-tab-diagnostics" hidden data-i18n="server.tab.diagnostics">Diagnostics</button>
-                    <button type="button" id="ss-main-tab-lab" hidden data-i18n="server.tab.lab">LAB</button>
+                    <button type="button" id="ss-main-tab-lab" hidden data-i18n="server.tab.lab">Identity</button>
                 </div>
             </nav>
             <div class="ss-config-content">
@@ -4247,11 +4700,13 @@
                 <button type="button" data-ss-section="ss-section-resilience" data-i18n="resilience.title">Site resilience</button>
                 <button type="button" data-ss-section="ss-section-lan" data-i18n="server.lan.title">LAN network</button>
                 <button type="button" data-ss-section="ss-section-wan" data-i18n="server.wan.title">WAN / internet</button>
-                <button type="button" data-ss-section="ss-section-operator" data-i18n="server.operatorSection">Operator access</button>
+                <button type="button" data-ss-section="ss-section-operator" data-i18n="server.operatorSection">Operator portal</button>
+                <button type="button" data-ss-section="ss-section-production" data-i18n="server.productionAccess">Reverse proxy</button>
                 <button type="button" data-ss-section="ss-section-site-time" data-i18n="server.siteTimezone">Site timezone</button>
                 <button type="button" data-ss-section="ss-section-dock-link" data-i18n="server.nav.section.storage">Storage</button>
-                <button type="button" data-ss-section="ss-section-bwc-register" data-i18n="server.bwcRegister">BWC camera register</button>
+                <button type="button" data-ss-section="ss-section-bwc-register" data-i18n="server.bwcRegister">Device registration</button>
                 <button type="button" data-ss-section="ss-section-protocol" data-i18n="server.protocol">Protocol (same on every BWC)</button>
+                <button type="button" data-ss-section="ss-section-readiness" data-i18n="server.readiness.title">Site readiness</button>
             </nav>
             <div class="ss-config-section" id="ss-section-deployment">
                 <h4 data-i18n="server.deployment">Deployment</h4>
@@ -4314,10 +4769,24 @@
             </div>
 
             <div class="ss-config-section" id="ss-section-operator">
-                <h4 data-i18n="server.operatorSection">Operator access</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.operatorSectionHint">Where dispatch staff open the dashboard. Hostname and HTTPS are supported.</p>
-                <label class="full"><span data-i18n="server.operatorUrl">Operator login URL</span><input type="text" id="ss-operator-url" data-i18n-placeholder="server.operatorUrlPlaceholder" placeholder="https://dispatch.customer.com"></label>
+                <h4 data-i18n="server.operatorSection">Operator portal</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.operatorSectionHint">HTTPS bookmark for dispatch staff. Not the device registration IPv4.</p>
+                <div class="ss-portal-url-row">
+                    <label class="full ss-portal-url-field"><span data-i18n="server.operatorUrl">Operator portal URL</span><input type="text" id="ss-operator-url" data-i18n-placeholder="server.operatorUrlPlaceholder" placeholder="https://dispatch.customer.com" autocomplete="off" spellcheck="false"></label>
+                    <div class="ss-portal-url-actions">
+                        <span id="ss-operator-tls-badge" class="ss-tls-badge is-empty" aria-live="polite">—</span>
+                        <button type="button" class="btn btn-action btn-sm" id="ss-copy-operator-url" data-i18n="server.copyOperatorUrl">Copy URL</button>
+                    </div>
+                </div>
                 <p class="ss-runtime-ro"><span data-i18n="server.dashboardPort">Dashboard port</span>: <span id="ss-runtime-http-port">3888</span></p>
+            </div>
+
+            <div class="ss-config-section" id="ss-section-production">
+                <h4 data-i18n="server.productionAccess">Reverse proxy</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.productionAccessHint">Terminate TLS on a reverse proxy in front of this app. Enable Trust reverse proxy when the portal URL is HTTPS.</p>
+                <label class="ss-lab-check"><input type="checkbox" id="ss-trust-proxy"><span data-i18n="server.trustReverseProxy">Trust reverse proxy (X-Forwarded-Proto / Host)</span></label>
+                <p id="ss-production-access-status" class="setup-hint" style="margin-top:6px"></p>
+                <button type="button" class="btn btn-action btn-sm" id="ss-save-production-access" data-i18n="server.saveProductionAccess">Save</button>
             </div>
 
             <div class="ss-config-section" id="ss-section-site-time">
@@ -4336,10 +4805,10 @@
             </div>
 
             <div class="ss-config-section" id="ss-section-bwc-register">
-                <h4 data-i18n="server.bwcRegister">BWC camera register</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.bwcRegisterHint">IPv4 entered on every BWC SIP screen (SIM keypads cannot use hostnames). Usually matches LAN server IP or public WAN IP.</p>
+                <h4 data-i18n="server.bwcRegister">Device registration address</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.bwcRegisterHint">IPv4 on each BWC SIP screen (keypads cannot use hostnames). Independent of the Operator portal URL.</p>
                 <div class="ss-network-grid">
-                    <label><span data-i18n="server.bwcSipServer">BWC register IPv4</span><input type="text" id="ss-public-host" inputmode="decimal" data-i18n-placeholder="server.hostPlaceholder" placeholder="192.168.1.50"></label>
+                    <label><span data-i18n="server.bwcSipServer">Device registration IPv4</span><input type="text" id="ss-public-host" inputmode="decimal" data-i18n-placeholder="server.hostPlaceholder" placeholder="192.168.1.50"></label>
                     <label><span data-i18n="server.bindHost">SIP listen address</span><input type="text" id="ss-bind-host" placeholder="0.0.0.0"></label>
                 </div>
                 <p class="setup-hint" style="margin-top:4px" data-i18n="server.bindHostHint">0.0.0.0 listens on all interfaces. Set a specific LAN IP only when the server has multiple NICs.</p>
@@ -4371,9 +4840,114 @@
             <p class="setup-hint" style="margin-bottom:8px;" data-i18n="server.typeOnBwcHint">Enter these server values on each BWC SIP screen. Device ID and operator name come from your BWC list.</p>
             <dl id="server-setup-bwc"></dl>
             </div>
+
+            <div class="ss-config-section" id="ss-section-readiness">
+                <h4 data-i18n="server.readiness.title">Site readiness</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.readiness.hint">Deployment health before go-live. Click a row to open the setting.</p>
+                <div id="ss-site-readiness" class="ss-tech-section" aria-live="polite"></div>
+                <button type="button" class="btn btn-action btn-sm" id="ss-refresh-readiness" data-i18n="server.readiness.refresh">Refresh</button>
+                <div class="ss-command-displays-note" id="ss-section-command-displays">
+                    <h5 data-i18n="server.commandDisplays.title">Control room</h5>
+                    <p class="setup-hint" style="margin:0 0 8px" data-i18n="server.commandDisplays.hint">Assign monitors for the control room — operator desk, video wall, map, and status board.</p>
+                    <button type="button" class="btn btn-action btn-sm" id="ss-open-command-wall" data-i18n="server.commandDisplays.open">Configure monitors</button>
+                </div>
+            </div>
             </div>
 
+            
             <div id="ss-panel-dashboard" class="ss-main-panel">
+            <div id="ss-dash-subtabs" class="ss-dash-subtabs" hidden>
+                <button type="button" id="ss-dash-sub-operators" class="active" data-i18n="server.dashSub.operators">Operators</button>
+                <button type="button" id="ss-dash-sub-me" data-i18n="server.dashSub.myAccount">My account</button>
+            </div>
+            <div id="ss-users-section" hidden>
+                <h4 data-i18n="server.users.title">Dashboard users</h4>
+                <p class="setup-hint" data-i18n="server.users.permHint">Set each operator’s authority below, then click Save on that row. Sign-in from/until, geofencing, and evidence until apply as listed.</p>
+                <p class="setup-hint" data-i18n="server.users.hierarchyIntro">All stations = super admin or See all dispatch groups. Assigned only = pick groups in the Dispatch groups column.</p>
+                <div class="ss-users-table-wrap">
+                <table class="ss-users-table">
+                    <thead><tr>
+                        <th data-i18n="server.users.colUser">User</th>
+                        <th>User ID</th>
+                        <th data-i18n="server.users.colRole">Role</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colDispatchGroups">Dispatch groups</th>
+                        <th data-i18n="server.users.colSignInFrom">Sign-in from</th>
+                        <th data-i18n="server.users.colSignInExpiry">Sign-in until</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colRemoteControl">Remote control</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colKillSwitch">Kill switch</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colGeofence">Geofencing</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colClearMapPins">Clear map pins</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colEvidenceView">Evidence view</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colEvidence">Evidence download</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colEvidenceExport">Evidence export</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colEvidenceEdit">Evidence edit</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colDockAdmin">Dock admin</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceView">VC view</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceJoin">VC join</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceHost">VC host</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceRecord">VC record</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceBwc">VC BWC share</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceCross">VC cross-group</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colAuditView">Audit view</th>
+                        <th class="ss-perm-col-h" data-i18n="server.users.colAuditExport">Audit export</th>
+                        <th data-i18n="server.users.colExpiry">Evidence until</th>
+                        <th data-i18n="server.users.colActions">Actions</th>
+                    </tr></thead>
+                    <tbody id="ss-users-body"></tbody>
+                </table>
+                </div>
+                <div class="ss-user-add">
+                    <p class="setup-hint" id="ss-superadmin-count">—</p>
+                    <label><span data-i18n="server.users.newUsername">New username</span><input type="text" id="ss-new-user" autocomplete="off"></label>
+                    <label><span data-i18n="server.users.displayName">Display name (optional)</span><input type="text" id="ss-new-display-name" autocomplete="off" placeholder="e.g. Night shift lead"></label>
+                    <label><span data-i18n="server.users.contactNote">Contact note (optional)</span><input type="text" id="ss-new-contact-note" autocomplete="off" placeholder="e.g. ext. 4021"></label>
+                    <label><span data-i18n="server.users.newRole">Account type</span>
+                        <select id="ss-new-role">
+                            <option value="operator" data-i18n="role.operator">Operator</option>
+                            <option value="super_admin" data-i18n="role.superAdmin">Super admin</option>
+                        </select>
+                    </label>
+                    <label class="ss-user-add-full"><span data-i18n="server.users.password">Password (min 12)</span><input type="password" id="ss-new-pass" autocomplete="new-password" minlength="12"></label>
+                    <p class="setup-hint" id="ss-new-pass-policy-hint" style="margin:0 0 8px"></p>
+                    <label class="ss-user-add-full"><span data-i18n="server.users.adminConfirm">Your password (to confirm)</span><input type="password" id="ss-new-admin-pass" autocomplete="current-password"></label>
+                    <button type="button" id="ss-add-user" data-i18n="server.users.add">Save operator</button>
+                </div>
+            </div>
+            <div id="ss-my-account-section" hidden>
+                <h4 data-i18n="server.dashSub.myAccount">My account</h4>
+                <dl id="ss-my-account-info" class="ss-my-perms"></dl>
+                <p class="setup-hint" data-i18n="server.myAccount.hint">You can only see your own account. Ask a super admin to change your permissions.</p>
+                <div class="ss-dash-auth-body" style="margin-top:12px;">
+                    <p class="setup-hint" data-i18n="server.password.changeHint">Change your dashboard password below.</p>
+                    <p class="setup-hint" id="ss-dash-password-policy-hint"></p>
+                    <label><span data-i18n="server.password.current">Current password</span><input type="password" id="ss-dash-pass-current" autocomplete="current-password"></label>
+                    <label><span data-i18n="server.password.new">New password</span><input type="password" id="ss-dash-pass-new" autocomplete="new-password"></label>
+                    <label><span data-i18n="server.password.confirm">Confirm new password</span><input type="password" id="ss-dash-pass-confirm" autocomplete="new-password"></label>
+                    <button type="button" id="ss-change-pass" data-i18n="server.password.update">Update password</button>
+                </div>
+                <div class="ss-dash-auth-body" id="ss-recovery-email-block" style="margin-top:16px;padding-top:14px;border-top:1px solid #334155;">
+                    <h4 style="margin:0 0 8px;font-size:12px;color:#cbd5e1" data-i18n="recoveryEmail.title">Recovery email</h4>
+                    <p class="setup-hint" style="margin-top:0" data-i18n="recoveryEmail.myAccountHint">Used for password reset and lost-authenticator recovery. Changing it requires a new verification email.</p>
+                    <p class="setup-hint" id="ss-recovery-email-status" style="margin:0 0 10px">—</p>
+                    <label><span data-i18n="recoveryEmail.address">Recovery email address</span>
+                        <input type="email" id="ss-recovery-email-input" autocomplete="email" spellcheck="false">
+                    </label>
+                    <div class="evidence-toolbar" style="margin-top:8px">
+                        <button type="button" class="btn btn-action btn-sm" id="ss-recovery-email-send" data-i18n="recoveryEmail.sendVerify">Send verification email</button>
+                        <button type="button" class="btn btn-action btn-sm" id="ss-recovery-email-resend" hidden data-i18n="recoveryEmail.resend">Resend verification email</button>
+                    </div>
+                    <span class="setup-hint" id="ss-recovery-email-msg" style="display:block;margin-top:8px"></span>
+                </div>
+            </div>
+            <div id="ss-tech-pin-section" class="ss-config-section" hidden>
+                <h4 data-i18n="tech.adminPin.title">IT administrator PIN</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="tech.adminPin.hint">Separate from login (must be different). Required for Diagnostics and Lab. Super admin sets it for IT use — re-enter login password each time you change it.</p>
+                <p class="setup-hint" id="ss-tech-pin-status" style="margin:0 0 8px">—</p>
+                <div class="evidence-toolbar" style="margin-top:4px">
+                    <button type="button" class="btn btn-action btn-sm" id="ss-tech-pin-set" data-i18n="tech.adminPin.setBtn">Set / reset PIN</button>
+                </div>
+                <span class="setup-hint" id="ss-tech-pin-msg" style="display:block;margin-top:8px"></span>
+            </div>
             <div id="ss-smtp-section" class="ss-config-section ev-ftp-settings-block" hidden>
                 <h4 data-i18n="smtp.title">Outbound email (SMTP)</h4>
                 <p class="setup-hint" style="margin-top:0" data-i18n="smtp.hint">Used for password reset and sign-in recovery (when enabled later). Configure once. Password is stored in the server secrets vault only.</p>
@@ -4444,88 +5018,6 @@
                     <button type="button" class="btn btn-action btn-sm" id="ss-save-voice-settings" data-i18n="voiceAlerts.config.save">Save voice settings</button>
                 </div>
             </div>
-            <div id="ss-dash-subtabs" class="ss-dash-subtabs" hidden>
-                <button type="button" id="ss-dash-sub-operators" class="active" data-i18n="server.dashSub.operators">Operators</button>
-                <button type="button" id="ss-dash-sub-me" data-i18n="server.dashSub.myAccount">My account</button>
-            </div>
-            <div id="ss-my-account-section" hidden>
-                <h4 data-i18n="server.dashSub.myAccount">My account</h4>
-                <dl id="ss-my-account-info" class="ss-my-perms"></dl>
-                <p class="setup-hint" data-i18n="server.myAccount.hint">You can only see your own account. Ask a super admin to change your permissions.</p>
-                <div class="ss-dash-auth-body" style="margin-top:12px;">
-                    <p class="setup-hint" data-i18n="server.password.changeHint">Change your dashboard password below.</p>
-                    <p class="setup-hint" id="ss-dash-password-policy-hint"></p>
-                    <label><span data-i18n="server.password.current">Current password</span><input type="password" id="ss-dash-pass-current" autocomplete="current-password"></label>
-                    <label><span data-i18n="server.password.new">New password</span><input type="password" id="ss-dash-pass-new" autocomplete="new-password"></label>
-                    <label><span data-i18n="server.password.confirm">Confirm new password</span><input type="password" id="ss-dash-pass-confirm" autocomplete="new-password"></label>
-                    <button type="button" id="ss-change-pass" style="width:100%;margin-top:6px;padding:8px;font-size:11px;border-radius:6px;border:1px solid #475569;background:#334155;color:#e2e8f0;cursor:pointer;" data-i18n="server.password.update">Update password</button>
-                </div>
-                <div class="ss-dash-auth-body" id="ss-recovery-email-block" style="margin-top:16px;padding-top:14px;border-top:1px solid #334155;">
-                    <h4 style="margin:0 0 8px;font-size:12px;color:#cbd5e1" data-i18n="recoveryEmail.title">Recovery email</h4>
-                    <p class="setup-hint" style="margin-top:0" data-i18n="recoveryEmail.myAccountHint">Used for password reset and lost-authenticator recovery. Changing it requires a new verification email.</p>
-                    <p class="setup-hint" id="ss-recovery-email-status" style="margin:0 0 10px">—</p>
-                    <label><span data-i18n="recoveryEmail.address">Recovery email address</span>
-                        <input type="email" id="ss-recovery-email-input" autocomplete="email" spellcheck="false">
-                    </label>
-                    <div class="evidence-toolbar" style="margin-top:8px">
-                        <button type="button" class="btn btn-action btn-sm" id="ss-recovery-email-send" data-i18n="recoveryEmail.sendVerify">Send verification email</button>
-                        <button type="button" class="btn btn-action btn-sm" id="ss-recovery-email-resend" hidden data-i18n="recoveryEmail.resend">Resend verification email</button>
-                    </div>
-                    <span class="setup-hint" id="ss-recovery-email-msg" style="display:block;margin-top:8px"></span>
-                </div>
-            </div>
-            <div id="ss-users-section" hidden>
-                <h4 data-i18n="server.users.title">Dashboard users</h4>
-                <p class="setup-hint" data-i18n="server.users.permHint">Set each operator’s authority below, then click Save on that row. Sign-in from/until controls when they may use the dashboard. Geofencing allows set/clear on the map. Evidence until limits dock exports only. Super admin is the install account.</p>
-                <div class="ss-users-table-wrap">
-                <table class="ss-users-table">
-                    <thead><tr>
-                        <th data-i18n="server.users.colUser">User</th>
-                        <th>User ID</th>
-                        <th data-i18n="server.users.colRole">Role</th>
-                        <th data-i18n="server.users.colSignInFrom">Sign-in from</th>
-                        <th data-i18n="server.users.colSignInExpiry">Sign-in until</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colRemoteControl">Remote control</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colKillSwitch">Kill switch</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colGeofence">Geofencing</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colClearMapPins">Clear map pins</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colEvidenceView">Evidence view</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colEvidence">Evidence download</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colEvidenceExport">Evidence export</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colEvidenceEdit">Evidence edit</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colDockAdmin">Dock admin</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceView">VC view</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceJoin">VC join</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceHost">VC host</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceRecord">VC record</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceBwc">VC BWC share</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceCross">VC cross-group</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colAuditView">Audit view</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colAuditExport">Audit export</th>
-                        <th data-i18n="server.users.colExpiry">Evidence until</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colDispatchGroups">Dispatch groups</th>
-                        <th data-i18n="server.users.colActions">Actions</th>
-                    </tr></thead>
-                    <tbody id="ss-users-body"></tbody>
-                </table>
-                </div>
-                <div class="ss-user-add">
-                    <p class="setup-hint" id="ss-superadmin-count">—</p>
-                    <label><span data-i18n="server.users.newUsername">New username</span><input type="text" id="ss-new-user" autocomplete="off"></label>
-                    <label><span data-i18n="server.users.displayName">Display name (optional)</span><input type="text" id="ss-new-display-name" autocomplete="off" placeholder="e.g. Night shift lead"></label>
-                    <label><span data-i18n="server.users.contactNote">Contact note (optional)</span><input type="text" id="ss-new-contact-note" autocomplete="off" placeholder="e.g. ext. 4021"></label>
-                    <label><span data-i18n="server.users.newRole">Account type</span>
-                        <select id="ss-new-role">
-                            <option value="operator" data-i18n="role.operator">Operator</option>
-                            <option value="super_admin" data-i18n="role.superAdmin">Super admin</option>
-                        </select>
-                    </label>
-                    <label class="ss-user-add-full"><span data-i18n="server.users.password">Password (min 8)</span><input type="password" id="ss-new-pass" autocomplete="new-password"></label>
-                    <label class="ss-user-add-full"><span data-i18n="server.users.adminConfirm">Your password (to confirm)</span><input type="password" id="ss-new-admin-pass" autocomplete="current-password"></label>
-                    <button type="button" id="ss-add-user" data-i18n="server.users.add">Save operator</button>
-                </div>
-            </div>
-
             </div>
 
             <div id="ss-panel-groups" class="ss-main-panel">
@@ -4647,6 +5139,13 @@
                     <div id="ss-tech-health"></div>
                 </div>
                 <div class="ss-tech-section">
+                    <h5 data-i18n="tech.liveViewers.title">Live viewer telemetry</h5>
+                    <div class="ss-tech-toolbar">
+                        <button type="button" id="ss-tech-live-viewers-refresh" data-i18n="common.refresh">Refresh</button>
+                    </div>
+                    <div id="ss-tech-live-viewers"></div>
+                </div>
+                <div class="ss-tech-section">
                     <h5 data-i18n="tech.activity.title">Activity recording</h5>
                     <div class="ss-tech-toolbar">
                         <button type="button" id="ss-tech-trace-toggle" data-i18n="tech.activity.traceOff">Detailed recording: Off</button>
@@ -4677,42 +5176,42 @@
             </div>
 
             <div id="ss-panel-lab" class="ss-main-panel">
-                <p class="setup-hint" style="margin-top:0" data-i18n="lab.intro">Enterprise sign-in and monitoring — engineer access only. Live video and SOS are unchanged.</p>
-                <p class="setup-hint" data-i18n="lab.proxyHint">Enable Trust reverse proxy when the dashboard sits behind HTTPS load balancing.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="lab.intro">Identity provider and monitoring — elevated access required. Live video and SOS are unchanged.</p>
+                <p class="setup-hint" data-i18n="lab.proxyHint">Portal HTTPS / Trust reverse proxy: Server → Reverse proxy.</p>
                 <div id="lab-readiness" class="ss-tech-section"></div>
                 <div class="ss-tech-section">
-                    <h5>OIDC / IdP (Keycloak, Azure AD, AD FS)</h5>
-                    <label class="ss-lab-check"><input type="checkbox" id="lab-oidc-enabled"><span>Enable OIDC login on operator sign-in page</span></label>
-                    <label class="ss-lab-check"><input type="checkbox" id="lab-local-login" checked><span>Keep local sign-in (emergency access)</span></label>
-                    <label>Issuer URL<input type="text" id="lab-oidc-issuer" placeholder="https://idp.lab.example/realms/mobility"></label>
-                    <label>Client ID<input type="text" id="lab-oidc-client-id" value="mobility-dashboard"></label>
-                    <label>Client secret<input type="password" id="lab-oidc-client-secret" autocomplete="new-password"></label>
-                    <label>Scopes<input type="text" id="lab-oidc-scopes" value="openid profile email groups"></label>
-                    <label>Admin groups (comma-separated)<input type="text" id="lab-oidc-admin-groups" placeholder="mobility-admins"></label>
-                    <label>Operator groups (comma-separated)<input type="text" id="lab-oidc-operator-groups" placeholder="mobility-operators"></label>
-                    <label class="ss-lab-check"><input type="checkbox" id="lab-oidc-auto-provision" checked><span>Auto-provision new IdP users as operators</span></label>
+                    <h5 data-i18n="lab.section.oidc">Single sign-on (OIDC)</h5>
+                    <label class="ss-lab-check"><input type="checkbox" id="lab-oidc-enabled"><span data-i18n="lab.oidc.enable">Enable OIDC on the operator sign-in page</span></label>
+                    <label class="ss-lab-check"><input type="checkbox" id="lab-local-login" checked><span data-i18n="lab.oidc.localLogin">Keep local sign-in (emergency access)</span></label>
+                    <label><span data-i18n="lab.oidc.issuer">Issuer URL</span><input type="text" id="lab-oidc-issuer" placeholder="https://idp.example.com/realms/mobility"></label>
+                    <label><span data-i18n="lab.oidc.clientId">Client ID</span><input type="text" id="lab-oidc-client-id" value="mobility-dashboard"></label>
+                    <label><span data-i18n="lab.oidc.clientSecret">Client secret</span><input type="password" id="lab-oidc-client-secret" autocomplete="new-password"></label>
+                    <label><span data-i18n="lab.oidc.scopes">Scopes</span><input type="text" id="lab-oidc-scopes" value="openid profile email groups"></label>
+                    <label><span data-i18n="lab.oidc.adminGroups">Admin groups (comma-separated)</span><input type="text" id="lab-oidc-admin-groups" placeholder="mobility-admins"></label>
+                    <label><span data-i18n="lab.oidc.operatorGroups">Operator groups (comma-separated)</span><input type="text" id="lab-oidc-operator-groups" placeholder="mobility-operators"></label>
+                    <label class="ss-lab-check"><input type="checkbox" id="lab-oidc-auto-provision" checked><span data-i18n="lab.oidc.autoProvision">Auto-provision new IdP users as operators</span></label>
                     <div class="evidence-toolbar" style="margin-top:6px">
-                        <button type="button" class="btn btn-action btn-sm" id="lab-test-oidc">Test IdP discovery</button>
+                        <button type="button" class="btn btn-action btn-sm" id="lab-test-oidc" data-i18n="lab.oidc.test">Test IdP discovery</button>
                     </div>
                     <div id="lab-oidc-test-result"></div>
                 </div>
                 <div class="ss-tech-section">
-                    <h5>Proxy &amp; monitoring</h5>
-                    <label class="ss-lab-check"><input type="checkbox" id="lab-trust-proxy"><span>Trust reverse proxy (X-Forwarded-Proto / Host)</span></label>
-                    <label class="ss-lab-check"><input type="checkbox" id="lab-metrics-enabled" checked><span>Allow operations monitoring (metrics endpoint)</span></label>
-                    <label>Metrics bearer token<input type="password" id="lab-metrics-token" autocomplete="new-password"></label>
-                    <label>Audit export token (optional)<input type="password" id="lab-audit-token" autocomplete="new-password"></label>
+                    <h5 data-i18n="lab.section.monitoring">Monitoring</h5>
+                    <label class="ss-lab-check"><input type="checkbox" id="lab-trust-proxy"><span data-i18n="server.trustReverseProxy">Trust reverse proxy (X-Forwarded-Proto / Host)</span></label>
+                    <label class="ss-lab-check"><input type="checkbox" id="lab-metrics-enabled" checked><span data-i18n="lab.metrics.enable">Allow operations monitoring (metrics endpoint)</span></label>
+                    <label><span data-i18n="lab.metrics.token">Metrics bearer token</span><input type="password" id="lab-metrics-token" autocomplete="new-password"></label>
+                    <label><span data-i18n="lab.audit.token">Audit export token (optional)</span><input type="password" id="lab-audit-token" autocomplete="new-password"></label>
                     <div class="evidence-toolbar" style="margin-top:6px">
-                        <button type="button" class="btn btn-action btn-sm" id="lab-probe-health">Test site health</button>
+                        <button type="button" class="btn btn-action btn-sm" id="lab-probe-health" data-i18n="lab.health.test">Test site health</button>
                     </div>
                     <pre id="lab-probe-result" class="ss-tech-pre" style="margin-top:6px">—</pre>
                 </div>
                 <div class="ss-tech-section">
-                    <h5>Notes</h5>
-                    <label><textarea id="lab-notes" rows="3" placeholder="Lab tenant, bid ref, IdP realm notes…"></textarea></label>
+                    <h5 data-i18n="lab.section.notes">Notes</h5>
+                    <label><textarea id="lab-notes" rows="3" data-i18n-placeholder="lab.notes.placeholder" placeholder="Site, bid reference, IdP realm notes…"></textarea></label>
                 </div>
                 <p id="lab-status" class="setup-hint"></p>
-                <button type="button" id="lab-save" style="width:100%;padding:10px;font-size:12px;border-radius:6px;border:1px solid #2563eb;background:#2563eb;color:#fff;cursor:pointer;">Save LAB security settings</button>
+                <button type="button" id="lab-save" style="width:100%;padding:10px;font-size:12px;border-radius:6px;border:1px solid #2563eb;background:#2563eb;color:#fff;cursor:pointer;" data-i18n="lab.save">Save identity &amp; monitoring</button>
             </div>
 
             <div id="ss-panel-cloud" class="ss-main-panel">
@@ -4736,10 +5235,10 @@
                             <option value="lab" data-i18n="server.mode.lab">Lab</option>
                         </select>
                     </label>
-                    <label><span data-i18n="server.operatorUrl">Operator login URL</span><input type="text" id="cd-operator-url" placeholder="https://dispatch.customer.com"></label>
+                    <label><span data-i18n="server.operatorUrl">Operator portal URL</span><input type="text" id="cd-operator-url" placeholder="https://dispatch.customer.com"></label>
                     <label><span data-i18n="server.wan.publicIp">Public WAN IPv4</span><input type="text" id="cd-wan-public-ip" inputmode="decimal" placeholder="203.0.113.10"></label>
                     <label><span data-i18n="server.wan.ddns">DDNS hostname (optional)</span><input type="text" id="cd-wan-ddns" placeholder="dispatch.customer.com"></label>
-                    <label><span data-i18n="server.bwcSipServer">BWC register IPv4</span><input type="text" id="cd-bwc-register-ip" inputmode="decimal" placeholder="203.0.113.10"></label>
+                    <label><span data-i18n="server.bwcSipServer">Device registration IPv4</span><input type="text" id="cd-bwc-register-ip" inputmode="decimal" placeholder="203.0.113.10"></label>
                 </div>
                 <div class="ss-tech-section">
                     <h5 data-i18n="cloud.verification.title">Central entitlement verification</h5>
@@ -4861,8 +5360,8 @@
             </div>
         </div>
         <nav class="cw-hub-nav" aria-label="Command Wall sections">
-            <button type="button" class="cw-hub-nav-btn active" data-cw-panel="live" data-i18n="commandWall.tabLive">Live wall</button>
-            <button type="button" class="cw-hub-nav-btn" data-cw-panel="display" data-i18n="commandWall.tabDisplayRoom">Display room</button>
+            <button type="button" class="cw-hub-nav-btn active" data-cw-panel="live" data-i18n="commandWall.tabLive">Video wall</button>
+            <button type="button" class="cw-hub-nav-btn" data-cw-panel="display" data-i18n="commandWall.tabDisplayRoom">Control room</button>
         </nav>
         <div id="cw-panel-live" class="cw-hub-panel cw-layout">
             <aside id="cw-roster">
@@ -4881,55 +5380,57 @@
         </div>
         <div id="cw-panel-display" class="cw-hub-panel" hidden>
             <div class="cw-panel-display-scroll">
-                <p class="dr-intro" data-i18n="displayRoom.intro">Configure a multi-monitor ops room using Windows extended desktop. Monitor 1 stays on Operations for SOS control; additional windows open for live video, map, and status.</p>
+                <p class="dr-intro" data-i18n="displayRoom.intro">Monitors 2–4 open in new windows. Drag each to the correct display and press F11. For a same-screen preview, use the Video wall tab above.</p>
                 <div class="dr-preset-card">
-                    <h3 data-i18n="displayRoom.presetSosTitle">4-Monitor SOS Room</h3>
-                    <p class="dr-preset-desc" data-i18n="displayRoom.presetSosDesc">Standard dispatch layout: command on display 1, live wall on 2, geography mirror on 3, supervisor KPIs on 4.</p>
+                    <h3 data-i18n="displayRoom.presetSosTitle">Open monitors</h3>
+                    <p class="dr-preset-desc" data-i18n="displayRoom.presetSosDesc">One click opens the same windows as monitors 2–4 (empty wall — no auto live).</p>
                     <div class="dr-monitor-grid">
                         <div class="dr-monitor-card">
                             <div class="dr-monitor-num" data-i18n="displayRoom.monitor1Num">Monitor 1</div>
-                            <div class="dr-monitor-title" data-i18n="displayRoom.monitor1Title">Command</div>
-                            <div class="dr-monitor-hint" data-i18n="displayRoom.monitor1Hint">Operations tab — map, SOS ack, PTT, fleet (this browser).</div>
-                            <button type="button" class="btn btn-ghost btn-sm" id="cw-dr-open-ops" data-i18n="displayRoom.openOps">Go to Operations</button>
+                            <div class="dr-monitor-title" data-i18n="displayRoom.monitor1Title">Operator desk</div>
+                            <div class="dr-monitor-hint" data-i18n="displayRoom.monitor1Hint">Operations — map, SOS, PTT, fleet</div>
+                            <button type="button" class="btn btn-ghost btn-sm" id="cw-dr-open-ops" data-i18n="displayRoom.openOps">Use this window for Operations</button>
                         </div>
                         <div class="dr-monitor-card">
                             <div class="dr-monitor-num" data-i18n="displayRoom.monitor2Num">Monitor 2</div>
-                            <div class="dr-monitor-title" data-i18n="displayRoom.monitor2Title">Live wall</div>
-                            <div class="dr-monitor-hint" data-i18n="displayRoom.monitor2Hint">Command Wall popout — 9/16-up video, drag devices from roster.</div>
-                            <button type="button" class="btn btn-ghost btn-sm" id="cw-dr-open-wall" data-i18n="displayRoom.openWall">Open wall window</button>
+                            <div class="dr-monitor-title" data-i18n="displayRoom.monitor2Title">Wall monitor</div>
+                            <div class="dr-monitor-hint" data-i18n="displayRoom.monitor2Hint">Live multi-panel video wall — opens in a new window on monitor 2.</div>
+                            <button type="button" class="btn btn-action btn-sm" id="cw-dr-open-wall" data-i18n="displayRoom.openWallMonitor2">Open video wall on monitor 2</button>
                         </div>
                         <div class="dr-monitor-card">
                             <div class="dr-monitor-num" data-i18n="displayRoom.monitor3Num">Monitor 3</div>
-                            <div class="dr-monitor-title" data-i18n="displayRoom.monitor3Title">Geo / SOS map</div>
-                            <div class="dr-monitor-hint" data-i18n="displayRoom.monitor3Hint">Wall Map mirror — display only, follows main console.</div>
-                            <button type="button" class="btn btn-ghost btn-sm" id="cw-dr-open-map" data-i18n="displayRoom.openMap">Open map window</button>
+                            <div class="dr-monitor-title" data-i18n="displayRoom.monitor3Title">Map monitor</div>
+                            <div class="dr-monitor-hint" data-i18n="displayRoom.monitor3Hint">Map mirror — opens in a new window on monitor 3.</div>
+                            <button type="button" class="btn btn-ghost btn-sm" id="cw-dr-open-map" data-i18n="displayRoom.openMap">Open map on monitor 3</button>
                         </div>
                         <div class="dr-monitor-card">
                             <div class="dr-monitor-num" data-i18n="displayRoom.monitor4Num">Monitor 4</div>
-                            <div class="dr-monitor-title" data-i18n="displayRoom.monitor4Title">Status</div>
-                            <div class="dr-monitor-hint" data-i18n="displayRoom.monitor4Hint">Centre Summary — fleet health, SOS trends, services.</div>
-                            <button type="button" class="btn btn-ghost btn-sm" id="cw-dr-open-centre" data-i18n="displayRoom.openCentre">Open status window</button>
+                            <div class="dr-monitor-title" data-i18n="displayRoom.monitor4Title">Status board</div>
+                            <div class="dr-monitor-hint" data-i18n="displayRoom.monitor4Hint">Centre summary status board — opens in a new window on monitor 4.</div>
+                            <button type="button" class="btn btn-ghost btn-sm" id="cw-dr-open-centre" data-i18n="displayRoom.openCentre">Open on monitor 4</button>
                         </div>
                     </div>
                     <label class="dr-auto-place">
-                        <input type="checkbox" id="cw-dr-auto-screens" checked>
+                        <input type="checkbox" id="cw-dr-auto-screens">
                         <span data-i18n="displayRoom.autoScreens">Place windows on extended displays automatically</span>
                     </label>
+                    <p class="dr-auto-place-hint" id="cw-dr-auto-place-hint" data-i18n="displayRoom.autoScreensHint" hidden>When checked, Chrome may ask to manage windows on other screens. If place fails, drag the window manually and press F11.</p>
                     <p class="dr-groups-label" data-i18n="displayRoom.groupsLabel">TV wall — dispatch groups</p>
-                    <p class="dr-groups-hint" data-i18n="displayRoom.groupsHint">Online units from selected groups fill the Command Wall layout on display 2.</p>
+                    <p class="dr-groups-hint" data-i18n="displayRoom.groupsHint">Dispatch groups (reference). Open all monitors does not auto-fill or auto-call — drag devices onto the wall when ready.</p>
                     <div id="cw-dr-groups" class="dr-groups-list" aria-live="polite"></div>
+                    <p class="dr-launch-warn" data-i18n="displayRoom.launchWarn">This window switches to Operations (desk). Opens empty video wall, map, and status board — same as monitors 2–4. Drag devices to go live; nothing auto-calls.</p>
                     <div class="dr-actions">
-                        <button type="button" class="btn btn-action btn-sm" id="cw-dr-apply-sos" data-i18n="displayRoom.launchAll">Launch all display windows</button>
+                        <button type="button" class="btn btn-action btn-sm" id="cw-dr-apply-sos" data-i18n="displayRoom.launchAll">Open all monitors</button>
                     </div>
                     <p class="dr-status" id="cw-dr-status" aria-live="polite"></p>
                     <ol class="dr-steps">
                         <li data-i18n="displayRoom.step1">Windows → Display → Extend these displays (HDMI/USB-C adapters as needed).</li>
-                        <li data-i18n="displayRoom.step2">Click Launch all, then drag each new window to monitors 2–4 and press F11 for fullscreen.</li>
-                        <li data-i18n="displayRoom.step3">Keep Monitor 1 on Operations — all SOS acknowledge and PTT control stays there.</li>
+                        <li data-i18n="displayRoom.step2">Click Open all monitors (or each monitor button), drag windows to displays 2–4, then F11. Drag devices onto the wall to go live.</li>
+                        <li data-i18n="displayRoom.step3">Keep monitor 1 on Operations — all SOS acknowledge and PTT control stays there.</li>
                         <li data-i18n="displayRoom.step4">Allow pop-ups if the browser blocks new windows.</li>
                     </ol>
                 </div>
-                <p class="dr-note" data-i18n="displayRoom.streamNote">Each unique live camera uses one server transcode. Avoid playing the same device on both Operations wall and Command Wall at once.</p>
+                <p class="dr-note" data-i18n="displayRoom.streamNote">One live stream per body-worn camera, shared by all operators. For control rooms: use different cameras on Operations and the video wall. The same camera on both is allowed but not recommended.</p>
             </div>
         </div>
     </div>
@@ -4993,6 +5494,13 @@
                         <h3 data-i18n="centre.activity.title">Recent activity</h3>
                         <table class="cs-table" id="cs-activity-table"><thead><tr><th data-i18n="centre.activity.time">Time</th><th data-i18n="centre.activity.action">Action</th><th data-i18n="centre.activity.name">Name</th><th data-i18n="centre.activity.user">User</th></tr></thead><tbody></tbody></table>
                     </div>
+                </div>
+                <div class="cs-card" id="cs-live-viewers-card">
+                    <div class="cs-toolbar" style="margin-bottom:8px;justify-content:space-between">
+                        <h3 style="margin:0" data-i18n="centre.liveViewers.title">Live viewers</h3>
+                        <button type="button" class="cs-btn" id="cs-btn-live-viewers-refresh" data-i18n="common.refresh">Refresh</button>
+                    </div>
+                    <div id="cs-live-viewers-table"></div>
                 </div>
             </div>
         </div>
@@ -5105,7 +5613,19 @@
             <div id="ev-panel-catalog" class="evidence-hub-panel" hidden>
                 <div class="evidence-toolbar">
                     <button type="button" class="btn btn-action btn-sm" id="evidence-refresh" data-i18n="evidence.refresh">Refresh</button>
+                    <span class="ev-catalog-status-toggle" role="group" aria-label="Library status">
+                        <button type="button" class="btn btn-ghost btn-sm ev-catalog-status-btn is-active" id="ev-catalog-status-active" data-status="active" data-i18n="evidenceHub.statusActive">Active</button>
+                        <button type="button" class="btn btn-ghost btn-sm ev-catalog-status-btn" id="ev-catalog-status-archived" data-status="archived" data-i18n="evidenceHub.statusArchived">Archived</button>
+                    </span>
+                    <label class="ev-tag-filter-label hint" for="ev-catalog-tag-filter"><span data-i18n="evidenceHub.tagFilter">Tag</span>
+                        <input type="search" id="ev-catalog-tag-filter" class="ev-tag-filter-input" autocomplete="off" spellcheck="false" data-i18n-placeholder="evidenceHub.tagFilterPlaceholder" placeholder="Filter by tag…">
+                    </label>
                     <span id="evidence-meta" class="hint"></span>
+                    <span id="ev-catalog-pager" class="ev-catalog-pager" hidden>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ev-catalog-prev" data-i18n="evidenceHub.pagePrev">Previous</button>
+                        <span id="ev-catalog-page-label" class="hint"></span>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ev-catalog-next" data-i18n="evidenceHub.pageNext">Next</button>
+                    </span>
                     <span id="evidence-export-meta" class="hint" hidden></span>
                 </div>
                 <div id="ev-catalog-export-queue" class="ev-catalog-export-queue" hidden></div>
@@ -5476,9 +5996,9 @@
 
     <div id="ss-gate-backdrop" hidden>
         <div class="ss-gate-panel" role="dialog" aria-labelledby="ss-gate-title">
-            <h4 id="ss-gate-title" data-i18n="server.gate.title">Confirm your password</h4>
-            <p id="ss-gate-diagnostics-hint" class="setup-hint" style="margin-top:0;color:#38bdf8" hidden data-i18n="adminAction.diagnosticsStep1">Step 1 of 2: confirm your dashboard password.</p>
-            <p class="setup-hint" style="margin-top:0" data-i18n="server.gate.hint">Re-enter your sign-in password to open Server config.</p>
+            <h4 id="ss-gate-title" data-i18n="server.gate.title">Confirm password</h4>
+            <p id="ss-gate-diagnostics-hint" class="setup-hint" style="margin-top:0;color:#38bdf8" hidden data-i18n="adminAction.diagnosticsStep1">Step 1 of 2: enter your login password.</p>
+            <p class="setup-hint" style="margin-top:0" data-i18n="server.gate.hint">Enter your login password.</p>
             <label for="ss-gate-password"><span data-i18n="server.gate.password">Password</span>
                 <input type="password" id="ss-gate-password" autocomplete="current-password">
             </label>
@@ -5493,9 +6013,10 @@
         <div class="ss-gate-panel" role="dialog" aria-labelledby="ss-reset-pwd-title">
             <h4 id="ss-reset-pwd-title" data-i18n="server.users.setPassword">Set operator password</h4>
             <p class="setup-hint" style="margin-top:0" data-i18n="server.users.setPasswordHint">Enter a new password for this operator. You must confirm with your own super admin password.</p>
-            <label for="ss-reset-new-pass"><span data-i18n="server.users.newPassword">New password (min 8)</span>
-                <input type="password" id="ss-reset-new-pass" autocomplete="new-password">
+            <label for="ss-reset-new-pass"><span data-i18n="server.users.newPassword">New password (min 12)</span>
+                <input type="password" id="ss-reset-new-pass" autocomplete="new-password" minlength="12">
             </label>
+            <p class="setup-hint" id="ss-reset-pwd-policy-hint" style="margin:4px 0 8px"></p>
             <label for="ss-reset-admin-pass"><span data-i18n="server.users.adminConfirm">Your password (to confirm)</span>
                 <input type="password" id="ss-reset-admin-pass" autocomplete="current-password">
             </label>
@@ -5509,12 +6030,15 @@
     <div id="ss-tech-gate-backdrop" hidden>
         <div class="ss-gate-panel" role="dialog" aria-labelledby="ss-tech-gate-title">
             <h4 id="ss-tech-gate-title" data-i18n="server.techGate.title">Administrator Access</h4>
-            <p id="ss-tech-gate-step-hint" class="setup-hint" style="margin-top:0;color:#38bdf8" hidden data-i18n="adminAction.diagnosticsSteps">Step 2 of 2: enter the engineer PIN.</p>
-            <p class="setup-hint" style="margin-top:0" data-i18n="server.techGate.hint">Administrator PIN only — not your dashboard password. Set by your server administrator.</p>
+            <p id="ss-tech-gate-step-hint" class="setup-hint" style="margin-top:0;color:#38bdf8" hidden data-i18n="adminAction.diagnosticsSteps">Step 2 of 2: enter the IT administrator PIN.</p>
+            <p class="setup-hint" style="margin-top:0" data-i18n="server.techGate.hint">IT administrator PIN — not your login password. Set under Settings → Server Config → Dashboard Auth.</p>
             <label for="ss-tech-gate-pin"><span data-i18n="server.techGate.pinLabel">Administrator PIN</span>
                 <input type="password" id="ss-tech-gate-pin" autocomplete="off" inputmode="numeric">
             </label>
             <p id="ss-tech-gate-error" class="ss-gate-error" hidden></p>
+            <p class="setup-hint" style="margin:0 0 8px">
+                <button type="button" id="ss-tech-gate-reset-pin" class="btn btn-ghost btn-sm" style="width:100%" data-i18n="tech.adminPin.forgotLink">Forgot PIN? Set / reset (super admin)</button>
+            </p>
             <div class="ss-gate-actions">
                 <button type="button" id="ss-tech-gate-cancel" class="btn btn-ghost btn-sm">Cancel</button>
                 <button type="button" id="ss-tech-gate-submit" class="btn btn-action btn-sm">Unlock</button>
@@ -5523,8 +6047,8 @@
     </div>
     <div id="ss-tech-provision-backdrop" hidden>
         <div class="ss-gate-panel" role="dialog" aria-labelledby="ss-tech-provision-title">
-            <h4 id="ss-tech-provision-title" data-i18n="tech.provision.title">Enable engineer diagnostics</h4>
-            <p class="setup-hint" style="margin-top:0" data-i18n="tech.provision.hint">Choose an administrator PIN (12 characters or more). This PIN is separate from your dashboard sign-in and is required to open diagnostics, trace logs, and runbooks.</p>
+            <h4 id="ss-tech-provision-title" data-i18n="tech.provision.title">Set IT administrator PIN</h4>
+            <p class="setup-hint" style="margin-top:0" data-i18n="tech.provision.hint">Choose a PIN (12+ characters). Must be different from your login password. Confirm with your login password. Only a super admin can set this.</p>
             <label for="ss-tech-provision-pin"><span data-i18n="tech.provision.pinLabel">New administrator PIN</span>
                 <input type="password" id="ss-tech-provision-pin" autocomplete="new-password" inputmode="text">
             </label>
@@ -5563,7 +6087,7 @@
     <script src="/vendor/jsmpeg.min.js"></script>
     <script src="/js/i18n.js?v=20260702-restore-8wc-v2"></script>
     <script src="/js/session-bus.js?v=20260702-settings-session-sync"></script>
-    <script src="/js/mobility-map-gis.js?v=20260630-add-za"></script>
+    <script src="/js/mobility-map-gis.js?v=20260709-place-search"></script>
     <script src="/js/map-offline-tiles.js?v=20260628-cn-offline"></script>
     <script src="/js/display-names.js"></script>
     <script src="/js/dispatch-groups-admin.js?v=20260609-groups-ux"></script>
@@ -5571,14 +6095,15 @@
     <script src="/js/auth-form-busy.js?v=20260702-admin-action-bus"></script>
     <script src="/js/admin-action-bus.js?v=20260702-admin-action-bus"></script>
     <script src="/js/auth-reverify.js?v=20260702-admin-action-bus"></script>
-    <script src="/js/password-policy-ui.js"></script>
+    <script src="/js/password-policy-ui.js?v=20260708-pwd12"></script>
     <script src="/js/tab-lifecycle.js?v=20260702-restore-8wc-v2"></script>
-    <script src="/js/server-setup.js?v=20260707-users-dispatch-align"></script>
+    <script src="/js/server-setup.js?v=20260709-controls-compact-v4"></script>
     <script src="/js/platform-smtp.js?v=20260706-smtp-settings"></script>
     <script src="/js/settings-hub.js?v=20260702-settings-session-sync"></script>
-    <script src="/js/tech-diagnostics.js?v=20260702-restore-8wc-v2"></script>
+    <script src="/js/live-viewer-telemetry.js?v=20260709-live-viewer-telemetry"></script>
+    <script src="/js/tech-diagnostics.js?v=20260709-tech-pin-reset"></script>
     <script src="/js/usb-maintenance.js?v=20260609-usb2"></script>
-    <script src="/js/lab-security.js?v=20260618-copy"></script>
+    <script src="/js/lab-security.js?v=20260708-identity-copy"></script>
     <script src="/js/cloud-deployment.js?v=20260609-cloud"></script>
     <script src="/js/bwc-devices.js"></script>
     <script src="/js/video-config.js?v=20260630-no-poll-hint"></script>
@@ -5587,16 +6112,17 @@
     <script src="/js/ptt-rx.js?v=20260629-live-toast"></script>
     <script src="/js/audit-trail-hub.js?v=20260630-audit-preset-ux"></script>
     <script src="/js/license-features.js?v=20260707-license-gate"></script>
-    <script src="/js/operator-error-voice.js?v=20260707-redact-lgpl-compat"></script>
-    <script src="/js/operator-ui.js?v=20260702-op-voice-unified"></script>
+    <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>
+    <script src="/js/operator-ui.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/ev-context-rail.js?v=20260627-rail-trim"></script>
-    <script src="/js/evidence-storage-ui.js?v=20260627-hub-rail"></script>
+    <script src="/js/evidence-storage-ui.js?v=20260709-storage-tier-wide"></script>
     <script src="/js/route-trace.js?v=20260621-smart-gps"></script>
     <script src="/js/case-files-ui.js?v=20260627-delete-error-voice"></script>
-    <script src="/js/evidence-hub.js?v=20260708-trim-rules-preview-range"></script>
-    <script src="/js/evidence-manager.js?v=20260702-restore-8wc-v2"></script>
+    <script src="/js/evidence-hub.js?v=20260708-cold-archive"></script>
+    <script src="/js/missed-activity.js?v=20260708-missed-ptt-linger"></script>
+    <script src="/js/evidence-manager.js?v=20260709-a5-labels-a"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260706-eight-pin-only-live"></script>
+    <script src="/js/video-wall.js?v=20260709-wall-claim"></script>
     <script src="/js/video-matrix.js?v=20260629-live-cap-8"></script>
     <script src="/js/fleet-ui.js?v=20260706-eight-cap-align"></script>
     <script src="/js/map-popout-sync.js?v=20260612-mirror"></script>
@@ -5605,10 +6131,11 @@
     <script src="/vendor/markercluster/leaflet.markercluster.js?v=20260701-vendor-local"></script>
     <script src="/js/map-pin-layer.js?v=20260629-maxzoom-cluster"></script>
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/js/cw-display-room.js?v=20260612-dr2"></script>
-    <script src="/js/command-wall.js?v=20260626-mob-cw-stop-hint"></script>
+    <script src="/js/cw-display-room.js?v=20260709-open-all-monitors"></script>
+    <script src="/js/live-surface-hint.js?v=20260709-duplicate-surface-warn"></script>
+    <script src="/js/command-wall.js?v=20260709-popout-grid"></script>
     <script src="/js/ops-cw-awareness.js?v=20260622-ops-cw-awareness"></script>
-    <script src="/js/command-centre.js?v=20260624-llm-two-hints"></script>
+    <script src="/js/command-centre.js?v=20260709-live-viewer-telemetry"></script>
     <script>
         var global = window;
         var mapBoot = (typeof MobilityMapGis !== 'undefined' && MobilityMapGis.getInitialView)
@@ -5784,6 +6311,9 @@
         if (typeof VoiceAlerts !== 'undefined') VoiceAlerts.init({ socket: socket });
         ChatUi.init(socket);
         if (typeof PttRx !== 'undefined') PttRx.init(socket);
+        socket.on('missed-activity-changed', function () {
+            document.dispatchEvent(new CustomEvent('fm-missed-activity-changed'));
+        });
         if (typeof CallMic !== 'undefined') CallMic.bindSocket(socket);
         socket.on('connect', function () {
             refreshMapFromServer();
@@ -11997,5 +12527,14 @@
 </dialog>
 
 <div id="fc-toast"></div>
+
+<div id="missed-activity-overlay" class="ma-overlay" hidden></div>
+<div id="missed-activity-drawer" class="ma-drawer" hidden role="dialog" aria-label="Missed activity">
+    <div class="ma-drawer-head">
+        <h3 data-i18n="missedActivity.title">Missed activity</h3>
+        <button type="button" id="missed-activity-close" class="ma-drawer-close" aria-label="Close">✕</button>
+    </div>
+    <div id="missed-activity-list" class="ma-drawer-list"></div>
+</div>
 </body>
 </html>

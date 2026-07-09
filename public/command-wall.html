@@ -12,8 +12,14 @@
         .meta { font-size: 11px; color: #94a3b8; }
         .nav a { color: #93c5fd; font-size: 12px; text-decoration: none; margin-left: 12px; }
         .toolbar { display: flex; gap: 8px; align-items: center; }
-        .btn { padding: 7px 12px; border-radius: 6px; border: 1px solid #475569; background: #334355; color: #e2e8f0; font-size: 11px; font-weight: 600; cursor: pointer; }
-        .btn-sm { padding: 4px 8px; font-size: 10px; }
+        .btn { padding: 7px 12px; border-radius: 6px; border: 1px solid #475569; background: #334155; color: #e2e8f0; font-size: 11px; font-weight: 600; cursor: pointer; }
+        .btn:hover { background: #475569; }
+        .btn-action { background: #2563eb; border-color: #1d4ed8; color: #fff; }
+        .btn-sm { padding: 2px 5px; min-width: 22px; font-size: 11px; line-height: 1; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #cbd5e1; cursor: pointer; }
+        .btn-sm:hover { background: #334155; }
+        .btn-sm.listening { color: #38bdf8; border-color: #0ea5e9; }
+        .btn-sm.active { color: #4ade80; border-color: #22c55e; background: #14532d; }
+        .btn-sm:disabled { opacity: 0.4; cursor: default; }
         .cw-hub-nav { flex-shrink: 0; display: flex; gap: 6px; padding: 8px 12px; background: #111827; border-bottom: 1px solid #334155; }
         .cw-hub-nav-btn { padding: 6px 12px; font-size: 11px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: #cbd5e1; cursor: pointer; }
         .cw-hub-nav-btn.active { background: #2563eb; border-color: #3b82f6; color: #fff; }
@@ -23,27 +29,64 @@
         .layout { flex: 1; min-height: 0; display: flex; width: 100%; }
         #roster { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid #334155; background: #111827; }
         .roster-head { padding: 10px 12px; border-bottom: 1px solid #334155; }
+        .roster-head h2 { margin: 0 0 8px; font-size: 12px; font-weight: 700; color: #e2e8f0; }
         .roster-search { width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #f1f5f9; font-size: 12px; }
         .roster-body { flex: 1; overflow-y: auto; padding: 8px 0; }
-        .roster-empty { padding: 16px 12px; font-size: 11px; color: #64748b; }
+        .roster-empty { padding: 16px 12px; font-size: 11px; color: #64748b; line-height: 1.45; }
+        .group-block { margin-bottom: 4px; }
+        .group-title { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; }
+        .group-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .group-meta { margin-left: auto; font-size: 9px; font-weight: 600; color: #64748b; text-transform: none; letter-spacing: 0; }
+        .device-chip { display: flex; align-items: center; gap: 8px; margin: 2px 8px; padding: 8px 10px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; font-size: 11px; cursor: grab; user-select: none; color: #e2e8f0; }
+        .device-chip:active { cursor: grabbing; }
+        .device-chip.in-wall { border-color: #2563eb; background: #172554; }
+        .device-chip.offline { opacity: 0.65; }
+        .device-chip .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .device-chip .dot.on { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+        .device-chip .dot.off { background: #64748b; }
+        .device-chip .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+        .device-chip .id { font-size: 9px; color: #64748b; font-family: ui-monospace, Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+        .device-chip-inner { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
         #wall-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-        .wall-bar { flex-shrink: 0; display: flex; flex-wrap: wrap; gap: 10px; padding: 6px 10px; background: #111827; border-bottom: 1px solid #334155; }
+        .wall-bar { flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 6px 10px; background: #111827; border-bottom: 1px solid #334155; }
+        .wall-bar-group { display: flex; align-items: center; gap: 5px; }
+        .wall-bar-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin-right: 2px; }
+        .scheme-btn {
+            min-width: 28px; height: 24px; padding: 0 6px; font-size: 10px; font-weight: 600;
+            border: 1px solid #475569; border-radius: 4px; background: #1e293b; color: #94a3b8; cursor: pointer;
+        }
+        .scheme-btn:hover { background: #334155; color: #e2e8f0; }
+        .scheme-btn.active { border-color: #38bdf8; background: rgba(56, 189, 248, 0.14); color: #e0f2fe; }
+        .scheme-btn.scheme-focus { min-width: 34px; }
         #wall { flex: 1; min-height: 0; display: grid; gap: 4px; padding: 4px; background: #0f172a; }
+        /* Must beat .cell { display:flex } — without this, all 32 panels stay visible as a row list. */
+        #wall .cell[hidden] { display: none !important; }
         .cell { display: flex; flex-direction: column; border: 1px solid #334155; border-radius: 4px; overflow: hidden; background: #000; min-height: 0; transition: border-color 0.15s, box-shadow 0.15s; }
         .cell.drop-target { border-color: #2563eb; box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.45); }
         .cell.has-cam { border-color: #475569; }
         .cell.alarm { border-color: #ef4444; animation: cw-alarm-blink 0.9s ease-in-out infinite; }
         .cell.alarm.cell-has-live { animation: none; box-shadow: 0 0 8px 1px rgba(239, 68, 68, 0.45); }
         @keyframes cw-alarm-blink { 0%, 100% { border-color: #ef4444; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); } 50% { border-color: #fca5a5; box-shadow: 0 0 12px 2px rgba(239, 68, 68, 0.7); } }
+        .cell-head { flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 4px 6px; background: rgba(30,41,59,0.95); font-size: 10px; color: #e2e8f0; }
+        .cell-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+        .cell-status { color: #64748b; font-size: 9px; flex-shrink: 0; }
+        .cell-status.live { color: #4ade80; }
+        .cell-actions { display: flex; gap: 3px; flex-shrink: 0; }
         .cw-panel-display-scroll { flex: 1; overflow-y: auto; padding: 16px 20px; }
         .dr-intro, .dr-preset-desc, .dr-steps, .dr-note { font-size: 11px; color: #94a3b8; line-height: 1.5; }
         .dr-preset-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 16px; max-width: 920px; }
         .dr-monitor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 12px 0; }
         .dr-monitor-card { border: 1px solid #475569; border-radius: 8px; padding: 12px; background: #0f172a; }
-        .dr-status { font-size: 11px; margin-top: 8px; }
-        .dr-status-ok { color: #86efac; }
-        .dr-status-err { color: #fca5a5; }
-        .dr-auto-place { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #cbd5e1; margin: 0 0 10px; cursor: pointer; }
+        .dr-status { font-size: 11px; margin-top: 10px; line-height: 1.45; color: #94a3b8; }
+        .dr-status-banner { padding: 10px 12px; border-radius: 8px; margin-top: 12px; }
+        .dr-status-ok { color: #86efac; background: rgba(6, 78, 59, 0.35); border: 1px solid rgba(34, 197, 94, 0.4); }
+        .dr-status-err { color: #fecaca; background: rgba(69, 10, 10, 0.9); border: 1px solid rgba(248, 113, 113, 0.55); font-weight: 600; }
+        .dr-monitor-num { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin-bottom: 4px; }
+        .dr-monitor-title { font-size: 13px; font-weight: 700; color: #e2e8f0; margin-bottom: 4px; }
+        .dr-monitor-hint { font-size: 10px; color: #94a3b8; line-height: 1.4; margin-bottom: 8px; min-height: 2.8em; }
+        .dr-launch-warn { margin: 0 0 10px; font-size: 11px; color: #fbbf24; line-height: 1.45; max-width: 720px; }
+        .dr-auto-place { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #cbd5e1; margin: 0 0 6px; cursor: pointer; }
+        .dr-auto-place-hint { margin: 0 0 10px; font-size: 10px; color: #94a3b8; line-height: 1.4; max-width: 720px; }
         .dr-groups-label { margin: 0 0 6px; font-size: 11px; font-weight: 600; color: #e2e8f0; }
         .dr-groups-hint { margin: 0 0 8px; font-size: 10px; color: #94a3b8; }
         .dr-groups-list { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 12px; }
@@ -89,8 +132,8 @@
         </div>
     </header>
     <nav class="cw-hub-nav">
-        <button type="button" class="cw-hub-nav-btn active" data-cw-panel="live" data-i18n="commandWall.tabLive">Live wall</button>
-        <button type="button" class="cw-hub-nav-btn" data-cw-panel="display" data-i18n="commandWall.tabDisplayRoom">Display room</button>
+        <button type="button" class="cw-hub-nav-btn active" data-cw-panel="live" data-i18n="commandWall.tabLive">Video wall</button>
+        <button type="button" class="cw-hub-nav-btn" data-cw-panel="display" data-i18n="commandWall.tabDisplayRoom">Control room</button>
     </nav>
     <div id="panel-live" class="cw-hub-panel layout">
         <aside id="roster">
@@ -104,36 +147,59 @@
     </div>
     <div id="panel-display" class="cw-hub-panel" hidden>
         <div class="cw-panel-display-scroll">
-            <p class="dr-intro" data-i18n="displayRoom.intro">Multi-monitor ops room setup.</p>
+            <p class="dr-intro" data-i18n="displayRoom.intro">Monitors 2–4 open in new windows. Drag each to the correct display and press F11. For a same-screen preview, use the Video wall tab above.</p>
             <div class="dr-preset-card">
-                <h3 data-i18n="displayRoom.presetSosTitle">4-Monitor SOS Room</h3>
-                <p class="dr-preset-desc" data-i18n="displayRoom.presetSosDesc">Standard dispatch layout.</p>
+                <h3 data-i18n="displayRoom.presetSosTitle">Open monitors</h3>
+                <p class="dr-preset-desc" data-i18n="displayRoom.presetSosDesc">One click opens the same windows as monitors 2–4 (empty wall — no auto live).</p>
                 <div class="dr-monitor-grid">
-                    <div class="dr-monitor-card"><strong data-i18n="displayRoom.monitor1Title">Command</strong><p data-i18n="displayRoom.monitor1Hint">Operations dashboard.</p><a class="btn btn-sm" href="/" data-i18n="displayRoom.openOps">Go to Operations</a></div>
-                    <div class="dr-monitor-card"><strong data-i18n="displayRoom.monitor2Title">Live wall</strong><p data-i18n="displayRoom.monitor2Hint">This window on display 2.</p></div>
-                    <div class="dr-monitor-card"><strong data-i18n="displayRoom.monitor3Title">Geo map</strong><button type="button" class="btn btn-sm" id="dr-open-map" data-i18n="displayRoom.openMap">Open map</button></div>
-                    <div class="dr-monitor-card"><strong data-i18n="displayRoom.monitor4Title">Status</strong><button type="button" class="btn btn-sm" id="dr-open-centre" data-i18n="displayRoom.openCentre">Open status</button></div>
+                    <div class="dr-monitor-card">
+                        <div class="dr-monitor-num" data-i18n="displayRoom.monitor1Num">Monitor 1</div>
+                        <div class="dr-monitor-title" data-i18n="displayRoom.monitor1Title">Operator desk</div>
+                        <div class="dr-monitor-hint" data-i18n="displayRoom.monitor1Hint">Operations — map, SOS, PTT, fleet</div>
+                        <a class="btn btn-sm" href="/" data-i18n="displayRoom.openOps">Use this window for Operations</a>
+                    </div>
+                    <div class="dr-monitor-card">
+                        <div class="dr-monitor-num" data-i18n="displayRoom.monitor2Num">Monitor 2</div>
+                        <div class="dr-monitor-title" data-i18n="displayRoom.monitor2Title">Wall monitor</div>
+                        <div class="dr-monitor-hint" data-i18n="displayRoom.monitor2Hint">Live multi-panel video wall — opens in a new window on monitor 2.</div>
+                        <button type="button" class="btn btn-action btn-sm" id="dr-open-wall" data-i18n="displayRoom.openWallMonitor2">Open video wall on monitor 2</button>
+                    </div>
+                    <div class="dr-monitor-card">
+                        <div class="dr-monitor-num" data-i18n="displayRoom.monitor3Num">Monitor 3</div>
+                        <div class="dr-monitor-title" data-i18n="displayRoom.monitor3Title">Map monitor</div>
+                        <div class="dr-monitor-hint" data-i18n="displayRoom.monitor3Hint">Map mirror — opens in a new window on monitor 3.</div>
+                        <button type="button" class="btn btn-sm" id="dr-open-map" data-i18n="displayRoom.openMap">Open map on monitor 3</button>
+                    </div>
+                    <div class="dr-monitor-card">
+                        <div class="dr-monitor-num" data-i18n="displayRoom.monitor4Num">Monitor 4</div>
+                        <div class="dr-monitor-title" data-i18n="displayRoom.monitor4Title">Status board</div>
+                        <div class="dr-monitor-hint" data-i18n="displayRoom.monitor4Hint">Centre summary status board — opens in a new window on monitor 4.</div>
+                        <button type="button" class="btn btn-sm" id="dr-open-centre" data-i18n="displayRoom.openCentre">Open on monitor 4</button>
+                    </div>
                 </div>
                 <label class="dr-auto-place">
-                    <input type="checkbox" id="dr-auto-screens" checked>
+                    <input type="checkbox" id="dr-auto-screens">
                     <span data-i18n="displayRoom.autoScreens">Place windows on extended displays automatically</span>
                 </label>
+                <p class="dr-auto-place-hint" id="dr-auto-place-hint" data-i18n="displayRoom.autoScreensHint" hidden>When checked, Chrome may ask to manage windows on other screens. If place fails, drag the window manually and press F11.</p>
                 <p class="dr-groups-label" data-i18n="displayRoom.groupsLabel">TV wall — dispatch groups</p>
-                <p class="dr-groups-hint" data-i18n="displayRoom.groupsHint">Online units from selected groups fill the Command Wall layout on display 2.</p>
+                <p class="dr-groups-hint" data-i18n="displayRoom.groupsHint">Dispatch groups (reference). Open all monitors does not auto-fill or auto-call — drag devices onto the wall when ready.</p>
                 <div id="dr-groups" class="dr-groups-list" aria-live="polite"></div>
-                <button type="button" class="btn" id="dr-apply-sos" data-i18n="displayRoom.launchAll">Launch all display windows</button>
-                <p class="dr-status" id="dr-status"></p>
+                <p class="dr-launch-warn" data-i18n="displayRoom.launchWarn">This window switches to Operations (desk). Opens empty video wall, map, and status board — same as monitors 2–4. Drag devices to go live; nothing auto-calls.</p>
+                <button type="button" class="btn" id="dr-apply-sos" data-i18n="displayRoom.launchAll">Open all monitors</button>
+                <p class="dr-status" id="dr-status" aria-live="polite"></p>
                 <ol class="dr-steps">
-                    <li data-i18n="displayRoom.step1">Extend displays in Windows.</li>
-                    <li data-i18n="displayRoom.step2">Drag windows to monitors 2–4, F11.</li>
-                    <li data-i18n="displayRoom.step3">SOS control stays on Operations.</li>
-                    <li data-i18n="displayRoom.step4">Allow pop-ups if blocked.</li>
+                    <li data-i18n="displayRoom.step1">Windows → Display → Extend these displays (HDMI/USB-C adapters as needed).</li>
+                    <li data-i18n="displayRoom.step2">Click Open all monitors (or each monitor button), drag windows to displays 2–4, then F11. Drag devices onto the wall to go live.</li>
+                    <li data-i18n="displayRoom.step3">Keep monitor 1 on Operations — all SOS acknowledge and PTT control stays there.</li>
+                    <li data-i18n="displayRoom.step4">Allow pop-ups if the browser blocks new windows.</li>
                 </ol>
             </div>
-            <p class="dr-note" data-i18n="displayRoom.streamNote">Avoid duplicate live streams per camera.</p>
+            <p class="dr-note" data-i18n="displayRoom.streamNote">One live stream per body-worn camera, shared by all operators. For control rooms: use different cameras on Operations and the video wall. The same camera on both is allowed but not recommended.</p>
         </div>
     </div>
-    <script src="/js/cw-display-room.js?v=20260612-dr2"></script>
-    <script src="/js/command-wall.js?v=20260625-ops-cw-surface"></script>
+    <script src="/js/live-surface-hint.js?v=20260709-duplicate-surface-warn"></script>
+    <script src="/js/cw-display-room.js?v=20260709-open-all-monitors"></script>
+    <script src="/js/command-wall.js?v=20260709-popout-grid"></script>
 </body>
 </html>

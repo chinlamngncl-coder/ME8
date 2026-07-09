@@ -8,6 +8,8 @@
 keys/
 secrets/
 redaction-track/models/
+redaction-track/.venv/
+redaction-track/__pycache__/
 storage/
 
 # ---- Dependencies ----
@@ -35,6 +37,9 @@ baseline/**
 !baseline/**/CREATE-ME8-FIRMWARE-GOLD.ps1
 !baseline/**/RESTORE-ME8-FIRMWARE-GOLD.ps1
 !baseline/**/VERIFY-ME8-FIRMWARE-GOLD.ps1
+!baseline/**/CREATE-ME8-POC-DEMO.ps1
+!baseline/**/RESTORE-ME8-POC-DEMO.ps1
+!baseline/**/VERIFY-ME8-POC-DEMO.ps1
 !baseline/**/MANIFEST.json
 !baseline/**/HASHES.json
 

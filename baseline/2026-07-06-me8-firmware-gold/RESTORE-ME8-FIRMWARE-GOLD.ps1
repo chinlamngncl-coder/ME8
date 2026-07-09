@@ -1,4 +1,4 @@
-﻿# Restore ME8 to Firmware Gold baseline — run ONLY when you explicitly choose rollback.
+# Restore ME8 to Firmware Gold baseline — run ONLY when you explicitly choose rollback.
 param([string]$AppRoot = '')
 $ErrorActionPreference = 'Stop'
 $baseline = $PSScriptRoot

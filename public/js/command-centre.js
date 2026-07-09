@@ -1,4 +1,4 @@
-(function () {
+(function (global) {
     const EMBEDDED = !!document.getElementById('app-view-centre-summary');
 
     let popoutWin = null;
@@ -39,6 +39,8 @@
         llmInput: 'cs-llm-input',
         llmAsk: 'cs-llm-ask',
         llmSuggestions: 'cs-llm-suggestions',
+        liveViewersTable: 'cs-live-viewers-table',
+        btnLiveViewersRefresh: 'cs-btn-live-viewers-refresh',
     } : {
         error: 'error',
         loading: 'loading',
@@ -61,6 +63,8 @@
         llmInput: 'llm-input',
         llmAsk: 'llm-ask',
         llmSuggestions: 'llm-suggestions',
+        liveViewersTable: 'live-viewers-table',
+        btnLiveViewersRefresh: 'btn-live-viewers-refresh',
     };
 
     let summary = null;
@@ -81,15 +85,25 @@
         return 'en';
     }
 
-    function showError(msg) {
+    function showError(err, data, fallbackKey) {
         const loading = el('loading');
         const content = el('content');
-        const err = el('error');
+        const errEl = el('error');
+        let msg;
+        if (typeof err === 'string') {
+            msg = err;
+        } else if (global.OperatorUI && OperatorUI.opMsg) {
+            msg = OperatorUI.opMsg(data, err, fallbackKey || 'centre.error.load');
+        } else if (global.OperatorErrorVoice) {
+            msg = OperatorErrorVoice.fromCatch(err, data, fallbackKey || 'centre.error.load');
+        } else {
+            msg = tr(fallbackKey || 'centre.error.load');
+        }
         if (loading) loading.hidden = true;
         if (content) content.hidden = true;
-        if (err) {
-            err.hidden = false;
-            err.textContent = msg;
+        if (errEl) {
+            errEl.hidden = false;
+            errEl.textContent = msg;
         }
     }
 
@@ -173,32 +187,44 @@
         const storagePct = st.usedPct != null ? st.usedPct : (st.totalBytes ? pct(st.totalBytes, (st.capacityGb || 500) * 1073741824) : 50);
         const grid = el('statsGrid');
         if (!grid) return;
+        // Inline Lucide (ISC) outline icons — no emoji, no CDN, theme-coloured.
+        const csIcon = function (name) {
+            const paths = {
+                wifi: '<path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/>',
+                'wifi-off': '<path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/>',
+                alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+                bars: '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+                drive: '<line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" x2="6.01" y1="16" y2="16"/><line x1="10" x2="10.01" y1="16" y2="16"/>',
+                clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+            };
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (paths[name] || '') + '</svg>';
+        };
         grid.innerHTML =
             '<div class="cs-kpi cs-kpi-green">' +
-            '<div class="cs-kpi-icon">📡</div>' +
+            '<div class="cs-kpi-icon">' + csIcon('wifi') + '</div>' +
             '<div class="cs-kpi-body"><div class="cs-kpi-label">' + esc(tr('centre.kpi.online')) + '</div>' +
             '<div class="cs-kpi-value">' + (f.online || 0) + '</div>' +
             '<div class="cs-kpi-hint">' + onlinePct + '% · ' + (f.online || 0) + ' / ' + capacity + ' ' + esc(tr('centre.kpi.capacity')) + '</div></div></div>' +
             '<div class="cs-kpi">' +
-            '<div class="cs-kpi-icon">📴</div>' +
+            '<div class="cs-kpi-icon">' + csIcon('wifi-off') + '</div>' +
             '<div class="cs-kpi-body"><div class="cs-kpi-label">' + esc(tr('centre.kpi.offline')) + '</div>' +
             '<div class="cs-kpi-value">' + (f.offline || 0) + '</div></div></div>' +
             '<div class="cs-kpi' + ((s.openNow || 0) > 0 ? ' cs-kpi-alert' : '') + '">' +
-            '<div class="cs-kpi-icon">🆘</div>' +
+            '<div class="cs-kpi-icon">' + csIcon('alert') + '</div>' +
             '<div class="cs-kpi-body"><div class="cs-kpi-label">' + esc(tr('centre.kpi.openSos')) + '</div>' +
             '<div class="cs-kpi-value">' + (s.openNow || 0) + '</div>' +
             '<div class="cs-kpi-hint">' + esc(tr('centre.kpi.today')) + ': ' + (s.today || 0) + '</div></div></div>' +
             '<div class="cs-kpi">' +
-            '<div class="cs-kpi-icon">📊</div>' +
+            '<div class="cs-kpi-icon">' + csIcon('bars') + '</div>' +
             '<div class="cs-kpi-body"><div class="cs-kpi-label">' + esc(tr('centre.kpi.sosWeek')) + '</div>' +
             '<div class="cs-kpi-value">' + (s.week || 0) + '</div>' +
             '<div class="cs-kpi-hint">' + esc(tr('centre.kpi.month')) + ': ' + (s.month || 0) + '</div></div></div>' +
             '<div class="cs-kpi">' +
-            '<div class="cs-kpi-icon">💾</div>' +
+            '<div class="cs-kpi-icon">' + csIcon('drive') + '</div>' +
             '<div class="cs-kpi-body"><div class="cs-kpi-label">' + esc(tr('centre.kpi.storage')) + '</div>' +
             '<div class="cs-kpi-value cs-kpi-sm">' + esc(st.totalLabel || '—') + '</div></div></div>' +
             '<div class="cs-kpi">' +
-            '<div class="cs-kpi-icon">⏱</div>' +
+            '<div class="cs-kpi-icon">' + csIcon('clock') + '</div>' +
             '<div class="cs-kpi-body"><div class="cs-kpi-label">' + esc(tr('centre.kpi.uptime')) + '</div>' +
             '<div class="cs-kpi-value cs-kpi-sm">' + fmtUptime(data.serverUptimeSec) + '</div></div></div>';
 
@@ -507,6 +533,12 @@
         a.click();
     }
 
+    function loadLiveViewers() {
+        const tableEl = el('liveViewersTable');
+        if (!tableEl || !global.LiveViewerTelemetry) return;
+        LiveViewerTelemetry.loadInto(tableEl, { useTechApi: false });
+    }
+
     function load(force) {
         if (!force && summary) {
             const loading = el('loading');
@@ -543,10 +575,12 @@
                 populateYearMonthSelect();
                 setPeriod(activePeriod);
                 loadLlmStatus();
+                loadLiveViewers();
                 if (global.TabLifecycle) TabLifecycle.markLoaded('centre-summary');
             })
             .catch(function (err) {
-                showError(err.message || String(err));
+                console.warn('[centre-summary]', err);
+                showError(err, err.opPayload || err.catalogPayload, 'centre.error.load');
             });
     }
 
@@ -581,6 +615,8 @@
         if (chartBtn) chartBtn.addEventListener('click', exportChartPng);
         const refreshBtn = el('btnRefresh');
         if (refreshBtn) refreshBtn.addEventListener('click', function () { load(true); });
+        const lvRefresh = el('btnLiveViewersRefresh');
+        if (lvRefresh) lvRefresh.addEventListener('click', loadLiveViewers);
         const popoutBtn = el('btnPopout');
         if (popoutBtn) popoutBtn.addEventListener('click', openCentreSummaryPopout);
         const askBtn = el('llmAsk');
@@ -675,4 +711,4 @@
     } else {
         bootStandalone();
     }
-})();
+})(window);

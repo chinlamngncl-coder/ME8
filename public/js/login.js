@@ -46,7 +46,7 @@
 
     function syncPassToggle() {
         if (!passToggle || !passInput) return;
-        passInput.classList.toggle('login-pass-masked', !passVisible);
+        passInput.type = passVisible ? 'text' : 'password';
         passToggle.textContent = tr(passVisible ? 'login.hidePassword' : 'login.showPassword');
         passToggle.setAttribute('aria-pressed', passVisible ? 'true' : 'false');
     }
@@ -78,6 +78,25 @@
         errEl.style.display = 'block';
     }
 
+    /** Same-origin path only — blocks open redirects (Display Room pop-out return). */
+    function safeReturnUrl() {
+        try {
+            var raw = new URLSearchParams(window.location.search).get('return');
+            if (!raw) return null;
+            var path = String(raw).trim();
+            if (!path || path.charAt(0) !== '/' || path.indexOf('//') === 0) return null;
+            if (path.indexOf('\\') >= 0) return null;
+            if (/[\r\n]/.test(path)) return null;
+            return path;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function homeOrReturn() {
+        return safeReturnUrl() || '/';
+    }
+
     function redirectAfterLogin(data) {
         if (data && data.mustChangePassword) {
             window.location.replace('/must-change-password.html');
@@ -86,7 +105,7 @@
         } else if (data && data.mustVerifyRecoveryEmail) {
             window.location.replace('/recovery-email.html');
         } else {
-            window.location.replace('/');
+            window.location.replace(homeOrReturn());
         }
     }
 
@@ -193,7 +212,7 @@
             window.location.replace('/enroll-totp.html');
             return;
         }
-        if (data && data.ok) window.location.replace('/');
+        if (data && data.ok) window.location.replace(homeOrReturn());
     }).catch(function () { /* ignore */ });
 
     if (totpBackBtn) {

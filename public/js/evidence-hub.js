@@ -17,6 +17,9 @@
     let currentPanel = 'overview';
     let currentDetailId = null;
     let catalogFocusExportQueue = false;
+    let catalogPage = 1;
+    let catalogStatus = 'active';
+    const CATALOG_PAGE_SIZE = 50;
     let docksCache = [];
     let selectedDockId = null;
     const panelLoadedAt = Object.create(null);
@@ -371,6 +374,8 @@
         }
         if (opts && opts.focusExportQueue) catalogFocusExportQueue = true;
         currentPanel = name;
+        const evPanel = document.getElementById('evidence-panel');
+        if (evPanel) evPanel.classList.toggle('ev-detail-active', name === 'detail');
         document.querySelectorAll('.evidence-hub-panel').forEach(function (p) {
             p.hidden = p.id !== 'ev-panel-' + name;
         });
@@ -713,6 +718,56 @@
         loadDocksList(true);
     }
 
+    function catalogTagFilterValue() {
+        const el = document.getElementById('ev-catalog-tag-filter');
+        return el ? String(el.value || '').trim().toLowerCase() : '';
+    }
+
+    function updateCatalogPager(page, pageCount, total) {
+        const wrap = document.getElementById('ev-catalog-pager');
+        const label = document.getElementById('ev-catalog-page-label');
+        const prev = document.getElementById('ev-catalog-prev');
+        const next = document.getElementById('ev-catalog-next');
+        if (!wrap) return;
+        const pages = Math.max(1, pageCount || 1);
+        const p = Math.max(1, page || 1);
+        catalogPage = p;
+        if (total <= 0) {
+            wrap.hidden = true;
+            return;
+        }
+        wrap.hidden = false;
+        if (label) {
+            label.textContent = tr('evidenceHub.pageLabel', {
+                page: p,
+                pages: pages,
+                total: total,
+            });
+        }
+        if (prev) prev.disabled = p <= 1;
+        if (next) next.disabled = p >= pages;
+    }
+
+    function syncCatalogStatusButtons() {
+        document.querySelectorAll('.ev-catalog-status-btn').forEach(function (btn) {
+            const on = btn.getAttribute('data-status') === catalogStatus;
+            btn.classList.toggle('is-active', on);
+        });
+    }
+
+    function cryptoStatusLabel(status) {
+        if (status === 'encrypted') return tr('evidenceHub.cryptoEncrypted');
+        if (status === 'plaintext') return tr('evidenceHub.cryptoPlaintext');
+        return tr('evidenceHub.cryptoMissing');
+    }
+
+    function renderTagChips(tags) {
+        if (!tags || !tags.length) return '';
+        return '<div class="ev-tag-chips">' + tags.map(function (t) {
+            return '<span class="ev-tag-chip">' + esc(t) + '</span>';
+        }).join('') + '</div>';
+    }
+
     async function loadCatalog(force) {
         const tbody = document.getElementById('evidence-tbody');
         const meta = document.getElementById('evidence-meta');
@@ -722,6 +777,7 @@
             showCatalogTable(true);
             tbody.innerHTML = '<tr><td colspan="7" class="hint">—</td></tr>';
             renderCatalogExportQueue(null);
+            updateCatalogPager(1, 1, 0);
             return;
         }
         showCatalogTable(true);
@@ -731,8 +787,13 @@
             renderCatalogExportQueue(null, true);
         }
         try {
+            const tagQ = catalogTagFilterValue();
+            const catalogUrl = '/api/evidence/catalog?page=' + encodeURIComponent(catalogPage)
+                + '&pageSize=' + encodeURIComponent(CATALOG_PAGE_SIZE)
+                + '&status=' + encodeURIComponent(catalogStatus)
+                + (tagQ ? ('&tag=' + encodeURIComponent(tagQ)) : '');
             const fetches = [
-                fetch('/api/evidence/catalog?limit=200', { credentials: 'same-origin' }).then(function (r) { return r.json(); }),
+                fetch(catalogUrl, { credentials: 'same-origin' }).then(function (r) { return r.json(); }),
             ];
             if (perms.superAdmin) {
                 fetches.push(fetch('/api/evidence/secure-export/queue?status=pending&limit=50', { credentials: 'same-origin' }).then(function (r) { return r.json(); }));
@@ -746,6 +807,10 @@
                 renderCatalogExportQueue(null);
             }
             const files = data.files || [];
+            const total = data.total != null ? data.total : files.length;
+            const page = data.page != null ? data.page : catalogPage;
+            const pageCount = data.pageCount != null ? data.pageCount : 1;
+            updateCatalogPager(page, pageCount, total);
             if (!files.length) {
                 if (meta) meta.textContent = '';
                 showCatalogEmptyState(emptyEl, { unavailable: false });
@@ -754,14 +819,19 @@
                 return;
             }
             showCatalogTable(true);
-            if (meta) meta.textContent = files.length + ' file(s)';
+            if (meta) {
+                meta.textContent = tagQ
+                    ? tr('evidenceHub.tagFilterActive', { tag: tagQ })
+                    : '';
+            }
             tbody.innerHTML = files.map(function (f) {
                 const statusText = f.storageAvailable === false
                     ? tr('evidenceHub.statusMissing')
                     : (f.storageRepaired ? tr('evidenceHub.statusRepaired') : tr('evidenceHub.statusAvailable'));
+                const tagsHtml = renderTagChips(f.tags);
                 return '<tr data-file-id="' + esc(f.id) + '">'
                     + '<td><code>' + esc(f.id) + '</code></td>'
-                    + '<td>' + esc(f.fileName) + '<br><span class="hint">' + fmtBytes(f.byteSize) + '</span></td>'
+                    + '<td>' + esc(f.fileName) + '<br><span class="hint">' + fmtBytes(f.byteSize) + '</span>' + tagsHtml + '</td>'
                     + '<td>' + esc(f.operatorName || '—') + '</td>'
                     + '<td>' + esc(fmtTime(f.uploadedAt)) + '</td>'
                     + '<td>' + esc(f.storageTier || f.source || 'local') + '</td>'
@@ -777,6 +847,7 @@
             markPanelLoaded('catalog');
         } catch (err) {
             renderCatalogExportQueue(null);
+            updateCatalogPager(1, 1, 0);
             showCatalogEmptyState(emptyEl, {
                 unavailable: true,
                 message: catalogMsg(err.opPayload || err.catalogPayload, err),
@@ -949,17 +1020,25 @@
                 + '<dl class="ss-dock-ro"><dt>' + tr('evidence.colOfficer') + '</dt><dd>' + esc(f.operatorName || '—') + '</dd>'
                 + '<dt>' + tr('evidence.colUploaded') + '</dt><dd>' + esc(fmtTime(f.uploadedAt)) + '</dd>'
                 + '<dt>' + tr('evidenceHub.size') + '</dt><dd>' + fmtBytes(f.byteSize) + '</dd>'
-                + '<dt>' + tr('evidenceHub.colStatus') + '</dt><dd>' + esc(d.storageAvailable === false ? tr('evidenceHub.statusMissing') : tr('evidenceHub.statusAvailable')) + '</dd></dl>'
+                + '<dt>' + tr('evidenceHub.colStatus') + '</dt><dd>' + esc(d.storageAvailable === false ? tr('evidenceHub.statusMissing') : tr('evidenceHub.statusAvailable'))
+                + ' <span class="ev-crypto-chip ' + esc(d.cryptoStatus || 'missing') + '">' + esc(cryptoStatusLabel(d.cryptoStatus)) + '</span>'
+                + (d.archived ? (' <span class="ev-crypto-chip missing">' + esc(tr('evidenceHub.archivedBadge')) + '</span>') : '')
+                + '</dd></dl>'
                 + (perms.edit ? (
                     '<label class="full"><span>' + tr('evidenceHub.notes') + '</span>'
                     + '<textarea id="ev-detail-notes" rows="3">' + esc(m.notes || '') + '</textarea></label>'
+                    + '<label class="full"><span>' + tr('evidenceHub.tags') + ' <span class="hint">' + tr('evidenceHub.tagsExample') + '</span></span>'
+                    + '<input type="text" id="ev-detail-tags" class="login-input" value="' + esc((m.tags || []).join(', ')) + '" autocomplete="off" spellcheck="false" placeholder="' + esc(tr('evidenceHub.tagsPlaceholder')) + '"></label>'
                     + '<label class="full"><span>' + tr('evidenceHub.linkSos') + '</span>'
                     + '<select id="ev-detail-sos">' + sosOpts + '</select></label>'
                     + '<label class="full"><span>' + tr('evidenceHub.attachPhoto') + '</span>'
                     + '<input type="file" id="ev-detail-photo" accept="image/*"></label>'
                     + '<button type="button" class="btn btn-action btn-sm" id="ev-detail-save-meta">' + tr('evidenceHub.saveMeta') + '</button>'
                     + '<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-add-case">' + tr('caseFiles.addToCase') + '</button>'
-                ) : '')
+                    + (d.archived
+                        ? ('<button type="button" class="btn btn-action btn-sm" id="ev-detail-restore">' + tr('evidenceHub.restore') + '</button>')
+                        : ('<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-archive">' + tr('evidenceHub.archive') + '</button>'))
+                ) : (m.tags && m.tags.length ? ('<div class="full"><span class="hint">' + tr('evidenceHub.tags') + '</span>' + renderTagChips(m.tags) + '</div>') : ''))
                 + renderAttachments(d.attachments)
                 + renderExports(d.exports)
                 + renderCustodyLog(d.custodyLog, d.storageAvailable === false, !!d.custodyUnavailable)
@@ -1066,6 +1145,10 @@
         });
         const save = document.getElementById('ev-detail-save-meta');
         if (save) save.addEventListener('click', function () { saveDetailMeta(fileId); });
+        const archiveBtn = document.getElementById('ev-detail-archive');
+        if (archiveBtn) archiveBtn.addEventListener('click', function () { archiveEvidence(fileId); });
+        const restoreBtn = document.getElementById('ev-detail-restore');
+        if (restoreBtn) restoreBtn.addEventListener('click', function () { restoreEvidence(fileId); });
         const addCase = document.getElementById('ev-detail-add-case');
         if (addCase) addCase.addEventListener('click', function () {
             if (global.CaseFilesUi && CaseFilesUi.promptAddToCase) {
@@ -1102,6 +1185,14 @@
 
     function ensureRedactDialog() {
         let dlg = document.getElementById('ev-redact-dialog');
+        if (dlg) {
+            // mob-evidence-redact-modal-layout: rebuild if an old session cached
+            // the pre-footer dialog (Save/Cancel buried under long region lists).
+            if (!dlg.querySelector('.ev-redact-footer')) {
+                dlg.remove();
+                dlg = null;
+            }
+        }
         if (dlg) return dlg;
         dlg = document.createElement('div');
         dlg.id = 'ev-redact-dialog';
@@ -1109,27 +1200,40 @@
         dlg.innerHTML =
             '<div class="ev-redact-dialog-inner" role="dialog" aria-modal="true">'
             + '<div id="ev-redact-mark-panel">'
+            + '<div class="ev-redact-head">'
             + '<h4 id="ev-redact-title"></h4>'
             + '<p class="hint" id="ev-redact-hint"></p>'
+            + '</div>'
+            + '<div class="ev-redact-workspace">'
+            + '<div class="ev-redact-main">'
+            + '<div class="ev-redact-stage" id="ev-redact-stage">'
+            + '<div class="ev-redact-stage-inner">'
+            + '<video id="ev-redact-video" playsinline></video>'
+            + '<canvas id="ev-redact-canvas"></canvas>'
+            + '</div></div>'
+            + '<div class="ev-redact-rail">'
             + '<div class="ev-redact-toolbar">'
             + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-pause"></button>'
             + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-undo"></button>'
+            + '<button type="button" class="btn btn-action btn-sm" id="ev-redact-autoface" hidden></button>'
             + '<label class="ev-redact-span"><span id="ev-redact-span-lbl"></span> '
             + '<select id="ev-redact-span-mode" class="ev-redact-span-sel">'
             + '<option value="whole"></option><option value="from"></option><option value="window"></option>'
             + '</select></label>'
-            + '<button type="button" class="btn btn-action btn-sm" id="ev-redact-save"></button>'
-            + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-cancel">' + esc(tr('common.cancel')) + '</button>'
             + '</div>'
-            + '<div class="ev-redact-stage" id="ev-redact-stage">'
-            + '<video id="ev-redact-video" playsinline></video>'
-            + '<canvas id="ev-redact-canvas"></canvas>'
-            + '</div>'
+            + '<div class="ev-redact-regions-wrap">'
             + '<ul class="ev-redact-regions" id="ev-redact-region-list"></ul>'
             + '</div>'
+            + '</div></div></div>'
+            + '<div class="ev-redact-footer">'
+            + '<div class="ev-redact-actions">'
+            + '<button type="button" class="btn btn-action btn-sm" id="ev-redact-save"></button>'
+            + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-cancel">' + esc(tr('common.cancel')) + '</button>'
+            + '</div></div></div>'
             + '<div id="ev-redact-note-panel" hidden>'
             + '<h4 id="ev-redact-note-title"></h4>'
             + '<p class="hint" id="ev-redact-note-hint"></p>'
+            + '<div class="ev-redact-note-scroll">'
             + '<div class="ev-redact-note-inner">'
             + '<label class="full"><span id="ev-redact-lbl-reason"></span>'
             + '<select id="ev-redact-reason">'
@@ -1140,11 +1244,12 @@
             + '<input type="text" id="ev-redact-visible" maxlength="500"></label>'
             + '<label class="full"><span id="ev-redact-lbl-incident"></span>'
             + '<textarea id="ev-redact-incident" rows="3" maxlength="2000"></textarea></label>'
+            + '</div></div>'
             + '<div class="ev-dock-dialog-actions">'
             + '<button type="button" class="btn btn-action btn-sm" id="ev-redact-save-note"></button>'
             + '<button type="button" class="btn btn-action btn-sm" id="ev-redact-finalize"></button>'
             + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-note-close">' + esc(tr('common.close')) + '</button>'
-            + '</div></div></div>'
+            + '</div></div>'
             + '</div>';
         document.body.appendChild(dlg);
         dlg.addEventListener('click', function (e) {
@@ -1324,6 +1429,39 @@
         };
         if (cancelBtn) cancelBtn.onclick = closeRedactDialog;
 
+        const autofaceBtn = document.getElementById('ev-redact-autoface');
+        const hintEl = document.getElementById('ev-redact-hint');
+        if (autofaceBtn) autofaceBtn.onclick = function () {
+            autofaceBtn.disabled = true;
+            const label = autofaceBtn.textContent;
+            autofaceBtn.textContent = tr('evidenceHub.redactAutoFaceRunning');
+            fetch('/api/evidence/detail/' + encodeURIComponent(fileId) + '/redact/autoface', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                .then(function (res) {
+                    if (!res.ok || !res.data.ok) throwCatalogErr(res.data);
+                    const added = res.data.regions || [];
+                    added.forEach(function (rg) { redactState.regions.push(rg); });
+                    redrawRedactRegions();
+                    renderRedactRegionList();
+                    if (hintEl) {
+                        hintEl.textContent = added.length
+                            ? tr('evidenceHub.redactAutoFaceDone', { n: added.length })
+                            : tr('evidenceHub.redactAutoFaceNone');
+                    }
+                })
+                .catch(function (err) {
+                    alert(catalogMsg(err.opPayload || err.catalogPayload, err));
+                })
+                .finally(function () {
+                    autofaceBtn.disabled = false;
+                    autofaceBtn.textContent = label;
+                });
+        };
+
         canvas.onmousedown = function (e) {
             if (!vid.videoWidth) return;
             redactState.drawing = true;
@@ -1483,6 +1621,39 @@
         if (fileId) loadDetail(fileId, true);
     }
 
+    // mob-evidence-redact-autoface-refresh: wait for /api/license-features before
+    // showing Auto-detect. Also force enable + action styling so it never looks
+    // like a dead/disabled ghost control next to Pause/Undo.
+    function syncRedactAutofaceBtn() {
+        const autofaceBtn = document.getElementById('ev-redact-autoface');
+        if (!autofaceBtn) return;
+        autofaceBtn.textContent = tr('evidenceHub.redactAutoFace');
+        autofaceBtn.disabled = false;
+        autofaceBtn.removeAttribute('disabled');
+        autofaceBtn.classList.add('btn-action');
+        autofaceBtn.classList.remove('btn-ghost');
+        function apply(frOn) {
+            autofaceBtn.hidden = !frOn;
+            if (frOn) {
+                autofaceBtn.disabled = false;
+                autofaceBtn.removeAttribute('disabled');
+            }
+        }
+        if (global.LicenseFeatures && LicenseFeatures.isEnabled && LicenseFeatures.isEnabled('fr')) {
+            apply(true);
+            return;
+        }
+        apply(false);
+        if (global.LicenseFeatures && LicenseFeatures.onReady) {
+            LicenseFeatures.onReady(function (features) {
+                apply(!!(features && features.fr));
+            });
+        }
+        if (global.LicenseFeatures && LicenseFeatures.fetch) {
+            LicenseFeatures.fetch();
+        }
+    }
+
     function openRedactWorkspace(fileId) {
         if (!perms.superAdmin) return;
         ensureRedactDialog();
@@ -1499,6 +1670,7 @@
         document.getElementById('ev-redact-pause').textContent = tr('evidenceHub.redactPause');
         document.getElementById('ev-redact-undo').textContent = tr('evidenceHub.redactUndo');
         document.getElementById('ev-redact-save').textContent = tr('evidenceHub.redactSave');
+        syncRedactAutofaceBtn();
         const spanLbl = document.getElementById('ev-redact-span-lbl');
         if (spanLbl) spanLbl.textContent = tr('evidenceHub.redactSpanLabel');
         const spanSel = document.getElementById('ev-redact-span-mode');
@@ -1612,9 +1784,11 @@
 
     async function saveDetailMeta(fileId) {
         const notes = document.getElementById('ev-detail-notes');
+        const tagsEl = document.getElementById('ev-detail-tags');
         const sos = document.getElementById('ev-detail-sos');
         const body = {
             notes: notes ? notes.value : '',
+            tags: tagsEl ? tagsEl.value : '',
             sosIncidentId: sos && sos.value ? sos.value : null,
             trimStartSec: document.getElementById('ev-trim-start') ? Number(document.getElementById('ev-trim-start').value) : null,
             trimEndSec: document.getElementById('ev-trim-end') ? Number(document.getElementById('ev-trim-end').value) : null,
@@ -1628,6 +1802,45 @@
         const data = await res.json();
         if (!res.ok || !data.ok) { alert(catalogMsg(data)); return; }
         alert(tr('evidenceHub.saved'));
+    }
+
+    async function archiveEvidence(fileId) {
+        if (!window.confirm(tr('evidenceHub.archiveConfirm'))) return;
+        try {
+            const res = await fetch('/api/evidence/detail/' + encodeURIComponent(fileId) + '/archive', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throwCatalogErr(data);
+            catalogStatus = 'active';
+            syncCatalogStatusButtons();
+            catalogPage = 1;
+            showPanel('catalog', { force: true });
+        } catch (err) {
+            alert(catalogMsg(err.opPayload || err.catalogPayload, err));
+        }
+    }
+
+    async function restoreEvidence(fileId) {
+        try {
+            const res = await fetch('/api/evidence/detail/' + encodeURIComponent(fileId) + '/restore', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throwCatalogErr(data);
+            catalogStatus = 'active';
+            syncCatalogStatusButtons();
+            catalogPage = 1;
+            loadDetail(fileId, true);
+        } catch (err) {
+            alert(catalogMsg(err.opPayload || err.catalogPayload, err));
+        }
     }
 
     function uploadDetailPhoto(fileId, input) {
@@ -1820,6 +2033,56 @@
             if (global.TabLifecycle) TabLifecycle.invalidate('evidence');
             refreshCurrentPanel(true);
         });
+        const tagFilter = document.getElementById('ev-catalog-tag-filter');
+        if (tagFilter && !tagFilter._evTagBound) {
+            tagFilter._evTagBound = true;
+            let tagTimer = null;
+            function runTagFilter() {
+                catalogPage = 1;
+                if (currentPanel === 'catalog') loadCatalog(true);
+            }
+            tagFilter.addEventListener('input', function () {
+                if (tagTimer) clearTimeout(tagTimer);
+                tagTimer = setTimeout(runTagFilter, 280);
+            });
+            tagFilter.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (tagTimer) clearTimeout(tagTimer);
+                    runTagFilter();
+                }
+            });
+        }
+        document.querySelectorAll('.ev-catalog-status-btn').forEach(function (btn) {
+            if (btn._evStatusBound) return;
+            btn._evStatusBound = true;
+            btn.addEventListener('click', function () {
+                const next = btn.getAttribute('data-status') === 'archived' ? 'archived' : 'active';
+                if (catalogStatus === next) return;
+                catalogStatus = next;
+                catalogPage = 1;
+                syncCatalogStatusButtons();
+                if (currentPanel === 'catalog') loadCatalog(true);
+            });
+        });
+        syncCatalogStatusButtons();
+        const prevBtn = document.getElementById('ev-catalog-prev');
+        if (prevBtn && !prevBtn._evPagerBound) {
+            prevBtn._evPagerBound = true;
+            prevBtn.addEventListener('click', function () {
+                if (catalogPage <= 1) return;
+                catalogPage -= 1;
+                loadCatalog(true);
+            });
+        }
+        const nextBtn = document.getElementById('ev-catalog-next');
+        if (nextBtn && !nextBtn._evPagerBound) {
+            nextBtn._evPagerBound = true;
+            nextBtn.addEventListener('click', function () {
+                catalogPage += 1;
+                loadCatalog(true);
+            });
+        }
         if (!global._evidenceHubI18nBound) {
             global._evidenceHubI18nBound = true;
             global.addEventListener('fm-i18n-changed', function () {

@@ -4029,28 +4029,24 @@
         }
         if (guardFieldPttCommInsteadOfPinAutoPlay(camId, 0, opts)) return;
         requestStreamForCam(camId, !!opts.forceLive);
-        let wallSlot = null;
-        if (forcedWallSlot != null && forcedWallSlot >= 0) {
-            wallSlot = forcedWallSlot;
-        } else {
-            const resolved = resolvePinWallSlot(camId);
-            if (resolved != null) wallSlot = resolved;
-            else wallSlot = freeWallSlotForCam(camId);
-        }
-        if (wallSlot != null && wallSlot >= 0) {
-            pendingWallSlots[wallSlot] = camId;
-            assignCamToSlot(camId, wallSlot, opts.forceLive ? {
-                forceInvite: true,
-                keepAlarm: true,
-                wallSlotReserved: true,
-                alarm: wallAlarm,
-            } : {
-                skipInvite: true,
-                keepAlarm: true,
-                wallSlotReserved: true,
-                alarm: wallAlarm,
-            });
-        }
+        // mob-play-on-map-popup-wall-claim: always claim a wall slot (Firmware Gold).
+        // Optional freeWallSlotForCam skip left opsWallClaimsCam false during colocated
+        // popupclose → releaseServerStreamIfIdle → stop-video → pool kill.
+        const slotIndex = (forcedWallSlot != null && forcedWallSlot >= 0)
+            ? forcedWallSlot
+            : reserveWallSlotForCam(camId);
+        pendingWallSlots[slotIndex] = camId;
+        assignCamToSlot(camId, slotIndex, opts.forceLive ? {
+            forceInvite: true,
+            keepAlarm: true,
+            wallSlotReserved: true,
+            alarm: wallAlarm,
+        } : {
+            skipInvite: true,
+            keepAlarm: true,
+            wallSlotReserved: true,
+            alarm: wallAlarm,
+        });
         let canvas = element.querySelector('canvas');
         if (!canvas) {
             canvas = document.createElement('canvas');

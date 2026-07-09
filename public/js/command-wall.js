@@ -1,4 +1,4 @@
-(function () {
+(function (global) {
     function tr(key, params) {
         if (typeof I18n !== 'undefined' && I18n.t) return I18n.t(key, params);
         return key;
@@ -132,15 +132,12 @@
 
     function openCommandWallPopout() {
         const features = 'width=1920,height=1080,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no';
-        if (popoutWin && !popoutWin.closed) {
-            try {
-                popoutWin.focus();
-                return;
-            } catch (_) {
-                popoutWin = null;
-            }
+        const wallUrl = '/command-wall.html?panel=live';
+        // Unique name — avoid reusing a named window stuck on "/" or mid-reload.
+        popoutWin = window.open(wallUrl, 'mobility-wall-' + String(Date.now()), features);
+        if (popoutWin) {
+            try { popoutWin.focus(); } catch (_) { /* ignore */ }
         }
-        popoutWin = window.open('/command-wall.html', 'mobility-command-wall', features);
     }
 
     const EL_IDS = EMBEDDED ? {
@@ -1730,11 +1727,32 @@
         });
     }
 
+    function fetchJsonOk(url) {
+        return fetch(url, { credentials: 'same-origin' }).then(function (r) {
+            if (r.status === 401 || r.status === 403) {
+                throw new Error('Sign-in required (HTTP ' + r.status + '). Close this window and open again from Control room while signed in.');
+            }
+            if (!r.ok) throw new Error(url + ' → HTTP ' + r.status);
+            return r.json().then(function (data) {
+                if (data && data.ok === false && data.error) {
+                    throw new Error(String(data.error));
+                }
+                return data;
+            });
+        });
+    }
+
+    function setRosterMessage(msg) {
+        const body = el('roster-body');
+        if (!body) return;
+        body.innerHTML = '<div class="' + c('roster-empty') + '">' + escHtml(msg) + '</div>';
+    }
+
     function loadRoster() {
         return Promise.all([
-            fetch('/api/fleet', { credentials: 'same-origin' }).then(function (r) { return r.json(); }),
-            fetch('/api/dispatch-groups', { credentials: 'same-origin' }).then(function (r) { return r.json(); }),
-            fetch('/api/bwc-devices', { credentials: 'same-origin' }).then(function (r) { return r.json(); }),
+            fetchJsonOk('/api/fleet'),
+            fetchJsonOk('/api/dispatch-groups'),
+            fetchJsonOk('/api/bwc-devices'),
         ]).then(function (results) {
             const fleet = (results[0] && results[0].fleet) || [];
             const groups = (results[1] && results[1].groups) || [];
@@ -1743,8 +1761,12 @@
             renderRoster();
             refreshAllOnlineState();
             maybeAutofillFromUrl();
+            const body = el('roster-body');
+            if (body && !body.children.length) {
+                setRosterMessage('No devices registered');
+            }
         }).catch(function (err) {
-            el('roster-body').innerHTML = '<div class="' + c('roster-empty') + '">Failed to load: ' + escHtml(err.message) + '</div>';
+            setRosterMessage('Failed to load roster: ' + (err && err.message ? err.message : 'unknown error'));
         });
     }
 
@@ -1849,6 +1871,7 @@
     function bindSocketHandlers() {
         if (!socket || socket.__commandWallHandlers) return;
         socket.__commandWallHandlers = true;
+        if (global.LiveSurfaceHint && LiveSurfaceHint.bind) LiveSurfaceHint.bind(socket);
         socket.on('connect', loadRoster);
         socket.on('fleet-roster', ingestFleetRoster);
         socket.on('bwc-call-state', onBwcCallState);
@@ -1909,18 +1932,52 @@
             window.addEventListener('fm-i18n-changed', syncWallToolbarI18n);
         }
         buildGrid();
+        // Pop-out: re-apply after paint so grid columns win (avoids one-column row list).
+        try {
+            requestAnimationFrame(function () { applyWallLayout(); });
+        } catch (_) {
+            applyWallLayout();
+        }
         bindCwHubNav();
-        if (global.CwDisplayRoom && CwDisplayRoom.bindUi) CwDisplayRoom.bindUi();
-        const ownsSocket = !sharedSocket;
-        socket = sharedSocket || io();
-        if (ownsSocket && window.CallMic) window.CallMic.bindSocket(socket);
-        bindSocketHandlers();
-        if (socket.connected) loadRoster();
+        const launchPanel = new URLSearchParams(window.location.search).get('panel');
+        if (launchPanel === 'live' || launchPanel === 'display') showCwPanel(launchPanel);
 
-        el('btn-clear').addEventListener('click', clearWall);
+        // Roster FIRST — must not depend on socket / optional globals (pop-out was stuck on Loading).
+        loadRoster();
+        setTimeout(function () {
+            const body = el('roster-body');
+            const stuck = body && /Loading/i.test(body.textContent || '');
+            if (stuck) loadRoster();
+        }, 1500);
+        setInterval(loadRoster, 45000);
+
+        try {
+            if (global.CwDisplayRoom && CwDisplayRoom.bindUi) CwDisplayRoom.bindUi();
+        } catch (_) { /* ignore */ }
+
+        try {
+            const ownsSocket = !sharedSocket;
+            if (sharedSocket) {
+                socket = sharedSocket;
+            } else if (typeof io === 'function') {
+                socket = io({ withCredentials: true });
+            } else {
+                socket = null;
+            }
+            if (ownsSocket && socket && window.CallMic && CallMic.bindSocket) {
+                CallMic.bindSocket(socket);
+            }
+            if (socket) bindSocketHandlers();
+        } catch (err) {
+            try { console.warn('[command-wall] socket init skipped', err); } catch (_) { /* ignore */ }
+        }
+
+        const clearBtn = el('btn-clear');
+        if (clearBtn) clearBtn.addEventListener('click', clearWall);
         const popoutBtn = el('btn-popout');
         if (popoutBtn) popoutBtn.addEventListener('click', openCommandWallPopout);
-        el('roster-search').addEventListener('input', function (e) {
+        const searchEl = el('roster-search');
+        if (searchEl) searchEl.addEventListener('input', function (e) {
             rosterFilter = String(e.target.value || '').trim();
             renderRoster();
         });
@@ -1935,7 +1992,6 @@
                 exitSpotlight();
             }
         });
-        setInterval(loadRoster, 45000);
     }
 
     const commandWallApi = {
@@ -1944,6 +2000,7 @@
             window._commandWallStarted = true;
             startApp(sharedSocket);
         },
+        showPanel: showCwPanel,
         hasLiveForCam: commandWallHasLiveForCam,
         hasActiveLivePlayerForCam: commandWallHasActiveLivePlayerForCam,
         getLiveSlotSummary: getLiveSlotSummary,
@@ -1962,17 +2019,8 @@
     if (EMBEDDED) {
         window.CommandWall = commandWallApi;
     } else {
-        fetch('/api/auth/session', { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (!data || !data.ok) {
-                    window.location.href = '/login.html';
-                    return;
-                }
-                startApp();
-            })
-            .catch(function () {
-                window.location.href = '/login.html';
-            });
+        // Server already gated this HTML. Do NOT redirect to login here — that caused
+        // wall ↔ login blink loops when session JSON lagged the cookie.
+        startApp();
     }
-})();
+})(window);

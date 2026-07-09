@@ -39,7 +39,7 @@
             window.location.replace('/');
             return;
         }
-        if (global.PasswordPolicyUi) {
+        if (window.PasswordPolicyUi) {
             PasswordPolicyUi.loadPolicyHint('pwd-policy-hint', data.role).then(function (policy) {
                 if (policy) {
                     PasswordPolicyUi.applyMinLength(['#pwd-new', '#pwd-confirm'], policy.minLength);

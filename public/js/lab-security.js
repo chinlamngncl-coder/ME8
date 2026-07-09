@@ -1,5 +1,5 @@
 /**
- * Enterprise LAB tab — IdP/OIDC, monitoring readiness (engineer PIN only).
+ * Identity & monitoring tab — IdP/OIDC, metrics (engineer PIN).
  */
 (function (global) {
     let loaded = false;
@@ -48,6 +48,8 @@
         document.getElementById('lab-oidc-auto-provision').checked = pub.oidcAutoProvision !== false;
         document.getElementById('lab-local-login').checked = pub.localLoginEnabled !== false;
         document.getElementById('lab-trust-proxy').checked = !!pub.trustProxy;
+        const ssTrust = document.getElementById('ss-trust-proxy');
+        if (ssTrust) ssTrust.checked = !!pub.trustProxy;
         document.getElementById('lab-metrics-enabled').checked = pub.metricsEnabled !== false;
         const mt = document.getElementById('lab-metrics-token');
         mt.value = '';

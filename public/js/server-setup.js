@@ -68,15 +68,19 @@
         'ss-section-lan',
         'ss-section-wan',
         'ss-section-operator',
+        'ss-section-production',
         'ss-section-site-time',
         'ss-section-dock-link',
         'ss-section-bwc-register',
         'ss-section-protocol',
+        'ss-section-readiness',
     ];
+    let lastSiteReadiness = null;
     let networkSectionScrollBound = false;
     let cachedDispatchGroups = [];
     let dockFolderPath = '';
     let resetPwdUserId = null;
+    let lastUsersList = [];
     let uiBound = false;
     let creatingUser = false;
     let cachedSettingsData = null;
@@ -160,6 +164,27 @@
         });
     }
 
+    function syncPasswordFieldLabels(policy) {
+        const min = (policy && policy.minLength) || 12;
+        const example = (policy && policy.example) || (global.PasswordPolicyUi && PasswordPolicyUi.DEFAULT_EXAMPLE) || 'Ab12cd34!@#$';
+        const addLabel = document.querySelector('#ss-users-section [data-i18n="server.users.password"]');
+        const resetLabel = document.querySelector('label[for="ss-reset-new-pass"] span');
+        const text = tr('server.users.passwordMin', { min: min });
+        const resetText = tr('server.users.newPasswordMin', { min: min });
+        if (addLabel) addLabel.textContent = text;
+        if (resetLabel) resetLabel.textContent = resetText;
+        const hintNew = document.getElementById('ss-new-pass-policy-hint');
+        const hintReset = document.getElementById('ss-reset-pwd-policy-hint');
+        if (global.PasswordPolicyUi && PasswordPolicyUi.policyHintText) {
+            const line = PasswordPolicyUi.policyHintText(policy || { minLength: min, example: example });
+            if (hintNew) hintNew.textContent = line;
+            if (hintReset) hintReset.textContent = line;
+        }
+        if (global.PasswordPolicyUi && PasswordPolicyUi.applyMinLength) {
+            PasswordPolicyUi.applyMinLength(['#ss-new-pass', '#ss-reset-new-pass'], min);
+        }
+    }
+
     function openResetPwdDialog(userId) {
         resetPwdUserId = userId;
         const backdrop = document.getElementById('ss-reset-pwd-backdrop');
@@ -172,13 +197,16 @@
         if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
         backdrop.hidden = false;
         setModalA11y('ss-reset-pwd-backdrop', true);
-        // Double-clear after a tick — prevents browser password manager
-        // from re-populating the confirmation field before user interaction.
-        setTimeout(function () {
-            adminEl.value = '';
-            newEl.value = '';
-            newEl.focus();
-        }, 80);
+        const target = (lastUsersList || []).find(function (u) { return u && String(u.id) === String(userId); });
+        const role = target && target.role ? target.role : 'operator';
+        if (global.PasswordPolicyUi && PasswordPolicyUi.loadPolicyHint) {
+            PasswordPolicyUi.loadPolicyHint('ss-reset-pwd-policy-hint', role).then(function (policy) {
+                syncPasswordFieldLabels(policy);
+            });
+        } else {
+            syncPasswordFieldLabels({ minLength: 12, example: 'Ab12cd34!@#$' });
+        }
+        setTimeout(function () { newEl.focus(); }, 50);
     }
 
     function closeResetPwdDialog() {
@@ -472,6 +500,12 @@
         if (saveBtn) saveBtn.hidden = !canManageServer;
         const saveResilience = document.getElementById('ss-save-resilience');
         if (saveResilience) saveResilience.hidden = !canManageServer;
+        const saveProd = document.getElementById('ss-save-production-access');
+        if (saveProd) saveProd.hidden = !canManageServer;
+        const trustProxyEl = document.getElementById('ss-trust-proxy');
+        if (trustProxyEl) trustProxyEl.disabled = !canManageServer;
+        const copyOpUrl = document.getElementById('ss-copy-operator-url');
+        if (copyOpUrl) copyOpUrl.disabled = false;
         const resNode = document.getElementById('ss-resilience-node-id');
         const resPeer = document.getElementById('ss-resilience-peer-url');
         if (resNode) resNode.disabled = !canManageServer;
@@ -518,11 +552,14 @@
         const mySection = document.getElementById('ss-my-account-section');
         const voiceSection = document.getElementById('ss-voice-alerts-section');
         const smtpSection = document.getElementById('ss-smtp-section');
+        const techPinSection = document.getElementById('ss-tech-pin-section');
         if (smtpSection) smtpSection.hidden = !onDash || !canManageServer;
+        if (techPinSection) techPinSection.hidden = !onDash || !canManageServer;
         if (voiceSection) voiceSection.hidden = !onDash || !canManageServer;
         if (onDash && canManageServer && global.PlatformSmtp && global.PlatformSmtp.load) {
             global.PlatformSmtp.load().catch(function () { /* ignore */ });
         }
+        if (onDash && canManageServer) refreshTechPinStatus();
         if (canManageUsers) {
             if (subtabs) subtabs.hidden = !onDash;
             if (usersSection) usersSection.hidden = !onDash || activeDashSubTab !== 'operators';
@@ -643,6 +680,190 @@
         el.textContent = tr(DEPLOYMENT_HINT_KEYS[mode] || DEPLOYMENT_HINT_KEYS.lan);
     }
 
+    function updateOperatorTlsBadge() {
+        const badge = document.getElementById('ss-operator-tls-badge');
+        const urlEl = document.getElementById('ss-operator-url');
+        if (!badge || !urlEl) return;
+        const raw = String(urlEl.value || '').trim().toLowerCase();
+        badge.classList.remove('is-https', 'is-http', 'is-empty');
+        if (!raw) {
+            badge.classList.add('is-empty');
+            badge.textContent = tr('server.tlsBadge.empty');
+            return;
+        }
+        if (raw.indexOf('https://') === 0) {
+            badge.classList.add('is-https');
+            badge.textContent = tr('server.tlsBadge.https');
+            return;
+        }
+        badge.classList.add('is-http');
+        badge.textContent = tr('server.tlsBadge.http');
+    }
+
+    function syncTrustProxyCheckbox(checked) {
+        const ss = document.getElementById('ss-trust-proxy');
+        const lab = document.getElementById('lab-trust-proxy');
+        if (ss) ss.checked = !!checked;
+        if (lab) lab.checked = !!checked;
+    }
+
+    async function loadProductionAccess() {
+        const status = document.getElementById('ss-production-access-status');
+        try {
+            const result = global.OperatorUI && OperatorUI.fetchOpJson
+                ? await OperatorUI.fetchOpJson('/api/production-access', { credentials: 'same-origin' }, 'server.productionAccess.loadFailed')
+                : null;
+            if (result) {
+                if (!result.ok) {
+                    if (status) status.textContent = opMsg(result.data, result._err, result.errorKey);
+                    return;
+                }
+                syncTrustProxyCheckbox(!!result.data.trustProxy);
+                if (status) status.textContent = '';
+                return;
+            }
+            const res = await fetch('/api/production-access', { credentials: 'same-origin' });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throwOpErr(data);
+            syncTrustProxyCheckbox(!!data.trustProxy);
+            if (status) status.textContent = '';
+        } catch (err) {
+            console.warn('[production-access]', err);
+            if (status) status.textContent = opMsg(null, err, 'server.productionAccess.loadFailed');
+        }
+    }
+
+    async function saveProductionAccess() {
+        if (!canManageServer) return;
+        const status = document.getElementById('ss-production-access-status');
+        const trustEl = document.getElementById('ss-trust-proxy');
+        if (status) status.textContent = tr('common.saving') || 'Saving…';
+        try {
+            const body = { trustProxy: !!(trustEl && trustEl.checked) };
+            const payload = global.AuthReverify && AuthReverify.withReverify
+                ? await AuthReverify.withReverify(body)
+                : body;
+            const res = await fetch('/api/production-access', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throwOpErr(data);
+            syncTrustProxyCheckbox(!!data.trustProxy);
+            if (status) status.textContent = tr('server.productionAccess.saved');
+            loadSiteReadiness();
+            setTimeout(function () {
+                if (status && status.textContent === tr('server.productionAccess.saved')) status.textContent = '';
+            }, 4000);
+        } catch (err) {
+            if (status) status.textContent = opMsg(err.opPayload || err.catalogPayload, err);
+        }
+    }
+
+    function renderSiteReadiness(readiness) {
+        const el = document.getElementById('ss-site-readiness');
+        if (!el) return;
+        lastSiteReadiness = readiness || null;
+        if (!readiness) {
+            el.innerHTML = '';
+            return;
+        }
+        const pct = readiness.readyPct || 0;
+        let rows = '';
+        (readiness.items || []).forEach(function (item) {
+            const status = item.status || 'fail';
+            const rowCls = status === 'ok' ? ' ok' : (status === 'warn' ? ' warn' : '');
+            const label = tr(item.labelKey);
+            const detail = tr(item.detailKey, item.detailParams || {});
+            rows +=
+                '<div class="lab-readiness-row' + rowCls + ' ss-readiness-row" data-ss-readiness-id="' + esc(item.id) + '" role="button" tabindex="0">' +
+                '<span class="lab-readiness-dot" aria-hidden="true"></span>' +
+                '<div class="ss-readiness-row-body"><strong>' + esc(label) + '</strong>' +
+                '<p class="setup-hint" style="margin:2px 0 0">' + esc(detail) + '</p></div>' +
+                '<span class="ss-readiness-fix">' + esc(tr('server.readiness.fix')) + '</span></div>';
+        });
+        el.innerHTML =
+            '<div class="lab-readiness-score"><strong>' + pct + '%</strong> ' +
+            esc(tr('server.readiness.score')) + ' (' +
+            esc(String(readiness.score)) + '/' + esc(String(readiness.total)) + ')</div>' +
+            '<div class="lab-readiness-bar"><span style="width:' + pct + '%"></span></div>' +
+            rows;
+    }
+
+    function followReadinessLink(link) {
+        if (!link) return;
+        if (link.action === 'openAudit') {
+            if (global.EvidenceManager && EvidenceManager.showTab) {
+                EvidenceManager.showTab('audit-trail');
+            }
+            return;
+        }
+        if (link.action === 'evidenceStorage') {
+            openEvidenceStorage();
+            return;
+        }
+        if (link.tab && link.tab !== activeMainTab) setMainTab(link.tab);
+        if (link.dashSub) setDashSubTab(link.dashSub);
+        if (link.section) {
+            window.setTimeout(function () { scrollToNetworkSection(link.section); }, link.tab ? 120 : 0);
+        }
+    }
+
+    async function loadSiteReadiness() {
+        if (!canManageServer) return;
+        const el = document.getElementById('ss-site-readiness');
+        if (!el) return;
+        try {
+            const result = global.OperatorUI && OperatorUI.fetchOpJson
+                ? await OperatorUI.fetchOpJson('/api/site-readiness', { credentials: 'same-origin' }, 'server.readiness.loadFailed')
+                : null;
+            if (result) {
+                if (!result.ok) {
+                    el.innerHTML = '<p class="setup-hint">' + esc(opMsg(result.data, result._err, result.errorKey)) + '</p>';
+                    return;
+                }
+                renderSiteReadiness(result.data.readiness);
+                return;
+            }
+            const res = await fetch('/api/site-readiness', { credentials: 'same-origin' });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throwOpErr(data);
+            renderSiteReadiness(data.readiness);
+        } catch (err) {
+            console.warn('[site-readiness]', err);
+            el.innerHTML = '<p class="setup-hint">' + esc(opMsg(null, err, 'server.readiness.loadFailed')) + '</p>';
+        }
+    }
+
+    async function copyOperatorPortalUrl() {
+        const urlEl = document.getElementById('ss-operator-url');
+        const status = document.getElementById('ss-production-access-status');
+        const url = urlEl ? String(urlEl.value || '').trim() : '';
+        if (!url) {
+            alert(tr('server.copyOperatorUrl.empty'));
+            return;
+        }
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(url);
+            } else {
+                urlEl.focus();
+                urlEl.select();
+                document.execCommand('copy');
+            }
+            if (status) {
+                status.textContent = tr('server.copyOperatorUrl.done');
+                setTimeout(function () {
+                    if (status && status.textContent === tr('server.copyOperatorUrl.done')) status.textContent = '';
+                }, 2500);
+            }
+        } catch (err) {
+            alert(tr('server.copyOperatorUrl.failed'));
+        }
+    }
+
     function updateDeploymentSections(mode) {
         const lan = document.getElementById('ss-section-lan');
         const wan = document.getElementById('ss-section-wan');
@@ -754,6 +975,7 @@
         if (!urlEl.value.trim() || urlEl.dataset.auto === '1') {
             urlEl.value = suggested;
             urlEl.dataset.auto = '1';
+            updateOperatorTlsBadge();
         }
     }
 
@@ -850,6 +1072,15 @@
         }, 80);
     }
 
+    function openCommandWallFromSettings() {
+        setOpen(false);
+        if (global.EvidenceManager && EvidenceManager.showTab) {
+            EvidenceManager.showTab('command-wall', { panel: 'display' });
+            return;
+        }
+        window.open('/command-wall.html', 'mobility-command-wall', 'noopener,noreferrer');
+    }
+
     function fillTimezoneSelect(selected, zones) {
         const el = document.getElementById('ss-site-timezone');
         if (!el) return;
@@ -884,6 +1115,7 @@
         const operatorUrlEl = document.getElementById('ss-operator-url');
         operatorUrlEl.value = dep.operatorUrl || '';
         operatorUrlEl.dataset.auto = operatorUrlEl.value && operatorUrlEl.value === suggestedOperatorUrl(s.publicHost) ? '1' : '0';
+        updateOperatorTlsBadge();
         document.getElementById('ss-bind-host').value = s.bindHost || '0.0.0.0';
         document.getElementById('ss-sip-port').value = sip.sipPort || 5060;
         document.getElementById('ss-platform-id').value = sip.platformId || '';
@@ -998,6 +1230,25 @@
         return '<span class="ss-perm-badge-all">' + esc(tr('server.users.permAll')) + '</span>';
     }
 
+    /** Matches lib/dispatchScope.scopeForUser — all stations = super_admin / see-all; else assigned only. */
+    function userIsAllStationsScope(u) {
+        if (!u) return false;
+        if (u.role === 'super_admin') return true;
+        const perms = u.permissions || {};
+        if (perms.seeAllDispatchGroups) return true;
+        if (u.assignedGroupIds === undefined || u.assignedGroupIds === null) return true;
+        return false;
+    }
+
+    function hierarchyScopeBadgeHtml(u) {
+        if (userIsAllStationsScope(u)) {
+            return '<span class="ss-scope-badge ss-scope-all" title="' + esc(tr('server.users.scopeCorporateHint')) + '">'
+                + esc(tr('server.users.scopeCorporate')) + '</span>';
+        }
+        return '<span class="ss-scope-badge ss-scope-station" title="' + esc(tr('server.users.scopeStationHint')) + '">'
+            + esc(tr('server.users.scopeStation')) + '</span>';
+    }
+
     function permCheck(className, checked) {
         return '<label class="ss-perm-check"><input type="checkbox" class="' + className + '"' + (checked ? ' checked' : '') + '></label>';
     }
@@ -1017,27 +1268,30 @@
 
     function renderDispatchGroupsCell(u) {
         if (u.role === 'super_admin') {
-            return permAllBadge();
+            return '<div class="ss-dispatch-cell">' + permAllBadge() + '</div>';
         }
         const perms = u.permissions || {};
         const assigned = new Set(u.assignedGroupIds || []);
         const seeAll = !!perms.seeAllDispatchGroups;
         const seeAllLabel = tr('server.users.seeAllGroups');
-        let html = '<div class="ss-user-see-all-groups-wrap"><label class="ss-perm-check">'
-            + '<input type="checkbox" class="ss-user-see-all-groups"' + (seeAll ? ' checked' : '') + '> '
-            + esc(seeAllLabel) + '</label></div>';
+        let html = '<div class="ss-dispatch-cell">'
+            + '<label class="ss-dispatch-row">'
+            + '<input type="checkbox" class="ss-user-see-all-groups"' + (seeAll ? ' checked' : '') + '>'
+            + '<span class="ss-dispatch-row-text">' + esc(seeAllLabel) + '</span></label>';
         if (!cachedDispatchGroups.length) {
-            html += '<span class="setup-hint">' + tr('server.users.noGroupsYet') + '</span>';
+            html += '<span class="setup-hint">' + tr('server.users.noGroupsYet') + '</span></div>';
             return html;
         }
-        html += '<div class="ss-user-dispatch-grps"' + (seeAll ? ' hidden' : '') + '>';
+        html += '<div class="ss-user-dispatch-grps"' + (seeAll ? ' hidden' : '') + '>'
+            + '<div class="ss-dispatch-section-title">' + esc(tr('server.users.dispatchAssignLabel')) + '</div>';
         cachedDispatchGroups.forEach(function (g) {
             if (!g || !g.id) return;
-            html += '<label class="ss-dispatch-grp-check"><input type="checkbox" class="ss-user-dispatch-grp" value="'
-                + esc(g.id) + '"' + (assigned.has(g.id) ? ' checked' : '') + (seeAll ? ' disabled' : '') + '> '
-                + esc(g.name || g.id) + '</label>';
+            html += '<label class="ss-dispatch-row">'
+                + '<input type="checkbox" class="ss-user-dispatch-grp" value="'
+                + esc(g.id) + '"' + (assigned.has(g.id) ? ' checked' : '') + (seeAll ? ' disabled' : '') + '>'
+                + '<span class="ss-dispatch-row-text">' + esc(g.name || g.id) + '</span></label>';
         });
-        html += '</div>';
+        html += '</div></div>';
         return html;
     }
 
@@ -1067,14 +1321,18 @@
             const opt = roleSelect.querySelector('option[value="super_admin"]');
             if (opt) opt.disabled = false;
         }
+        lastUsersList = data.users || [];
         const tbody = document.getElementById('ss-users-body');
         if (!tbody) return;
         tbody.innerHTML = (data.users || []).map((u) => {
             const isSuper = u.role === 'super_admin';
             const perms = u.permissions || {};
-            const roleCell = isSuper
-                ? ('<span class="ss-role-badge-ui">' + tr('role.superAdmin') + '</span>')
-                : ('<span class="ss-role-badge-ui operator">' + tr('role.operator') + '</span>');
+            const roleCell = '<div class="ss-role-scope-cell">'
+                + (isSuper
+                    ? ('<span class="ss-role-badge-ui">' + esc(tr('role.superAdmin')) + '</span>')
+                    : ('<span class="ss-role-badge-ui operator">' + esc(tr('role.operator')) + '</span>'))
+                + hierarchyScopeBadgeHtml(u)
+                + '</div>';
             const signInFromVal = (!isSuper && perms.signInStartsAt)
                 ? String(perms.signInStartsAt).slice(0, 10) : '';
             const signInVal = (!isSuper && perms.signInExpiresAt)
@@ -1107,6 +1365,7 @@
                 + '</td>'
                 + '<td class="ss-user-id"><code>' + esc(u.id) + '</code></td>'
                 + '<td>' + roleCell + '</td>'
+                + '<td class="' + (isSuper ? 'ss-perm-col ss-perm-all' : 'ss-dispatch-grps-col') + '">' + renderDispatchGroupsCell(u) + '</td>'
                 + '<td>' + dashCell + '</td>'
                 + '<td>' + signInCell + '</td>'
                 + permCellTd(isSuper, 'ss-user-map-control', perms.mapDeviceControl)
@@ -1127,8 +1386,7 @@
                 + permCellTd(isSuper, 'ss-user-audit-view', perms.auditView || perms.auditExport)
                 + permCellTd(isSuper, 'ss-user-audit-export', perms.auditExport)
                 + '<td>' + expCell + '</td>'
-                + '<td class="' + (isSuper ? 'ss-perm-col ss-perm-all' : 'ss-dispatch-grps-col') + '">' + renderDispatchGroupsCell(u) + '</td>'
-                + '<td>' + actionsCell + '</td></tr>';
+                + '<td class="ss-actions-col">' + actionsCell + '</td></tr>';
         }).join('');
         wireUserDatePickers(tbody);
     }
@@ -1311,6 +1569,7 @@
             PasswordPolicyUi.loadPolicyHint('ss-dash-password-policy-hint', data.session.role).then(function (policy) {
                 if (policy) {
                     PasswordPolicyUi.applyMinLength(['#ss-dash-pass-new', '#ss-dash-pass-confirm'], policy.minLength);
+                    syncPasswordFieldLabels(policy);
                 }
             });
         }
@@ -1318,16 +1577,9 @@
         if (newRoleEl && global.PasswordPolicyUi && !newRoleEl._policyBound) {
             newRoleEl._policyBound = true;
             const syncNewUserMin = function () {
-                fetch('/api/auth/password-policy', { credentials: 'same-origin' })
-                    .then(function (r) { return r.json(); })
-                    .then(function (payload) {
-                        if (!payload || !payload.ok || !payload.policy) return;
-                        const min = newRoleEl.value === 'super_admin'
-                            ? payload.policy.minLengthSuperAdmin
-                            : payload.policy.minLengthOperator;
-                        PasswordPolicyUi.applyMinLength(['#ss-new-pass'], min);
-                    })
-                    .catch(function () { /* ignore */ });
+                PasswordPolicyUi.loadPolicyHint('ss-new-pass-policy-hint', newRoleEl.value || 'operator').then(function (policy) {
+                    syncPasswordFieldLabels(policy);
+                });
             };
             newRoleEl.addEventListener('change', syncNewUserMin);
             syncNewUserMin();
@@ -1355,6 +1607,8 @@
         if (tab === 'server' && (force || !tabExtrasLoaded.server)) {
             tabExtrasLoaded.server = true;
             tasks.push(loadSiteResilience());
+            tasks.push(loadProductionAccess());
+            tasks.push(loadSiteReadiness());
             tasks.push(refreshDeviceSummary());
             tasks.push(loadDockFolder().then(fillDockPanel));
         }
@@ -1555,8 +1809,32 @@
         });
         document.getElementById('ss-operator-url').addEventListener('input', (e) => {
             e.target.dataset.auto = '0';
+            updateOperatorTlsBadge();
         });
-
+        const copyOpBtn = document.getElementById('ss-copy-operator-url');
+        if (copyOpBtn) copyOpBtn.addEventListener('click', function () { copyOperatorPortalUrl(); });
+        const saveProdBtn = document.getElementById('ss-save-production-access');
+        if (saveProdBtn) saveProdBtn.addEventListener('click', function () { saveProductionAccess(); });
+        const refreshReadinessBtn = document.getElementById('ss-refresh-readiness');
+        if (refreshReadinessBtn) refreshReadinessBtn.addEventListener('click', function () { loadSiteReadiness(); });
+        const readinessRoot = document.getElementById('ss-site-readiness');
+        if (readinessRoot && !readinessRoot._ssBound) {
+            readinessRoot._ssBound = true;
+            readinessRoot.addEventListener('click', function (e) {
+                const row = e.target.closest('[data-ss-readiness-id]');
+                if (!row || !lastSiteReadiness) return;
+                const id = row.getAttribute('data-ss-readiness-id');
+                const item = (lastSiteReadiness.items || []).find(function (it) { return it.id === id; });
+                if (item && item.link) followReadinessLink(item.link);
+            });
+            readinessRoot.addEventListener('keydown', function (e) {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                const row = e.target.closest('[data-ss-readiness-id]');
+                if (!row) return;
+                e.preventDefault();
+                row.click();
+            });
+        }
         document.getElementById('ss-main-tab-server').addEventListener('click', () => setMainTab('server'));
         document.getElementById('ss-main-tab-bwc').addEventListener('click', () => setMainTab('bwc'));
         const tabGroups = document.getElementById('ss-main-tab-groups');
@@ -1579,6 +1857,8 @@
 
         const openEvidenceStorageBtn = document.getElementById('ss-open-evidence-storage');
         if (openEvidenceStorageBtn) openEvidenceStorageBtn.addEventListener('click', openEvidenceStorage);
+        const openCommandWallBtn = document.getElementById('ss-open-command-wall');
+        if (openCommandWallBtn) openCommandWallBtn.addEventListener('click', openCommandWallFromSettings);
 
         const siteTzSelect = document.getElementById('ss-site-timezone');
         if (siteTzSelect) {
@@ -1869,6 +2149,7 @@
             const modeEl = document.getElementById('ss-deployment-mode');
             updateDeploymentHint(modeEl ? modeEl.value : lastDeploymentMode);
             updateSidebarDeployment(lastDeploymentMode);
+            updateOperatorTlsBadge();
             fillTimezoneSelect(
                 (document.getElementById('ss-site-timezone') || {}).value,
                 lastSiteTimezones
@@ -1999,7 +2280,8 @@
         setTechProvisionA11y(true);
 
         const cancel = function () {
-            if (backdrop._techProvisionBusy && backdrop._techProvisionBusy.isBusy()) return;
+            // Always allow Cancel — never leave operator stuck on Saving…
+            if (provisionBusy && provisionBusy.isBusy()) provisionBusy.setBusy(false);
             dismissTechProvision({ onCancel: opts.onCancel || onTechGateCancel });
         };
 
@@ -2017,6 +2299,7 @@
             if (provisionBusy && provisionBusy.isBusy()) return;
             const pin = pinEl.value.trim();
             const pinConfirm = pin2El.value.trim();
+            if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
             if (pin.length < 12) {
                 if (errEl) {
                     errEl.textContent = tr('tech.provision.pinTooShort');
@@ -2031,12 +2314,39 @@
                 }
                 return;
             }
-            if (provisionBusy) provisionBusy.setBusy(true);
+
+            // 1) Login password FIRST (visible) — never set Saving… before reverify.
+            // Hide PIN dialog so Confirm password is not buried underneath.
+            if (global.AuthReverify && AuthReverify.clear) AuthReverify.clear();
+            backdrop.hidden = true;
+            setTechProvisionA11y(false);
+
+            let body = { pin: pin, pinConfirm: pinConfirm };
             try {
-                let body = { pin: pin, pinConfirm: pinConfirm };
                 if (global.AuthReverify && AuthReverify.withReverify) {
                     body = await AuthReverify.withReverify(body);
                 }
+            } catch (err) {
+                // Password cancel / fail → return to PIN form (do not wipe entries).
+                backdrop.hidden = false;
+                setTechProvisionA11y(true);
+                if (err && err.message === 'cancelled') {
+                    pinEl.focus();
+                    return;
+                }
+                if (errEl) {
+                    errEl.textContent = (err && err.message) || tr('tech.provision.failed');
+                    errEl.hidden = false;
+                }
+                pinEl.focus();
+                return;
+            }
+
+            // 2) Only now show Saving… and POST.
+            backdrop.hidden = false;
+            setTechProvisionA11y(true);
+            if (provisionBusy) provisionBusy.setBusy(true);
+            try {
                 const res = await fetch('/api/tech/provision', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2050,21 +2360,25 @@
                 }
                 if (provisionBusy) provisionBusy.setBusy(false);
                 dismissTechProvision({});
+                refreshTechPinStatus();
+                const msgEl = document.getElementById('ss-tech-pin-msg');
+                if (msgEl) msgEl.textContent = tr('tech.provision.saved');
                 if (global.TechDiagnostics && TechDiagnostics.checkSession) {
                     await TechDiagnostics.checkSession();
                 }
                 if (onSuccess) onSuccess();
             } catch (err) {
+                if (provisionBusy) provisionBusy.setBusy(false);
+                backdrop.hidden = false;
+                setTechProvisionA11y(true);
                 if (err && err.message === 'cancelled') {
-                    if (provisionBusy) provisionBusy.setBusy(false);
-                    cancel();
+                    pinEl.focus();
                     return;
                 }
                 if (errEl) {
                     errEl.textContent = (err && err.message) || tr('tech.provision.failed');
                     errEl.hidden = false;
                 }
-                if (provisionBusy) provisionBusy.setBusy(false);
                 pinEl.focus();
             }
         };
@@ -2085,7 +2399,6 @@
         };
         techProvisionEsc = function (e) {
             if (e.key === 'Escape') {
-                if (backdrop._techProvisionBusy && backdrop._techProvisionBusy.isBusy()) return;
                 e.preventDefault();
                 cancel();
             }
@@ -2110,6 +2423,60 @@
                 if (typeof backdrop._techProvisionSubmit === 'function') backdrop._techProvisionSubmit();
             });
         }
+        const setBtn = document.getElementById('ss-tech-pin-set');
+        if (setBtn && !setBtn._ssTechPinBound) {
+            setBtn._ssTechPinBound = true;
+            setBtn.addEventListener('click', function () {
+                if (!canManageServer) return;
+                const msgEl = document.getElementById('ss-tech-pin-msg');
+                if (msgEl) msgEl.textContent = '';
+                showTechProvision(function () {
+                    refreshTechPinStatus();
+                }, {});
+            });
+        }
+        const gateReset = document.getElementById('ss-tech-gate-reset-pin');
+        if (gateReset && !gateReset._ssTechPinBound) {
+            gateReset._ssTechPinBound = true;
+            gateReset.addEventListener('click', function () {
+                if (!canManageServer) {
+                    if (global.AdminActionBus) AdminActionBus.toast(tr('adminAction.adminRequired'));
+                    return;
+                }
+                // Close Step 2 unlock gate, then open set/reset (still requires login re-verify).
+                if (global.TechDiagnostics && TechDiagnostics.dismissTechGate) {
+                    TechDiagnostics.dismissTechGate({});
+                } else {
+                    const gate = document.getElementById('ss-tech-gate-backdrop');
+                    if (gate) gate.hidden = true;
+                }
+                showTechProvision(function () {
+                    refreshTechPinStatus();
+                    if (global.AdminActionBus) AdminActionBus.toast(tr('tech.provision.saved'));
+                }, {});
+            });
+        }
+    }
+
+    function refreshTechPinStatus() {
+        const statusEl = document.getElementById('ss-tech-pin-status');
+        const setBtn = document.getElementById('ss-tech-pin-set');
+        if (!statusEl) return;
+        statusEl.textContent = '…';
+        fetch('/api/tech/provision/status', { credentials: 'same-origin' })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (data) {
+                if (data && data.configured) {
+                    statusEl.textContent = tr('tech.adminPin.statusSet');
+                    if (setBtn) setBtn.textContent = tr('tech.adminPin.resetBtn');
+                } else {
+                    statusEl.textContent = tr('tech.adminPin.statusNotSet');
+                    if (setBtn) setBtn.textContent = tr('tech.adminPin.setBtn');
+                }
+            })
+            .catch(function () {
+                statusEl.textContent = tr('tech.adminPin.statusUnknown');
+            });
     }
 
     function fetchTechSession() {
@@ -2248,6 +2615,8 @@
         refreshDockPanel: refreshDockPanel,
         openConfigTab: openConfigTab,
         runWithTechAccess: runWithTechAccess,
+        showTechProvision: showTechProvision,
+        refreshTechPinStatus: refreshTechPinStatus,
         trySettingsNavLock: trySettingsNavLock,
         releaseAllSettingsOverlays: releaseAllSettingsOverlays,
         applySession: applySession,

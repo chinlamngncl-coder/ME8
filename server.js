@@ -97,6 +97,7 @@ const evidenceRegistry = require('./lib/evidenceRegistry');
 const evidenceSecureExport = require('./lib/evidenceSecureExport');
 const evidenceWorkflow = require('./lib/evidenceWorkflow');
 const faceTrackSidecar = require('./lib/faceTrackSidecar');
+const faceRedactRegions = require('./lib/faceRedactRegions');
 const evidenceCustodyAudit = require('./lib/evidenceCustodyAudit');
 const dockRegistry = require('./lib/dockRegistry');
 const conferenceModule = require('./lib/conferenceModule');
@@ -105,6 +106,8 @@ const conferenceLivekit = require('./lib/conferenceLivekit');
 const conferenceBwcIngress = require('./lib/conferenceBwcIngress');
 const storagePaths = require('./lib/storagePaths');
 const storageStatus = require('./lib/storageStatus');
+const siteReadiness = require('./lib/siteReadiness');
+const authAuditShipChecklist = require('./lib/authAuditShipChecklist');
 const evidenceOverview = require('./lib/evidenceOverview');
 const caseFiles = require('./lib/caseFiles');
 const operatorErrorVoice = require('./lib/operatorErrorVoice');
@@ -147,6 +150,7 @@ const bwcVoiceProfile = require('./lib/bwcVoiceProfile');
 const voiceIntercomProfile = require('./lib/voiceIntercomProfile');
 const voiceIntercomTelemetryMod = require('./lib/voiceIntercomTelemetry');
 const gisOffline = require('./lib/gisOffline');
+const mapGeocode = require('./lib/mapGeocode');
 
 const BASE_DIR = __dirname;
 const FACE_PLATE_DIR = path.join(BASE_DIR, 'storage', 'face-plate');
@@ -170,14 +174,21 @@ function currentFtpRoot() {
 function refreshEvidenceStorage() {
     FTP_ROOT = currentFtpRoot();
     storagePaths.ensureDir(FTP_ROOT);
-    const lcRoot = storagePaths.resolveLiveCaptureRoot(BASE_DIR, serverSettings.load(STORAGE_DIR));
+    const settings = serverSettings.load(STORAGE_DIR);
+    const lcRoot = storagePaths.resolveLiveCaptureRoot(BASE_DIR, settings);
     storagePaths.ensureDir(lcRoot);
-    evidenceRegistry.init(STORAGE_DIR, { ftpRoot: FTP_ROOT, liveCaptureRoot: lcRoot });
+    let archiveRoot = path.join(STORAGE_DIR, 'evidence-archive');
+    const nasArchive = storagePaths.recommendedNetworkPaths(storagePaths.resolveArchiveMount(BASE_DIR, settings));
+    if (nasArchive && nasArchive.archive) {
+        archiveRoot = nasArchive.archive;
+    }
+    storagePaths.ensureDir(archiveRoot);
+    evidenceRegistry.init(STORAGE_DIR, { ftpRoot: FTP_ROOT, liveCaptureRoot: lcRoot, archiveRoot: archiveRoot });
     evidenceWorkflow.init(STORAGE_DIR);
     evidenceSecureExport.init(STORAGE_DIR);
     evidenceCrypto.init(STORAGE_DIR);
     fixedCamRegistry.init(STORAGE_DIR);
-    return { ftpRoot: FTP_ROOT, liveCaptureRoot: lcRoot };
+    return { ftpRoot: FTP_ROOT, liveCaptureRoot: lcRoot, archiveRoot: archiveRoot };
 }
 
 let FTP_ROOT = currentFtpRoot();
@@ -1268,6 +1279,22 @@ app.get('/api/tech/health', techAccess.requireTechAuth, (req, res) => {
     }
 });
 
+function sendLiveViewerTelemetry(res) {
+    try {
+        res.json({ ok: true, telemetry: liveViewers.collectTelemetry(io, liveStreamPool) });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+}
+
+app.get('/api/diagnostics/live-viewers', dashboardAuth.requireSuperAdmin, (req, res) => {
+    sendLiveViewerTelemetry(res);
+});
+
+app.get('/api/tech/live-viewers', techAccess.requireTechAuth, (req, res) => {
+    sendLiveViewerTelemetry(res);
+});
+
 app.get('/api/tech/trace', techAccess.requireTechAuth, (req, res) => {
     try {
         const opts = {
@@ -1382,9 +1409,94 @@ app.post('/api/lab-security/test-oidc', techAccess.requireTechAuth, async (req, 
     }
 });
 
+/** Super-admin Production access (TLS / trust proxy) — same lab-security.trustProxy flag, no engineer PIN. */
+app.get('/api/production-access', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        const lab = labSecurity.load(STORAGE_DIR);
+        const server = serverSettings.load(STORAGE_DIR);
+        const operatorUrl = (server.deployment && server.deployment.operatorUrl) || '';
+        res.json({
+            ok: true,
+            trustProxy: !!lab.trustProxy,
+            operatorUrl: operatorUrl,
+            operatorUrlHttps: /^https:\/\//i.test(String(operatorUrl).trim()),
+        });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.post('/api/production-access', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        const body = req.body || {};
+        if (reverifyForbidden(req, res, body)) return;
+        if (body.trustProxy == null) {
+            return res.status(400).json(opErr('trustProxy is required'));
+        }
+        const next = labSecurity.save(STORAGE_DIR, { trustProxy: !!body.trustProxy });
+        applyLabSecurityRuntime();
+        auditLog.recordFromRequest(req, 'production_access.save', {
+            detail: { trustProxy: next.trustProxy },
+        });
+        res.json({ ok: true, trustProxy: !!next.trustProxy });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.get('/api/site-readiness', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        const settings = serverSettings.load(STORAGE_DIR);
+        const lab = labSecurity.load(STORAGE_DIR);
+        const readiness = siteReadiness.buildFromRuntime({
+            baseDir: BASE_DIR,
+            settings: settings,
+            trustProxy: !!lab.trustProxy,
+            license: platformLicense.getStatusPublic(),
+            groups: dispatchGroups.listGroups(),
+            users: dashboardAuth.listUsersPublic(true),
+        });
+        res.json({ ok: true, readiness: readiness });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.get('/api/auth-audit-ship-checklist', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        const settings = serverSettings.load(STORAGE_DIR);
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        const sessionUser = session && session.userId
+            ? dashboardAuth.findUserById(session.userId)
+            : null;
+        const checklist = authAuditShipChecklist.buildChecklist({
+            settings: settings,
+            sessionUser: sessionUser,
+            techPinConfigured: techAccess.isConfigured(),
+        });
+        res.json({ ok: true, checklist: checklist });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
 gisOffline.registerGisOfflineRoutes(app);
 
 app.use(dashboardAuth.requireDashboardAuth);
+
+app.get('/api/gis/geocode', async (req, res) => {
+    try {
+        const out = await mapGeocode.search(req.query && req.query.q);
+        res.json({ ok: true, query: out.query, results: out.results });
+    } catch (err) {
+        const status = err.status || 500;
+        res.status(status).json({
+            ok: false,
+            errorKey: err.errorKey || 'map.placeSearch.failed',
+            error: err.message || 'Geocode failed',
+        });
+    }
+});
 
 function buildCloudDeploymentOverview() {
     const settings = serverSettings.load(STORAGE_DIR);
@@ -3981,8 +4093,30 @@ function sosIncidentLookup(id) {
 
 app.get('/api/evidence/catalog', requireEvidenceView, (req, res) => {
     try {
-        const limit = req.query && req.query.limit;
-        res.json({ ok: true, files: evidenceRegistry.listCatalog(limit) });
+        const q = req.query || {};
+        const tagQ = q.tag != null ? String(q.tag).trim().toLowerCase() : '';
+        const statusRaw = q.status != null ? String(q.status).trim().toLowerCase() : 'active';
+        const status = (statusRaw === 'archived' || statusRaw === 'all') ? statusRaw : 'active';
+        const wantsPage = q.page != null || q.pageSize != null || q.limit == null;
+        if (wantsPage || tagQ || status !== 'all') {
+            const result = evidenceRegistry.listCatalogPage({
+                page: q.page,
+                pageSize: q.pageSize || q.limit || 50,
+                tag: tagQ,
+                status: status,
+            });
+            return res.json({
+                ok: true,
+                files: result.files,
+                total: result.total,
+                page: result.page,
+                pageSize: result.pageSize,
+                pageCount: result.pageCount,
+                status: status,
+            });
+        }
+        const limit = q.limit;
+        res.json({ ok: true, files: evidenceRegistry.listCatalog(limit), status: status });
     } catch (err) {
         log.web.warn('evidence catalog list failed', { message: err.message });
         res.status(500).json(opErr(err));
@@ -4490,6 +4624,32 @@ app.patch('/api/evidence/detail/:fileId', requireEvidenceEdit, (req, res) => {
     }
 });
 
+app.post('/api/evidence/detail/:fileId/archive', requireEvidenceEdit, (req, res) => {
+    try {
+        const file = evidenceRegistry.archiveFile(req.params.fileId, req.dashboardUser);
+        auditLog.recordFromRequest(req, 'evidence.archive', {
+            target: req.params.fileId,
+            detail: { storageTier: 'archived' },
+        });
+        res.json({ ok: true, file: file });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.post('/api/evidence/detail/:fileId/restore', requireEvidenceEdit, (req, res) => {
+    try {
+        const file = evidenceRegistry.restoreFile(req.params.fileId, req.dashboardUser);
+        auditLog.recordFromRequest(req, 'evidence.restore', {
+            target: req.params.fileId,
+            detail: { storageTier: 'local' },
+        });
+        res.json({ ok: true, file: file });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
 app.post('/api/evidence/detail/:fileId/attachment', requireEvidenceEdit, express.json({ limit: '12mb' }), (req, res) => {
     try {
         const body = req.body || {};
@@ -4551,6 +4711,54 @@ app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin,
         res.json({ ok: true, export: out });
     } catch (err) {
         res.status(400).json(opErr(err));
+    }
+});
+
+// mob-evidence-redact-autoface: run the OpenCV+YuNet sidecar over the source
+// video and return suggested blur regions for the operator to review in the
+// existing redact editor. Detection only — it never burns in blur (that stays
+// the manual "Save redacted copy" path). Super-admin + analyticsFace ("fr") gated.
+app.post('/api/evidence/detail/:fileId/redact/autoface', dashboardAuth.requireSuperAdmin, express.json({ limit: '16kb' }), async (req, res) => {
+    try {
+        if (!licenseFeatures.isFeatureEnabled('fr')) {
+            return res.status(403).json(opErr('Face detection module is not enabled on this license'));
+        }
+        const file = evidenceRegistry.getFile(req.params.fileId);
+        if (!file) return res.status(404).json(opErr('Evidence file not found'));
+        const inputPath = evidenceRegistry.resolveFilePath(file);
+        if (!inputPath) return res.status(404).json(opErr('Source file missing on storage'));
+
+        const body = req.body || {};
+        const detectOpts = {
+            maxSeconds: Number(body.maxSeconds) > 0 ? Number(body.maxSeconds) : 0,
+            stride: Number(body.stride) > 0 ? Number(body.stride) : 3,
+            score: Number(body.score) > 0 ? Number(body.score) : 0.6,
+            timeout: 300000,
+        };
+        const timeline = await faceTrackSidecar.detect(inputPath, detectOpts);
+        if (!timeline || !timeline.ok) {
+            return res.status(422).json(opErr((timeline && timeline.error) || 'Face detection failed'));
+        }
+        const regions = faceRedactRegions.buildRegionsFromTimeline(timeline, {
+            pad: Number(body.pad) >= 0 ? Number(body.pad) : 0.25,
+        });
+        auditLog.recordFromRequest(req, 'evidence.redact_autoface', {
+            target: req.params.fileId,
+            detail: { regions: regions.length, sampled: timeline.sampled || 0 },
+        });
+        res.json({
+            ok: true,
+            regions: regions,
+            meta: {
+                width: timeline.width,
+                height: timeline.height,
+                sampled: timeline.sampled || 0,
+                stride: timeline.stride || detectOpts.stride,
+                regionCount: regions.length,
+            },
+        });
+    } catch (err) {
+        res.status(500).json(opErr(err));
     }
 });
 
@@ -4620,6 +4828,35 @@ app.get('/api/evidence/sos-incidents', requireEvidenceView, (req, res) => {
         const limit = req.query && req.query.limit ? parseInt(req.query.limit, 10) : 100;
         const canSee = (camId) => sessionCanSeeCam(session, camId);
         res.json({ ok: true, incidents: sosIncidents.getDashboard(limit, days, canSee) });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+// mob-missed-activity-icon / mob-missed-ptt-feed / mob-missed-ptt-engage:
+// read-only feed for the header "Missed" control. SOS is intentionally NOT
+// sourced here — the day-1 red distress banner already surfaces unacknowledged
+// SOS across every tab. PTT missed rows are written only when a transmission
+// ends without the operator engaging the banner (POST …/ptt/engage). Unread
+// badge/read-state is computed client-side (last drawer open).
+app.get('/api/missed-activity', (req, res) => {
+    try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        if (!session) return res.status(401).json(opErr('Unauthorized'));
+        const items = getMissedPttItems();
+        res.json({ ok: true, items: items, counts: { total: items.length } });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.post('/api/missed-activity/ptt/engage', express.json({ limit: '4kb' }), (req, res) => {
+    try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        if (!session) return res.status(401).json(opErr('Unauthorized'));
+        const camId = req.body && req.body.camId;
+        engagePttSession(camId);
+        res.json({ ok: true });
     } catch (err) {
         res.status(500).json(opErr(err));
     }
@@ -5270,6 +5507,14 @@ app.post('/api/tech/provision', (req, res) => {
                 ok: false,
                 error: 'PIN entries do not match.',
                 errorKey: 'tech.provision.pinMismatch',
+            });
+        }
+        // IT PIN must not equal the super admin's login password (second lock, not a copy).
+        if (dashboardAuth.verifySessionPassword(session, pin)) {
+            return res.status(400).json({
+                ok: false,
+                error: 'IT administrator PIN cannot be the same as your login password.',
+                errorKey: 'tech.provision.pinSameAsLogin',
             });
         }
         techAccess.provisionPin(STORAGE_DIR, pin);
@@ -6574,8 +6819,122 @@ function emitPttTalkState(socket, camId, active, error) {
     }
 }
 
+// mob-missed-ptt-feed / mob-missed-ptt-engage: in-memory missed PTT log.
+// Missed = transmission ended without operator engaging the banner (click comm
+// pin). Finalize aligns with client banner linger (ptt-rx.js LINGER_MS 25s).
+// A new key-up from the same device finalizes any prior unengaged session first.
+const MISSED_PTT_MAX = 50;
+const MISSED_PTT_COALESCE_MS = 15000;
+const MISSED_PTT_LINGER_MS = 25000;
+const MISSED_PTT_RETRACT_MS = 30000;
+let missedPttLog = [];
+let missedPttSeq = 0;
+const pendingPttByCam = new Map();
+
+function normPttCamId(camId) {
+    return camId ? String(camId) : '';
+}
+
+function clearPttFinalizeTimer(sess) {
+    if (sess && sess.finalizeTimer) {
+        clearTimeout(sess.finalizeTimer);
+        sess.finalizeTimer = null;
+    }
+}
+
+function recordMissedPtt(camId) {
+    const id = normPttCamId(camId);
+    if (!id) return;
+    const now = Date.now();
+    for (let i = missedPttLog.length - 1; i >= 0; i--) {
+        const e = missedPttLog[i];
+        if (e.camId === id && (now - e.atMs) < MISSED_PTT_COALESCE_MS) {
+            e.atMs = now;
+            e.at = new Date(now).toISOString();
+            return;
+        }
+    }
+    missedPttLog.push({ id: ++missedPttSeq, kind: 'ptt', camId: id, atMs: now, at: new Date(now).toISOString() });
+    if (missedPttLog.length > MISSED_PTT_MAX) missedPttLog.shift();
+    try {
+        if (io) io.emit('missed-activity-changed', { total: missedPttLog.length });
+    } catch (_) { /* never break PTT */ }
+}
+
+function retractRecentMissedPtt(camId) {
+    const id = normPttCamId(camId);
+    if (!id) return;
+    const now = Date.now();
+    for (let i = missedPttLog.length - 1; i >= 0; i--) {
+        const e = missedPttLog[i];
+        if (e.camId === id && (now - e.atMs) < MISSED_PTT_RETRACT_MS) {
+            missedPttLog.splice(i, 1);
+            return;
+        }
+    }
+}
+
+function finalizePttSession(camId) {
+    const id = normPttCamId(camId);
+    if (!id) return;
+    const sess = pendingPttByCam.get(id);
+    if (!sess) return;
+    clearPttFinalizeTimer(sess);
+    pendingPttByCam.delete(id);
+    if (!sess.engaged) recordMissedPtt(id);
+}
+
+function engagePttSession(camId) {
+    const id = normPttCamId(camId);
+    if (!id) return false;
+    const sess = pendingPttByCam.get(id);
+    if (sess) {
+        sess.engaged = true;
+        clearPttFinalizeTimer(sess);
+        pendingPttByCam.delete(id);
+        return true;
+    }
+    retractRecentMissedPtt(id);
+    return true;
+}
+
+function onPttRxActive(camId, active) {
+    const id = normPttCamId(camId);
+    if (!id) return;
+    if (active) {
+        const prev = pendingPttByCam.get(id);
+        if (prev) {
+            clearPttFinalizeTimer(prev);
+            if (!prev.engaged) recordMissedPtt(id);
+            pendingPttByCam.delete(id);
+        }
+        pendingPttByCam.set(id, { engaged: false, startedAt: Date.now() });
+        return;
+    }
+    const sess = pendingPttByCam.get(id);
+    if (!sess || sess.engaged) {
+        if (sess && sess.engaged) {
+            clearPttFinalizeTimer(sess);
+            pendingPttByCam.delete(id);
+        }
+        return;
+    }
+    clearPttFinalizeTimer(sess);
+    sess.finalizeTimer = setTimeout(() => {
+        try { finalizePttSession(id); } catch (_) { /* never break PTT */ }
+    }, MISSED_PTT_LINGER_MS);
+}
+
+function getMissedPttItems() {
+    return missedPttLog
+        .slice()
+        .sort((a, b) => b.atMs - a.atMs)
+        .map((e) => ({ id: e.id, kind: 'ptt', camId: e.camId, at: e.at }));
+}
+
 function emitPttRxState(camId, active) {
     io.emit('ptt-rx-state', { camId: camId || null, active: !!active });
+    try { onPttRxActive(camId, !!active); } catch (_) { /* never break PTT */ }
 }
 
 function emitPttRxAudio(camId, pcmBuf) {
@@ -7335,7 +7694,14 @@ io.on('connection', (socket) => {
         const mode = parsed.mode || 'video';
         const surface = liveViewers.normalizeSurface(parsed.surface || (payload && payload.surface));
         if (camId && mode === 'video') {
+            const beforeSurfaces = liveViewers.socketSurfacesForCam(socket.id, camId);
             const viewers = liveViewers.addView(socket.id, camId, surface);
+            const afterSurfaces = liveViewers.socketSurfacesForCam(socket.id, camId);
+            if ((!beforeSurfaces.ops || !beforeSurfaces.commandWall)
+                && afterSurfaces.ops && afterSurfaces.commandWall
+                && socket && socket.connected) {
+                socket.emit('live-duplicate-surface-hint', { camId: String(camId) });
+            }
             log.media.trace('start-video viewer ref', { camId, socketId: socket.id, surface, viewers });
         }
         startMediaFromDashboard(payload, socket);

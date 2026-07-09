@@ -68,11 +68,19 @@
                     <table class="cs-table" id="activity-table"><thead><tr><th data-i18n="centre.activity.time">Time</th><th data-i18n="centre.activity.action">Action</th><th data-i18n="centre.activity.name">Name</th><th data-i18n="centre.activity.user">User</th></tr></thead><tbody></tbody></table>
                 </div>
             </div>
+            <div class="cs-card" id="live-viewers-card">
+                <div class="cs-toolbar" style="margin-bottom:8px;justify-content:space-between">
+                    <h3 style="margin:0" data-i18n="centre.liveViewers.title">Live viewers</h3>
+                    <button type="button" class="cs-btn" id="btn-live-viewers-refresh" data-i18n="common.refresh">Refresh</button>
+                </div>
+                <div id="live-viewers-table"></div>
+            </div>
         </div>
     </div>
     <script src="/js/i18n.js"></script>
+    <script src="/js/live-viewer-telemetry.js?v=20260709-live-viewer-telemetry"></script>
     <script src="/js/operator-error-voice.js?v=20260702-op-voice-standalone"></script>
     <script src="/js/operator-ui.js?v=20260702-op-voice-standalone"></script>
-    <script src="/js/command-centre.js?v=20260624-llm-two-hints"></script>
+    <script src="/js/command-centre.js?v=20260709-live-viewer-telemetry"></script>
 </body>
 </html>

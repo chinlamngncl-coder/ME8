@@ -1,4 +1,4 @@
-﻿# MOB DISC — Enterprise VMS requirements (six domains + risk order)
+# MOB DISC — Enterprise VMS requirements (six domains + risk order)
 
 **Status:** DISC only — no MOB-APPLY until you name the wave.  
 **Source:** `BWC_PostQual_Reference_v3.docx` — Section 4 + Part 3 POC (software only; BWC hardware out of scope).  
@@ -11,7 +11,7 @@
 
 | MOB | Date | Checkpoint |
 |-----|------|------------|
-| `mob-me8-sos-ledger-dispatch-scope` | 2026-07-06 | **SKIPPED** by operator — bench deferred. Re-test when convenient: super-admin sees full SOS ledger; scoped operator sees group-only rows + CSV; out-of-scope folder open → 403. |
+| `mob-me8-sos-ledger-dispatch-scope` | 2026-07-08 | **PASS** — scoped operator sees group-only ledger/CSV; out-of-scope folder open → 403. (Re-tested; deferred 2026-07-06 SKIP closed.) |
 
 ---
 
@@ -62,7 +62,7 @@ Scale **1 = safe** (docs / UI-only / no live path) → **5 = high** (historicall
 
 **Rule:** Steps **6–7 last**. Do not stack live/FR MOBs in one turn.
 
-**Brochure desk (parallel, no bench risk):** perpetual license statement, ISO certs, country-of-origin, spare-parts affidavit, instructional video script.
+**Parked (operator owns later — not agent work until asked):** brochure / Part 1 desk, POC rehearsal script, open-API affidavit pack, perpetual/ISO/origin docs. Agent focuses on **runtime software** gaps only.
 
 ---
 
@@ -177,10 +177,22 @@ Flow: Evidence Hub → Redact (embedded workspace) → Save redacted copy → Of
 
 ---
 
-## Next MOB-APPLY (suggested)
+## Next MOB-APPLY (software only — brochure/POC parked)
 
-**`mob-open-api-pack`** (step 1, risk 1) — parallel brochure work, zero bench risk.
+**Updated 2026-07-08** — Evidence C slice largely applied (tags, crypto chip, pages, cold archive).
 
-Or **`MOB-APPLY mob-evidence-redact-simple-flow-with-draft-note`** (step 2) — if you want S4-9 demonstrable early.
+| Priority | MOB / slice | Status | Note |
+|----------|-------------|--------|------|
+| — | in-app redact + draft note | **Done** | C′ |
+| — | crypto-metadata A (tags + chip) | **Done** | |
+| — | catalog pagination | **Done** | |
+| — | cold archive off active list | **Done** | not forever-delete |
+| **1** | `mob-vms-deploy-hierarchy` | **In progress** | A1–A3 done. Next: A4 site readiness (`MOB-DISC-VMS-DEPLOY-HIERARCHY.md`) |
+| **2** | `mob-auth-audit-ship` | Pending | TOTP on for ship; ship flags off bench; SOS ledger re-test |
+| **3** | `mob-live-sos-ptt-poc` | Last | Live path — checkpoint ritual |
+| **4** | `mob-facial-detect-recognize` | Last | Analytics / FR license — risk 5 |
+| Parked | brochure · POC script · `mob-open-api-pack` | You | Outside software |
 
-Reply: `MOB-APPLY mob-evidence-redact-simple-flow-with-draft-note` or `MOB-APPLY mob-open-api-pack`.
+**Not a separate crypto “Next” anymore** unless you open slice B (redact/trim vs decrypt hole).
+
+Reply: `MOB-APPLY mob-vms-deploy-a4-site-readiness` — A3 hierarchy labels done.
