@@ -1,11 +1,11 @@
 ﻿{
     "label":  "ME8 POC/Demo",
-    "version":  "me8-poc-demo-20260709",
-    "locked":  "2026-07-09",
-    "gitCommit":  "ca2a750",
+    "version":  "me8-poc-demo-20260711-fr-genre",
+    "locked":  "2026-07-11",
+    "gitCommit":  "3c865d9",
     "videoWallCache":  "20260709-wall-claim",
-    "note":  "POC/demo lock after VC BWC libopenh264 + Server Config/UI genres. Not failed-live, not me8-v2. storage/secrets/ and vendor/ffmpeg-lgpl binary not snapshotted. AI must not RESTORE unless user types RUN RESTORE-ME8-POC-DEMO.",
-    "predecessor":  "me8-firmware-gold-20260706",
+    "note":  "FR genre lock: DeepFace sidecar, live watch, 16-slot snap rail+metadata, standby PTT, ledger, alerts. Pre-engine-pivot rollback floor. storage/secrets/ and vendor/ffmpeg-lgpl binary not snapshotted. AI must not RESTORE unless user types RUN RESTORE-ME8-POC-DEMO.",
+    "predecessor":  "me8-poc-demo-20260709",
     "frozen":  [
                    "public/index.html",
                    "public/js/video-wall.js",
@@ -19,6 +19,10 @@
     "files":  [
                   {
                       "path":  ".cursor/rules/me8-firmware-gold-locked.mdc",
+                      "tier":  "me8-cursor"
+                  },
+                  {
+                      "path":  ".cursor/rules/me8-ship-reminders-no-nag.mdc",
                       "tier":  "me8-cursor"
                   },
                   {
@@ -8090,6 +8094,474 @@
                       "tier":  "me8-docs"
                   },
                   {
+                      "path":  "docs/MOB-DISC-A3-BANNED-JARGON-LOCK.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-A3-HIERARCHY-UX-FEEDBACK.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-A5-DISPLAY-ROOM-UX.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-A5-INDUSTRY-LABELS.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-A5-PRESET-NAME-REJECT.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ANALYTICS-LICENSE-HUB.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ANALYTICS-STACK-UX.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ASK-GOOGLE-ZLM.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-AUTH-AUDIT-SHIP-CHECKLIST.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-BWC-PTT-DURING-LIVE-CALL.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-BWC-STOPPED-FLICKER.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-CENTRE-LLM-SHIP-NO-CLIENT-DOWNLOAD.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-CENTRE-SUMMARY-GLOBAL-ERROR.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-CENTRE-SUMMARY-NOT-GHOST-TAB.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-CHIN-BLACK-LIVE-INVITE-STUCK.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-CUSTOMER-FACING-NAMING.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-DISPLAY-LAYOUT-NO-OPTIONAL.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-DISPLAY-ROOM-POPOUT-VS-TAB.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ENTERPRISE-VMS-SIX-DOMAINS.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-EVIDENCE-COLD-ARCHIVE-OFF-LIST.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-EVIDENCE-CRYPTO-METADATA-A-TAGS.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-EVIDENCE-GROWTH-ARCHIVE.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-EVIDENCE-REDACT-IN-APP.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FIRMWARE-GOLD-PIN-MIRROR.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FLEET-BOOT-BWC-COMEUP-SLOW.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FLEET-NO-GHOST-12H-RESTART.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FLEET-WARM-CHROME-STALE-GPS.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FORENSIC-TOAST-PIN-LOCKED-DRIFT.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ACK-REPORT.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ALARM-FIELD-ALERT-PLAN.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ALARM-SOP-NEXT.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ALERT-REPEAT-HQ-GLOBAL.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ALERT-UX-SOP-INDUSTRY-SOS-PARITY.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ALERT-UX-SOS-VS-FR-REPORT.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-APPLY-ORDER-UI-THEN-VIDEO.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-BEST-FRAME-KEYFRAME.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-BLACKLIST-DOSSIER.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-BLACKLIST-FACE-GALLERY.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-CONSOLIDATE-STABILITY-FREEZE.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-CROP-RAIL-8.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ENGINE-SEETAFACE6-FACEXZOO.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ENGINE-SLOW-LOW-MATCH.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ENROLL-COPY-NO-SHORT-SIDE.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ENROLL-CROPPER.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ENROLL-FALSE-SMALL.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ENROLL-SOFT-QUALITY.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-FIELD-ALERT-ONE-BEEP.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-FIELD-ALERT-PTT-MSG.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-GENRE-COMMIT-PUSH-BASELINE.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-HALF-FACE-RAIL-FIX.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-HALF-FACE-SNAP-LEDGER.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-LIVE-POLL.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-OFFLINE-VIDEO-CROPS.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-OPENALL-OVERLAP-OFFLINE-PIN.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-SNAP-ARCHIVE-FTP-AUTH-DELETE.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-SNAP-FULL-FACE-OR-BUST.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-SNAP-LEDGER-RETENTION-FTP-ZONES.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-SNAP-RAIL-16-METADATA.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-SNAP-RAIL-PROPORTION-GRID.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-SNAPSHOT-RAIL-THRESHOLD.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-SOAK-PASS-PTT-WORDS-STANDBY.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-STANDBY-PTT-GROUP.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-THRESHOLD-SLIDER-VISIBLE.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-VIDEO-CROP-NAV-STUB.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-GATE-A-SOAK-PASS.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-GHOST-KILL-HURT-LIVE.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-GOOGLE-PIN-CANVAS-MIRROR-VERIFY.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-LAB-IP-ROLES.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-LIVE-ONE-CAM-MULTI-USER.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-COUNTRY-SEARCH.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-OFFLINE-PIN-TTL.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-DOCK-GAP-2.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-FAN-2-REVERT.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-FAN-2-SCOPE.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-OVERLAP-LAYOUT-REGRESS.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-OVERLAP-PARK.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-PAIR-OVERLAP-RESCUE.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-RESTORE-GOLD.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-STACK-GOLD-CHECK.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-STACK-STILL-BROKEN.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-REGION-NAMING.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MODULE-LICENSING.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-NEXT-A3-VS-RESCUE-P1.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-NO-AWAITING-GPS-STALE-UI.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-OPEN-VIDEO-WALL-POPUP.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-OPEN-WALL-MAIN-PAGE.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-PASSWORD-LABEL-MATCH-POLICY.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-PASSWORD-UNIFY-12-EXAMPLE-HINT.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-RESTORE-FROM-POC-DEMO-NOT-GOLD.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-RESTORE-LIVE-OPS-GOLD-ONLY.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-RISK-AND-DEBUG-PLAYBOOK.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SCREENSHOT-OLD-UI-GREY-SAVE.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SHIP-REMINDERS-NO-NAG.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SMTP-SETTINGS-UI.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SOS-CROSS-GROUP-RESCUE.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SOS-LEDGER-GOVERNANCE.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SOS-LEDGER-SCOPE-RETEST.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SOS-SCOPE-VS-NEARBY-PTT.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SUPER-ADMIN-NO-SAVE.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SUPER-ADMIN-RECOVERY.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-TOTP-SUSPENDED-BENCH.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-UI-NAV-AUDIT-MERRY-GO-ROUND.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-VMS-DEPLOY-HIERARCHY.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-VMS-TABS-MIXED-NAMING.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZERO-RAW-ERRORS-UI.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-ARCHITECTURE-PROPOSAL.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-GATE-B-NO-VIDEO.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-GATE-B-PASS.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-GB28181-WVP.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-NOT-READY.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-OPTION-B-PROXY-DESIGN.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-PORTS-INTERNAL-PROXY.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-PROXY-FAIL.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-TEST-FIRST.md",
+                      "tier":  "me8-docs"
+                  },
+                  {
+                      "path":  "fr-sidecar/app.py",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "fr-sidecar/INSTALL.ps1",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "fr-sidecar/requirements.txt",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
                       "path":  "kill-fleet-ports.ps1",
                       "tier":  "me8-poc-demo"
                   },
@@ -8287,6 +8759,42 @@
                   },
                   {
                       "path":  "lib/fleetRoster.js",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "lib/frBlacklist.js",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "lib/frEnrollQuality.js",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "lib/frFieldAlert.js",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "lib/frLivePoller.js",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "lib/frLiveProbe.js",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "lib/frOfflineVideo.js",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "lib/frSidecarClient.js",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "lib/frSnapLedger.js",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "lib/frVerifyErrors.js",
                       "tier":  "me8-poc-demo"
                   },
                   {
@@ -8686,6 +9194,10 @@
                       "tier":  "me8-poc-demo"
                   },
                   {
+                      "path":  "public/js/analytics-hub.js",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
                       "path":  "public/js/audit-trail-hub.js",
                       "tier":  "me8-poc-demo"
                   },
@@ -8779,6 +9291,22 @@
                   },
                   {
                       "path":  "public/js/fleet-ui.js",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "public/js/fr-alarm.js",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "public/js/fr-enroll-cropper.js",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "public/js/fr-live-watch.js",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "public/js/fr-offline-video.js",
                       "tier":  "me8-poc-demo"
                   },
                   {
@@ -9019,6 +9547,10 @@
                   },
                   {
                       "path":  "RESTART-FLEET.bat",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "run.js",
                       "tier":  "me8-poc-demo"
                   },
                   {
@@ -9507,6 +10039,10 @@
                   },
                   {
                       "path":  "SMOKE-COMPOSE.ps1",
+                      "tier":  "me8-poc-demo"
+                  },
+                  {
+                      "path":  "START-FR.bat",
                       "tier":  "me8-poc-demo"
                   },
                   {

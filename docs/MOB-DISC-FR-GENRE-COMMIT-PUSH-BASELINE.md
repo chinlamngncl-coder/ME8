@@ -1,6 +1,6 @@
 # MOB DISC — FR genre: test · commit · push · 100% baseline lock
 
-**Status:** DISC only — **no APPLY** (you run when genre PASS)  
+**Status:** APPLIED 2026-07-11 — commit `3c865d9`, tag `me8-fr-genre-20260711`, VERIFY **2519/2519**  
 **Date:** 2026-07-10  
 **Genre:** FR stack — snap full-face, half-face strict, standby PTT, ledger, alerts, HQ bar  
 **Repo:** `github.com/chinlamngncl-coder/ubitron-lab-8wc` · tree `ME8`

@@ -5,6 +5,10 @@
                       "sha256":  "6308e519aafa7cc9b1dea00294591c1e62f236cde899b9142706529aa1d9fc83"
                   },
                   {
+                      "path":  ".cursor/rules/me8-ship-reminders-no-nag.mdc",
+                      "sha256":  "ad67f709d74df583a82b7d8e30aa089f712d2a7315a2246f220a2bf29c6458d6"
+                  },
+                  {
                       "path":  ".env",
                       "sha256":  "2cfb70a2425c3f3f2f22d4d1930093213ed9ae87d9999edd3cd92de1fc823b6f"
                   },
@@ -14,7 +18,7 @@
                   },
                   {
                       "path":  ".env.example",
-                      "sha256":  "525ebf189b0d2017c7a9fc2e65b258fe6603f65feda4d8afda0dbd82c67dcd60"
+                      "sha256":  "d5be2a3902e52ff1075819d0834f49d9204c9038fd098097fa3526a9b084f903"
                   },
                   {
                       "path":  ".env.me8.example",
@@ -26,7 +30,7 @@
                   },
                   {
                       "path":  "BASELINE-ME8-POC-DEMO.md",
-                      "sha256":  "430bd0d69e7a8f72247c0cafadcf474b77b362d15a911027cf3f0ee5a661c848"
+                      "sha256":  "db7a4388dc08b3c52cc3be64ce73015a4f8987fcb72b99271c0b9084be64f26a"
                   },
                   {
                       "path":  "BASELINE-ME8-V1.md",
@@ -34,7 +38,7 @@
                   },
                   {
                       "path":  "BUILD-ME8-CUSTOMER.ps1",
-                      "sha256":  "2f7cbed1e343c9a7f10503e2321b99a38417824bb188d491fa2adab02d0ae92c"
+                      "sha256":  "896ff31ba6b9a09453b8cdb3a21333765e52f68922290c5f8ef16a69928bd581"
                   },
                   {
                       "path":  "data/gis/offline/country-presets.json",
@@ -8054,7 +8058,7 @@
                   },
                   {
                       "path":  "docs/ME8-POST-RESTORE-CHECKLIST.md",
-                      "sha256":  "0ce87c948f5abbae4164bee0a565cab7ddeb38b7e8754dc4bd1b8614c5da9f23"
+                      "sha256":  "543c856d657644b0dfb7a2fd8a2068371c0dc4e2c77820677c7fb23dc9839c61"
                   },
                   {
                       "path":  "docs/ME8-ROADMAP.md",
@@ -8071,6 +8075,474 @@
                   {
                       "path":  "docs/ME8-STABILITY-DEBOUNCE.md",
                       "sha256":  "190e44bf90086d036bb539730bdbd379e8c84af59317583bdf0272dfb89371eb"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-A3-BANNED-JARGON-LOCK.md",
+                      "sha256":  "91d553c8307ff0d930dccd0ca8a877a7a7ec177f8a3bc846d984671bebf28906"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-A3-HIERARCHY-UX-FEEDBACK.md",
+                      "sha256":  "92459d64c12183d9b06ad3e64c0b8039a61151e65d9dd30a5f64dcb29df6bf54"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-A5-DISPLAY-ROOM-UX.md",
+                      "sha256":  "821fe5ad7925059e9226c79022bc2262c942c1f6c35ed9258a252a56146c1800"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-A5-INDUSTRY-LABELS.md",
+                      "sha256":  "2461b82cb75f20b4047a68fd32be8edf923ff21fa735ba5326fdc81fe6e5c36f"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-A5-PRESET-NAME-REJECT.md",
+                      "sha256":  "c9dcf2025e6238d6a7e4819c0aefc525ed7ba179bdebcf7c926e238a696979a8"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ANALYTICS-LICENSE-HUB.md",
+                      "sha256":  "8b038aa96b1d5a29db7ab04018af38f5f3128e2e4c54b2b467e6cb5fbc403c1f"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ANALYTICS-STACK-UX.md",
+                      "sha256":  "fcf2c665fdbda02aee91ff66fdb230c7e240d82708b87c53d6bcb55c931a0070"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ASK-GOOGLE-ZLM.md",
+                      "sha256":  "165e685729940d3992003a5b3c2a5d3bb76de9cd0b34976b9558fc0403dde81f"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-AUTH-AUDIT-SHIP-CHECKLIST.md",
+                      "sha256":  "0ea42ab152095ac2e45e3212f3cccdb65fdc84d7b1020dbe23a11caf25bda90d"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-BWC-PTT-DURING-LIVE-CALL.md",
+                      "sha256":  "108ec463d1e4e47e88209987201f57662dd43d92baa0b9c0a320d9290fd68c2a"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-BWC-STOPPED-FLICKER.md",
+                      "sha256":  "09e2a55969dd75661aa50eaa5d9f93a747bbb338374ed7919d2b3d0c00473a20"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-CENTRE-LLM-SHIP-NO-CLIENT-DOWNLOAD.md",
+                      "sha256":  "2250d5147593d18769f98248f3773deb152d4e2c0e31f73572d816973710d105"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-CENTRE-SUMMARY-GLOBAL-ERROR.md",
+                      "sha256":  "93cf1f0bb531f63a655ede75a3017a86fe065a5474d3ca3d0eef9e0175ef05a1"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-CENTRE-SUMMARY-NOT-GHOST-TAB.md",
+                      "sha256":  "b258002e81a1364f6672d280acd386a1f258fabe57f529639aa4ae6c71c85641"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-CHIN-BLACK-LIVE-INVITE-STUCK.md",
+                      "sha256":  "5f138b0da26dd567b48049a476178a952c70efd85518f4fdb4d3b8951dfaa2e5"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-CUSTOMER-FACING-NAMING.md",
+                      "sha256":  "8c278c33809629024b1f2f3eceab9f24a31bf5cd4d50379e5250b349c32bf2f9"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-DISPLAY-LAYOUT-NO-OPTIONAL.md",
+                      "sha256":  "91cfd2f4acdfcfcbbba026d2d1845836d6b96dc68334abe67e5bd0c000e36033"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-DISPLAY-ROOM-POPOUT-VS-TAB.md",
+                      "sha256":  "c5067cca35d84596266509535e8a960958f5d77cb5f4956e1adfa8d3d73ae98d"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ENTERPRISE-VMS-SIX-DOMAINS.md",
+                      "sha256":  "2f464bcd0a61c360f8be1fecec11be8bf7ca47acc7d4c951123f0582150e6f7a"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-EVIDENCE-COLD-ARCHIVE-OFF-LIST.md",
+                      "sha256":  "4fc9157784496c4d3f70d9781e5e2c71eb0f3c94993617910f89d039b60ace3f"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-EVIDENCE-CRYPTO-METADATA-A-TAGS.md",
+                      "sha256":  "bde2acdab76d74979386d132a7daed087d1474fa6c31d0ef64c32f5f3812fb6b"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-EVIDENCE-GROWTH-ARCHIVE.md",
+                      "sha256":  "ef9ebadf651636bc3de169a350c81f906bf85512949ec10b01849ec7a179cadc"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-EVIDENCE-REDACT-IN-APP.md",
+                      "sha256":  "be99919df30b5226f2bf8a8d3c3089d4c9f72e4ea8e020aa7c27a3b87ea5e1d5"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FIRMWARE-GOLD-PIN-MIRROR.md",
+                      "sha256":  "5dfc3f61897609e6875520b0b1e8059be91fc58832f9917f82da32bc084ffbce"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FLEET-BOOT-BWC-COMEUP-SLOW.md",
+                      "sha256":  "aba6576b3fa9c2231706e472178d531e12cf426eac74bba23451997508de778f"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FLEET-NO-GHOST-12H-RESTART.md",
+                      "sha256":  "a7b3f4c9c0076bbc3580d35972ba43bdbfbc234854d7e7dae64db2875f6e579d"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FLEET-WARM-CHROME-STALE-GPS.md",
+                      "sha256":  "9f4bddd4591ce08e30938346db9856a1980ab25b1fe9b4f7842eb3fe1de80b34"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FORENSIC-TOAST-PIN-LOCKED-DRIFT.md",
+                      "sha256":  "9e6ec7d43a7038b211d875463fae19f2223eb3385cffa2c6b174fa2e4e09fc3a"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ACK-REPORT.md",
+                      "sha256":  "938a87d48896e95c4bfa78401a0009095768d676d365b905c1986f50511dc9a0"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ALARM-FIELD-ALERT-PLAN.md",
+                      "sha256":  "9920a9f5abce247361c37c6e2889e8e2e5917d58304e39200cc6430f701f890c"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ALARM-SOP-NEXT.md",
+                      "sha256":  "41363f60adf7747e0bd8dad902690e0d8c606aea333407581a6d51fe0a2a1de4"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ALERT-REPEAT-HQ-GLOBAL.md",
+                      "sha256":  "956c1b24aeac13eae519eb85be8cccf43f1d33da057bd5bb50d1a7541bd8116e"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ALERT-UX-SOP-INDUSTRY-SOS-PARITY.md",
+                      "sha256":  "850c15beb45198d5da0d3cbccafe84c87ccc6781b49ed9a4c06286f8f2a44655"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ALERT-UX-SOS-VS-FR-REPORT.md",
+                      "sha256":  "68f8987c464a04e226b11bfb7751be3a2e096bd2aea48c6fce89ede3d53bfda5"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-APPLY-ORDER-UI-THEN-VIDEO.md",
+                      "sha256":  "8e0aee9a11cf818433d4754be6dd1c755c218a3cc9335df045d17dd79d65834e"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-BEST-FRAME-KEYFRAME.md",
+                      "sha256":  "e776a7f94cc1b3fd816d6695aed761aead05e5612f0cc89705d9189d5eac0d25"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-BLACKLIST-DOSSIER.md",
+                      "sha256":  "d3f3451929518cfad83303d1e456cbe3bb0c703f73393af8a94558ff3514f032"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-BLACKLIST-FACE-GALLERY.md",
+                      "sha256":  "ca5a37df5a16977ebdcd08e2b7a11503a2f3cdcf860d0ea856f9423d4b6e487f"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-CONSOLIDATE-STABILITY-FREEZE.md",
+                      "sha256":  "5e429614540aa16a3764bc507c7f9c8358bad06b91f01774f2e4c012a77ec4f9"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-CROP-RAIL-8.md",
+                      "sha256":  "33f90885786cec118ac5bfb3051de90d42160a376100568c6324891693e64f66"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ENGINE-SEETAFACE6-FACEXZOO.md",
+                      "sha256":  "14d99b4e986f1a3c88a868f3eecafaec8eb64a8abe04d39eb58e57d766c9363a"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ENGINE-SLOW-LOW-MATCH.md",
+                      "sha256":  "a5b0320a2bbac0e5d9b2b3a3a11da006aa35d07a05fd321a9afb9d2b3a181739"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ENROLL-COPY-NO-SHORT-SIDE.md",
+                      "sha256":  "a73b0773660b80294d05747aaa7c0c85cba6fbb6c9eb2833a0d5c39fe2ab898c"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ENROLL-CROPPER.md",
+                      "sha256":  "0ab11bedfd511ed1abe1e0e31c890cdeaa7ef1d7a53b7ffba756293b96b0ca41"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ENROLL-FALSE-SMALL.md",
+                      "sha256":  "b5bc780f9d57be8a1ac8193164574f362d458217aa5772446a9bf388091d0a9e"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-ENROLL-SOFT-QUALITY.md",
+                      "sha256":  "76030419a7c72e391edcee19544e3d7cfe00863e18ec1cf1492449418b0fdb0e"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-FIELD-ALERT-ONE-BEEP.md",
+                      "sha256":  "d0735a2d7682060702e9dfa3508d2ee7a251fb9bb1609b5ae56d95657baa2d43"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-FIELD-ALERT-PTT-MSG.md",
+                      "sha256":  "22710a43531666169107ae2429516425d0ef49dc5d4e1ca8d2632056ae6649bb"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-GENRE-COMMIT-PUSH-BASELINE.md",
+                      "sha256":  "4e68ddec10e9ba738e30ac7bd29815b30934a6cadda5fd4dea70ad3f25ccfd7e"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-HALF-FACE-RAIL-FIX.md",
+                      "sha256":  "173e7f751f49be2323bd4b841f0fef519e710d8545e01b5fe83ce1b38dacedb6"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-HALF-FACE-SNAP-LEDGER.md",
+                      "sha256":  "2289262f5303260241aafe2542ebecd5befcc47a54de2d84c822313ea73dc0c9"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-LIVE-POLL.md",
+                      "sha256":  "dc909a4c07d27b6e99f9c2fdd5b57ed479ba9925c9a018dc0be60b6a46cb6dc1"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-OFFLINE-VIDEO-CROPS.md",
+                      "sha256":  "58abc279d152b2f28adb5c6da39db144fb46b73310a8a0b493dd02ff341ecc37"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-OPENALL-OVERLAP-OFFLINE-PIN.md",
+                      "sha256":  "8d3ea7d1a1d94aaf62e878a59633a70c0d723d36f57c86d56f09dbb2a07e355a"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-SNAP-ARCHIVE-FTP-AUTH-DELETE.md",
+                      "sha256":  "08f57d5ba407b1395917479d26ca8e259c12a18e0cdbe3b2c632e1346378a725"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-SNAP-FULL-FACE-OR-BUST.md",
+                      "sha256":  "1b81e78ab12ee3b550858347cb6b34d5f46eb90c7db9c058bfaf1d406eef9147"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-SNAP-LEDGER-RETENTION-FTP-ZONES.md",
+                      "sha256":  "6ad6b320b267e097167fb1083875f8b95422cb982e90378da77492d25263dfc0"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-SNAP-RAIL-16-METADATA.md",
+                      "sha256":  "745a807df49af72907ba2241143e232c2c1619ed2f0a45320e60f026a639b81b"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-SNAP-RAIL-PROPORTION-GRID.md",
+                      "sha256":  "57da7e7d8945eab2e6ed996a19d167a1fb879c57bbc3ee20c1de1948c1afc957"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-SNAPSHOT-RAIL-THRESHOLD.md",
+                      "sha256":  "60972db9bef1a7971c4fa87ddc574704e4b1c796b314b17a5b284499916c4938"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-SOAK-PASS-PTT-WORDS-STANDBY.md",
+                      "sha256":  "d0c765bf86123879da0f20d1d4fc9fbcd9c06435d6a1473aa5a5d004070fa841"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-STANDBY-PTT-GROUP.md",
+                      "sha256":  "853070d194d0fba8a3bf4dea2714841d57edc68b47312e06d7e431accefeca71"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-THRESHOLD-SLIDER-VISIBLE.md",
+                      "sha256":  "1f1b7f14e0bc85270034f73922ba8555120aee8855133aec54279a77042e968f"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-FR-VIDEO-CROP-NAV-STUB.md",
+                      "sha256":  "bf321b2674c593668a16115e9befd9e1aa98c0b831be9a284e08c3e98fb1961c"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-GATE-A-SOAK-PASS.md",
+                      "sha256":  "9160a6c1fbb37b9d079b7952ec9ee5477de5b008c8e6dc35fa9976be7353277e"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-GHOST-KILL-HURT-LIVE.md",
+                      "sha256":  "38f4359c93ee3e4d1db31e024ddbc864aeef3ffd65bc06c574c50204e613c128"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-GOOGLE-PIN-CANVAS-MIRROR-VERIFY.md",
+                      "sha256":  "6cdf4a8884bcde661b56459137d3f419a46723ad88e09aaf9cfaf418a21940be"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-LAB-IP-ROLES.md",
+                      "sha256":  "02dfa440d528875d3499b9d0a988f3f1fc027b4a226b8fbcc0f34d6c9f95ff72"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-LIVE-ONE-CAM-MULTI-USER.md",
+                      "sha256":  "83047c31beb0bcde5317784f65f06906dbf4aaef41e9dec6b8f1fd40f34f890b"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-COUNTRY-SEARCH.md",
+                      "sha256":  "75f85dc486e41748329fd7e82ac3776aa2efcb67efa127b2b9ebd10f2208e8b2"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-OFFLINE-PIN-TTL.md",
+                      "sha256":  "2a26ff147ad11cb78251e498cb768eb06901619d4fb5a0617f740f282a243194"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-DOCK-GAP-2.md",
+                      "sha256":  "a55fb4b0016522d6d0fef2a7735e3845c1c56d6ae55060fe5d53d5b43df094e7"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-FAN-2-REVERT.md",
+                      "sha256":  "b80d872f58ac695ac1bcc1fd3001a25ee7b5b8a9ac6710e27a7c776627933353"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-FAN-2-SCOPE.md",
+                      "sha256":  "4a4fc661f992778b7df592f4545165fb19b4f363aa3a683c03ce3a30ef33f98a"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-OVERLAP-LAYOUT-REGRESS.md",
+                      "sha256":  "6c416e9b6b8d59381bd9cf012a83a37069d7a23cd5b68d4a6cb999370dede64d"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-OVERLAP-PARK.md",
+                      "sha256":  "85287f02a19d5dd414f09cadb93dc00b543246232a19b6112e861efb62c0cd25"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-PAIR-OVERLAP-RESCUE.md",
+                      "sha256":  "f5a08b939e9da82a2e54c4eee49dc65f48ba5f8b4dd766790cd24575e0dcb318"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-RESTORE-GOLD.md",
+                      "sha256":  "6f6f3987d18295189fdc075ebb8067e4c66cc6c37ccfb12db236633406b6dc5c"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-STACK-GOLD-CHECK.md",
+                      "sha256":  "1e2f1c44567c1a0c0978632c33e2a2598b556917e0578c7b17e25ec0005b53d9"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-PIN-STACK-STILL-BROKEN.md",
+                      "sha256":  "39da5f99f90f61ca5f503285d1682b046f80a204bdc92b9638c3cee47735afc1"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MAP-REGION-NAMING.md",
+                      "sha256":  "438273e927a3e2adba90ff1cadf729495738aab29723cfd0aae6674254b758f3"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-MODULE-LICENSING.md",
+                      "sha256":  "1478d07c9f4ff0b56de7896ab4aa21bd5c3c8467bc5cf1381102bdd4e8a8590c"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-NEXT-A3-VS-RESCUE-P1.md",
+                      "sha256":  "b5522b5146fe5d7cf953028ff9e4e8ee429532c8856dff92c8f73b49377c21fc"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-NO-AWAITING-GPS-STALE-UI.md",
+                      "sha256":  "137f7cdb56054cf43d555d433977caca7fdf581291e14b4449a361e9c353772b"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-OPEN-VIDEO-WALL-POPUP.md",
+                      "sha256":  "73ac9904f173b7195a291524aa60b90b98178bc4e482f3d960580482fedda743"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-OPEN-WALL-MAIN-PAGE.md",
+                      "sha256":  "4b8ed6379224b75f7f6be7ef13068a3eee041d32860b762ae4f9f2c90fc31a28"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-PASSWORD-LABEL-MATCH-POLICY.md",
+                      "sha256":  "313f375e7c27cc7e4f8802c6b9809a0c5055b5bbbe4467730f5938920b82a928"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-PASSWORD-UNIFY-12-EXAMPLE-HINT.md",
+                      "sha256":  "16ac8e2289970ef4e8d75a25f01360306c9ed71e70125258562851c52173d09e"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-RESTORE-FROM-POC-DEMO-NOT-GOLD.md",
+                      "sha256":  "ad8bfa7a8764d62382998d82257073662976784b47cc8ff67fd67d0f10d5dece"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-RESTORE-LIVE-OPS-GOLD-ONLY.md",
+                      "sha256":  "7ee2782323f0e047cff912f0b32b292387f2c776d094850a820dadc6b95a13f0"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-RISK-AND-DEBUG-PLAYBOOK.md",
+                      "sha256":  "5297d24e540274d9c5d35e5608766e77382443cdc761e9f505ff87207471e586"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SCREENSHOT-OLD-UI-GREY-SAVE.md",
+                      "sha256":  "3d7b604a1b6540289a3fe62c055cf791587bcae9adbb4ad61cdf28b4c9a96063"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SHIP-REMINDERS-NO-NAG.md",
+                      "sha256":  "7fb3d8cbd7715071bb7c096ee022485e6d9f610b24fa82161d130ea7850c3ee9"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SMTP-SETTINGS-UI.md",
+                      "sha256":  "fa408b6a3bc726ada9ac581819c78f5aac1ae2e42164cb2f5e70dd5940ead304"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SOS-CROSS-GROUP-RESCUE.md",
+                      "sha256":  "e0a375d4176958672a770091a51f7fcf007886979fcc8d350995c84647a4f786"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SOS-LEDGER-GOVERNANCE.md",
+                      "sha256":  "76a2170e642c25e5bfe26a94c8aada574e26bf05a4af4d3f1c2bd5078d7973ca"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SOS-LEDGER-SCOPE-RETEST.md",
+                      "sha256":  "6968e5d4e58ff1b4e2088d59d41f0e70b58e8726a0765f4602f9abfa3544ad78"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SOS-SCOPE-VS-NEARBY-PTT.md",
+                      "sha256":  "bb528e5c720667fcd1b0983e3b368ae9e189a149d51eb5f8d95ead8f93939bfc"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SUPER-ADMIN-NO-SAVE.md",
+                      "sha256":  "623cad003aac191ff47506a22dd08bec66c0e87b19cb18e28df600c36c36d285"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-SUPER-ADMIN-RECOVERY.md",
+                      "sha256":  "6d35e23b4a1a0393c3a787c89c83b27305dc0d00a9f2c1f15ad793244698f21a"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-TOTP-SUSPENDED-BENCH.md",
+                      "sha256":  "0f6fa492a8702bf9d1d2cb44b3b6c09d3c6804038537358c3ea90d6912445d18"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-UI-NAV-AUDIT-MERRY-GO-ROUND.md",
+                      "sha256":  "17b8163289aab49d4f319ea3b0bfa93c1879b627535cc122d59d2b48e987720f"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-VMS-DEPLOY-HIERARCHY.md",
+                      "sha256":  "778a1369aab111a3330e9a8c1965fe0f8e56af489b6208c9a9e6f883a6ee1599"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-VMS-TABS-MIXED-NAMING.md",
+                      "sha256":  "9272f42a7f7310130e5ba1173ee16f0f80240e4beb8ef7564ac0c0b3ffc019db"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZERO-RAW-ERRORS-UI.md",
+                      "sha256":  "03ae355684cc292e3ed3c134ef3cfc82b37794cb187e0736ea1c2b8dfa75a15f"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-ARCHITECTURE-PROPOSAL.md",
+                      "sha256":  "fbc790422127efa1184e2c37d561f0054a0797ea1895784b9d4f98db51aed9c9"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-GATE-B-NO-VIDEO.md",
+                      "sha256":  "245be5af1e5b61a25f2b114699f4201d125376ba01190adb82f357f1862df595"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-GATE-B-PASS.md",
+                      "sha256":  "0964e395f284da8e20d8fe75b7d992ba4f7d1b68d88920f2d14624eae7f3fef3"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-GB28181-WVP.md",
+                      "sha256":  "07ca383a84fe2b665c7326bcb6037c54e655c05406515d27a19b0187ac23c955"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-NOT-READY.md",
+                      "sha256":  "967473b319a09ecded68f78184802bbef94e9eee4bd17ceecbbc5085d1e2471d"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-OPTION-B-PROXY-DESIGN.md",
+                      "sha256":  "bb651e1e469abf9e8d94e4768947d49e4e16b29c31249cae4792e6f95154493b"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-PORTS-INTERNAL-PROXY.md",
+                      "sha256":  "aa38469a63eaea2e213956bf02f69da70a75a9bb38c9eb0bbde75d7092edb066"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-PROXY-FAIL.md",
+                      "sha256":  "66fadf4d2800c24c5c3cdcaf29c653cbee4dcaf686138df89fdce68948c8154c"
+                  },
+                  {
+                      "path":  "docs/MOB-DISC-ZLM-TEST-FIRST.md",
+                      "sha256":  "17d4e571f4724bb9bfe56580e50f871818df117e64eb68f2359969125d652e24"
+                  },
+                  {
+                      "path":  "fr-sidecar/app.py",
+                      "sha256":  "8e44d97a9f07d645cf9c6746a1e53b3a8e6e48cbfcac0894e76a02d544df7504"
+                  },
+                  {
+                      "path":  "fr-sidecar/INSTALL.ps1",
+                      "sha256":  "c8f6431514d3109fb5cffa8772a2e0f756af43d0d0311c107ca30ae3a1e1eab4"
+                  },
+                  {
+                      "path":  "fr-sidecar/requirements.txt",
+                      "sha256":  "dd5c81a0318b4f67cd1273ed984889acc15489d149e011813b6e04edb1c4138c"
                   },
                   {
                       "path":  "kill-fleet-ports.ps1",
@@ -8098,7 +8570,7 @@
                   },
                   {
                       "path":  "lib/authAuditShipChecklist.js",
-                      "sha256":  "481766987668597d1455c7955aa654c4cd31cea76c01e815aec54f2ab1297d0a"
+                      "sha256":  "1dcfe05f7784611860a570d39ac9cf20072d37e99bad4d04fe3205bfbdf7a156"
                   },
                   {
                       "path":  "lib/authRecoveryEmail.js",
@@ -8273,6 +8745,42 @@
                       "sha256":  "7907c91b625ed758e0ca1164356cc867d8d5714972153ac270cfb05aa09385e7"
                   },
                   {
+                      "path":  "lib/frBlacklist.js",
+                      "sha256":  "4d501528c1183fa4a1f8b7dde70ddfebf4c558fd59714c2ade58fdfd3a365090"
+                  },
+                  {
+                      "path":  "lib/frEnrollQuality.js",
+                      "sha256":  "164261aedb296048cc7a73fddb7a1855d56fa85444524873f2aac186fb5a55e1"
+                  },
+                  {
+                      "path":  "lib/frFieldAlert.js",
+                      "sha256":  "9525bb8a73f8a51ddad4c69ebbd689f204662238fc718f38da7ec0fc744def3a"
+                  },
+                  {
+                      "path":  "lib/frLivePoller.js",
+                      "sha256":  "db81f5560bf41707734e4f07d4711d01cd98db519da08a1cc6c39c71eb81f5f1"
+                  },
+                  {
+                      "path":  "lib/frLiveProbe.js",
+                      "sha256":  "7a9d62e8141250e415a8dfa3000a7008918227cf50c9c7e81eab96e6adea9db1"
+                  },
+                  {
+                      "path":  "lib/frOfflineVideo.js",
+                      "sha256":  "ec706a5d66e025da2226e836b421a853ab7ec1e0cafd958e1d9b47885f805678"
+                  },
+                  {
+                      "path":  "lib/frSidecarClient.js",
+                      "sha256":  "d0ab6dd800a1b5475e87fc792d3375d5668159d1a70ab88e502c1aaf009972c1"
+                  },
+                  {
+                      "path":  "lib/frSnapLedger.js",
+                      "sha256":  "63875b9753350bec93f12b1f66316b36c2c545481acbe0f335523e6051d4329e"
+                  },
+                  {
+                      "path":  "lib/frVerifyErrors.js",
+                      "sha256":  "fa85ec8dde7c97609eb9290889000fa0a090598dd6ce347ce249ccb396d62912"
+                  },
+                  {
                       "path":  "lib/ftpIngest.js",
                       "sha256":  "f1ebb8c7d337cb7f5212e68a76fea8f7e84d0b8e3af3be1fe6d1e88dd99be331"
                   },
@@ -8342,7 +8850,7 @@
                   },
                   {
                       "path":  "lib/liveViewers.js",
-                      "sha256":  "8282a6ba3ea331afe82ac63a520d96b9f8a9cc888af2e5c3870f874bcf7f64d0"
+                      "sha256":  "6b86e47fc582a4d35447be2007c7a58721fe31c70251e186d87aa8d3b95d55ae"
                   },
                   {
                       "path":  "lib/liveVoiceHint.js",
@@ -8582,7 +9090,7 @@
                   },
                   {
                       "path":  "pack/me8-fresh/customer-ship-manifest.example.json",
-                      "sha256":  "6409daac6dd18d3af95f06896b69084a3ef57c66cdffaf96f1f9847493427cfc"
+                      "sha256":  "d4cf5739bb1887277c6619f73d250df14885154c3cfc6296a647d86d7fe6cc8f"
                   },
                   {
                       "path":  "pack/me8-fresh/MANIFEST.json",
@@ -8618,11 +9126,11 @@
                   },
                   {
                       "path":  "pack/me8-ship/ship-registry.csv",
-                      "sha256":  "71b13f61f5288780a4ab73c34e0716e1635a0bc4d7342064bdc6e7be2922b23e"
+                      "sha256":  "e6e93559c0d925daeee9aa8e759c43291d83228b5b4b926acccd95f0961e90c8"
                   },
                   {
                       "path":  "pack/me8-ship/ship-registry.template.csv",
-                      "sha256":  "ddea15b81cc595c389a052e75da335bd9ce7335861ebd7cb528252255767e1fd"
+                      "sha256":  "e1877a81f568ec21e3df2c3183f5a15071c573d4dd539a95acf5778f736801a1"
                   },
                   {
                       "path":  "package.json",
@@ -8658,7 +9166,7 @@
                   },
                   {
                       "path":  "public/index.html",
-                      "sha256":  "217fff94d57b2487b8a4ec116eefdbf7c9e45720c63b746720b7cdc6e9da72ec"
+                      "sha256":  "bdd78e1528315987a8031949dd9d1fa8a81ea0180834a61f820145a68218fae0"
                   },
                   {
                       "path":  "public/js/admin-action-bus.js",
@@ -8669,12 +9177,16 @@
                       "sha256":  "369125a679a995b1a5d7fb72b555600c75160ab31506ad5f1732c312161ac16d"
                   },
                   {
+                      "path":  "public/js/analytics-hub.js",
+                      "sha256":  "f6f6f7c784e8fb1c555fc5c869e027811f6b0875651780bdf10715a15e12d8d0"
+                  },
+                  {
                       "path":  "public/js/audit-trail-hub.js",
                       "sha256":  "caff4d6c70bde572442d2855b8d5993489b7929805d015b21ced8c085d55d997"
                   },
                   {
                       "path":  "public/js/auth-form-busy.js",
-                      "sha256":  "4d0c3c8fc468862a5a63c2830712e12b00220d987d3835e75499800a397ceda4"
+                      "sha256":  "1d06729dbf62e1367c2ddb0e3d8513a036581c53a4f4732a45f31875c2e54f7c"
                   },
                   {
                       "path":  "public/js/auth-reverify.js",
@@ -8686,7 +9198,7 @@
                   },
                   {
                       "path":  "public/js/call-mic.js",
-                      "sha256":  "128d3213c5f099552168e2d770b8d5e904b4925dd27ba46fa2f121c54bacfb86"
+                      "sha256":  "3c9a6ff5ffc840d3e3e72f8c9dcd9a7300fe1bac3d4114f67c8e4b0a06371a7f"
                   },
                   {
                       "path":  "public/js/case-files-ui.js",
@@ -8722,7 +9234,7 @@
                   },
                   {
                       "path":  "public/js/dashboard-boot.js",
-                      "sha256":  "b34f024e674c82697d95b2142a5f4e17e366f2116e6e9afa1163d08eaa63698f"
+                      "sha256":  "75e7a4e4c7132917629954981c6777939d34959b4e6933dcfb5597f4e52904f3"
                   },
                   {
                       "path":  "public/js/dispatch-groups-admin.js",
@@ -8746,7 +9258,7 @@
                   },
                   {
                       "path":  "public/js/evidence-manager.js",
-                      "sha256":  "f6da12ddfbc977e4a59978f437e3604c59df4cab025e7afd3b81c75c2fd4fa01"
+                      "sha256":  "2b269173abb2cdb1201a77470c68b04a448dea2fa7f11d807dd23737fc53adc3"
                   },
                   {
                       "path":  "public/js/evidence-storage-ui.js",
@@ -8763,6 +9275,22 @@
                   {
                       "path":  "public/js/fleet-ui.js",
                       "sha256":  "c415539129513ba13af795b560e772f282c79d44b366cb35f03c98465aa5e769"
+                  },
+                  {
+                      "path":  "public/js/fr-alarm.js",
+                      "sha256":  "0dd4d573049ccd1c50c1ce46dad57e139f9e2caf94ff29bfe4c6844fc77fc5b0"
+                  },
+                  {
+                      "path":  "public/js/fr-enroll-cropper.js",
+                      "sha256":  "2d00e002bbabd76bd866429d6b1662ac8f2b801839723e213769422e8020a090"
+                  },
+                  {
+                      "path":  "public/js/fr-live-watch.js",
+                      "sha256":  "7472e67e7337b2211dd129269572a33a0ad3e33e87ab044257794381a2598fb9"
+                  },
+                  {
+                      "path":  "public/js/fr-offline-video.js",
+                      "sha256":  "c0861632f2464acd168777c47e5ea76dadf43fb9e63c3543bf8dca5c524bb645"
                   },
                   {
                       "path":  "public/js/i18n.js",
@@ -8810,7 +9338,7 @@
                   },
                   {
                       "path":  "public/js/missed-activity.js",
-                      "sha256":  "f57c72ee328f4faa8cb7aea3aabaebb4853462bac11c20c86a3d7653063b9757"
+                      "sha256":  "ab32a7fac7b91f603538d378abcae9d31b2566d2a5fccb5f1a542790dddca0da"
                   },
                   {
                       "path":  "public/js/mobility-map-gis.js",
@@ -8866,7 +9394,7 @@
                   },
                   {
                       "path":  "public/js/session-bus.js",
-                      "sha256":  "85e83b5f7d2dafd5bc57b9f38bc3579b54d902863bde09dbc7a3d3a3e704937b"
+                      "sha256":  "1f9d9454499a2400e993072edd2f29bd0b204fa64bf89bd0ab7304695f568603"
                   },
                   {
                       "path":  "public/js/settings-hub.js",
@@ -8906,7 +9434,7 @@
                   },
                   {
                       "path":  "public/js/voice-alerts.js",
-                      "sha256":  "3a62e158403f04cc8e3eb44805943883ffb28406f4e93717130be52d9160b27d"
+                      "sha256":  "4c88ffb3eee821464359e69d160305790a21507a0f01dfac3f9bcf4abfb430b3"
                   },
                   {
                       "path":  "public/live.html",
@@ -8914,27 +9442,27 @@
                   },
                   {
                       "path":  "public/locales/en.json",
-                      "sha256":  "29129763eccfef943e0ea3d8fdfbfbbfcddcefa19cbd60fdb3e21cd58d236ac3"
+                      "sha256":  "4230c99762fbcc708e2c40a2bcebad5595274f18ab2385d1c6b40b7cf943c47b"
                   },
                   {
                       "path":  "public/locales/fil.json",
-                      "sha256":  "e15c07436d493deba22fb5f8158571813625780de4c59508d5cd173b5a887884"
+                      "sha256":  "e0c1fbfc8531a79b8243562bff6f51f11dc330d122093fd5f9a103ec85a09e9f"
                   },
                   {
                       "path":  "public/locales/id.json",
-                      "sha256":  "7b18f17a49f336e0a56e6f844b34b2e8faf2ef94869328fbcec2e0c9bc3209e3"
+                      "sha256":  "e39697587b41a0ac04ca45d35fa5e399457f6249d839922a80fbb194e11b1b73"
                   },
                   {
                       "path":  "public/locales/ko.json",
-                      "sha256":  "a17040d1e21e269f1837d9b80b5ceaf83061e40dc8a0381dfcbb9f99fdec4b91"
+                      "sha256":  "71663e24a863ba0908218ea5b61d5ad83eb367cc5c805e63b138595bab5dc854"
                   },
                   {
                       "path":  "public/locales/th.json",
-                      "sha256":  "fb6d2ce829430499ed6744e5101f4553b5620c1327fa5a2500a33749b09abd3c"
+                      "sha256":  "c7fa630a1784b9bb5da4a91e0ec6c16d2bd410b31ecd7e7ea115ca577250aa40"
                   },
                   {
                       "path":  "public/locales/zh.json",
-                      "sha256":  "c1beb5694d81a5cc497b2194e6b51c0a914853956a110805840862d6bbc57a16"
+                      "sha256":  "119490b253e768a6044d2af7f4d061a62cc5bd27eced8e7212d60e7877dd9b1c"
                   },
                   {
                       "path":  "public/login.html",
@@ -9003,6 +9531,10 @@
                   {
                       "path":  "RESTART-FLEET.bat",
                       "sha256":  "baff1feea022ccd3030bf231416bdbc96d64d931f072ae225fbfa565fe502e5f"
+                  },
+                  {
+                      "path":  "run.js",
+                      "sha256":  "d762bae90edd60f3ef5254c16b43ecf3fda0774f9de74dcdf632d5006237120f"
                   },
                   {
                       "path":  "scripts/apply-conference-config.js",
@@ -9158,7 +9690,7 @@
                   },
                   {
                       "path":  "scripts/merge-restore-8wc-v2-index.js",
-                      "sha256":  "2ef23c56087ec8a0bc52c598aa283ecb24241fe2ade9cbd889e336fd3bea7d89"
+                      "sha256":  "19cdf503b2d82e5bb065cbf9c133bbbe08840ba4542b1da0df0c98599d337df7"
                   },
                   {
                       "path":  "scripts/PACK-CN-TRIAL.ps1",
@@ -9274,7 +9806,7 @@
                   },
                   {
                       "path":  "scripts/tmp-compare-body.js",
-                      "sha256":  "f4fff2fd9b4b56227047f469b5707d8919216133646edd0e50099aaf6e53a780"
+                      "sha256":  "520eec65afa9b90c63110bba953dbc27e697ec9a1624e0620fa183475c7b02f7"
                   },
                   {
                       "path":  "scripts/trial-ship/.env.example.ship",
@@ -9486,15 +10018,19 @@
                   },
                   {
                       "path":  "server.js",
-                      "sha256":  "0309364ff14d76df01bb423e210e46b7f678bda09d69ecdfc6524dcf515630d2"
+                      "sha256":  "8f41b9319ff422682e9dc2897acbe9e839a14c8d68ca1df891663d0a886ca3c4"
                   },
                   {
                       "path":  "SMOKE-COMPOSE.ps1",
                       "sha256":  "4844f9e510f6e5c1e2e2c2ae431b68323b153796a7fd325eb95fa184c3b4690b"
                   },
                   {
+                      "path":  "START-FR.bat",
+                      "sha256":  "52bc9974e9749539786a5ce69c1a9496db91efd77a50d4fe85256a5fa475cd47"
+                  },
+                  {
                       "path":  "storage/bwc-devices.json",
-                      "sha256":  "50b7796c1aa3138c553823330673d7598cae8165678f654d4fa9a789d9d1c3fb"
+                      "sha256":  "204a44781a5d966c8de7c471b951d9978dfb78fc5d638e7abeb5c1032216e062"
                   },
                   {
                       "path":  "storage/conference-settings.json",
@@ -9518,7 +10054,7 @@
                   },
                   {
                       "path":  "storage/mobility.db",
-                      "sha256":  "93238cf60f532f7acadc2474e0068097d12c6fd8fcffa6b5a73ddcb6c3d0aa4a"
+                      "sha256":  "1c4478fe072a2346ca5e051e5d4b67412ab3921ec1507f5e302fb189a09de9fe"
                   },
                   {
                       "path":  "storage/platform-license.json",
@@ -9530,7 +10066,7 @@
                   },
                   {
                       "path":  "storage/tenant-profile.json",
-                      "sha256":  "431b0b5bc318627adc00e4055b9e395c97be9b10eb3efef9c260a31e9dd9b911"
+                      "sha256":  "c7f9ce2fc19e8f403849c4ae0ea510049e94d4ebe1275174022e1fc4f6480ce3"
                   },
                   {
                       "path":  "storage/video-channels.json",
