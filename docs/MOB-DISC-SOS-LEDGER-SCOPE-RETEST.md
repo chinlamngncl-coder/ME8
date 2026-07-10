@@ -1,10 +1,10 @@
 # MOB DISC — SOS ledger scope re-test (step-by-step)
 
-**Status:** DISC only — **how to re-test**. No code in this note.  
-**MOB under test:** `mob-me8-sos-ledger-dispatch-scope` (applied 2026-07-06; checkpoint **SKIPPED** — still open for ship).  
+**Status:** **PASS** (user confirmed 2026-07-10 and prior). Do **not** daily-nag. Re-open only if scope code changes or user asks.  
+**MOB under test:** `mob-me8-sos-ledger-dispatch-scope` (applied 2026-07-06).  
 **Why it matters:** Tender / enterprise claim — station operator must not see other stations’ SOS ledger rows, CSV, or incident folders.  
 **Risk of re-test:** **1** (read/filter only). Does not change live SIP SOS ingest.  
-**Pass signal:** Reply **`SOS LEDGER SCOPE PASS`**. Fail: **`SOS LEDGER SCOPE FAIL`** + what broke.
+**Pass signal:** Reply **`SOS LEDGER SCOPE PASS`** — **received**.
 
 ---
 

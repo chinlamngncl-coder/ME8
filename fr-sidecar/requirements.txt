@@ -1,0 +1,21 @@
+# Face recognition sidecar (DeepFace + Facenet/SFace).
+# Commercial-safe models only — NEVER install/use VGG-Face for production matching.
+#
+# Install (bench):
+#   cd fr-sidecar
+#   py -3 -m venv .venv
+#   .\.venv\Scripts\pip install -r requirements.txt
+#
+# Run (or let Node start it):
+#   .\.venv\Scripts\uvicorn app:app --host 127.0.0.1 --port 8765
+
+fastapi>=0.110,<1
+uvicorn[standard]>=0.27,<1
+python-multipart>=0.0.9
+# TF 2.13–2.16 wheels break on NumPy 2.x — keep 1.x for Facenet enroll/verify
+numpy>=1.24,<2
+# OpenCV 4.12+ wants NumPy 2 — stay on 4.10.x with NumPy 1.x + TF
+opencv-python-headless>=4.9,<4.11
+deepface>=0.0.93,<1
+# TensorFlow pulled by deepface; pin loosely for Windows wheels
+tensorflow>=2.13,<2.17

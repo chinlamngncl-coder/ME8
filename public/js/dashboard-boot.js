@@ -2813,24 +2813,12 @@
             el.hidden = keys.length === 0 && Object.keys(deviceMarkers).length === 0;
         }
 
-        function updateMapGpsPendingBanner(pending) {
+        function updateMapGpsPendingBanner(/* pending */) {
+            /* mob-map-hide-gps-pending-banner: never show “Awaiting GPS” nag */
             var el = document.getElementById('map-gps-pending');
             if (!el) return;
-            var list = Array.isArray(pending) ? pending : [];
-            if (!list.length) {
-                el.hidden = true;
-                el.textContent = '';
-                return;
-            }
-            var names = list.map(function (d) {
-                var name = d.name;
-                if (typeof FleetDisplay !== 'undefined' && FleetDisplay.friendlyDeviceName && d.cameraId) {
-                    name = FleetDisplay.friendlyDeviceName(d.cameraId) || name;
-                }
-                return name || d.cameraId;
-            }).join(', ');
-            el.textContent = dashboardTr('map.gpsPending', { names: names, n: list.length });
-            el.hidden = false;
+            el.hidden = true;
+            el.textContent = '';
         }
 
         function isKnownFleetCam(camId) {

@@ -17,6 +17,7 @@
     var recByCam = Object.create(null);
     var sosSpokeAt = Object.create(null);
     var geofenceSpokeAt = Object.create(null);
+    var frSpokeAt = Object.create(null);
 
     function defaultPolicy() {
         return {
@@ -25,6 +26,7 @@
             speakSos: true,
             speakFall: true,
             speakGeofence: true,
+            speakFrMatch: true,
             speakRecStart: false,
             speakRecStop: false,
             rate: 1.0,
@@ -54,6 +56,7 @@
             speakSos: p.speakSos != null ? !!p.speakSos : b.speakSos,
             speakFall: p.speakFall != null ? !!p.speakFall : b.speakFall,
             speakGeofence: p.speakGeofence != null ? !!p.speakGeofence : b.speakGeofence,
+            speakFrMatch: p.speakFrMatch != null ? !!p.speakFrMatch : b.speakFrMatch,
             speakRecStart: p.speakRecStart != null ? !!p.speakRecStart : b.speakRecStart,
             speakRecStop: p.speakRecStop != null ? !!p.speakRecStop : b.speakRecStop,
             rate: clampNum(p.rate, 0.5, 2, b.rate),
@@ -210,6 +213,30 @@
         if (speak(text, { key: 'geofence:' + camId })) {
             geofenceSpokeAt[camId] = t;
         }
+    }
+
+    function onFrBlacklistHit(data) {
+        if (!data || !data.displayName) return;
+        if (policy.speakFrMatch === false) return;
+        if (!shouldAutoSpeak()) return;
+        var t = Date.now();
+        var key = String(data.camId || '') + ':' + String(data.blacklistId || data.hitId || '');
+        if (frSpokeAt[key] && t - frSpokeAt[key] < 40000) return;
+        var text = tr('voiceAlerts.phrase.frMatch', {
+            name: String(data.displayName || ''),
+            score: String(Math.round(Number(data.scorePct) || 0)),
+        });
+        if (!text || text === 'voiceAlerts.phrase.frMatch') {
+            text = 'Face match ' + String(data.displayName || '') + ', '
+                + String(Math.round(Number(data.scorePct) || 0)) + ' percent';
+        }
+        if (speak(text, { key: 'fr:' + key })) {
+            frSpokeAt[key] = t;
+        }
+    }
+
+    function speakFrMatch(data) {
+        onFrBlacklistHit(data || {});
     }
 
     function onDeviceStatus(data) {
@@ -384,6 +411,7 @@
         if (socketRef) {
             socketRef.on('sos-alarm', onSosAlarm);
             socketRef.on('geofence-breach', onGeofenceBreach);
+            socketRef.on('fr-blacklist-hit', onFrBlacklistHit);
             socketRef.on('device-status', onDeviceStatus);
             socketRef.on('connect', function () {
                 loadPolicy();
@@ -395,6 +423,7 @@
         init: init,
         loadPolicy: loadPolicy,
         speak: speak,
+        speakFrMatch: speakFrMatch,
         repeatLast: repeatLast,
         getPolicy: function () { return policy; },
     };

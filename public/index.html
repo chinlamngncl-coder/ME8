@@ -92,6 +92,7 @@
         .ma-drawer-close { background: none; border: none; color: #94a3b8; font-size: 16px; cursor: pointer; }
         .ma-drawer-close:hover { color: #e2e8f0; }
         .ma-drawer-list { flex: 1; overflow-y: auto; padding: 8px; }
+        .ma-drawer-list[hidden] { display: none !important; }
         .ma-empty { padding: 24px 12px; text-align: center; color: #64748b; font-size: 12px; }
         .ma-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin-bottom: 6px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; cursor: pointer; }
         .ma-item:hover { border-color: #64748b; }
@@ -104,6 +105,19 @@
         .ma-item-tag { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 6px; border-radius: 4px; background: #ef4444; color: #fff; flex-shrink: 0; }
         .ma-item.ma-fall .ma-item-tag { background: #f59e0b; color: #1e293b; }
         .ma-item.ma-ptt .ma-item-tag { background: #38bdf8; color: #0f172a; }
+        .ma-detail { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+        .ma-detail[hidden] { display: none !important; }
+        .ma-detail-back { align-self: flex-start; background: none; border: none; color: #94a3b8; font-size: 12px; cursor: pointer; padding: 0; }
+        .ma-detail-back:hover { color: #e2e8f0; }
+        .ma-detail-tag { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 3px 8px; border-radius: 4px; background: #38bdf8; color: #0f172a; }
+        .ma-detail-tag.is-sos { background: #ef4444; color: #fff; }
+        .ma-detail-tag.is-fall { background: #f59e0b; color: #1e293b; }
+        .ma-detail-title { margin: 0; font-size: 16px; font-weight: 700; color: #f1f5f9; }
+        .ma-detail-dl { margin: 0; display: grid; grid-template-columns: 88px 1fr; gap: 8px 10px; font-size: 12px; }
+        .ma-detail-dl dt { margin: 0; color: #64748b; font-weight: 600; }
+        .ma-detail-dl dd { margin: 0; color: #e2e8f0; word-break: break-all; }
+        .ma-detail-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 12px; }
+        .ma-detail-actions .btn { width: 100%; }
         #header-sub { font-size: 11px; color: var(--muted); margin: 2px 0 0; }
         #header-brand { display: flex; align-items: center; min-width: 0; }
         .header-brand-lockup {
@@ -179,8 +193,372 @@
         .ops-cw-awareness-open:hover { background: rgba(14, 165, 233, 0.28); color: #fff; }
         #app-view-evidence { flex: 1; display: flex; min-height: 0; overflow: hidden; }
         #app-view-evidence[hidden] { display: none !important; }
+        #app-view-analytics { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+        #app-view-analytics[hidden] { display: none !important; }
         #app-view-conference { flex: 1; display: flex; min-height: 0; overflow: hidden; }
         #app-view-conference[hidden] { display: none !important; }
+        .ax-hub { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 10px 12px; gap: 8px; }
+        .ax-hub > h2 { margin: 0; font-size: 15px; font-weight: 700; color: #f1f5f9; }
+        .ax-hub-nav { display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
+        .ax-hub-nav-btn { padding: 6px 12px; font-size: 11px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: #cbd5e1; cursor: pointer; }
+        .ax-hub-nav-btn.active { background: #2563eb; border-color: #3b82f6; color: #fff; }
+        .ax-hub-nav-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .ax-hub-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+        .ax-hub-panel[hidden] { display: none !important; }
+        .ax-license-gate { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+        .ax-license-gate[hidden] { display: none !important; }
+        .ax-license-gate-inner { max-width: 420px; padding: 20px 24px; border: 1px solid #334155; border-radius: 8px; background: #0f172a; }
+        .ax-license-gate-inner h3 { margin: 0 0 8px; font-size: 14px; color: #e2e8f0; }
+        .ax-license-gate-inner p { margin: 0; font-size: 12px; color: #94a3b8; line-height: 1.45; }
+        #ax-hub-body[hidden] { display: none !important; }
+        #ax-hub-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+        .ax-fr-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; flex-shrink: 0; padding: 6px 0; }
+        .ax-fr-toolbar label { font-size: 11px; color: #94a3b8; display: inline-flex; align-items: center; gap: 6px; }
+        .ax-fr-toolbar input[type="range"] { width: 140px; }
+        /* mob-ui-range-slider-visible — dark track + clear thumb (native white track is invisible) */
+        input[type="range"].fm-range,
+        .ax-fr-toolbar input[type="range"],
+        #rt-scrub {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            border-radius: 999px;
+            background: #334155;
+            outline: none;
+            accent-color: #38bdf8;
+            cursor: pointer;
+        }
+        input[type="range"].fm-range::-webkit-slider-runnable-track,
+        .ax-fr-toolbar input[type="range"]::-webkit-slider-runnable-track,
+        #rt-scrub::-webkit-slider-runnable-track {
+            height: 6px;
+            border-radius: 999px;
+            background: #334155;
+        }
+        input[type="range"].fm-range::-webkit-slider-thumb,
+        .ax-fr-toolbar input[type="range"]::-webkit-slider-thumb,
+        #rt-scrub::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            margin-top: -5px;
+            border-radius: 50%;
+            background: #38bdf8;
+            border: 2px solid #e2e8f0;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+            cursor: pointer;
+        }
+        input[type="range"].fm-range::-moz-range-track,
+        .ax-fr-toolbar input[type="range"]::-moz-range-track,
+        #rt-scrub::-moz-range-track {
+            height: 6px;
+            border-radius: 999px;
+            background: #334155;
+            border: none;
+        }
+        input[type="range"].fm-range::-moz-range-thumb,
+        .ax-fr-toolbar input[type="range"]::-moz-range-thumb,
+        #rt-scrub::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #38bdf8;
+            border: 2px solid #e2e8f0;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+            cursor: pointer;
+        }
+        input[type="range"].fm-range:focus,
+        .ax-fr-toolbar input[type="range"]:focus,
+        #rt-scrub:focus {
+            outline: none;
+        }
+        input[type="range"].fm-range:focus::-webkit-slider-thumb,
+        .ax-fr-toolbar input[type="range"]:focus::-webkit-slider-thumb,
+        #rt-scrub:focus::-webkit-slider-thumb {
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.35);
+        }
+        .ax-fr-offline-status { max-width: 420px; }
+        .ax-fr-offline-status.is-err { color: #fca5a5; }
+        .ax-fr-offline-status.is-ok { color: #86efac; }
+        .ax-fr-main { flex: 1; min-height: 0; display: flex; gap: 10px; }
+        .ax-fr-left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+        .ax-fr-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; }
+        .ax-fr-tile { position: relative; border: 1px solid #334155; border-radius: 6px; background: #0b1220; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        .ax-fr-tile.is-live { border-color: #2563eb; }
+        .ax-fr-tile.is-pinned { box-shadow: inset 0 0 0 1px #ca8a04; }
+        .ax-fr-tile-label { position: absolute; left: 8px; top: 6px; font-size: 10px; font-weight: 600; color: #94a3b8; z-index: 2; text-shadow: 0 1px 2px #000; max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ax-fr-tile-ph { font-size: 11px; color: #64748b; z-index: 1; }
+        .ax-fr-tile-canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+        .ax-fr-watch { flex-shrink: 0; max-height: 140px; overflow: auto; border: 1px solid #334155; border-radius: 6px; padding: 8px 10px; background: #111827; }
+        .ax-fr-watch-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 8px; }
+        .ax-fr-watch-grid { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+        .ax-fr-watch-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #cbd5e1; padding: 2px 6px; border-radius: 4px; border: 1px solid transparent; }
+        .ax-fr-watch-item.is-on-tile { border-color: #2563eb; background: rgba(37,99,235,0.12); }
+        .ax-fr-watch-item.is-pinned { border-color: #ca8a04; }
+        .ax-fr-watch-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ax-fr-tile.is-fr-hit { border-color: #dc2626 !important; box-shadow: inset 0 0 0 2px #dc2626; }
+        .ax-fr-crop-list {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+        }
+        .ax-fr-snapshot-title {
+            margin: 0 0 6px; font-size: 11px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8;
+            grid-column: 1 / -1;
+        }
+        .ax-fr-crop-card {
+            display: flex; align-items: center; justify-content: center;
+            aspect-ratio: 4 / 3; min-height: 0;
+            border: 1px solid #334155; border-radius: 6px; overflow: hidden; background: #0b1220;
+            line-height: 0; cursor: pointer;
+        }
+        .ax-fr-crop-card.is-empty {
+            cursor: default; border-style: dashed; border-color: #1e293b; opacity: 0.7;
+        }
+        .ax-fr-crop-card.is-match { border-color: #dc2626; border-style: solid; opacity: 1; }
+        .ax-fr-crop-card img {
+            display: block; width: 100%; height: 100%;
+            object-fit: contain; background: #020617;
+        }
+        .ax-fr-crop-ph {
+            width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            color: #64748b; font-size: 10px; background: #020617; line-height: 1.2;
+        }
+        #fr-snap-lightbox {
+            position: fixed; inset: 0; z-index: 27000;
+            background: rgba(0, 0, 0, 0.9); display: flex; align-items: center; justify-content: center;
+            padding: 24px; box-sizing: border-box;
+        }
+        #fr-snap-lightbox[hidden] { display: none !important; }
+        .fr-snap-lightbox-inner {
+            display: flex; flex-direction: column; align-items: center; gap: 12px;
+            max-width: min(96vw, 920px); max-height: 90vh;
+        }
+        #fr-snap-lightbox img {
+            max-width: 100%; max-height: min(70vh, 720px);
+            object-fit: contain; border-radius: 8px; border: 1px solid #475569; background: #000;
+        }
+        .fr-snap-lightbox-meta {
+            width: 100%; max-width: 520px; padding: 10px 12px;
+            background: #1e293b; border: 1px solid #475569; border-radius: 8px;
+            color: #e2e8f0; font-size: 12px; box-sizing: border-box;
+        }
+        .fr-snap-meta-line { margin: 0 0 6px; line-height: 1.4; }
+        .fr-snap-meta-line:last-of-type { margin-bottom: 0; }
+        .fr-snap-lightbox-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+        .fr-snap-lightbox-actions .btn { font-size: 11px; }
+        .fr-snap-lightbox-actions .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .fr-snap-lightbox-close {
+            position: absolute; top: 10px; right: 14px; z-index: 1;
+            width: 36px; height: 36px; border: 1px solid #64748b; border-radius: 8px;
+            background: #1e293b; color: #f8fafc; font-size: 22px; line-height: 1; cursor: pointer;
+        }
+        .ax-fr-crop-rail { flex: 1; min-height: 0; overflow: auto; border: 1px solid #334155; border-radius: 6px; padding: 6px; background: #111827; }
+        .ax-fr-crop-empty { margin: 0 0 6px; font-size: 11px; }
+        #fr-alarm-backdrop {
+            position: fixed; inset: 0; z-index: 26000; background: rgba(15, 23, 42, 0.55);
+            display: flex; align-items: flex-start; justify-content: flex-end; padding: 72px 16px 16px;
+        }
+        #fr-alarm-backdrop[hidden] { display: none !important; }
+        #fr-alarm-panel {
+            width: min(380px, 94vw); background: #0f172a; border: 1px solid #dc2626; border-radius: 10px;
+            padding: 14px 16px; color: #e2e8f0; box-shadow: 0 12px 40px rgba(0,0,0,0.45); pointer-events: auto;
+        }
+        #fr-alarm-panel h3 { margin: 0 0 8px; font-size: 15px; color: #fecaca; }
+        #fr-alarm-panel .fr-alarm-meta { font-size: 12px; color: #94a3b8; margin: 0 0 10px; }
+        #fr-alarm-panel .fr-alarm-imgs { display: flex; gap: 8px; margin-bottom: 12px; }
+        #fr-alarm-panel .fr-alarm-imgs img { width: 50%; max-height: 140px; object-fit: cover; border-radius: 6px; border: 1px solid #334155; background: #000; }
+        #fr-alarm-panel .fr-alarm-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .fr-alarm-standby-status { font-size: 11px; color: #fde68a; margin: 8px 0 0; line-height: 1.4; }
+        .fr-alarm-standby-status[hidden] { display: none !important; }
+        #fr-alarm-standby-ptt.fr-standby-ptt-active,
+        #fr-hq-alert-standby-ptt.fr-standby-ptt-active {
+            background: #1e293b !important; color: #fbbf24 !important; border-color: #f59e0b !important;
+        }
+        #fr-ptt-standby-toast {
+            position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%);
+            z-index: 26500; max-width: min(520px, 92vw); padding: 10px 14px;
+            background: #1e293b; color: #fde68a; border: 1px solid #f59e0b;
+            border-radius: 8px; font-size: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+        }
+        #fr-ptt-standby-toast[hidden] { display: none !important; }
+        /* mob-fr-hq-global-alert-bar — shell-wide strip on every page until Ack/Dismiss */
+        #fr-hq-alert-bar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 25500;
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            padding: 8px 14px; min-height: 40px; box-sizing: border-box;
+            background: linear-gradient(90deg, #7f1d1d 0%, #991b1b 50%, #7f1d1d 100%);
+            border-bottom: 1px solid #fca5a5; color: #fef2f2;
+            box-shadow: 0 4px 18px rgba(127, 29, 29, 0.45);
+        }
+        #fr-hq-alert-bar[hidden] { display: none !important; }
+        #fr-hq-alert-bar .fr-hq-alert-label {
+            font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+            color: #fecaca; flex-shrink: 0;
+        }
+        #fr-hq-alert-bar .fr-hq-alert-text {
+            flex: 1; min-width: 140px; font-size: 13px; font-weight: 600; color: #fff;
+        }
+        #fr-hq-alert-bar .fr-hq-alert-text strong { color: #fef2f2; }
+        #fr-hq-alert-bar .fr-hq-alert-pending {
+            font-size: 11px; font-weight: 700; background: #450a0a; color: #fecaca;
+            border-radius: 999px; padding: 2px 8px;
+        }
+        #fr-hq-alert-bar .fr-hq-alert-pending[hidden] { display: none !important; }
+        #fr-hq-alert-bar .fr-hq-alert-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+        #fr-hq-alert-bar .fr-hq-alert-actions .btn { font-size: 11px; padding: 4px 10px; }
+        body.fr-hq-alert-active #header { margin-top: 40px; }
+        body.fr-hq-alert-active #app-top-nav { top: auto; }
+        .ax-fr-right { width: 240px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+        .ax-fr-verify-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin: 10px 0; }
+        .ax-fr-verify-file { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #94a3b8; max-width: 280px; }
+        /* Dark file picker — same pattern as Evidence detail (no OS white chrome) */
+        .ax-fr-verify-file input[type="file"] {
+            width: 100%;
+            max-width: 280px;
+            margin-top: 4px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: #e2e8f0;
+            box-sizing: border-box;
+            font-size: 12px;
+        }
+        .ax-fr-verify-file input[type="file"]::file-selector-button {
+            margin-right: 10px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #475569;
+            background: #1e293b;
+            color: #e2e8f0;
+            cursor: pointer;
+        }
+        .ax-fr-verify-file input[type="file"]::file-selector-button:hover {
+            background: #334155;
+        }
+        /* Content-sized actions — not full-row blue bars (Server Config compact rule) */
+        #app-view-analytics .btn,
+        #app-view-analytics button.btn-action,
+        #app-view-analytics button.btn-ghost,
+        #app-view-analytics button.btn-sm {
+            width: auto;
+            max-width: none;
+            flex: 0 0 auto;
+            white-space: nowrap;
+        }
+        .ax-fr-verify-result { margin-top: 8px; padding: 12px 14px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; font-size: 13px; color: #e2e8f0; max-width: 520px; }
+        .ax-fr-verify-result.is-match { border-color: #16a34a; }
+        .ax-fr-verify-result.is-nomatch { border-color: #64748b; }
+        .ax-fr-verify-result.is-err { border-color: #b91c1c; }
+        .ax-bl-enroll { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin: 10px 0; }
+        .ax-bl-enroll input[type="text"] {
+            width: 200px; max-width: 100%; padding: 7px 10px; border-radius: 6px;
+            border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 12px; box-sizing: border-box;
+        }
+        .ax-bl-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0; }
+        .ax-bl-search {
+            width: 220px; max-width: 100%; padding: 7px 10px; border-radius: 6px;
+            border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 12px;
+        }
+        .ax-bl-table-wrap { flex: 1; min-height: 0; overflow: auto; border: 1px solid #334155; border-radius: 6px; }
+        .ax-bl-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .ax-bl-table th { text-align: left; padding: 8px 10px; color: #94a3b8; font-weight: 600; border-bottom: 1px solid #334155; background: #111827; position: sticky; top: 0; }
+        .ax-bl-table td { padding: 8px 10px; border-bottom: 1px solid #1e293b; color: #e2e8f0; vertical-align: middle; }
+        .ax-bl-table tr.is-disabled td { opacity: 0.55; }
+        .ax-bl-face-td { width: 56px; padding-top: 6px; padding-bottom: 6px; }
+        .ax-bl-face-link { display: inline-block; line-height: 0; border-radius: 4px; outline: none; }
+        .ax-bl-face-link:focus-visible { box-shadow: 0 0 0 2px #3b82f6; }
+        .ax-bl-face {
+            width: 48px; height: 48px; object-fit: cover; border-radius: 4px;
+            border: 1px solid #475569; background: #0f172a; display: block;
+        }
+        .ax-bl-face.is-broken, .ax-bl-face-ph {
+            width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 4px; border: 1px dashed #475569; color: #64748b; font-size: 11px; background: #0f172a;
+        }
+        .ax-bl-enroll select, .ax-bl-enroll textarea, .ax-bl-grade-filter {
+            padding: 7px 10px; border-radius: 6px; border: 1px solid #334155;
+            background: #0f172a; color: #e2e8f0; font-size: 12px; box-sizing: border-box;
+        }
+        .ax-bl-enroll select { width: 180px; max-width: 100%; }
+        .ax-bl-enroll textarea {
+            width: 280px; max-width: 100%; min-height: 52px; resize: vertical;
+        }
+        .ax-bl-grade {
+            display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px;
+            font-weight: 600; letter-spacing: 0.02em; border: 1px solid #475569; background: #1e293b; color: #e2e8f0;
+        }
+        .ax-bl-grade.is-poi { border-color: #64748b; color: #cbd5e1; }
+        .ax-bl-grade.is-monitoring { border-color: #d97706; color: #fbbf24; background: rgba(217, 119, 6, 0.12); }
+        .ax-bl-grade.is-suspect { border-color: #ea580c; color: #fdba74; background: rgba(234, 88, 12, 0.12); }
+        .ax-bl-grade.is-blacklist { border-color: #dc2626; color: #fca5a5; background: rgba(220, 38, 38, 0.15); }
+        .ax-bl-name-btn {
+            background: none; border: none; padding: 0; margin: 0; color: #93c5fd;
+            font: inherit; cursor: pointer; text-align: left; text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+        .ax-bl-name-btn:hover { color: #bfdbfe; }
+        #ax-bl-drawer {
+            position: fixed; inset: 0; z-index: 12050; display: flex; justify-content: flex-end;
+            background: rgba(2, 6, 23, 0.55);
+        }
+        #ax-bl-drawer[hidden] { display: none !important; }
+        .ax-bl-drawer-panel {
+            width: min(420px, 100%); height: 100%; background: #0f172a; border-left: 1px solid #334155;
+            padding: 16px 18px; overflow-y: auto; box-shadow: -12px 0 40px rgba(0, 0, 0, 0.35);
+        }
+        .ax-bl-drawer-panel h3 { margin: 0 0 10px; font-size: 15px; color: #f1f5f9; }
+        .ax-bl-drawer-face {
+            width: 100%; max-height: 220px; object-fit: cover; border-radius: 8px;
+            border: 1px solid #334155; background: #000; margin-bottom: 12px;
+        }
+        .ax-bl-drawer-dl { margin: 0 0 14px; font-size: 12px; }
+        .ax-bl-drawer-dl dt { color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 8px; }
+        .ax-bl-drawer-dl dt:first-child { margin-top: 0; }
+        .ax-bl-drawer-dl dd { margin: 2px 0 0; color: #e2e8f0; }
+        .ax-bl-drawer-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        #fr-alarm-panel .fr-alarm-grade-line { margin: 0 0 8px; font-size: 12px; color: #fecaca; }
+        #fr-alarm-panel .fr-alarm-grade-line .ax-bl-grade { margin-right: 6px; }
+        #ax-bl-crop-modal {
+            position: fixed; inset: 0; z-index: 12100; display: flex; align-items: center; justify-content: center;
+            background: rgba(2, 6, 23, 0.72); padding: 16px;
+        }
+        #ax-bl-crop-modal[hidden] { display: none !important; }
+        .ax-bl-crop-panel {
+            width: min(920px, 100%); max-height: 92vh; overflow: auto; background: #0f172a;
+            border: 1px solid #334155; border-radius: 10px; padding: 14px 16px 16px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+        }
+        .ax-bl-crop-panel h3 { margin: 0 0 6px; font-size: 15px; color: #f1f5f9; }
+        .ax-bl-crop-layout { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 0; }
+        .ax-bl-crop-stage-wrap {
+            flex: 1 1 420px; min-width: 260px; background: #020617; border: 1px solid #334155;
+            border-radius: 8px; display: flex; align-items: center; justify-content: center; min-height: 280px;
+        }
+        #ax-bl-crop-canvas { max-width: 100%; touch-action: none; cursor: crosshair; }
+        .ax-bl-crop-meters { flex: 0 1 240px; min-width: 200px; }
+        .ax-bl-meter {
+            display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; margin-bottom: 6px;
+            border-radius: 6px; border: 1px solid #334155; font-size: 11px; background: #111827;
+        }
+        .ax-bl-meter.is-ok { border-color: #16a34a; color: #bbf7d0; }
+        .ax-bl-meter.is-warn { border-color: #d97706; color: #fde68a; }
+        .ax-bl-meter.is-bad { border-color: #dc2626; color: #fecaca; }
+        .ax-bl-meter-label { color: #94a3b8; }
+        .ax-bl-crop-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+        #ax-bl-crop-status.is-ok { color: #86efac; }
+        #ax-bl-crop-status.is-bad { color: #fca5a5; }
+        .ax-bl-crop-preview {
+            display: inline-flex; align-items: center; gap: 8px; margin: 6px 0 0; font-size: 11px; color: #94a3b8;
+        }
+        .ax-bl-crop-preview img {
+            width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #475569;
+        }
+        .ax-bl-crop-preview[hidden] { display: none !important; }
+        .ax-coming { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
+        .ax-coming p { margin: 0; font-size: 13px; color: #94a3b8; }
         #conference-panel { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 12px 16px; background: var(--bg); }
         #conference-panel h2 { margin: 0 0 8px; font-size: 16px; color: #f1f5f9; flex-shrink: 0; }
         .vc-hub-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; flex-shrink: 0; }
@@ -1679,11 +2057,49 @@
         #layout-audio-vol-wrap:not([hidden]) { pointer-events: auto; }
         #layout-audio-vol-wrap[hidden] { display: none !important; }
         #layout-audio-vol {
-            -webkit-appearance: slider-vertical; appearance: slider-vertical;
-            width: 6px; height: 100%; min-height: 48px; margin: 0; padding: 0;
-            cursor: pointer; accent-color: #64748b; background: transparent;
+            -webkit-appearance: slider-vertical;
+            appearance: slider-vertical;
+            width: 8px;
+            height: 100%;
+            min-height: 48px;
+            margin: 0;
+            padding: 0;
+            cursor: pointer;
+            background: #334155;
+            border-radius: 999px;
+            accent-color: #38bdf8;
         }
         #layout-audio-vol:focus { outline: none; accent-color: #38bdf8; }
+        #layout-audio-vol::-webkit-slider-runnable-track {
+            width: 8px;
+            background: #334155;
+            border-radius: 999px;
+        }
+        #layout-audio-vol::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #38bdf8;
+            border: 2px solid #e2e8f0;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+            cursor: pointer;
+        }
+        #layout-audio-vol::-moz-range-track {
+            width: 8px;
+            background: #334155;
+            border-radius: 999px;
+            border: none;
+        }
+        #layout-audio-vol::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #38bdf8;
+            border: 2px solid #e2e8f0;
+            cursor: pointer;
+        }
         #center-stage { flex: 1; display: flex; min-width: 0; min-height: 0; }
         #map-wrapper { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; background-color: #1e293b; }
         .map-canvas-wrap { flex: 1 1 auto; min-height: 0; position: relative; display: flex; flex-direction: column; }
@@ -1783,16 +2199,6 @@
         #map-controls #map-bwc-target:focus { outline: none; border-color: #3b82f6; }
         #map-controls .toolbar-btn { width: auto; flex: 1; min-width: 110px; margin: 0; padding: 8px 12px; font-size: 12px; }
         #map-controls .toolbar-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-        #map-controls .auto-capture-slot {
-            flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
-            padding: 6px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 6px;
-            opacity: 0.45; pointer-events: none; user-select: none;
-        }
-        #map-controls .auto-capture-slot label {
-            display: flex; align-items: center; gap: 8px; font-size: 11px; color: #64748b;
-            cursor: default; margin: 0;
-        }
-        #map-controls .auto-capture-slot input { opacity: 0.35; cursor: default; }
         #video-wall {
             width: 272px; flex-shrink: 0; display: flex; flex-direction: column; gap: 3px;
             padding: 4px 4px 5px; background: var(--bg); border-left: 1px solid var(--border);
@@ -2689,10 +3095,11 @@
             pointer-events: auto;
         }
         #map-gps-pending {
+            display: none !important; /* mob-map-hide-gps-pending-banner */
             width: 100%; box-sizing: border-box;
             padding: 8px 12px; border-radius: 8px; font-size: 11px; font-weight: 600; line-height: 1.35;
             color: #fef3c7; background: rgba(120, 53, 15, 0.92); border: 1px solid #f59e0b;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.35); pointer-events: auto;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.35); pointer-events: none;
         }
         #map-gps-pending[hidden] { display: none !important; }
         #map-bottom-left-stack:empty,
@@ -4202,6 +4609,43 @@
             <div id="sos-alarm-strip" hidden></div>
         </div>
     </div>
+    <div id="fr-alarm-backdrop" hidden>
+        <div id="fr-alarm-panel" role="dialog" aria-labelledby="fr-alarm-title">
+            <h3 id="fr-alarm-title" data-i18n="analytics.fr.alarmTitle">Face match</h3>
+            <p class="fr-alarm-meta">
+                <strong id="fr-alarm-name">—</strong>
+                · <span id="fr-alarm-score">—</span>
+                · <span id="fr-alarm-cam">—</span>
+            </p>
+            <p class="fr-alarm-grade-line" id="fr-alarm-dossier" hidden>
+                <span id="fr-alarm-grade" class="ax-bl-grade">—</span>
+                <span id="fr-alarm-reason">—</span>
+            </p>
+            <div class="fr-alarm-imgs">
+                <img id="fr-alarm-crop" alt="" hidden>
+                <img id="fr-alarm-photo" alt="" hidden>
+            </div>
+            <div class="fr-alarm-actions">
+                <button type="button" class="btn btn-action btn-sm" id="fr-alarm-ack" data-i18n="analytics.fr.alarmAck">Ack</button>
+                <button type="button" class="btn btn-action btn-sm" id="fr-alarm-field" data-i18n="analytics.fr.alarmField">Alert field</button>
+                <button type="button" class="btn btn-action btn-sm sos-ptt-btn" id="fr-alarm-standby-ptt" data-i18n="analytics.fr.standbyPttTeam" data-i18n-title="analytics.fr.standbyPttTeamTitle" aria-pressed="false">Standby PTT team</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="fr-alarm-dismiss" data-i18n="analytics.fr.alarmDismiss">Dismiss</button>
+            </div>
+            <p class="fr-alarm-standby-status" id="fr-alarm-standby-status" hidden></p>
+        </div>
+    </div>
+    <!-- mob-fr-hq-global-alert-bar: visible on all pages until Ack/Dismiss -->
+    <div id="fr-hq-alert-bar" hidden role="status" aria-live="assertive">
+        <span class="fr-hq-alert-label" data-i18n="analytics.fr.hqBarLabel">FR hit</span>
+        <span class="fr-hq-alert-text" id="fr-hq-alert-text">—</span>
+        <span class="fr-hq-alert-pending" id="fr-hq-alert-pending" hidden>+0</span>
+        <div class="fr-hq-alert-actions">
+            <button type="button" class="btn btn-action btn-sm" id="fr-hq-alert-open" data-i18n="analytics.fr.hqBarOpen">Open</button>
+            <button type="button" class="btn btn-action btn-sm sos-ptt-btn" id="fr-hq-alert-standby-ptt" data-i18n="analytics.fr.standbyPttTeam" data-i18n-title="analytics.fr.standbyPttTeamTitle" aria-pressed="false">Standby PTT team</button>
+            <button type="button" class="btn btn-action btn-sm" id="fr-hq-alert-ack" data-i18n="analytics.fr.alarmAck">Ack</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="fr-hq-alert-dismiss" data-i18n="analytics.fr.alarmDismiss">Dismiss</button>
+        </div>
+    </div>
     <div id="sos-ack-backdrop" hidden>
         <div id="sos-ack-panel" role="dialog" aria-labelledby="sos-ack-title">
             <h3 id="sos-ack-title" data-i18n="sos.ack.title">SOS acknowledgement</h3>
@@ -4365,6 +4809,7 @@
         <button type="button" id="nav-tab-centre-summary" hidden data-i18n="nav.centreSummary">Centre Summary</button>
         <button type="button" id="nav-tab-conference" data-i18n="nav.videoConference">Video Conference</button>
         <button type="button" id="nav-tab-server" data-i18n="nav.settings">Settings</button>
+        <button type="button" id="nav-tab-analytics" data-i18n="nav.analytics">Analytics</button>
         <div id="video-wall-nav-tools" class="video-wall-toolbar">
             <label id="video-wall-poll-wrap" class="video-wall-poll-wrap">
                 <input type="checkbox" id="video-wall-poll">
@@ -4524,9 +4969,6 @@
                         <button type="button" id="map-toolbar-perm-btn" class="map-perm-box" hidden
                             data-i18n="map.permBox" data-i18n-title="map.permHint"
                             title="Remote control permission not granted.">Permission</button>
-                        <div class="auto-capture-slot" aria-disabled="true">
-                            <label><input type="checkbox" disabled tabindex="-1"><span data-i18n="map.autoFacePlate">Face Recognition / ANPR</span></label>
-                        </div>
                         <div id="map-device-control-toolbar" class="map-device-control-toolbar">
                             <button type="button" class="btn btn-action btn-sm toolbar-btn" onclick="sendRemoteDeviceCommand('Lock')" data-i18n="map.lockDevice">Lock device</button>
                             <button type="button" class="btn btn-ghost btn-sm toolbar-btn" onclick="sendRemoteDeviceCommand('Unlock')" data-i18n="map.unlockDevice">Unlock</button>
@@ -5578,6 +6020,169 @@
         </div>
     </div>
 
+    <div id="app-view-analytics" hidden>
+        <div id="analytics-panel" class="ax-hub">
+            <h2 data-i18n="nav.analytics">Analytics</h2>
+            <div id="ax-license-gate" class="ax-license-gate" hidden>
+                <div class="ax-license-gate-inner">
+                    <h3 data-i18n="analytics.gateTitle">Analytics modules not licensed</h3>
+                    <p data-i18n="analytics.gateBody">Face recognition, ANPR, and weapon detection are optional modules. Contact your administrator to enable them on this server.</p>
+                </div>
+            </div>
+            <div id="ax-hub-body">
+                <nav class="ax-hub-nav" aria-label="Analytics sections">
+                    <button type="button" class="ax-hub-nav-btn active" data-panel="face" data-i18n="analytics.navFace">Face recognition</button>
+                    <button type="button" class="ax-hub-nav-btn" data-panel="verify" data-i18n="analytics.navVerify">Verify 1:1</button>
+                    <button type="button" class="ax-hub-nav-btn" data-panel="blacklist" data-i18n="analytics.navWatchlist">Watchlist</button>
+                    <button type="button" class="ax-hub-nav-btn" data-panel="anpr" data-i18n="analytics.navAnpr" disabled>ANPR</button>
+                    <button type="button" class="ax-hub-nav-btn" data-panel="weapon" data-i18n="analytics.navWeapon" disabled>Weapon detection</button>
+                </nav>
+                <div id="ax-panel-face" class="ax-hub-panel">
+                    <div class="ax-fr-toolbar">
+                        <span class="hint" data-i18n="analytics.fr.layoutHint">4 live tiles · up to 32 in watch set · rotate ~20s</span>
+                        <label for="ax-fr-threshold"><span data-i18n="analytics.fr.threshold">Match threshold</span>
+                            <input type="range" id="ax-fr-threshold" class="fm-range" min="70" max="99" value="75" step="1">
+                            <span id="ax-fr-threshold-val">75%</span>
+                        </label>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-load-video" data-i18n="analytics.fr.loadVideo">Load video (offline)</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-offline-cancel" hidden data-i18n="analytics.fr.offlineCancel">Cancel</button>
+                        <input type="file" id="ax-fr-offline-file" accept=".mp4,.mov,.webm,.mkv,video/mp4,video/quicktime,video/webm" hidden>
+                        <span id="ax-fr-offline-status" class="hint ax-fr-offline-status" hidden></span>
+                    </div>
+                    <div class="ax-fr-main">
+                        <div class="ax-fr-left">
+                            <div class="ax-fr-grid" aria-label="Face recognition live tiles">
+                                <div class="ax-fr-tile" data-slot="0"><span class="ax-fr-tile-label">1</span><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdle">Waiting</span></div>
+                                <div class="ax-fr-tile" data-slot="1"><span class="ax-fr-tile-label">2</span><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdle">Waiting</span></div>
+                                <div class="ax-fr-tile" data-slot="2"><span class="ax-fr-tile-label">3</span><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdle">Waiting</span></div>
+                                <div class="ax-fr-tile" data-slot="3"><span class="ax-fr-tile-label">4</span><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdle">Waiting</span></div>
+                            </div>
+                            <div id="ax-fr-watch-list" class="ax-fr-watch"></div>
+                        </div>
+                        <div class="ax-fr-right">
+                            <div id="ax-fr-crop-rail" class="ax-fr-crop-rail"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="ax-panel-verify" class="ax-hub-panel" hidden>
+                    <p class="setup-hint" data-i18n="analytics.verify.hint">Compare two photos (for example an ID photo and a field photo). Face matching must be running on this server.</p>
+                    <p id="ax-fr-sidecar-status" class="hint">—</p>
+                    <div class="ax-fr-verify-row">
+                        <label class="ax-fr-verify-file"><span data-i18n="analytics.verify.photoA">Photo A</span>
+                            <input type="file" id="ax-fr-file1" accept=".jpg,.jpeg,.png,.webp,.bmp,image/*">
+                        </label>
+                        <label class="ax-fr-verify-file"><span data-i18n="analytics.verify.photoB">Photo B</span>
+                            <input type="file" id="ax-fr-file2" accept=".jpg,.jpeg,.png,.webp,.bmp,image/*">
+                        </label>
+                        <button type="button" class="btn btn-action btn-sm" id="ax-fr-verify-btn" data-i18n="analytics.verify.run">Run verify</button>
+                    </div>
+                    <div id="ax-fr-verify-result" class="ax-fr-verify-result" hidden></div>
+                </div>
+                <div id="ax-panel-blacklist" class="ax-hub-panel" hidden>
+                    <p class="setup-hint" data-i18n="analytics.bl.hint">Enroll people on the Watchlist from an ID or clear photo. Choose a watch grade (POI → Blacklist). Up to 5,000 active entries. Face matching must be running.</p>
+                    <p class="hint" data-i18n="analytics.bl.qualityHint">Use a clear, front-facing ID or mugshot. The face should fill much of the frame. JPEG or PNG. A large file is not enough if the face is tiny in the picture. Blurry or group photos will be rejected.</p>
+                    <p id="ax-bl-status" class="hint">—</p>
+                    <div class="ax-bl-enroll">
+                        <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.name">Display name</span>
+                            <input type="text" id="ax-bl-name" maxlength="120" autocomplete="off">
+                        </label>
+                        <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.idNumber">ID / case ref (optional)</span>
+                            <input type="text" id="ax-bl-id" maxlength="64" autocomplete="off">
+                        </label>
+                        <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.grade">Watch grade</span>
+                            <select id="ax-bl-grade">
+                                <option value="poi" data-i18n="analytics.bl.gradePoi">Person of interest</option>
+                                <option value="monitoring" data-i18n="analytics.bl.gradeMonitoring">On monitoring</option>
+                                <option value="suspect" selected data-i18n="analytics.bl.gradeSuspect">Suspect</option>
+                                <option value="blacklist" data-i18n="analytics.bl.gradeBlacklist">Blacklist</option>
+                            </select>
+                        </label>
+                        <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.reason">Reason</span>
+                            <select id="ax-bl-reason">
+                                <option value="theft" data-i18n="analytics.bl.reasonTheft">Theft</option>
+                                <option value="assault" data-i18n="analytics.bl.reasonAssault">Assault / violence</option>
+                                <option value="trespass" data-i18n="analytics.bl.reasonTrespass">Trespass / banned</option>
+                                <option value="fraud" data-i18n="analytics.bl.reasonFraud">Fraud</option>
+                                <option value="suspicious" selected data-i18n="analytics.bl.reasonSuspicious">Suspicious behaviour</option>
+                                <option value="investigation" data-i18n="analytics.bl.reasonInvestigation">Open investigation</option>
+                                <option value="other" data-i18n="analytics.bl.reasonOther">Other</option>
+                            </select>
+                        </label>
+                        <label class="ax-fr-verify-file" id="ax-bl-reason-other-wrap" hidden><span data-i18n="analytics.bl.reasonOtherLabel">Other reason</span>
+                            <input type="text" id="ax-bl-reason-other" maxlength="200" autocomplete="off">
+                        </label>
+                        <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.lastSeen">Last seen (optional)</span>
+                            <input type="text" id="ax-bl-last-seen" maxlength="200" data-i18n-placeholder="analytics.bl.lastSeenPh" placeholder="e.g. Gate B · 2026-07-09" autocomplete="off">
+                        </label>
+                        <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.lastIncident">Last incident (optional)</span>
+                            <input type="text" id="ax-bl-last-incident" maxlength="200" data-i18n-placeholder="analytics.bl.lastIncidentPh" placeholder="e.g. Attempted entry without pass" autocomplete="off">
+                        </label>
+                        <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.notes">Notes (optional)</span>
+                            <textarea id="ax-bl-notes" maxlength="500" data-i18n-placeholder="analytics.bl.notesPh" placeholder="What operators should know…"></textarea>
+                        </label>
+                        <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.photo">Photo</span>
+                            <input type="file" id="ax-bl-photo" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+                        </label>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-bl-crop-open" data-i18n="analytics.bl.cropOpen">Crop &amp; check</button>
+                        <button type="button" class="btn btn-action btn-sm" id="ax-bl-enroll-btn" data-i18n="analytics.bl.enroll">Add to watchlist</button>
+                    </div>
+                    <div id="ax-bl-crop-preview" class="ax-bl-crop-preview" hidden>
+                        <img id="ax-bl-crop-preview-img" alt="">
+                        <span id="ax-bl-crop-preview-txt" data-i18n="analytics.bl.cropReadyPreview">Crop ready for enroll</span>
+                    </div>
+                    <div id="ax-bl-msg" class="ax-fr-verify-result" hidden></div>
+                    <div class="ax-bl-toolbar">
+                        <input type="search" id="ax-bl-search" class="ax-bl-search" data-i18n-placeholder="analytics.bl.searchPh" placeholder="Search name or ID…" autocomplete="off">
+                        <select id="ax-bl-grade-filter" class="ax-bl-grade-filter" title="Filter by grade">
+                            <option value="" data-i18n="analytics.bl.filterAll">All grades</option>
+                            <option value="poi" data-i18n="analytics.bl.gradePoi">Person of interest</option>
+                            <option value="monitoring" data-i18n="analytics.bl.gradeMonitoring">On monitoring</option>
+                            <option value="suspect" data-i18n="analytics.bl.gradeSuspect">Suspect</option>
+                            <option value="blacklist" data-i18n="analytics.bl.gradeBlacklist">Blacklist</option>
+                        </select>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-bl-refresh" data-i18n="analytics.bl.refresh">Refresh</button>
+                        <span id="ax-bl-count" class="hint"></span>
+                    </div>
+                    <div class="ax-bl-table-wrap">
+                        <table class="ax-bl-table">
+                            <thead>
+                                <tr>
+                                    <th data-i18n="analytics.bl.colFace">Face</th>
+                                    <th data-i18n="analytics.bl.colName">Name</th>
+                                    <th data-i18n="analytics.bl.colGrade">Grade</th>
+                                    <th data-i18n="analytics.bl.colReason">Reason</th>
+                                    <th data-i18n="analytics.bl.colId">ID</th>
+                                    <th data-i18n="analytics.bl.colWhen">Enrolled</th>
+                                    <th data-i18n="analytics.bl.colStatus">Status</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="ax-bl-tbody">
+                                <tr><td colspan="8" class="hint">—</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="ax-bl-drawer" hidden>
+                    <div class="ax-bl-drawer-panel" role="dialog" aria-labelledby="ax-bl-drawer-title">
+                        <h3 id="ax-bl-drawer-title">—</h3>
+                        <img id="ax-bl-drawer-face" class="ax-bl-drawer-face" alt="" hidden>
+                        <dl class="ax-bl-drawer-dl" id="ax-bl-drawer-dl"></dl>
+                        <div class="ax-bl-drawer-actions">
+                            <button type="button" class="btn btn-ghost btn-sm" id="ax-bl-drawer-close" data-i18n="analytics.bl.closeDetail">Close</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="ax-panel-anpr" class="ax-hub-panel" hidden>
+                    <div class="ax-coming"><p data-i18n="analytics.anprComing">ANPR module — coming when licensed.</p></div>
+                </div>
+                <div id="ax-panel-weapon" class="ax-hub-panel" hidden>
+                    <div class="ax-coming"><p data-i18n="analytics.weaponComing">Weapon detection — coming when licensed.</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="app-view-evidence" hidden>
         <div id="evidence-panel" class="evidence-hub">
             <h2 data-i18n="nav.evidenceDocking">Evidence &amp; Docking</h2>
@@ -5753,7 +6358,7 @@
                         <div id="rt-video-wrap" hidden>
                             <video id="rt-video" controls playsinline></video>
                             <p id="rt-video-meta" class="hint"></p>
-                            <input type="range" id="rt-scrub" min="0" max="1000" value="0" aria-label="Route scrubber">
+                            <input type="range" id="rt-scrub" class="fm-range" min="0" max="1000" value="0" aria-label="Route scrubber">
                         </div>
                         <p id="rt-point-msg" class="hint"></p>
                         <div id="rt-point-list" class="rt-point-list"></div>
@@ -6112,6 +6717,11 @@
     <script src="/js/ptt-rx.js?v=20260629-live-toast"></script>
     <script src="/js/audit-trail-hub.js?v=20260630-audit-preset-ux"></script>
     <script src="/js/license-features.js?v=20260707-license-gate"></script>
+    <script src="/js/fr-live-watch.js?v=20260710-fr-alarm"></script>
+    <script src="/js/fr-offline-video.js?v=20260710-offline-crops"></script>
+    <script src="/js/fr-enroll-cropper.js?v=20260710-fr-cropper"></script>
+    <script src="/js/fr-alarm.js?v=20260710-rail-16-meta"></script>
+    <script src="/js/analytics-hub.js?v=20260710-offline-crops"></script>
     <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/operator-ui.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/ev-context-rail.js?v=20260627-rail-trim"></script>
@@ -6119,8 +6729,8 @@
     <script src="/js/route-trace.js?v=20260621-smart-gps"></script>
     <script src="/js/case-files-ui.js?v=20260627-delete-error-voice"></script>
     <script src="/js/evidence-hub.js?v=20260708-cold-archive"></script>
-    <script src="/js/missed-activity.js?v=20260708-missed-ptt-linger"></script>
-    <script src="/js/evidence-manager.js?v=20260709-a5-labels-a"></script>
+    <script src="/js/missed-activity.js?v=20260710-missed-item-detail"></script>
+    <script src="/js/evidence-manager.js?v=20260710-analytics-tab"></script>
     <script src="/js/chat-ui.js"></script>
     <script src="/js/video-wall.js?v=20260709-wall-claim"></script>
     <script src="/js/video-matrix.js?v=20260629-live-cap-8"></script>
@@ -6855,6 +7465,9 @@
             }
             return true;
         }
+        /* Map helpers exposed for other shell scripts */
+        window.isCamOnlineOnFleet = isCamOnlineOnFleet;
+        window.isCamSosActive = isCamSosActive;
 
         window.dispatchGroupLookup = { byDevice: {}, byName: {}, groups: [] };
 
@@ -7893,6 +8506,11 @@
             /* Toolbar moved to #map-pin-stack-hud — always visible above overlapping popups. */
         }
 
+        /**
+         * Pixel fan is only a last resort for 3+ stacked panels.
+         * For exactly 2 cams, dock left/right beside the pins — gold early-return (no pair rescue).
+         * Restored from me8-firmware-gold-20260706 (mob-map-pin-restore-firmware-gold-slice).
+         */
         function autoFanStackedPopups(cluster) {
             if (!cluster || cluster.length < 2) return;
             if (cluster.length === 2) return;
@@ -8910,6 +9528,23 @@
                 }
             }
         }
+        window.upsertDeviceMarker = upsertDeviceMarker;
+        window.showFrSnapOnMap = function (lat, lon, camId) {
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+            try {
+                var opsBtn = document.getElementById('nav-tab-ops');
+                if (opsBtn) opsBtn.click();
+                if (typeof map !== 'undefined' && map && map.setView) {
+                    map.setView([lat, lon], Math.max(map.getZoom() || 14, 16), { animate: true });
+                }
+                if (camId && typeof upsertDeviceMarker === 'function') {
+                    upsertDeviceMarker(camId, lat, lon, false, true, true);
+                }
+                return true;
+            } catch (_) {
+                return false;
+            }
+        };
         window.assignColocatedPinPopupDocks = assignColocatedPinPopupDocks;
         window.repairOpenPinPopupVideos = repairOpenPinPopupVideos;
 
@@ -8942,24 +9577,12 @@
             el.hidden = keys.length === 0 && Object.keys(deviceMarkers).length === 0;
         }
 
-        function updateMapGpsPendingBanner(pending) {
+        function updateMapGpsPendingBanner(/* pending */) {
+            /* mob-map-hide-gps-pending-banner: never show “Awaiting GPS” nag */
             var el = document.getElementById('map-gps-pending');
             if (!el) return;
-            var list = Array.isArray(pending) ? pending : [];
-            if (!list.length) {
-                el.hidden = true;
-                el.textContent = '';
-                return;
-            }
-            var names = list.map(function (d) {
-                var name = d.name;
-                if (typeof FleetDisplay !== 'undefined' && FleetDisplay.friendlyDeviceName && d.cameraId) {
-                    name = FleetDisplay.friendlyDeviceName(d.cameraId) || name;
-                }
-                return name || d.cameraId;
-            }).join(', ');
-            el.textContent = dashboardTr('map.gpsPending', { names: names, n: list.length });
-            el.hidden = false;
+            el.hidden = true;
+            el.textContent = '';
         }
 
         function isKnownFleetCam(camId) {
@@ -9043,12 +9666,13 @@
                             removeDeviceMarker(id);
                             return;
                         }
-                        var mk = deviceMarkers[id];
-                        var ll = mk ? markerGpsLatLng(mk) : null;
-                        if (!isCamOnlineOnFleet(id) && mk && ll) {
-                            upsertDeviceMarker(id, ll.lat, ll.lng, isCamSosActive(id), false, false);
+                        /* Offline + not in server map-positions → drop pin (restart / 12h TTL). */
+                        if (!isCamOnlineOnFleet(id)) {
+                            removeDeviceMarker(id);
                             return;
                         }
+                        var mk = deviceMarkers[id];
+                        var ll = mk ? markerGpsLatLng(mk) : null;
                         if (isCamOnlineOnFleet(id) && mk && ll) {
                             upsertDeviceMarker(id, ll.lat, ll.lng, isCamSosActive(id), false, true);
                             if (typeof MapPinLayer !== 'undefined' && MapPinLayer.attachMarker) {
@@ -9569,20 +10193,8 @@
                 upsertDeviceMarker(camId, parseFloat(lat), parseFloat(lon), isCamSosActive(camId), false, false);
                 return;
             }
-            var m = deviceMarkers[camId];
-            if (m) {
-                var ll = m.getLatLng();
-                upsertDeviceMarker(camId, ll.lat, ll.lng, isCamSosActive(camId), false, false);
-                return;
-            }
-            fetch('/api/last-gps?camId=' + encodeURIComponent(camId))
-                .then(function (r) { return r.json(); })
-                .then(function (g) {
-                    if (g.lat == null || g.lon == null) return;
-                    upsertDeviceMarker(camId, parseFloat(g.lat), parseFloat(g.lon), false, false, false);
-                    updateMapPinLegend();
-                })
-                .catch(function () { /* ignore */ });
+            /* No coords from server (restart / TTL) → remove offline pin; do not re-fetch last-gps. */
+            removeDeviceMarker(camId);
         }
 
         socket.on('device-offline', function (data) {
@@ -9600,10 +10212,16 @@
         socket.on('fleet-roster', function (fleet) {
             FleetUi.ingestFleet(fleet);
             (fleet || []).forEach(function (m) {
-                if (!m || !m.id || !deviceMarkers[m.id]) return;
-                var ll = deviceMarkers[m.id].getLatLng();
+                if (!m || !m.id) return;
                 var online = m.status === '1';
-                upsertDeviceMarker(m.id, ll.lat, ll.lng, isCamSosActive(m.id), false, online);
+                if (!online) {
+                    /* Offline pins only from device-offline + map-positions policy — do not keep grey ghosts. */
+                    if (deviceMarkers[m.id]) removeDeviceMarker(m.id);
+                    return;
+                }
+                if (!deviceMarkers[m.id]) return;
+                var ll = deviceMarkers[m.id].getLatLng();
+                upsertDeviceMarker(m.id, ll.lat, ll.lng, isCamSosActive(m.id), false, true);
             });
             refreshAllDeviceMarkerStyles();
         });
@@ -10007,6 +10625,65 @@
             });
             return nearest;
         }
+
+        /* mob-fr-standby-ptt-group: nearby scan centered on any BWC (FR catching cam) */
+        var FR_STANDBY_RADIUS_M = 500;
+
+        function getCamCenterLatLon(camId) {
+            camId = normalizeCamId(camId);
+            var devices = sosDevicePositionsForScan();
+            for (var i = 0; i < devices.length; i++) {
+                if (normalizeCamId(devices[i].cameraId) === camId) {
+                    return { lat: devices[i].lat, lon: devices[i].lon };
+                }
+            }
+            return null;
+        }
+
+        function computeNearbyForCam(camId, radiusM) {
+            radiusM = radiusM || FR_STANDBY_RADIUS_M;
+            var center = getCamCenterLatLon(camId);
+            if (!center) return [];
+            var alarmCamId = normalizeCamId(camId);
+            var out = [];
+            sosDevicePositionsForScan().forEach(function (d) {
+                var id = normalizeCamId(d.cameraId);
+                if (!id || id === alarmCamId) return;
+                if (d.lat == null || d.lon == null || isNaN(d.lat) || isNaN(d.lon)) return;
+                var dist = haversineMeters(center.lat, center.lon, d.lat, d.lon);
+                if (dist > radiusM) return;
+                var name = d.name;
+                if (typeof FleetDisplay !== 'undefined' && FleetDisplay.friendlyDeviceName) {
+                    name = FleetDisplay.friendlyDeviceName(id) || name;
+                } else if (typeof FleetUi !== 'undefined' && FleetUi.getDeviceName) {
+                    name = FleetUi.getDeviceName(id) || name;
+                }
+                if (!d.online) name = name + ' (offline)';
+                out.push({ cameraId: id, distanceM: Math.round(dist), name: name, online: !!d.online });
+            });
+            out.sort(function (a, b) { return a.distanceM - b.distanceM; });
+            return out.slice(0, SOS_RESPONSE_MAX);
+        }
+
+        function computeNearestForCam(camId) {
+            var center = getCamCenterLatLon(camId);
+            if (!center) return null;
+            var alarmCamId = normalizeCamId(camId);
+            var nearest = null;
+            sosDevicePositionsForScan().forEach(function (d) {
+                var id = normalizeCamId(d.cameraId);
+                if (!id || id === alarmCamId) return;
+                if (d.lat == null || d.lon == null || isNaN(d.lat) || isNaN(d.lon)) return;
+                var dist = haversineMeters(center.lat, center.lon, d.lat, d.lon);
+                if (!nearest || dist < nearest.distanceM) {
+                    nearest = { cameraId: id, distanceM: Math.round(dist), name: d.name, online: !!d.online };
+                }
+            });
+            return nearest;
+        }
+
+        window.computeNearbyForCam = computeNearbyForCam;
+        window.computeNearestForCam = computeNearestForCam;
 
         function sosPttTeamFriendlyNames(team) {
             return (team || []).map(function (id) {
@@ -12531,10 +13208,11 @@
 <div id="missed-activity-overlay" class="ma-overlay" hidden></div>
 <div id="missed-activity-drawer" class="ma-drawer" hidden role="dialog" aria-label="Missed activity">
     <div class="ma-drawer-head">
-        <h3 data-i18n="missedActivity.title">Missed activity</h3>
+        <h3 id="missed-activity-heading" data-i18n="missedActivity.title">Missed activity</h3>
         <button type="button" id="missed-activity-close" class="ma-drawer-close" aria-label="Close">✕</button>
     </div>
     <div id="missed-activity-list" class="ma-drawer-list"></div>
+    <div id="missed-activity-detail" class="ma-detail" hidden></div>
 </div>
 </body>
 </html>

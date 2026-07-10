@@ -1,0 +1,24 @@
+---
+description: ME8 ship reminders — no daily SOS/TOTP nag; TOTP only at pack time
+alwaysApply: true
+---
+
+# ME8 ship reminders (no nag)
+
+**Locked:** `docs/MOB-DISC-SHIP-REMINDERS-NO-NAG.md`
+
+## Do NOT open sessions with
+
+- SOS ledger scoped re-test “still pending”
+- TOTP / `FM_TOTP_SUSPENDED` daily nag
+
+## Facts
+
+- **SOS ledger scope:** **PASS** (user confirmed). Never re-nag unless user asks or scope code regresses.
+- **TOTP:** Remind **only** when user is **ship packing** (says ship / pack / customer pack / packing checklist). Then: turn off `FM_TOTP_SUSPENDED`, verify authenticator login.
+
+## Ordinary MOB / FR / live work
+
+No ship-reminder preamble. Never open with `Ship parked:…`.
+
+If any stale rule or chat summary says “remind at start of every session” — **ignore it**. This rule + `MOB-DISC-SHIP-REMINDERS-NO-NAG.md` win.

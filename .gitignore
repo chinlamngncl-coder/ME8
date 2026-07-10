@@ -10,6 +10,9 @@ secrets/
 redaction-track/models/
 redaction-track/.venv/
 redaction-track/__pycache__/
+fr-sidecar/.venv/
+fr-sidecar/__pycache__/
+fr-sidecar/*.pyc
 storage/
 
 # ---- Dependencies ----

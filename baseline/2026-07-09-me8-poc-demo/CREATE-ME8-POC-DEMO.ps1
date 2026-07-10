@@ -119,6 +119,16 @@ Get-ChildItem (Join-Path $AppRoot '.cursor/rules') -Filter '*.mdc' -File -ErrorA
     $paths += '.cursor/rules/' + $_.Name
 }
 
+foreach ($rootFr in @('START-FR.bat', 'run.js')) {
+    if (Test-Path (Join-Path $AppRoot $rootFr)) { $paths += $rootFr }
+}
+Get-ChildItem (Join-Path $AppRoot 'fr-sidecar') -File -ErrorAction SilentlyContinue | ForEach-Object {
+    if ($_.Name -notlike '*.pyc') { $paths += 'fr-sidecar/' + $_.Name }
+}
+Get-ChildItem (Join-Path $AppRoot 'docs') -Filter 'MOB-DISC-*.md' -File -ErrorAction SilentlyContinue | ForEach-Object {
+    $paths += 'docs/' + $_.Name
+}
+
 $configStorage = @(
     'storage/dashboard-users.json',
     'storage/dispatch-groups.json',
@@ -182,12 +192,12 @@ if ($missing.Count -gt 0) {
 
 $manifest = [ordered]@{
     label = 'ME8 POC/Demo'
-    version = 'me8-poc-demo-20260709'
-    locked = '2026-07-09'
+    version = 'me8-poc-demo-20260711-fr-genre'
+    locked = '2026-07-11'
     gitCommit = $gitHead
     videoWallCache = '20260709-wall-claim'
-    note = 'POC/demo lock after VC BWC libopenh264 + Server Config/UI genres. Not failed-live, not me8-v2. storage/secrets/ and vendor/ffmpeg-lgpl binary not snapshotted. AI must not RESTORE unless user types RUN RESTORE-ME8-POC-DEMO.'
-    predecessor = 'me8-firmware-gold-20260706'
+    note = 'FR genre lock: DeepFace sidecar, live watch, 16-slot snap rail+metadata, standby PTT, ledger, alerts. Pre-engine-pivot rollback floor. storage/secrets/ and vendor/ffmpeg-lgpl binary not snapshotted. AI must not RESTORE unless user types RUN RESTORE-ME8-POC-DEMO.'
+    predecessor = 'me8-poc-demo-20260709'
     frozen = @(
         'public/index.html',
         'public/js/video-wall.js',

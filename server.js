@@ -97,6 +97,14 @@ const evidenceRegistry = require('./lib/evidenceRegistry');
 const evidenceSecureExport = require('./lib/evidenceSecureExport');
 const evidenceWorkflow = require('./lib/evidenceWorkflow');
 const faceTrackSidecar = require('./lib/faceTrackSidecar');
+const frSidecarClient = require('./lib/frSidecarClient');
+const frVerifyErrors = require('./lib/frVerifyErrors');
+const frBlacklist = require('./lib/frBlacklist');
+const frEnrollQuality = require('./lib/frEnrollQuality');
+const frLivePoller = require('./lib/frLivePoller');
+const frSnapLedger = require('./lib/frSnapLedger');
+const frOfflineVideo = require('./lib/frOfflineVideo');
+const frFieldAlert = require('./lib/frFieldAlert');
 const faceRedactRegions = require('./lib/faceRedactRegions');
 const evidenceCustodyAudit = require('./lib/evidenceCustodyAudit');
 const dockRegistry = require('./lib/dockRegistry');
@@ -216,6 +224,7 @@ if (process.env.FM_LLM_WARMUP === '1') {
 }
 dashboardAuth.init(STORAGE_DIR);
 dockRegistry.init(STORAGE_DIR);
+frBlacklist.init(STORAGE_DIR);
 dispatchGroups.init(STORAGE_DIR);
 firmwareOta.init({
     vendorRoot: path.join(__dirname, 'vendor', 'firmware-ota'),
@@ -238,10 +247,15 @@ const SERVER_ID = cfg.platformId;
 const HQ_CAM_ID = '10A01000822E82BFC00';
 const REALM = cfg.realm;
 
+/** True for GB28181-style BWC device ids — not model/PTT login strings (e.g. UB-6A5G). */
 function isBwcCameraId(camId) {
     const id = String(camId || '').trim();
     if (!id || id === SERVER_ID || id === HQ_CAM_ID) return false;
-    return true;
+    if (/^UB-/i.test(id)) return false;
+    if (/^\d{18,}$/.test(id)) return true;
+    const digits = (id.match(/\d/g) || []).length;
+    if (id.length >= 18 && digits >= 14) return true;
+    return false;
 }
 const MSG_WS_URL = `ws://${HOST}:${MSG_WS_PORT}`;
 const HTTP_PORT = parseInt(process.env.FM_HTTP_PORT || process.env.PORT || '3888', 10);
@@ -478,6 +492,69 @@ liveStreamPool.setOnVoicePcm((camId, pcm) => {
 liveStreamPool.setOnStreamStop((camId) => {
     liveVoiceHint.clearCam(camId);
     liveCapture.onStreamStopped(camId);
+});
+
+frLivePoller.init({
+    storageDir: STORAGE_DIR,
+    liveStreamPool,
+    liveViewers,
+    videoWsPort: VIDEO_WS_PORT,
+    log,
+    isFrLicensed: () => licenseFeatures.isFeatureEnabled('fr'),
+    getGps: (camId) => {
+        try {
+            const g = lastGpsByCam[String(camId)];
+            if (g && Number.isFinite(Number(g.lat)) && Number.isFinite(Number(g.lon))) {
+                return { lat: Number(g.lat), lon: Number(g.lon), at: g.at || null };
+            }
+        } catch (_) { /* ignore */ }
+        return null;
+    },
+    deviceLabel: (camId) => {
+        try {
+            const fleet = fleetRegistry.getDashboardFleet && fleetRegistry.getDashboardFleet();
+            if (Array.isArray(fleet)) {
+                const m = fleet.find((x) => x && String(x.id) === String(camId));
+                if (m && m.name) return String(m.name);
+            }
+        } catch (_) { /* ignore */ }
+        return String(camId);
+    },
+    emit: (event, payload, camId) => emitToDashboardSockets(event, payload, camId),
+    onHit: (hit) => {
+        try {
+            auditLog.record('analytics.fr_blacklist_hit', {
+                target: hit.blacklistId,
+                detail: {
+                    camId: hit.camId,
+                    scorePct: hit.scorePct,
+                    displayName: hit.displayName,
+                    hitId: hit.hitId,
+                    source: hit.source || 'live',
+                },
+            });
+        } catch (_) { /* ignore */ }
+    },
+});
+frLivePoller.start();
+frOfflineVideo.init({
+    storageDir: STORAGE_DIR,
+    cropsDir: path.join(STORAGE_DIR, 'fr-live-crops'),
+    emit: (event, payload, camId) => emitToDashboardSockets(event, payload, camId),
+    onHit: (hit) => {
+        try {
+            auditLog.record('analytics.fr_blacklist_hit', {
+                target: hit.blacklistId,
+                detail: {
+                    camId: hit.camId,
+                    scorePct: hit.scorePct,
+                    displayName: hit.displayName,
+                    hitId: hit.hitId,
+                    source: hit.source || 'offline-video',
+                },
+            });
+        } catch (_) { /* ignore */ }
+    },
 });
 
 
@@ -1797,10 +1874,31 @@ function syncFleetDeviceMeta() {
     return data;
 }
 
+/** Drop junk registry rows (model/login strings) so they cannot hang in fleet/FR UI. */
+function purgeJunkBwcRegistryRows() {
+    const data = loadBwcDevices();
+    const before = (data.devices || []).length;
+    const kept = (data.devices || []).filter((d) => d && isBwcCameraId(d.deviceId));
+    const removed = before - kept.length;
+    if (removed <= 0) return data;
+    bwcDevicesCache = bwcDevices.write(BWC_DEVICES_PATH, { devices: kept });
+    syncFleetDeviceMeta();
+    if (siteDb.isReady()) {
+        (data.devices || []).forEach((d) => {
+            const id = d && d.deviceId ? String(d.deviceId).trim() : '';
+            if (!id || isBwcCameraId(id)) return;
+            try { siteDb.touchRuntime(id, { online: false, lastSeen: Date.now() }); } catch (_) { /* ignore */ }
+        });
+    }
+    emitFleetRoster({ force: true });
+    log.web.info('bwc registry purged junk ids', { removed, kept: kept.length });
+    return bwcDevicesCache;
+}
+
 /** Add a SIP-registered BWC to bwc-devices.json when missing (never overwrites nicknames). */
 function ensureBwcEntryForDevice(deviceId) {
     const id = String(deviceId || '').trim();
-    if (!id) return null;
+    if (!id || !isBwcCameraId(id)) return null;
     const data = loadBwcDevices();
     if (bwcDevices.findById(data, id)) return data;
     try {
@@ -1832,7 +1930,8 @@ function ensureBwcEntryForDevice(deviceId) {
 
 function bootstrapBwcDeviceList() {
     invalidateBwcDevicesCache();
-    const data = loadBwcDevices();
+    let data = loadBwcDevices();
+    data = purgeJunkBwcRegistryRows() || data;
     if ((data.devices || []).length) {
         syncFleetDeviceMeta();
         return data;
@@ -1862,7 +1961,7 @@ function ensureBwcEntriesForWallChannels(channels) {
     let changed = false;
     (channels || []).forEach((ch) => {
         const id = ch && ch.deviceId ? String(ch.deviceId).trim() : '';
-        if (!id || byId[id]) return;
+        if (!id || !isBwcCameraId(id) || byId[id]) return;
         byId[id] = {
             deviceId: id,
             operatorName: String(ch.operatorName || '').trim(),
@@ -1941,7 +2040,13 @@ app.get('/api/bwc-devices', (req, res) => {
 
 app.post('/api/bwc-devices', (req, res) => {
     const body = req.body || {};
-    const incoming = Array.isArray(body.devices) ? body.devices : [];
+    const incomingRaw = Array.isArray(body.devices) ? body.devices : [];
+    const incoming = incomingRaw.filter((d) => d && isBwcCameraId(d.deviceId));
+    if (incoming.length !== incomingRaw.length) {
+        log.web.warn('bwc devices save dropped junk ids', {
+            dropped: incomingRaw.length - incoming.length,
+        });
+    }
     try {
         platformLimits.assertBwcCount(incoming.length);
         invalidateBwcDevicesCache();
@@ -2235,10 +2340,21 @@ app.post('/api/bwc-devices/:deviceId/geofence', (req, res) => {
 
 app.get('/api/last-gps', (req, res) => {
     const camId = (req.query && req.query.camId) || connectedCameraId;
-    const online = !!(camId && deviceOnline && connectedCameraId === camId);
-    const g = camId && lastGpsByCam[camId];
-    if (!g) return res.json({ cameraId: camId || null, online: false });
-    res.json({ cameraId: camId, lat: g.lat, lon: g.lon, online });
+    const id = camId ? String(camId).trim() : '';
+    const fleetRec = id && fleetRegistry.getDashboardFleet
+        ? fleetRegistry.getDashboardFleet().find((x) => x && String(x.id) === id)
+        : null;
+    const online = !!(id && ((deviceOnline && connectedCameraId === id) || (fleetRec && fleetRec.online)));
+    if (!id) return res.json({ cameraId: null, online: false });
+    if (online) {
+        const g = lastGpsByCam[id];
+        if (!gpsHasCoords(g)) return res.json({ cameraId: id, online: true });
+        return res.json({ cameraId: id, lat: g.lat, lon: g.lon, online: true });
+    }
+    /* Offline: only return coords for map pin if this session + within 12h TTL */
+    const c = offlineMapPinCoords(id);
+    if (!c) return res.json({ cameraId: id, online: false });
+    return res.json({ cameraId: id, lat: c.lat, lon: c.lon, online: false });
 });
 
 app.get('/api/map-positions', (req, res) => {
@@ -3804,14 +3920,26 @@ function buildMapPositionsPayload(session) {
     const seen = new Set();
     fleet.forEach((d) => {
         if (!d || !d.id || !isBwcCameraId(d.id)) return;
-        const g = lastGpsByCam[d.id];
-        if (!g || g.lat == null || g.lon == null) return;
+        const online = !!d.online;
+        let lat = null;
+        let lon = null;
+        if (online) {
+            const g = lastGpsByCam[d.id];
+            if (!gpsHasCoords(g)) return;
+            lat = g.lat;
+            lon = g.lon;
+        } else {
+            const c = offlineMapPinCoords(d.id);
+            if (!c) return;
+            lat = c.lat;
+            lon = c.lon;
+        }
         seen.add(d.id);
         devices.push({
             cameraId: d.id,
-            lat: g.lat,
-            lon: g.lon,
-            online: !!d.online,
+            lat: lat,
+            lon: lon,
+            online: online,
             name: d.name || d.id,
             operatorName: d.name || '',
             mapGroup: fleetRegistry.getMapGroup(d.id) || '',
@@ -3822,15 +3950,27 @@ function buildMapPositionsPayload(session) {
     (bwcData.devices || []).forEach((row) => {
         const id = row && row.deviceId ? String(row.deviceId).trim() : '';
         if (!id || !isBwcCameraId(id) || seen.has(id)) return;
-        const g = lastGpsByCam[id];
-        if (!g || g.lat == null || g.lon == null) return;
-        seen.add(id);
         const fleetRec = fleet.find((x) => x && x.id === id);
+        const online = !!(fleetRec && fleetRec.online);
+        let lat = null;
+        let lon = null;
+        if (online) {
+            const g = lastGpsByCam[id];
+            if (!gpsHasCoords(g)) return;
+            lat = g.lat;
+            lon = g.lon;
+        } else {
+            const c = offlineMapPinCoords(id);
+            if (!c) return;
+            lat = c.lat;
+            lon = c.lon;
+        }
+        seen.add(id);
         devices.push({
             cameraId: id,
-            lat: g.lat,
-            lon: g.lon,
-            online: !!(fleetRec && fleetRec.online),
+            lat: lat,
+            lon: lon,
+            online: online,
             name: (fleetRec && fleetRec.name) || row.operatorName || id,
             operatorName: row.operatorName || '',
             mapGroup: row.mapGroup || fleetRegistry.getMapGroup(id) || '',
@@ -3838,20 +3978,12 @@ function buildMapPositionsPayload(session) {
         });
     });
     const pendingGps = [];
-    fleet.forEach((d) => {
-        if (!d || !d.id || !isBwcCameraId(d.id) || !d.online) return;
-        const g = lastGpsByCam[d.id];
-        if (g && g.lat != null && g.lon != null) return;
-        pendingGps.push({
-            cameraId: d.id,
-            name: d.name || d.id,
-            online: true,
-        });
-    });
+    /* mob-map-hide-gps-pending-banner: do not surface online-without-GPS as UI nag.
+       Offline / >12h still governed by offline pin TTL — not this list. */
     const user = dispatchScope.userFromSession(session);
     const groups = listDispatchGroupsForScope();
     const scopedDevices = dispatchScope.filterMapDevicesForUser(devices, user, groups);
-    const scopedPending = pendingGps.filter((p) => sessionCanSeeCam(session, p.cameraId));
+    const scopedPending = pendingGps;
     return { devices: scopedDevices, pendingGps: scopedPending };
 }
 
@@ -4806,6 +4938,530 @@ app.get('/api/evidence/redact/track-selfcheck', dashboardAuth.requireSuperAdmin,
     }
 });
 
+// ─── Analytics FR sidecar (DeepFace Facenet/SFace) — Tier A: health + 1:1 verify
+const frVerifyUpload = multer({
+    storage: multer.diskStorage({
+        destination: (_req, _file, cb) => {
+            const dir = path.join(STORAGE_DIR, 'fr-verify-tmp');
+            try { fs.mkdirSync(dir, { recursive: true }); } catch (_) { /* ignore */ }
+            cb(null, dir);
+        },
+        filename: (_req, file, cb) => {
+            const safe = String(file.originalname || 'img').replace(/[^\w.\-]+/g, '_').slice(0, 80);
+            cb(null, Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '-' + safe);
+        },
+    }),
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+        if (/\.(jpe?g|png|webp|bmp)$/i.test(file.originalname || '')) return cb(null, true);
+        cb(new Error('Use JPEG, PNG, WebP, or BMP'));
+    },
+});
+
+app.get('/api/analytics/fr/health', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    try {
+        const featureEnabled = licenseFeatures.isFeatureEnabled('fr');
+        const runtime = await frSidecarClient.health();
+        let snapLedger = null;
+        try { snapLedger = frSnapLedger.stats(); } catch (_) { snapLedger = null; }
+        res.json({ ok: true, featureEnabled, runtime, snapLedger });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.post('/api/analytics/fr/verify', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    frVerifyUpload.fields([
+        { name: 'file1', maxCount: 1 },
+        { name: 'file2', maxCount: 1 },
+    ])(req, res, async (err) => {
+        const cleanup = [];
+        try {
+            if (err) {
+                const msg = String(err.message || err);
+                const code = /not permitted|file type|too large|limit/i.test(msg)
+                    ? frVerifyErrors.CODES.BAD_FILE
+                    : frVerifyErrors.CODES.FAILED;
+                return res.status(400).json(frVerifyErrors.operatorPayload(code, 400));
+            }
+            const f1 = req.files && req.files.file1 && req.files.file1[0];
+            const f2 = req.files && req.files.file2 && req.files.file2[0];
+            if (!f1 || !f2) {
+                return res.status(400).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NEED_TWO, 400));
+            }
+            cleanup.push(f1.path, f2.path);
+            const model = (req.body && req.body.model) || process.env.FM_FR_MODEL || 'Facenet';
+            const result = await frSidecarClient.verifyPaths(f1.path, f2.path, model);
+            const classified = frVerifyErrors.classifySidecarResult(result);
+            auditLog.recordFromRequest(req, 'analytics.fr_verify', {
+                detail: {
+                    verified: !!(result && result.verified),
+                    scorePct: result && result.scorePct,
+                    model: result && result.model,
+                    ok: !!(result && result.ok),
+                    code: classified ? classified.code : null,
+                    engineError: result && result.error ? String(result.error).slice(0, 80) : null,
+                },
+            });
+            if (classified) {
+                return res.status(classified.httpStatus).json(
+                    frVerifyErrors.operatorPayload(classified.code, classified.httpStatus)
+                );
+            }
+            res.json({
+                ok: true,
+                verified: !!result.verified,
+                scorePct: result.scorePct,
+                model: result.model,
+            });
+        } catch (e) {
+            auditLog.recordFromRequest(req, 'analytics.fr_verify', {
+                detail: { ok: false, code: frVerifyErrors.CODES.FAILED, message: String(e && e.message || e).slice(0, 120) },
+            });
+            res.status(500).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 500));
+        } finally {
+            cleanup.forEach((p) => {
+                try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+            });
+        }
+    });
+});
+
+const frEnrollUpload = multer({
+    storage: multer.diskStorage({
+        destination: (_req, _file, cb) => {
+            const dir = path.join(STORAGE_DIR, 'fr-enroll-tmp');
+            try { fs.mkdirSync(dir, { recursive: true }); } catch (_) { /* ignore */ }
+            cb(null, dir);
+        },
+        filename: (_req, file, cb) => {
+            const safe = String(file.originalname || 'img').replace(/[^\w.\-]+/g, '_').slice(0, 80);
+            cb(null, Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '-' + safe);
+        },
+    }),
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+        if (/\.(jpe?g|png)$/i.test(file.originalname || '')) return cb(null, true);
+        cb(new Error('File type not permitted'));
+    },
+});
+
+app.get('/api/analytics/fr/blacklist', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const data = frBlacklist.list({
+            q: req.query && req.query.q,
+            listStatus: req.query && (req.query.listStatus || req.query.grade),
+            enabledOnly: String(req.query && req.query.enabledOnly || '') === '1',
+        });
+        res.json(data);
+    } catch (err) {
+        res.status(500).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 500));
+    }
+});
+
+app.post('/api/analytics/fr/enroll-preflight', dashboardAuth.requireSuperAdmin, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    frEnrollUpload.single('photo')(req, res, async (err) => {
+        const cleanup = [];
+        try {
+            if (err) {
+                return res.status(400).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.BAD_FILE, 400));
+            }
+            if (!req.file || !req.file.path) {
+                return res.status(400).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.BAD_FILE, 400));
+            }
+            cleanup.push(req.file.path);
+            const sizeGate = frEnrollQuality.checkEnrollImageFile(req.file.path, req.file.size);
+            if (!sizeGate.ok) {
+                const code = sizeGate.code === 'fr.image_too_small'
+                    ? frVerifyErrors.CODES.IMAGE_TOO_SMALL
+                    : frVerifyErrors.CODES.BAD_FILE;
+                return res.status(400).json(Object.assign(
+                    frVerifyErrors.operatorPayload(code, 400),
+                    {
+                        gate: sizeGate.gate || 'file',
+                        width: sizeGate.width || null,
+                        height: sizeGate.height || null,
+                        preflight: true,
+                    }
+                ));
+            }
+            const model = (req.body && req.body.model) || process.env.FM_FR_MODEL || 'Facenet';
+            const rep = await frSidecarClient.representPath(req.file.path, model);
+            if (rep && rep.ok === false) {
+                const classified = frVerifyErrors.classifySidecarResult(rep);
+                const c = classified || { code: frVerifyErrors.CODES.FAILED, httpStatus: 422 };
+                return res.status(c.httpStatus).json(Object.assign(
+                    frVerifyErrors.operatorPayload(c.code, c.httpStatus),
+                    {
+                        gate: rep.gate || null,
+                        faceWidth: rep.faceWidth || null,
+                        faceHeight: rep.faceHeight || null,
+                        imageWidth: rep.imageWidth || null,
+                        imageHeight: rep.imageHeight || null,
+                        sharpness: rep.sharpness != null ? rep.sharpness : null,
+                        luma: rep.luma != null ? rep.luma : null,
+                        preflight: true,
+                    }
+                ));
+            }
+            if (!rep || !rep.ok) {
+                return res.status(422).json(Object.assign(
+                    frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 422),
+                    { preflight: true }
+                ));
+            }
+            return res.json({
+                ok: true,
+                preflight: true,
+                faceWidth: rep.faceWidth || null,
+                faceHeight: rep.faceHeight || null,
+                dims: rep.dims || null,
+                model: rep.model || model,
+            });
+        } catch (e) {
+            try {
+                log.web.warn('fr enroll preflight exception', {
+                    message: String(e && e.message || e).slice(0, 200),
+                });
+            } catch (_) { /* ignore */ }
+            res.status(500).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 500));
+        } finally {
+            cleanup.forEach((p) => {
+                try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+            });
+        }
+    });
+});
+
+app.post('/api/analytics/fr/blacklist', dashboardAuth.requireSuperAdmin, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    frEnrollUpload.single('photo')(req, res, async (err) => {
+        const cleanup = [];
+        try {
+            if (err) {
+                return res.status(400).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.BAD_FILE, 400));
+            }
+            if (!req.file || !req.file.path) {
+                return res.status(400).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.BAD_FILE, 400));
+            }
+            cleanup.push(req.file.path);
+            const displayName = String((req.body && req.body.displayName) || '').trim();
+            if (!displayName) {
+                return res.status(400).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NEED_NAME, 400));
+            }
+            const sizeGate = frEnrollQuality.checkEnrollImageFile(req.file.path, req.file.size);
+            if (!sizeGate.ok) {
+                const code = sizeGate.code === 'fr.image_too_small'
+                    ? frVerifyErrors.CODES.IMAGE_TOO_SMALL
+                    : frVerifyErrors.CODES.BAD_FILE;
+                return res.status(400).json(Object.assign(
+                    frVerifyErrors.operatorPayload(code, 400),
+                    {
+                        gate: sizeGate.gate || 'file',
+                        width: sizeGate.width || null,
+                        height: sizeGate.height || null,
+                    }
+                ));
+            }
+            const model = (req.body && req.body.model) || process.env.FM_FR_MODEL || 'Facenet';
+            const rep = await frSidecarClient.representPath(req.file.path, model);
+            const classified = frVerifyErrors.classifySidecarResult(rep && rep.ok === false ? rep : null);
+            if (rep && rep.ok === false) {
+                const c = classified || { code: frVerifyErrors.CODES.FAILED, httpStatus: 422 };
+                return res.status(c.httpStatus).json(Object.assign(
+                    frVerifyErrors.operatorPayload(c.code, c.httpStatus),
+                    {
+                        gate: rep.gate || null,
+                        faceWidth: rep.faceWidth || null,
+                        faceHeight: rep.faceHeight || null,
+                        imageWidth: rep.imageWidth || null,
+                        imageHeight: rep.imageHeight || null,
+                    }
+                ));
+            }
+            if (!rep || !rep.ok || !Array.isArray(rep.embedding)) {
+                return res.status(422).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 422));
+            }
+            const actor = req.dashboardUser && (req.dashboardUser.username || req.dashboardUser.displayName) || '';
+            const enrolled = frBlacklist.enroll({
+                displayName,
+                idNumber: req.body && req.body.idNumber,
+                notes: req.body && req.body.notes,
+                listStatus: req.body && req.body.listStatus,
+                reasonCode: req.body && req.body.reasonCode,
+                reasonOther: req.body && req.body.reasonOther,
+                lastSeen: req.body && req.body.lastSeen,
+                lastIncident: req.body && req.body.lastIncident,
+                embedding: rep.embedding,
+                model: rep.model || model,
+                photoPath: req.file.path,
+                enrolledBy: actor,
+            });
+            if (!enrolled.ok) {
+                const code = enrolled.code === 'fr.blacklist_full'
+                    ? frVerifyErrors.CODES.BLACKLIST_FULL
+                    : (enrolled.code === 'fr.need_name' ? frVerifyErrors.CODES.NEED_NAME : frVerifyErrors.CODES.FAILED);
+                return res.status(400).json(frVerifyErrors.operatorPayload(code, 400));
+            }
+            auditLog.recordFromRequest(req, 'analytics.fr_blacklist_enroll', {
+                target: enrolled.entry.id,
+                detail: {
+                    displayName: enrolled.entry.displayName,
+                    model: enrolled.entry.model,
+                    listStatus: enrolled.entry.listStatus,
+                    reasonCode: enrolled.entry.reasonCode,
+                },
+            });
+            res.json({ ok: true, entry: enrolled.entry, count: frBlacklist.list().count });
+        } catch (e) {
+            try {
+                log.web.warn('fr blacklist enroll exception', {
+                    message: String(e && e.message || e).slice(0, 200),
+                });
+            } catch (_) { /* ignore */ }
+            res.status(500).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 500));
+        } finally {
+            cleanup.forEach((p) => {
+                try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+            });
+        }
+    });
+});
+
+app.patch('/api/analytics/fr/blacklist/:id', dashboardAuth.requireSuperAdmin, express.json({ limit: '8kb' }), (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'enabled')) {
+            const out = frBlacklist.setEnabled(req.params.id, !!req.body.enabled);
+            if (!out.ok) return res.status(404).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_FOUND, 404));
+            auditLog.recordFromRequest(req, 'analytics.fr_blacklist_enable', {
+                target: req.params.id,
+                detail: { enabled: !!req.body.enabled },
+            });
+            return res.json({ ok: true, entry: out.entry });
+        }
+        return res.status(400).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 400));
+    } catch (err) {
+        res.status(500).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 500));
+    }
+});
+
+app.delete('/api/analytics/fr/blacklist/:id', dashboardAuth.requireSuperAdmin, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const out = frBlacklist.remove(req.params.id);
+        if (!out.ok) return res.status(404).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_FOUND, 404));
+        auditLog.recordFromRequest(req, 'analytics.fr_blacklist_delete', { target: req.params.id });
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 500));
+    }
+});
+
+app.get('/api/analytics/fr/blacklist/:id/photo', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    const p = frBlacklist.photoAbsolutePath(req.params.id);
+    if (!p) return res.status(404).end();
+    res.sendFile(p);
+});
+
+app.get('/api/analytics/fr/crop/:file', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).end();
+    }
+    const p = frLivePoller.cropAbsolutePath(req.params.file);
+    if (!p) return res.status(404).end();
+    res.type('image/jpeg').sendFile(p);
+});
+
+/* mob-fr-snap-ledger: durable snap index + crop files */
+app.get('/api/analytics/fr/snaps', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const rows = frSnapLedger.list({
+            camId: req.query.camId,
+            limit: req.query.limit,
+            before: req.query.before,
+            matchOnly: req.query.matchOnly === '1' || req.query.matchOnly === 'true',
+        });
+        res.json({ ok: true, snaps: rows, stats: frSnapLedger.stats() });
+    } catch (err) {
+        res.status(500).json({ ok: false, error: String(err && err.message || err).slice(0, 120) });
+    }
+});
+
+app.get('/api/analytics/fr/snap/:file', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).end();
+    }
+    const p = frSnapLedger.cropAbsolutePath(req.params.file);
+    if (!p) return res.status(404).end();
+    res.type('image/jpeg').sendFile(p);
+});
+
+/* mob-fr-standby-ptt-group: FR hit standby response team (SOS-like radio, not Alert field beep) */
+app.post('/api/analytics/fr/ptt-standby-team', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(opErr('Face recognition not licensed'));
+    }
+    try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        const body = req.body || {};
+        const hitId = body.hitId != null ? String(body.hitId).trim() : '';
+        const alarmCamId = String(body.camId || '').trim();
+        const helperCamIds = Array.isArray(body.helperCamIds)
+            ? body.helperCamIds.map(String).filter(Boolean)
+            : [];
+        if (!alarmCamId) {
+            return res.status(400).json(opErr('camId required'));
+        }
+        assertSessionCanAccessCam(session, alarmCamId);
+        helperCamIds.forEach((id) => assertSessionCanAccessCam(session, id));
+        if (!PTT_ENABLED) {
+            return res.status(503).json(opErr('PTT not enabled on server'));
+        }
+        const team = sosResponseTeam.uniqueCamIds([alarmCamId, ...helperCamIds]);
+        syncFleetDeviceMeta();
+        const devices = sosResponseTeam.buildTeamPttDevices(team, resolveOperatorNameForCam);
+        const pushResult = sosResponseTeam.pushPttGroupToTeam({
+            sip,
+            pttServer,
+            camIds: team,
+            getContactUriForCam,
+            PTT_ENABLED,
+            REALM,
+            SERVER_ID,
+            HOST,
+            PTT_GTID,
+            PTT_PORT,
+            PTT_GROUP_STATUS,
+            snid: '77',
+            devices,
+            log,
+        });
+        const pttTeam = {
+            team,
+            pushed: pushResult.pushed,
+            skipped: pushResult.skipped,
+            pttOnline: team.map((id) => ({
+                camId: id,
+                pttOnline: pttServer.isDevicePttOnline(id),
+            })),
+        };
+        log.ptt.info('fr standby ptt team', {
+            hitId: hitId || null,
+            camId: alarmCamId,
+            teamSize: team.length,
+            pushed: pushResult.pushed,
+        });
+        auditLog.recordFromRequest(req, 'fr.ptt_standby_team', {
+            target: hitId || alarmCamId,
+            detail: { hitId: hitId || null, camId: alarmCamId, team: pttTeam.team, pushed: pushResult.pushed },
+        });
+        res.json({ ok: true, pttTeam });
+    } catch (err) {
+        res.status(err.status || 500).json(opErr(err));
+    }
+});
+
+const frOfflineUpload = multer({
+    storage: multer.diskStorage({
+        destination: (_req, _file, cb) => {
+            const dir = path.join(STORAGE_DIR, 'fr-offline-tmp', 'upload');
+            try { fs.mkdirSync(dir, { recursive: true }); } catch (_) { /* ignore */ }
+            cb(null, dir);
+        },
+        filename: (_req, file, cb) => {
+            const safe = String(file.originalname || 'video').replace(/[^\w.\-]+/g, '_').slice(0, 80);
+            cb(null, Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '-' + safe);
+        },
+    }),
+    limits: { fileSize: frOfflineVideo.MAX_BYTES },
+    fileFilter: (_req, file, cb) => {
+        if (frOfflineVideo.allowExt(file.originalname || '')) return cb(null, true);
+        cb(new Error('Use MP4, MOV, WebM, or MKV'));
+    },
+});
+
+app.post('/api/analytics/fr/offline-video', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    frOfflineUpload.single('video')(req, res, (err) => {
+        if (err) {
+            const msg = String(err.message || err);
+            if (/too large|File too large|LIMIT_FILE_SIZE/i.test(msg)) {
+                return res.status(400).json({
+                    ok: false,
+                    error: 'too_large',
+                    message: 'Video is too large (max ' + Math.round(frOfflineVideo.MAX_BYTES / (1024 * 1024)) + ' MB).',
+                });
+            }
+            return res.status(400).json({
+                ok: false,
+                error: 'bad_file',
+                message: /MP4|MOV|WebM|MKV|permitted|type/i.test(msg)
+                    ? 'Use MP4, MOV, WebM, or MKV.'
+                    : 'Could not upload that video.',
+            });
+        }
+        if (!req.file || !req.file.path) {
+            return res.status(400).json({ ok: false, error: 'need_file', message: 'Choose a video file.' });
+        }
+        const thr = req.body && req.body.threshold != null ? parseInt(req.body.threshold, 10) : undefined;
+        const started = frOfflineVideo.startJob({
+            videoPath: req.file.path,
+            fileName: req.file.originalname || req.file.filename,
+            threshold: thr,
+        });
+        if (!started.ok) {
+            try { fs.unlinkSync(req.file.path); } catch (_) { /* ignore */ }
+            return res.status(started.error === 'busy' ? 409 : 400).json(started);
+        }
+        auditLog.recordFromRequest(req, 'analytics.fr_offline_video', {
+            detail: {
+                jobId: started.job && started.job.jobId,
+                fileName: started.job && started.job.fileName,
+            },
+        });
+        res.json(started);
+    });
+});
+
+app.get('/api/analytics/fr/offline-video/status', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    res.json({ ok: true, job: frOfflineVideo.getStatus() });
+});
+
+app.post('/api/analytics/fr/offline-video/cancel', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    const out = frOfflineVideo.cancelJob();
+    res.json(out);
+});
+
 app.get('/api/evidence/export-stream/:exportId', requireEvidenceExport, (req, res) => {
     try {
         const resolved = evidenceWorkflow.resolveExportStream(req.params.exportId);
@@ -5620,11 +6276,12 @@ function recordCamIp(camId, contactUri) {
 
 function resolvePttCamId(peerIp, pttUser) {
     const ip = String(peerIp || '').replace(/^::ffff:/, '');
-    if (ip && camIdByIp[ip]) return camIdByIp[ip];
+    if (ip && camIdByIp[ip] && isBwcCameraId(camIdByIp[ip])) return camIdByIp[ip];
     const user = String(pttUser || '').trim();
     if (/^3402\d{16,}$/.test(user)) return user;
-    if (user && fleetRegistry.getDashboardFleet().some((d) => d.id === user)) return user;
-    return user || null;
+    if (user && isBwcCameraId(user) && fleetRegistry.getDashboardFleet().some((d) => d.id === user)) return user;
+    /* Never treat model/PTT login strings (e.g. UB-6A5G) as cam ids — that created fleet ghosts. */
+    return isBwcCameraId(user) ? user : null;
 }
 
 function buildPttDownlinkPolicyForClient() {
@@ -6242,8 +6899,43 @@ let offlineWatchTimer = null;
 const DEVICE_OFFLINE_MS = 90000;
 
 const lastGpsByCam = {};
+/** Cams that went offline during this server process — only these may show last-location map pins. */
+const offlineMapPinSession = new Set();
+const OFFLINE_MAP_PIN_TTL_MS = Math.max(
+    60 * 1000,
+    parseInt(process.env.FM_OFFLINE_MAP_PIN_TTL_MS || String(12 * 60 * 60 * 1000), 10) || (12 * 60 * 60 * 1000)
+);
 const geofenceInsideByCam = {};
 const GPS_CACHE_PATH = path.join(STORAGE_DIR, 'last-gps.json');
+
+function normalizeGpsCamId(camId) {
+    return String(camId || '').trim();
+}
+
+function gpsHasCoords(g) {
+    return !!(g && g.lat != null && g.lon != null && !Number.isNaN(Number(g.lat)) && !Number.isNaN(Number(g.lon)));
+}
+
+/** Fresh enough for offline map pin (12h default). Missing `at` = expired (clean after policy change). */
+function gpsFreshForOfflineMapPin(g) {
+    if (!gpsHasCoords(g)) return false;
+    const at = g.at != null ? Number(g.at) : 0;
+    if (!at || Number.isNaN(at)) return false;
+    return (Date.now() - at) <= OFFLINE_MAP_PIN_TTL_MS;
+}
+
+/**
+ * Offline last-location pin: only if this process saw them go offline AND GPS within TTL.
+ * Server restart clears session → no offline pins until a new offline event.
+ * mob-fleet-warm-chrome-no-stale-pin: do NOT paint last-gps.json on boot (stale / walking BWC).
+ */
+function offlineMapPinCoords(camId) {
+    const id = normalizeGpsCamId(camId);
+    if (!id || !offlineMapPinSession.has(id)) return null;
+    const g = lastGpsByCam[id];
+    if (!gpsFreshForOfflineMapPin(g)) return null;
+    return { lat: g.lat, lon: g.lon };
+}
 
 function isGeofenceOutside(camId) {
     if (!camId) return false;
@@ -6263,13 +6955,29 @@ function loadGpsCache() {
     try {
         if (fs.existsSync(GPS_CACHE_PATH)) {
             const data = JSON.parse(fs.readFileSync(GPS_CACHE_PATH, 'utf8'));
+            let purged = false;
             Object.keys(data).forEach((camId) => {
                 if (!isBwcCameraId(camId)) return;
                 const la = parseFloat(data[camId].lat);
                 const lo = parseFloat(data[camId].lon);
-                if (!Number.isNaN(la) && !Number.isNaN(lo)) lastGpsByCam[camId] = { lat: la, lon: lo };
+                if (Number.isNaN(la) || Number.isNaN(lo)) return;
+                const atRaw = data[camId].at != null ? Number(data[camId].at) : 0;
+                const at = (!Number.isNaN(atRaw) && atRaw > 0) ? atRaw : 0;
+                /* Legacy rows without `at` (or at:0) cannot drive offline map pins — drop from cache. */
+                if (!at) {
+                    purged = true;
+                    return;
+                }
+                lastGpsByCam[camId] = { lat: la, lon: lo, at: at };
             });
+            if (purged) {
+                try {
+                    fs.writeFileSync(GPS_CACHE_PATH, JSON.stringify(lastGpsByCam, null, 2), 'utf8');
+                } catch (_) { /* ignore */ }
+            }
         }
+        /* Do not seed offlineMapPinSession — restart must clear offline map pins. */
+        offlineMapPinSession.clear();
     } catch (err) {
         log.sip.warn('gps cache read failed', { message: err.message });
     }
@@ -6459,7 +7167,7 @@ function rememberGps(camId, lat, lon) {
     const lo = parseGpsCoord(lon);
     if (!camId || Number.isNaN(la) || Number.isNaN(lo)) return;
     if (la < -90 || la > 90 || lo < -180 || lo > 180) return;
-    lastGpsByCam[camId] = { lat: la, lon: lo };
+    lastGpsByCam[camId] = { lat: la, lon: lo, at: Date.now() };
     saveGpsCache();
 }
 
@@ -7235,36 +7943,39 @@ const pttTalkTargetsBySocket = new Map();
 /** Active operator→BWC call mic (PTT TX only — no second SIP INVITE). */
 let pttVoiceCallCamId = null;
 
+/**
+ * mob-fleet-boot-online-soften — do NOT mass-offline every real BWC on restart
+ * (that cold-boot hurt Open All / GPS feel after mob-fleet-no-ghost-12h-restart).
+ * Still: never seed fake online from siteDb; only clear junk (non-GB) ids.
+ */
 function seedFleetOnlineFromPersistedState() {
     syncFleetDeviceMeta();
-    const marked = new Set();
-    if (siteDb.isReady()) {
-        siteDb.listRecentOnline(DEVICE_OFFLINE_MS).forEach((row) => {
-            const camId = row && row.device_id ? String(row.device_id).trim() : '';
-            if (!camId || !isBwcCameraId(camId) || marked.has(camId)) return;
-            fleetRegistry.markOnline(camId);
-            marked.add(camId);
-        });
-    }
-    Object.keys(lastContactUriByCam).forEach((camId) => {
-        if (!isBwcCameraId(camId) || marked.has(camId)) return;
-        if (!lastContactUriByCam[camId]) return;
-        fleetRegistry.markOnline(camId);
-        marked.add(camId);
+    let junkCleared = 0;
+    fleetRegistry.getDashboardFleet().forEach((d) => {
+        const id = d && d.id ? String(d.id).trim() : '';
+        if (!id || isBwcCameraId(id)) return;
+        fleetRegistry.markOffline(id);
+        junkCleared += 1;
+        if (siteDb.isReady()) {
+            try { siteDb.touchRuntime(id, { online: false, lastSeen: d.lastSeen || Date.now() }); } catch (_) { /* ignore */ }
+        }
     });
-    if (marked.size) {
-        // INDUSTRY STANDARD FIX: Force the registry to clear the fake online status on boot
-        fleetRegistry.getDashboardFleet().forEach((d) => { d.online = false; });
-
-        deviceOnline = fleetRegistry.hasOnline();
-        if (!connectedCameraId || !fleetRegistry.getDashboardFleet().find((d) => d.id === connectedCameraId && d.online)) {
-            connectedCameraId = fleetRegistry.firstOnlineId();
-        }
-        if (connectedCameraId && lastContactUriByCam[connectedCameraId]) {
-            cameraContactUri = lastContactUriByCam[connectedCameraId];
-        }
-        log.sip.info('fleet online seeding cleared honestly | awaiting real connections', { count: marked.size });
+    if (siteDb.isReady()) {
+        try {
+            siteDb.listRecentOnline(Date.now()).forEach((row) => {
+                const camId = row && row.device_id ? String(row.device_id).trim() : '';
+                if (!camId || isBwcCameraId(camId)) return;
+                try { siteDb.touchRuntime(camId, { online: false, lastSeen: row.last_seen || Date.now() }); } catch (_) { /* ignore */ }
+            });
+        } catch (_) { /* ignore */ }
     }
+    /* Real GB cams stay default offline in memory until SIP/telemetry — no siteDb wipe. */
+    deviceOnline = fleetRegistry.hasOnline();
+    if (!deviceOnline) connectedCameraId = null;
+    else if (!connectedCameraId || !(fleetRegistry.ensure(connectedCameraId) || {}).online) {
+        connectedCameraId = fleetRegistry.firstOnlineId();
+    }
+    log.sip.info('fleet online boot soft | junk cleared, awaiting SIP', { junkCleared });
 }
 
 function replayOnlineDeviceStateToSocket(socket) {
@@ -7737,6 +8448,7 @@ io.on('connection', (socket) => {
                 remainingViewers: remaining,
                 remainingOps: refs.ops,
                 remainingCommandWall: refs.commandWall,
+                remainingAnalyticsFr: refs.analyticsFr,
                 remainingConference: refs.conferenceRefs,
                 countForCam: refs.countForCam,
                 socketsWithRefs: refs.socketsWithRefs,
@@ -7761,6 +8473,89 @@ io.on('connection', (socket) => {
                 emitBwcCallState(callCam, false, null);
             });
         }
+    });
+
+    socket.on('fr-watch-slots', (payload) => {
+        if (!licenseFeatures.isFeatureEnabled('fr')) return;
+        const cams = payload && Array.isArray(payload.camIds) ? payload.camIds : [];
+        const thr = payload && payload.threshold != null ? payload.threshold : undefined;
+        frLivePoller.setWatchSlots(socket.id, cams, thr);
+    });
+
+    socket.on('fr-alarm-ack', (payload) => {
+        if (!payload || !payload.hitId) return;
+        const user = socket.dashboardUser;
+        auditLog.record('analytics.fr_alarm_ack', {
+            actor: user && user.username,
+            role: user && user.role,
+            target: payload.hitId,
+            detail: { camId: payload.camId, blacklistId: payload.blacklistId },
+        });
+        emitToDashboardSockets('fr-alarm-acked', {
+            hitId: payload.hitId,
+            camId: payload.camId,
+            by: user && user.username,
+        }, payload.camId);
+    });
+
+    socket.on('fr-alarm-dismiss', (payload) => {
+        if (!payload || !payload.hitId) return;
+        const user = socket.dashboardUser;
+        auditLog.record('analytics.fr_alarm_dismiss', {
+            actor: user && user.username,
+            role: user && user.role,
+            target: payload.hitId,
+            detail: { camId: payload.camId, blacklistId: payload.blacklistId },
+        });
+        emitToDashboardSockets('fr-alarm-dismissed', {
+            hitId: payload.hitId,
+            camId: payload.camId,
+            by: user && user.username,
+        }, payload.camId);
+    });
+
+    /* FR field alert only — does not touch SOS handlers or ptt-start / ptt-audio. */
+    socket.on('fr-field-alert', (payload) => {
+        const camId = payload && payload.camId ? String(payload.camId).trim() : '';
+        if (!camId || !isBwcCameraId(camId)) {
+            socket.emit('fr-field-alert-result', { ok: false, error: 'bad_cam' });
+            return;
+        }
+        const user = socket.dashboardUser;
+        const result = frFieldAlert.sendFrFieldAlert({
+            camId,
+            displayName: payload.displayName || payload.blacklistId || '',
+            deps: {
+                pttServer: PTT_ENABLED ? pttServer : null,
+                getContactUri: getContactUriForCam,
+                sip,
+                realm: REALM,
+                serverId: SERVER_ID,
+                isVoiceCallActive: (id) => mediaSession.isVoiceCallActiveForCam(id),
+                getPttVoiceCallCamId: () => pttVoiceCallCamId,
+                log,
+            },
+        });
+        auditLog.record('analytics.fr_field_alert', {
+            actor: user && user.username,
+            role: user && user.role,
+            target: payload.hitId || camId,
+            detail: {
+                camId,
+                blacklistId: payload.blacklistId || null,
+                ptt: !!result.ptt,
+                message: !!result.message,
+                error: result.error || null,
+            },
+        });
+        socket.emit('fr-field-alert-result', {
+            ok: !!result.ok,
+            ptt: !!result.ptt,
+            message: !!result.message,
+            error: result.error || null,
+            camId,
+            hitId: payload.hitId || null,
+        });
     });
 
 
@@ -7908,6 +8703,7 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         pttTalkTargetsBySocket.delete(socket.id);
+        try { frLivePoller.clearWatch(socket.id); } catch (_) { /* ignore */ }
         const toStop = liveViewers.releaseSocket(socket.id);
         if (!toStop.length) return;
         log.media.info('dashboard disconnect — release live refs', { socketId: socket.id, cams: toStop });
@@ -7955,17 +8751,20 @@ function scheduleOfflineWatch() {
 }
 
 function touchDeviceOnline(camId) {
+    const id = String(camId || '').trim();
+    if (!isBwcCameraId(id)) return;
     lastDeviceSeenAt = Date.now();
     deviceOnline = true;
-    connectedCameraId = camId;
-    if (lastContactUriByCam[camId]) {
-        cameraContactUri = lastContactUriByCam[camId];
+    connectedCameraId = id;
+    if (lastContactUriByCam[id]) {
+        cameraContactUri = lastContactUriByCam[id];
     }
-    fleetRegistry.markOnline(camId);
-    fleetRegistry.touch(camId);
-    ensureBwcEntryForDevice(camId);
+    fleetRegistry.markOnline(id);
+    fleetRegistry.touch(id);
+    offlineMapPinSession.delete(id);
+    ensureBwcEntryForDevice(id);
     if (siteDb.isReady()) {
-        siteDb.touchRuntime(camId, { online: true, lastSeen: Date.now() });
+        siteDb.touchRuntime(id, { online: true, lastSeen: Date.now() });
     }
     scheduleOfflineWatch();
 }
@@ -7973,10 +8772,12 @@ function touchDeviceOnline(camId) {
 /** mob-me8-online-notify — DevStatus push counts as live even when SIP REGISTER lags. */
 function touchDevicePresenceFromTelemetry(camId, source) {
     if (!camId || (source !== 'notify' && source !== 'keepalive')) return;
+    if (!isBwcCameraId(camId)) return;
     const rec = fleetRegistry.ensure(camId);
     if (!rec) return;
     if (!rec.online) {
         fleetRegistry.markOnline(camId);
+        offlineMapPinSession.delete(String(camId));
         deviceOnline = fleetRegistry.hasOnline();
         if (!connectedCameraId || !(fleetRegistry.ensure(connectedCameraId) || {}).online) {
             connectedCameraId = camId;
@@ -8024,12 +8825,14 @@ function markDeviceOffline(camId, reason) {
         }
     }
     if (!deviceOnline) cameraContactUri = null;
-    const lastGps = lastGpsByCam[camId];
+    const id = String(camId);
+    offlineMapPinSession.add(id);
+    const pin = offlineMapPinCoords(id);
     emitToDashboardSockets('device-offline', {
         cameraId: camId,
         reason: reason || 'disconnected',
-        lat: lastGps && lastGps.lat != null ? lastGps.lat : null,
-        lon: lastGps && lastGps.lon != null ? lastGps.lon : null,
+        lat: pin ? pin.lat : null,
+        lon: pin ? pin.lon : null,
     }, camId);
     emitFleetRoster({ force: true });
     pushFleetRoster(camId, '66', false);

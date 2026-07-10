@@ -9,7 +9,8 @@
 
 Cursor / agent passes break the bench often → restart, restore, log in again. TOTP at every login is too much during **testing**.
 
-**Before customer ship:** TOTP goes back **on**. Non-negotiable (see `docs/ME8-SECURITY-BASELINE.md`).
+**Before customer ship:** TOTP goes back **on**. Non-negotiable (see `docs/ME8-SECURITY-BASELINE.md`).  
+**Agent:** Do **not** daily-nag. Remind only at **ship packing** (`MOB-DISC-SHIP-REMINDERS-NO-NAG.md`).
 
 ---
 
