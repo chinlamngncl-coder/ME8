@@ -9,6 +9,7 @@
  * mob-fr-alert-drawer-info-first: compare/meta above fold; video collapsed footer; sticky actions.
  * mob-fr-alert-drawer-expand: header expand toggle; larger dispatch review mode; session persist.
  * mob-fr-lab-preview-gate: hide lab preview toolbar unless server FM_FR_LAB_UI=1.
+ * mob-fr-snap-rail-16-fit: 16-slot rail fills column without scroll; quiet Recent label.
  * Speech via VoiceAlerts when available.
  */
 (function (global) {
@@ -608,32 +609,19 @@
         }
     }
 
-    function syncCropRailEmptyHint(list) {
-        var empty = document.getElementById('ax-fr-crop-empty');
-        if (!empty || !list) return;
-        var any = false;
-        for (var i = 0; i < list.children.length; i++) {
-            if (list.children[i].dataset.cropUrl) {
-                any = true;
-                break;
-            }
-        }
-        empty.hidden = any;
-    }
-
     function ensureCropRail() {
         var el = document.getElementById('ax-fr-crop-rail');
         if (!el) return null;
         if (!el.querySelector('.ax-fr-crop-list')) {
             el.innerHTML =
-                '<h4 class="ax-fr-snapshot-title">' + esc(tr('analytics.fr.snapshotGrid16', 'Snapshot (16)')) + '</h4>' +
-                '<p class="hint ax-fr-crop-empty" id="ax-fr-crop-empty">' +
-                esc(tr('analytics.fr.cropEmpty', 'Snaps appear while watch is running.')) +
-                '</p><div class="ax-fr-crop-list"></div>';
+                '<h4 class="ax-fr-snapshot-title">' + esc(tr('analytics.fr.snapshotRecent', 'Recent')) + '</h4>' +
+                '<div class="ax-fr-crop-list"></div>';
         }
+        var staleHint = document.getElementById('ax-fr-crop-empty');
+        if (staleHint) staleHint.remove();
         var titleEl = el.querySelector('.ax-fr-snapshot-title');
         if (titleEl) {
-            titleEl.textContent = tr('analytics.fr.snapshotGrid16', 'Snapshot (16)');
+            titleEl.textContent = tr('analytics.fr.snapshotRecent', 'Recent');
         }
         var list = el.querySelector('.ax-fr-crop-list');
         ensureRailSlots(list);
@@ -807,7 +795,6 @@
             fillCropSlot(list.children[i], readCropSlot(list.children[i - 1]));
         }
         fillCropSlot(list.children[0], tick);
-        syncCropRailEmptyHint(list);
     }
 
     function backdrop() {

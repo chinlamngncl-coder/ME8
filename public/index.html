@@ -482,18 +482,21 @@
         #ax-fr-watch-hint[hidden] { display: none !important; }
         .ax-fr-roster-focus { font-size: 10px !important; padding: 2px 6px !important; }
         .ax-fr-tile.is-fr-hit { border-color: #dc2626 !important; box-shadow: inset 0 0 0 2px #dc2626; }
+        /* mob-fr-snap-rail-16-fit — 16 slots fill column; no scroll */
         .ax-fr-crop-list {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+            flex: 1; min-height: 0; height: 100%;
+            display: grid; grid-template-columns: 1fr 1fr;
+            grid-template-rows: repeat(8, minmax(0, 1fr)); gap: 4px;
         }
         .ax-fr-snapshot-title {
             margin: 0 0 6px; font-size: 11px; font-weight: 600;
             text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8;
-            grid-column: 1 / -1;
+            flex-shrink: 0;
         }
         .ax-fr-crop-card {
             position: relative;
             display: flex; align-items: center; justify-content: center;
-            aspect-ratio: 4 / 3; min-height: 0;
+            min-height: 0; height: 100%;
             border: 1px solid #334155; border-radius: 6px; overflow: hidden; background: #0b1220;
             line-height: 0; cursor: pointer;
         }
@@ -566,8 +569,11 @@
             width: 36px; height: 36px; border: 1px solid #64748b; border-radius: 8px;
             background: #1e293b; color: #f8fafc; font-size: 22px; line-height: 1; cursor: pointer;
         }
-        .ax-fr-crop-rail { flex: 1; min-height: 0; overflow: auto; border: 1px solid #334155; border-radius: 6px; padding: 6px; background: #111827; }
-        .ax-fr-crop-empty { margin: 0 0 6px; font-size: 11px; }
+        .ax-fr-crop-rail {
+            flex: 1; min-height: 0; overflow: hidden;
+            display: flex; flex-direction: column;
+            border: 1px solid #334155; border-radius: 6px; padding: 6px; background: #111827;
+        }
         /* mob-fr-rail-alert-shell + mob-fr-alert-drawer-shell — alert drawer layout (live video Act 3) */
         /* mob-fr-alert-drawer-info-first — compare/meta first; video collapsed footer */
         /* mob-fr-alert-drawer-expand — header maximize toggle */
@@ -7140,7 +7146,7 @@
     <script src="/js/fr-live-watch.js?v=20260711-tile-status-hints"></script>
     <script src="/js/fr-offline-video.js?v=20260710-offline-crops"></script>
     <script src="/js/fr-enroll-cropper.js?v=20260710-fr-cropper"></script>
-    <script src="/js/fr-alarm.js?v=20260711-lab-preview-gate"></script>
+    <script src="/js/fr-alarm.js?v=20260711-snap-rail-16-fit"></script>
     <script src="/js/analytics-hub.js?v=20260710-offline-crops"></script>
     <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/operator-ui.js?v=20260709-zero-raw-errors"></script>
