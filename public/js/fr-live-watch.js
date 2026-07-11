@@ -1070,6 +1070,13 @@
         bindSocket();
         bindTileStopButtons();
         loadFleet();
+        if (!socketBound) {
+            var n = 0;
+            var iv = setInterval(function () {
+                bindSocket();
+                if (socketBound || ++n > 40) clearInterval(iv);
+            }, 100);
+        }
         if (!rosterTimer) {
             rosterTimer = setInterval(function () {
                 if (document.getElementById('ax-panel-face') &&

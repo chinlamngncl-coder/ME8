@@ -3381,6 +3381,15 @@
             border: 2px solid #fdba74;
         }
         .bwc-pin-wrap.geofence-out .bwc-pin-label { color: #c2410c; border-color: #fdba74; }
+        /* FR hit map focus — fuchsia (gold reserved for PTT) */
+        .bwc-pin-wrap.fr-hit-focus .bwc-pin-dot {
+            width: 30px; height: 30px; border-width: 4px; border-color: #fdf4ff;
+            box-shadow: 0 0 0 4px rgba(192, 38, 211, 0.4), 0 0 16px rgba(217, 70, 239, 0.7);
+            animation: fr-hit-pin-pulse 1.2s ease-in-out infinite;
+        }
+        .bwc-pin-wrap.fr-hit-focus .bwc-pin-label {
+            color: #86198f; border-color: #f0abfc; font-weight: 700;
+        }
         @keyframes pulse-geofence-out {
             0%, 100% { box-shadow: 0 0 12px #f97316, 0 2px 8px rgba(0,0,0,0.5); }
             50% { box-shadow: 0 0 18px #fb923c, 0 2px 8px rgba(0,0,0,0.5); }
@@ -3537,6 +3546,7 @@
         .bwc-devices-actions { display: flex; gap: 8px; flex-wrap: wrap; }
         .bwc-devices-actions button { flex: 1; min-width: 100px; }
         @keyframes pulse-red { 0%, 100% { transform: scale(0.85); opacity: 0.8; } 50% { transform: scale(1.15); opacity: 1; } }
+        @keyframes fr-hit-pin-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
         .leaflet-popup-content-wrapper {
             border-radius: 10px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
             background: #1e293b; border: 1px solid #475569; color: #e2e8f0;
@@ -4968,6 +4978,84 @@
             color: #93c5fd;
             letter-spacing: 0.02em;
         }
+        /* mob-analytics-popout-shell — chromeless Analytics for control-room monitor */
+        html.analytics-popout-mode,
+        html.analytics-popout-mode body {
+            height: 100%; width: 100%; overflow: hidden;
+        }
+        html.analytics-popout-mode #header,
+        html.analytics-popout-mode #app-top-nav { display: none !important; }
+        html.analytics-popout-mode #sos-banner { display: none !important; }
+        html.analytics-popout-mode #app-view-ops,
+        html.analytics-popout-mode #app-view-evidence,
+        html.analytics-popout-mode #app-view-conference,
+        html.analytics-popout-mode #app-view-audit-trail,
+        html.analytics-popout-mode #app-view-server,
+        html.analytics-popout-mode #app-view-command-wall,
+        html.analytics-popout-mode #app-view-centre-summary { display: none !important; }
+        html.analytics-popout-mode #app-view-analytics {
+            display: flex !important;
+            flex: 1 1 auto;
+            min-height: 0;
+            height: 100vh;
+            width: 100%;
+            max-width: none;
+        }
+        html.analytics-popout-mode #analytics-panel { position: relative; }
+        html.analytics-popout-mode #analytics-panel > h2 { display: none; }
+        #analytics-popout-bar {
+            display: none; position: absolute; top: 10px; right: 10px; z-index: 700;
+            align-items: center; gap: 10px; padding: 6px 12px;
+            background: rgba(15, 23, 42, 0.92); border: 1px solid #475569;
+            border-radius: 8px; font-size: 12px; font-weight: 600; color: #e2e8f0;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+        }
+        html.analytics-popout-mode #analytics-popout-bar { display: flex; }
+        #analytics-popout-bar .analytics-popout-desk-hint {
+            font-size: 10px;
+            font-weight: 500;
+            color: #93c5fd;
+            letter-spacing: 0.02em;
+            max-width: min(42vw, 320px);
+        }
+        #analytics-popout-bar .analytics-popout-close {
+            padding: 4px 10px; font-size: 11px; border-radius: 6px; cursor: pointer;
+            border: 1px solid #475569; background: #1e293b; color: #cbd5e1;
+        }
+        #analytics-popout-bar .analytics-popout-close:hover { background: #334155; }
+        /* mob-analytics-popout-roster-fit — grid rows: tiles + roster always visible */
+        html.analytics-popout-mode #ax-hub-body,
+        html.analytics-popout-mode #ax-panel-face,
+        html.analytics-popout-mode .ax-fr-main,
+        html.analytics-popout-mode .ax-fr-left {
+            flex: 1; min-height: 0; overflow: hidden;
+        }
+        html.analytics-popout-mode .ax-fr-toolbar,
+        html.analytics-popout-mode .ax-hub-nav { flex-shrink: 0; }
+        html.analytics-popout-mode #ax-fr-preview-drawer,
+        html.analytics-popout-mode #ax-fr-preview-toast { display: none !important; }
+        html.analytics-popout-mode .ax-fr-left {
+            display: grid;
+            grid-template-rows: minmax(160px, 1fr) minmax(220px, 38vh);
+            gap: 8px;
+        }
+        html.analytics-popout-mode .ax-fr-grid {
+            flex: unset;
+            min-height: 0;
+            max-height: none;
+            height: 100%;
+        }
+        html.analytics-popout-mode .ax-fr-watch {
+            flex: unset;
+            min-height: 0;
+            max-height: none;
+            overflow: hidden;
+        }
+        html.analytics-popout-mode .ax-fr-roster-wrap {
+            flex: 1 1 auto;
+            min-height: 0;
+            max-height: none;
+        }
         .sos-log-actions { margin-top: 6px; }
         .sos-log-actions .btn { flex: 1; min-width: 0; }
         #sos-ledger-list.sos-list-pulse { animation: sos-list-pulse 0.45s ease; }
@@ -4994,9 +5082,14 @@
 <body>
 <script>
 (function () {
-    if (new URLSearchParams(window.location.search).get('popout') === 'map') {
+    var pop = new URLSearchParams(window.location.search).get('popout');
+    if (pop === 'map') {
         document.documentElement.classList.add('map-popout-mode');
         document.title = 'Mobility Axiom — Map';
+    } else if (pop === 'analytics') {
+        document.documentElement.classList.add('analytics-popout-mode');
+        window.__mobilityAnalyticsPopout = true;
+        document.title = 'Mobility Axiom — Analytics';
     }
 })();
 </script>
@@ -5062,7 +5155,8 @@
         <span class="fr-hq-alert-text" id="fr-hq-alert-text">—</span>
         <span class="fr-hq-alert-pending" id="fr-hq-alert-pending" hidden>+0</span>
         <div class="fr-hq-alert-actions">
-            <button type="button" class="btn btn-action btn-sm" id="fr-hq-alert-open" data-i18n="analytics.fr.hqBarOpen">Open</button>
+            <button type="button" class="btn btn-action btn-sm" id="fr-hq-alert-map" data-i18n="analytics.fr.hqBarGoMap">Go to map</button>
+            <button type="button" class="btn btn-action btn-sm" id="fr-hq-alert-open" data-i18n="analytics.fr.hqBarOpen">Open detail</button>
             <button type="button" class="btn btn-action btn-sm sos-ptt-btn" id="fr-hq-alert-standby-ptt" data-i18n="analytics.fr.standbyPttTeam" data-i18n-title="analytics.fr.standbyPttTeamTitle" aria-pressed="false">Standby PTT team</button>
             <button type="button" class="btn btn-action btn-sm" id="fr-hq-alert-ack" data-i18n="analytics.fr.alarmAck">Ack</button>
             <button type="button" class="btn btn-ghost btn-sm" id="fr-hq-alert-dismiss" data-i18n="analytics.fr.alarmDismiss">Dismiss</button>
@@ -6444,6 +6538,11 @@
 
     <div id="app-view-analytics" hidden>
         <div id="analytics-panel" class="ax-hub">
+            <div id="analytics-popout-bar">
+                <span data-i18n="analytics.popoutBarTitle">Mobility Axiom — Face watch</span>
+                <span class="analytics-popout-desk-hint" data-i18n="analytics.popoutDeskHint">Map and dispatch stay on the Operations dashboard</span>
+                <button type="button" class="analytics-popout-close" onclick="window.close()" data-i18n="common.close">Close</button>
+            </div>
             <h2 data-i18n="nav.analytics">Analytics</h2>
             <div id="ax-license-gate" class="ax-license-gate" hidden>
                 <div class="ax-license-gate-inner">
@@ -7143,11 +7242,11 @@
     <script src="/js/ptt-rx.js?v=20260629-live-toast"></script>
     <script src="/js/audit-trail-hub.js?v=20260630-audit-preset-ux"></script>
     <script src="/js/license-features.js?v=20260707-license-gate"></script>
-    <script src="/js/fr-live-watch.js?v=20260711-tile-status-hints"></script>
+    <script src="/js/fr-live-watch.js?v=20260712-popout-roster"></script>
     <script src="/js/fr-offline-video.js?v=20260710-offline-crops"></script>
     <script src="/js/fr-enroll-cropper.js?v=20260710-fr-cropper"></script>
-    <script src="/js/fr-alarm.js?v=20260711-snap-rail-16-fit"></script>
-    <script src="/js/analytics-hub.js?v=20260710-offline-crops"></script>
+    <script src="/js/fr-alarm.js?v=20260712-toast-alert-field"></script>
+    <script src="/js/analytics-hub.js?v=20260712-popout-roster"></script>
     <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/operator-ui.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/ev-context-rail.js?v=20260627-rail-trim"></script>
@@ -7156,7 +7255,7 @@
     <script src="/js/case-files-ui.js?v=20260627-delete-error-voice"></script>
     <script src="/js/evidence-hub.js?v=20260708-cold-archive"></script>
     <script src="/js/missed-activity.js?v=20260710-missed-item-detail"></script>
-    <script src="/js/evidence-manager.js?v=20260710-analytics-tab"></script>
+    <script src="/js/evidence-manager.js?v=20260712-popout-roster"></script>
     <script src="/js/chat-ui.js"></script>
     <script src="/js/video-wall.js?v=20260709-wall-claim"></script>
     <script src="/js/video-matrix.js?v=20260629-live-cap-8"></script>
@@ -7167,7 +7266,7 @@
     <script src="/vendor/markercluster/leaflet.markercluster.js?v=20260701-vendor-local"></script>
     <script src="/js/map-pin-layer.js?v=20260629-maxzoom-cluster"></script>
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/js/cw-display-room.js?v=20260709-open-all-monitors"></script>
+    <script src="/js/cw-display-room.js?v=20260712-launch-all-profile"></script>
     <script src="/js/live-surface-hint.js?v=20260709-duplicate-surface-warn"></script>
     <script src="/js/command-wall.js?v=20260709-popout-grid"></script>
     <script src="/js/ops-cw-awareness.js?v=20260622-ops-cw-awareness"></script>
@@ -9620,11 +9719,11 @@
         });
         map.on('resize', schedulePinPopupReposition);
 
-        function buildPinIcon(meta, selected) {
+        function buildPinIcon(meta, selected, frHitFocus) {
             var wrapKind = meta.alarmKind === 'fall' ? ' fall' : (meta.alarmKind === 'sos' ? ' sos' : '');
             if (meta.geofenceOutside && !meta.alarmKind) wrapKind += ' geofence-out';
             if (meta.offline) wrapKind += ' offline';
-            var cls = 'bwc-pin-wrap' + wrapKind + (selected ? ' selected' : '');
+            var cls = 'bwc-pin-wrap' + wrapKind + (selected ? ' selected' : '') + (frHitFocus ? ' fr-hit-focus' : '');
             var glow = meta.alarmKind ? meta.color : meta.color;
             var html = '<div class="' + cls + '">' +
                 '<div class="bwc-pin-label" title="' + escapePinText(meta.label) + '">' + escapePinText(meta.label) + '</div>' +
@@ -9717,6 +9816,7 @@
                 selNorm = popoutMirrorSelectedCamId;
             }
             var sosFocus = focusedSosCamId ? normalizeCamId(focusedSosCamId) : null;
+            var frFocus = window.frHitMapFocusCamId ? normalizeCamId(window.frHitMapFocusCamId) : null;
             Object.keys(deviceMarkers).forEach(function (camId) {
                 var m = deviceMarkers[camId];
                 if (!m) return;
@@ -9725,12 +9825,13 @@
                 var pinned = selSet.indexOf(normalizeCamId(camId)) >= 0;
                 var focused = normalizeCamId(camId) === selNorm
                     || (sosFocus && normalizeCamId(camId) === sosFocus);
-                m.setIcon(buildPinIcon(pinMetaForCam(camId, alarmKind, isCamOnlineOnFleet(camId)), pinned || focused));
+                var frHit = frFocus && normalizeCamId(camId) === frFocus;
+                m.setIcon(buildPinIcon(pinMetaForCam(camId, alarmKind, isCamOnlineOnFleet(camId)), pinned || focused, frHit));
                 if (m.setZIndexOffset) {
-                    m.setZIndexOffset(focused ? 1400 : (pinned ? 1200 : (isSos ? 1100 : 0)));
+                    m.setZIndexOffset(frHit ? 1500 : (focused ? 1400 : (pinned ? 1200 : (isSos ? 1100 : 0))));
                 }
             });
-            var frontId = sosFocus || selNorm;
+            var frontId = frFocus || sosFocus || selNorm;
             if (frontId && deviceMarkers[frontId] && deviceMarkers[frontId].bringToFront) {
                 deviceMarkers[frontId].bringToFront();
             }
@@ -9756,6 +9857,7 @@
             if (window.mapPopoutMirrorActive && popoutMirrorSelectedCamId) {
                 selected = normalizeCamId(camId) === popoutMirrorSelectedCamId;
             }
+            var frHitFocus = !!(window.frHitMapFocusCamId && normalizeCamId(window.frHitMapFocusCamId) === camId);
             if (isSos == null) isSos = isCamSosActive(camId);
             var alarmKind = getCamAlarmKind(camId);
             if (!alarmKind && isSos === true) alarmKind = activeAlarmKind || 'sos';
@@ -9779,7 +9881,7 @@
                 }
                 m._gpsLatLng = L.latLng(lat, lon);
                 m.setLatLng(latlng);
-                m.setIcon(buildPinIcon(meta, selected));
+                m.setIcon(buildPinIcon(meta, selected, frHitFocus));
                 if (!pinPopupShouldKeepVideo(camId, isSos)) {
                     m.setPopupContent(html);
                 } else {
@@ -9808,7 +9910,7 @@
                 }
                 if (m.isPopupOpen && m.isPopupOpen()) schedulePinPopupReposition();
             } else {
-                m = L.marker(latlng, { icon: buildPinIcon(meta, selected) });
+                m = L.marker(latlng, { icon: buildPinIcon(meta, selected, frHitFocus) });
                 m._gpsLatLng = L.latLng(lat, lon);
                 m.bindPopup(html, {
                     maxWidth: 320,

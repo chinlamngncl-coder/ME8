@@ -100,6 +100,7 @@
 
         root.querySelectorAll('[data-i18n]').forEach(function (el) {
             if (el.id === 'header-lang') return;
+            if (el.getAttribute('data-dr-dynamic') === '1') return;
             const key = el.getAttribute('data-i18n');
             if (!key) return;
             el.textContent = t(key);

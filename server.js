@@ -280,6 +280,11 @@ let FTP_PASS = '';
 let FTP_PASV_MIN = 20000;
 let FTP_PASV_MAX = 20100;
 let ftpServerInstance = null;
+
+function getDisplayMonitor3Profile() {
+    const raw = String(process.env.FM_DISPLAY_MONITOR3 || '').trim().toLowerCase();
+    return raw === 'analytics' ? 'analytics' : 'map';
+}
 let ftpServerListening = false;
 
 function loadFtpRuntimeFromSettings() {
@@ -523,15 +528,24 @@ frLivePoller.init({
     emit: (event, payload, camId) => emitToDashboardSockets(event, payload, camId),
     onHit: (hit) => {
         try {
+            const detail = {
+                camId: hit.camId,
+                scorePct: hit.scorePct,
+                displayName: hit.displayName,
+                hitId: hit.hitId,
+                source: hit.source || 'live',
+                listStatus: hit.listStatus || 'blacklist',
+                alertTier: hit.alertTier || 'high',
+            };
+            if (hit.lat != null && hit.lon != null
+                && Number.isFinite(Number(hit.lat)) && Number.isFinite(Number(hit.lon))) {
+                detail.lat = Number(hit.lat);
+                detail.lon = Number(hit.lon);
+                if (hit.gpsAt != null) detail.gpsAt = hit.gpsAt;
+            }
             auditLog.record('analytics.fr_blacklist_hit', {
                 target: hit.blacklistId,
-                detail: {
-                    camId: hit.camId,
-                    scorePct: hit.scorePct,
-                    displayName: hit.displayName,
-                    hitId: hit.hitId,
-                    source: hit.source || 'live',
-                },
+                detail,
             });
         } catch (_) { /* ignore */ }
     },
@@ -543,15 +557,24 @@ frOfflineVideo.init({
     emit: (event, payload, camId) => emitToDashboardSockets(event, payload, camId),
     onHit: (hit) => {
         try {
+            const detail = {
+                camId: hit.camId,
+                scorePct: hit.scorePct,
+                displayName: hit.displayName,
+                hitId: hit.hitId,
+                source: hit.source || 'offline-video',
+                listStatus: hit.listStatus || 'blacklist',
+                alertTier: hit.alertTier || 'high',
+            };
+            if (hit.lat != null && hit.lon != null
+                && Number.isFinite(Number(hit.lat)) && Number.isFinite(Number(hit.lon))) {
+                detail.lat = Number(hit.lat);
+                detail.lon = Number(hit.lon);
+                if (hit.gpsAt != null) detail.gpsAt = hit.gpsAt;
+            }
             auditLog.record('analytics.fr_blacklist_hit', {
                 target: hit.blacklistId,
-                detail: {
-                    camId: hit.camId,
-                    scorePct: hit.scorePct,
-                    displayName: hit.displayName,
-                    hitId: hit.hitId,
-                    source: hit.source || 'offline-video',
-                },
+                detail,
             });
         } catch (_) { /* ignore */ }
     },
@@ -819,6 +842,7 @@ app.get('/api/health', (req, res) => {
     try {
         const body = platformHealth.collectPublicHealth(publicHealthDeps());
         body.at = siteTime.formatEvidence(new Date());
+        body.displayMonitor3 = getDisplayMonitor3Profile();
         res.status(body.ok ? 200 : 503).json(body);
     } catch (err) {
         res.status(503).json({
@@ -4023,6 +4047,10 @@ app.get('/api/dispatch-groups', (req, res) => {
     } catch (err) {
         res.status(500).json(opErr(err, { groups: [] }));
     }
+});
+
+app.get('/api/display-room/profile', (req, res) => {
+    res.json({ ok: true, displayMonitor3: getDisplayMonitor3Profile() });
 });
 
 app.get('/api/dispatch-groups/template.csv', dashboardAuth.requireSuperAdmin, (req, res) => {
@@ -8110,6 +8138,7 @@ io.on('connection', (socket) => {
         username: session ? session.username : null,
         dispatchScope: dispatchScopePayloadForSession(session),
         frLabUi: isFrLabUiEnabled(),
+        displayMonitor3: getDisplayMonitor3Profile(),
         siteTime: {
             timezone: siteTime.getTimezone(),
             now: siteTime.formatEvidence(new Date()),

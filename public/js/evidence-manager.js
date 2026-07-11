@@ -439,6 +439,19 @@
                 if (onEvidenceView) loadCatalog();
             });
         }
+        if (document.documentElement.classList.contains('analytics-popout-mode')) {
+            function bootPopoutAnalytics() {
+                showTab('analytics', { force: true });
+            }
+            if (global.LicenseFeatures && LicenseFeatures.fetch) {
+                LicenseFeatures.fetch();
+            }
+            if (global.LicenseFeatures && LicenseFeatures.onReady) {
+                LicenseFeatures.onReady(function () { bootPopoutAnalytics(); });
+            } else {
+                bootPopoutAnalytics();
+            }
+        }
     }
 
     global.EvidenceManager = {

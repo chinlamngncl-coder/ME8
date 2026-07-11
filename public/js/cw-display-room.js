@@ -14,6 +14,10 @@
 
     let groupsLoaded = false;
 
+    let monitor3Profile = 'map';
+
+    let capSocket = null;
+
 
 
     function tr(key, params) {
@@ -177,6 +181,107 @@
             setTimeout(function () { MapPopoutSync.publish(); }, 1500);
         }
         return win;
+    }
+
+    function openAnalyticsPopout() {
+        return openWindow('/?popout=analytics', 'mobility-analytics-' + String(Date.now()));
+    }
+
+    function normalizeMonitor3Profile(raw) {
+        const v = String(raw || '').trim().toLowerCase();
+        return v === 'analytics' ? 'analytics' : 'map';
+    }
+
+    function monitor3I18nKeys(profile) {
+        if (profile === 'analytics') {
+            return {
+                title: 'displayRoom.monitor3TitleAnalytics',
+                hint: 'displayRoom.monitor3HintAnalytics',
+                button: 'displayRoom.openAnalytics',
+                popupOk: 'displayRoom.popupOpenedAnalytics',
+            };
+        }
+        return {
+            title: 'displayRoom.monitor3Title',
+            hint: 'displayRoom.monitor3Hint',
+            button: 'displayRoom.openMap',
+            popupOk: 'displayRoom.popupOpenedMap',
+        };
+    }
+
+    function syncMonitor3Card(profile) {
+        const btn = el('dr-open-map');
+        if (!btn) return;
+        const card = btn.closest('.dr-monitor-card');
+        if (!card) return;
+        const keys = monitor3I18nKeys(profile);
+        const titleEl = card.querySelector('.dr-monitor-title');
+        const hintEl = card.querySelector('.dr-monitor-hint');
+        if (titleEl) {
+            titleEl.setAttribute('data-dr-dynamic', '1');
+            titleEl.setAttribute('data-i18n', keys.title);
+            titleEl.textContent = tr(keys.title);
+        }
+        if (hintEl) {
+            hintEl.setAttribute('data-dr-dynamic', '1');
+            hintEl.setAttribute('data-i18n', keys.hint);
+            hintEl.textContent = tr(keys.hint);
+        }
+        btn.setAttribute('data-dr-dynamic', '1');
+        btn.setAttribute('data-i18n', keys.button);
+        btn.textContent = tr(keys.button);
+    }
+
+    function applyDisplayMonitor3Profile(data) {
+        monitor3Profile = normalizeMonitor3Profile(data && data.displayMonitor3);
+        syncMonitor3Card(monitor3Profile);
+    }
+
+    function onServerCapabilities(data) {
+        global.__fmServerCapabilities = data || null;
+        applyDisplayMonitor3Profile(data);
+    }
+
+    function bindCapabilitiesSocket() {
+        const existing = global.__mobilityDashboardSocket;
+        if (existing && !existing.__cwDisplayRoomCapBound) {
+            existing.__cwDisplayRoomCapBound = true;
+            existing.on('server-capabilities', onServerCapabilities);
+        }
+        if (!existing && typeof global.io === 'function' && !capSocket) {
+            capSocket = global.io({ withCredentials: true });
+            capSocket.on('server-capabilities', onServerCapabilities);
+        }
+    }
+
+    function fetchDisplayMonitor3Profile() {
+        return fetch('/api/health', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                if (j && j.displayMonitor3) {
+                    applyDisplayMonitor3Profile({ displayMonitor3: j.displayMonitor3 });
+                    return;
+                }
+                return fetch('/api/display-room/profile', { credentials: 'same-origin' })
+                    .then(function (r2) { return r2.json(); })
+                    .then(function (j2) {
+                        if (j2 && j2.ok) applyDisplayMonitor3Profile(j2);
+                    });
+            })
+            .catch(function () { /* keep current profile */ });
+    }
+
+    function syncDisplayMonitor3Profile() {
+        if (global.__fmServerCapabilities && global.__fmServerCapabilities.displayMonitor3) {
+            applyDisplayMonitor3Profile(global.__fmServerCapabilities);
+        }
+        bindCapabilitiesSocket();
+        return fetchDisplayMonitor3Profile();
+    }
+
+    function openMonitor3Popout() {
+        if (monitor3Profile === 'analytics') return openAnalyticsPopout();
+        return openMapPopout();
     }
 
     function openCentreSummaryPopout() {
@@ -483,16 +588,18 @@
 
     async function applySosRoomPreset() {
         // Same as Monitor 2 + 3 + 4 — convenience open only. No autofill, no auto INVITE, no layout-1 shrink.
+        await fetchDisplayMonitor3Profile();
         setStatus(tr('displayRoom.launching'), true);
         goOperationsTab();
 
         const blocked = [];
+        const m3Keys = monitor3I18nKeys(monitor3Profile);
         const cw = openCommandWallPopout('/command-wall.html?panel=live', '_blank');
-        const map = openMapPopout();
+        const map = openMonitor3Popout();
         const centre = openCentreSummaryPopout();
 
         if (!cw) blocked.push(tr('displayRoom.monitor2Title'));
-        if (!map) blocked.push(tr('displayRoom.monitor3Title'));
+        if (!map) blocked.push(tr(m3Keys.title));
         if (!centre) blocked.push(tr('displayRoom.monitor4Title'));
 
         if (blocked.length) {
@@ -539,6 +646,14 @@
         if (window._cwDisplayRoomBound) return;
         window._cwDisplayRoomBound = true;
         syncAutoPlaceHint();
+        bindCapabilitiesSocket();
+        syncDisplayMonitor3Profile();
+        if (!window._cwDisplayRoomI18nBound) {
+            window._cwDisplayRoomI18nBound = true;
+            window.addEventListener('fm-i18n-changed', function () {
+                syncMonitor3Card(monitor3Profile);
+            });
+        }
 
         const applyBtn = el('dr-apply-sos');
 
@@ -572,9 +687,8 @@
         });
 
         if (m3Btn) m3Btn.addEventListener('click', function () {
-
-            openWithFeedback(openMapPopout, 'displayRoom.popupOpenedMap', 'displayRoom.monitor3Title', 2);
-
+            const keys = monitor3I18nKeys(monitor3Profile);
+            openWithFeedback(openMonitor3Popout, keys.popupOk, keys.title, 2);
         });
 
         if (m4Btn) m4Btn.addEventListener('click', function () {
@@ -592,6 +706,7 @@
         setStatus('', null);
         loadGroups();
         syncAutoPlaceHint();
+        syncDisplayMonitor3Profile();
     }
 
     function syncAutoPlaceHint() {
