@@ -807,13 +807,31 @@ function labSettingsLive() {
     return labSecurity.load(STORAGE_DIR);
 }
 
-app.get('/api/health', (req, res) => {
-    res.json({
-        ok: true,
-        service: 'mobility-axiom',
-        at: siteTime.formatEvidence(new Date()),
-        uptimeSec: Math.floor(process.uptime()),
+function publicHealthDeps() {
+    return Object.assign({}, techHealthDeps(), {
+        httpListenerReady,
+        mediaBridgeReady,
+        pttEnabled: PTT_ENABLED,
     });
+}
+
+app.get('/api/health', (req, res) => {
+    try {
+        const body = platformHealth.collectPublicHealth(publicHealthDeps());
+        body.at = siteTime.formatEvidence(new Date());
+        res.status(body.ok ? 200 : 503).json(body);
+    } catch (err) {
+        res.status(503).json({
+            ok: false,
+            degraded: true,
+            service: 'mobility-axiom',
+            at: siteTime.formatEvidence(new Date()),
+            uptimeSec: Math.floor(process.uptime()),
+            reasons: ['internal'],
+            reasonDetails: [{ code: 'internal', label: 'Health check failed' }],
+            error: err && err.message ? err.message : String(err),
+        });
+    }
 });
 
 function evidencePathValidation(settings) {
@@ -4961,10 +4979,12 @@ const frVerifyUpload = multer({
 app.get('/api/analytics/fr/health', dashboardAuth.requireDashboardAuth, async (req, res) => {
     try {
         const featureEnabled = licenseFeatures.isFeatureEnabled('fr');
-        const runtime = await frSidecarClient.health();
+        const runtime = (featureEnabled && frSidecarClient.isAutoStartEnabled())
+            ? await frSidecarClient.ensureReady()
+            : await frSidecarClient.health();
         let snapLedger = null;
         try { snapLedger = frSnapLedger.stats(); } catch (_) { snapLedger = null; }
-        res.json({ ok: true, featureEnabled, runtime, snapLedger });
+        res.json({ ok: true, featureEnabled, runtime, snapLedger, frLabUi: isFrLabUiEnabled() });
     } catch (err) {
         res.status(500).json(opErr(err));
     }
@@ -6284,6 +6304,10 @@ function resolvePttCamId(peerIp, pttUser) {
     return isBwcCameraId(user) ? user : null;
 }
 
+function isFrLabUiEnabled() {
+    return String(process.env.FM_FR_LAB_UI || '').trim() === '1';
+}
+
 function buildPttDownlinkPolicyForClient() {
     return pttDownlinkPolicy.buildClientPayload(serverSettings.load(STORAGE_DIR), {
         getPttLoginUser: (camId) => (PTT_ENABLED ? pttServer.getDeviceLoginUser(camId) : null),
@@ -6476,6 +6500,10 @@ if (!cameraContactUri) {
 
 /** Set true when sip.start() completes without throwing (UDP listener init). */
 let sipListenerReady = false;
+/** Set true when HTTP dashboard listener is accepting connections. */
+let httpListenerReady = false;
+/** Set true after live media bridge (TCP/WS pool path) is started at boot. */
+let mediaBridgeReady = false;
 
 function adminServiceStatusSnapshot() {
     return {
@@ -8081,6 +8109,7 @@ io.on('connection', (socket) => {
         role: session ? session.role : null,
         username: session ? session.username : null,
         dispatchScope: dispatchScopePayloadForSession(session),
+        frLabUi: isFrLabUiEnabled(),
         siteTime: {
             timezone: siteTime.getTimezone(),
             now: siteTime.formatEvidence(new Date()),
@@ -9577,12 +9606,14 @@ const ports = mediaSession.getPorts();
     }
 
     server.listen(HTTP_PORT, '0.0.0.0', () => {
+    httpListenerReady = true;
     bootstrapBwcDeviceList();
     syncFleetDeviceMeta();
     seedFleetOnlineFromPersistedState();
     bootstrapOnlineFleetForMap();
 
     mediaSession.startTcpMediaServer(HOST, wss, BASE_DIR);
+    mediaBridgeReady = true;
     if (PTT_ENABLED) {
         pttServer.startPttServer({
             host: HOST,
@@ -9602,6 +9633,22 @@ const ports = mediaSession.getPorts();
     }
 
     log.web.info('dashboard listening', { url: `http://${HOST}:${HTTP_PORT}`, folder: __dirname });
+    if (licenseFeatures.isFeatureEnabled('fr') && frSidecarClient.isAutoStartEnabled()) {
+        setImmediate(() => {
+            frSidecarClient.bootstrap().then((r) => {
+                if (r && r.ok) {
+                    log.web.info('fr sidecar ready', { url: frSidecarClient.baseUrl() });
+                } else {
+                    log.web.warn('fr sidecar not ready at boot', {
+                        error: r && r.error,
+                        hint: r && r.hint,
+                    });
+                }
+            }).catch((err) => {
+                log.web.warn('fr sidecar bootstrap failed', { message: String(err && err.message || err) });
+            });
+        });
+    }
     log.sip.info('telemetry enabled', {
         build: 'v2',
         queryOnRegister: true,

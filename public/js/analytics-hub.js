@@ -122,6 +122,7 @@
         if (currentPanel === 'face') {
             if (global.FrAlarm && FrAlarm.init) FrAlarm.init();
             if (global.FrLiveWatch && FrLiveWatch.onShow) FrLiveWatch.onShow();
+            refreshSidecarStatus();
         }
     }
 

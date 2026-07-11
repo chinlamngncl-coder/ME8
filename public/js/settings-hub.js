@@ -20,6 +20,8 @@
         licenseExpiry: null,
         deploymentMode: '',
         firmwareCount: 0,
+        healthDegraded: false,
+        healthReasons: [],
     };
 
     function tr(key, params) {
@@ -95,6 +97,12 @@
         updateManageButtons();
     }
 
+    function healthReasonLabel(code) {
+        var key = 'settingsHub.strip.reason.' + String(code || '');
+        var label = tr(key);
+        return label !== key ? label : String(code || 'degraded');
+    }
+
     function renderStrip() {
         setText('settings-val-fleet', tr('settingsHub.strip.fleetVal', {
             online: snapshot.fleetOnline,
@@ -125,7 +133,25 @@
             }
         }
 
-        setText('settings-val-uptime', formatUptime(snapshot.uptimeSec));
+        var uptimeText = formatUptime(snapshot.uptimeSec);
+        var uptimeChip = document.getElementById('settings-chip-uptime');
+        if (snapshot.healthDegraded) {
+            var reasonText = snapshot.healthReasons.length
+                ? healthReasonLabel(snapshot.healthReasons[0])
+                : tr('settingsHub.strip.degraded');
+            uptimeText = tr('settingsHub.strip.degradedShort', { reason: reasonText });
+            if (snapshot.uptimeSec > 0) {
+                uptimeText += ' · ' + formatUptime(snapshot.uptimeSec);
+            }
+            if (uptimeChip) {
+                uptimeChip.title = snapshot.healthReasons.map(healthReasonLabel).join(' · ');
+            }
+            setChipState('settings-chip-uptime', 'warn');
+        } else {
+            if (uptimeChip) uptimeChip.removeAttribute('title');
+            setChipState('settings-chip-uptime', snapshot.uptimeSec > 0 ? 'ok' : '');
+        }
+        setText('settings-val-uptime', uptimeText);
     }
 
     function renderCards() {
@@ -191,7 +217,11 @@
             fetchJson('/api/fleet'),
         ]);
         var hdata = healthFleet[0];
-        if (hdata && hdata.uptimeSec != null) snapshot.uptimeSec = hdata.uptimeSec;
+        if (hdata) {
+            if (hdata.uptimeSec != null) snapshot.uptimeSec = hdata.uptimeSec;
+            snapshot.healthDegraded = !!hdata.degraded;
+            snapshot.healthReasons = Array.isArray(hdata.reasons) ? hdata.reasons.slice() : [];
+        }
         var fdata = healthFleet[1];
         if (fdata && fdata.fleet) {
             var fleet = fdata.fleet;
