@@ -1,0 +1,7 @@
+# Optional primary-candidate deps for mob-fr-engine-bench-harness (ONNX path).
+# Install into fr-sidecar venv AFTER requirements.txt:
+#   .\.venv\Scripts\pip install -r ..\scripts\fr-bench\requirements-bench-optional.txt
+#
+# DeepFace baseline needs only fr-sidecar/requirements.txt (already installed).
+onnxruntime>=1.16,<2
+insightface>=0.7,<1

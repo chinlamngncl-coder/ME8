@@ -15,6 +15,14 @@ fr-sidecar/__pycache__/
 fr-sidecar/*.pyc
 storage/
 
+# FR engine bench images + CSV (mob-fr-engine-bench-harness) — keep README / .gitkeep
+bench/fr/out/
+bench/fr/**/*.jpg
+bench/fr/**/*.jpeg
+bench/fr/**/*.png
+bench/fr/**/*.bmp
+bench/fr/**/*.webp
+
 # ---- Dependencies ----
 node_modules/
 vendor/node-win-x64-cache/
