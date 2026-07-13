@@ -1,0 +1,16 @@
+---
+description: ZERO product edits without MOB-APPLY or explicit go-ahead — no creativity, no small freestyle fixes
+alwaysApply: true
+---
+
+# Zero change without APPLY
+
+**Disc:** `docs/MOB-DISC-ZERO-CHANGE-WITHOUT-APPLY.md`
+
+- **No creativity / no inventing** for product changes  
+- **No file edits** (not even one line) unless user said **`MOB-APPLY …`** or **go ahead** / **apply** for that exact item  
+- Discuss first when unsure; paper MOB DISC OK; code only after go-ahead  
+- Do not bundle extras into a named MOB  
+- Read / diagnose / answer = OK without APPLY  
+
+This wins over “helpful” or “obvious” fixes.

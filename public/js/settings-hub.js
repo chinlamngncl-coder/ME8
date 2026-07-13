@@ -98,12 +98,26 @@
     }
 
     function healthReasonLabel(code) {
+        var plainKey = 'healthPlain.reason.' + String(code || '');
+        var plain = tr(plainKey);
+        if (plain && plain !== plainKey) return plain;
         var key = 'settingsHub.strip.reason.' + String(code || '');
         var label = tr(key);
         return label !== key ? label : String(code || 'degraded');
     }
 
     function renderStrip() {
+        if (snapshot.healthDegraded) {
+            var reasonJoin = snapshot.healthReasons.length
+                ? snapshot.healthReasons.map(healthReasonLabel).join(', ')
+                : tr('healthPlain.notOk');
+            setText('settings-val-system', tr('healthPlain.notOkReason', { reason: reasonJoin }));
+            setChipState('settings-chip-system', 'bad');
+        } else {
+            setText('settings-val-system', tr('healthPlain.ok'));
+            setChipState('settings-chip-system', snapshot.uptimeSec > 0 ? 'ok' : '');
+        }
+
         setText('settings-val-fleet', tr('settingsHub.strip.fleetVal', {
             online: snapshot.fleetOnline,
             total: snapshot.fleetTotal,

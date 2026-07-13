@@ -21,18 +21,12 @@ function Get-Me8AppRoot {
 }
 
 function Get-PrimaryLanIp {
-    $candidates = @()
-    try {
-        $candidates = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-            Where-Object {
-                $_.IPAddress -notlike '127.*' -and
-                $_.IPAddress -notlike '169.254.*' -and
-                $_.PrefixOrigin -ne 'WellKnown'
-            } |
-            Sort-Object InterfaceMetric, PrefixLength |
-            Select-Object -ExpandProperty IPAddress)
-    } catch { }
-    if ($candidates.Count) { return $candidates[0] }
+    $helper = Join-Path $PSScriptRoot 'ph-kr-ship\Get-UbitronPreferredLanIPv4.ps1'
+    if (-not (Test-Path $helper)) { $helper = Join-Path (Split-Path $PSScriptRoot -Parent) 'Get-UbitronPreferredLanIPv4.ps1' }
+    if (Test-Path $helper) {
+        $ip = & $helper -Print
+        if ($ip) { return [string]$ip }
+    }
     return '127.0.0.1'
 }
 
@@ -57,6 +51,9 @@ function Patch-EnvMe8 {
     $raw = $raw -replace '(?m)^FM_HTTP_PORT=.*$', 'FM_HTTP_PORT=3988'
     if ($raw -notmatch '(?m)^FM_USE_CACHE_DEBOUNCE=') {
         $raw += "`nFM_USE_CACHE_DEBOUNCE=1`nFM_GPS_CACHE_DEBOUNCE_MS=2000`nFM_CONTACT_CACHE_DEBOUNCE_MS=2000`n"
+    }
+    if ($raw -notmatch '(?m)^FM_FR_SIDECAR_AUTO=') {
+        $raw += "FM_FR_SIDECAR_AUTO=1`n"
     }
     Set-Content $EnvPath $raw -Encoding UTF8 -NoNewline
 }
@@ -135,6 +132,7 @@ Write-Host ''
 Write-Host 'ME8 FRESH INSTALL OK' -ForegroundColor Green
 Write-Host "  Storage:  factory template (no lab BWCs, GPS, or users)"
 Write-Host "  Operator: http://${LanIp}:$httpPort"
-Write-Host "  Next:     edit .env (FTP/SIP secrets), then .\RESTART-FLEET.bat"
+Write-Host '  Enterprise: run as Admin -> .\INSTALL-UBITRON-SERVICE.ps1 (service, auto-start)'
+Write-Host '  Lab only:   .\RESTART-FLEET.bat (console window)'
 Write-Host "  Verify:   .\VERIFY-ME8-FRESH.ps1"
 Write-Host ''

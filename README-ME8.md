@@ -21,14 +21,33 @@ All new **MOB-APPLY** work targets **ME8** unless you say otherwise.
 
 ## Run
 
+### Lab start — read this first
+
+Do **one** of these, never both at the same time:
+
+| Mode | What to use |
+|------|-------------|
+| **Lab console** (daily work) | `RESTART-FLEET.bat` |
+| **Windows service** (auto-start, no window) | `net start UbitronC2` / `net stop UbitronC2` |
+
+**Before** `RESTART-FLEET.bat`:
+
+1. If the Windows service is on, stop it (Administrator): `net stop UbitronC2`  
+   **Or one click:** `LAB-CONSOLE-START.bat` (stops service, then starts lab console)
+2. Do not start Mobility Test 2 on this PC while lab ME8 is running (same ports)
+3. If Start says **BLOCKED**, fix that message first — do not use a half-dead dashboard
+
+`RESTART-FLEET.bat` will refuse to start if ports are still taken (`mob-start-safe`).  
+`LAB-CONSOLE-START.bat` = stop service + console Start (`mob-service-lab-bat`).
+
 ```powershell
 cd "C:\Users\user\Desktop\Enterprise Mobility\ME8"
 .\RESTART-FLEET.bat
 ```
 
-Dashboard: `http://<HOST>:3988` (trial ship uses `:3888`)
+Dashboard: `http://127.0.0.1:3988` (or your LAN IP on port **3988**)
 
-Stop trial Fleet before real BWC tests (shared SIP/FTP).
+Stop trial / Test 2 packs before real BWC tests on this machine (shared ports).
 
 ---
 
@@ -43,9 +62,11 @@ Stop trial Fleet before real BWC tests (shared SIP/FTP).
 | `mob-me8-logo-png-fix` | 2026-06-30 | `ubitron-logo.png` from trial pack; index + login `.png` only |
 | `mob-me8-pack-skeleton` | 2026-06-30 | `pack/me8-fresh/`, `NEW-ME8-INSTALL.ps1`, `VERIFY-ME8-FRESH.ps1` |
 | `mob-me8-ship-build-customer` | 2026-07-01 | `BUILD-ME8-CUSTOMER.ps1` — ship desk pack builder |
-| `mob-me8-license-ops-doc` | 2026-07-01 | `docs/LICENSE-OPERATIONS.md`, `pack/me8-ship/ship-registry.*` |
+| `mob-start-readme` | 2026-07-12 | Lab start note: stop Windows service before console Start |
 
 **Fresh customer install:** `.\NEW-ME8-INSTALL.ps1` then `.\VERIFY-ME8-FRESH.ps1` (see `pack/me8-fresh/README.txt`).
+
+**Enterprise service (no console):** run **Administrator** `.\INSTALL-UBITRON-SERVICE.ps1` — operators use portal URL only. Lab: `.\RESTART-FLEET.bat`.
 
 **Customer pack (ship desk):** `.\BUILD-ME8-CUSTOMER.ps1` — see [docs/LICENSE-OPERATIONS.md](docs/LICENSE-OPERATIONS.md).
 

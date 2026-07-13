@@ -1,0 +1,21 @@
+---
+description: ME8/Cursor rules are life-and-death — check before every edit; no shortcuts
+alwaysApply: true
+---
+
+# Rules = life and death
+
+**Disc:** `docs/MOB-DISC-RULES-LIFE-AND-DEATH.md`  
+**Also:** `docs/MOB-DISC-ZERO-CHANGE-WITHOUT-APPLY.md`
+
+Before every edit, re-check locked rules:
+
+1. User said **MOB-APPLY** or **go ahead** for **this exact** item? If not → **do not edit**  
+2. Brand / Axiom? Explicit yes only — product face stays **Mobility Axiom** unless user orders rename  
+3. Locked PTT/live/SIP cores? Stop unless user named the file  
+4. Never 172.17–172.31 as server IP  
+5. One MOB at a time unless user listed named APPLYs  
+6. No creativity / inventing / “small obvious” freestyle fixes  
+7. No pay nag; no daily SOS/TOTP nag  
+
+**Rules win over agent initiative.** Discuss → MOB-APPLY / go ahead → change only that.

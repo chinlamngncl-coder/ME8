@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="dark">
-    <title>Sign in — Mobility Axiom</title>
+    <title>Sign in — Ubitron Mobility C2</title>
     <style>
         * { box-sizing: border-box; }
         html, body {
@@ -129,6 +129,7 @@
             </div>
         </div>
         <p id="login-error" role="alert" data-i18n="login.errorInvalid">Invalid sign-in. Try again.</p>
+        <p class="setup-hint" id="login-password-hint" hidden style="font-size:12px;color:#94a3b8;margin:0 0 14px;line-height:1.45" data-i18n="login.hintPassword">First install: password is global123. If you already changed it, use your new password — global123 will fail. Type it; do not rely on a saved browser password.</p>
         <button type="button" id="login-oidc" hidden>Sign in with organization account</button>
         <p id="login-divider" class="login-divider" hidden>or use local account</p>
         <form id="login-form" autocomplete="on">
@@ -160,6 +161,6 @@
     <script src="/js/operator-ui.js?v=20260702-op-voice-unified"></script>
     <script src="/js/password-policy-ui.js?v=20260708-pwd12"></script>
     <script src="/js/auth-form-busy.js?v=20260701-auth-busy-unified"></script>
-    <script src="/js/login.js?v=20260709-login-return"></script>
+    <script src="/js/login.js?v=20260712-login-factory-hint"></script>
 </body>
 </html>

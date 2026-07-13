@@ -1341,6 +1341,12 @@ app.get('/api/auth/password-policy', (req, res) => {
     });
 });
 
+/** mob-login-factory-hint-gate — factory password copy only for first-install (mustChange) */
+app.get('/api/auth/login-ui', (req, res) => {
+    const hints = dashboardAuth.getLoginUiPublicHints();
+    res.json({ ok: true, ...hints });
+});
+
 app.post('/api/auth/logout', (req, res) => {
     dashboardAuth.destroySession(dashboardAuth.sessionTokenFromRequest(req));
     dashboardAuth.clearSessionCookie(res, req);

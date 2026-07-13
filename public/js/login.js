@@ -189,6 +189,21 @@
 
     showOidcError();
 
+    // Factory password hint: hidden by default; show only when install account still mustChange.
+    (function loadFactoryPasswordHint() {
+        var hintEl = document.getElementById('login-password-hint');
+        if (!hintEl) return;
+        hintEl.hidden = true;
+        fetch('/api/auth/login-ui', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data && data.ok && data.showFactoryPasswordHint === true) {
+                    hintEl.hidden = false;
+                }
+            })
+            .catch(function () { /* stay hidden */ });
+    })();
+
     fetch('/api/auth/oidc/config').then(function (r) { return r.json(); }).then(function (data) {
         if (data && data.ok && data.oidc) {
             oidcConfig = data.oidc;

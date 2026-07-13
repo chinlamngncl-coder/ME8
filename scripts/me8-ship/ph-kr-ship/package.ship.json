@@ -1,0 +1,24 @@
+{
+  "name": "ubitron-mobility-c2",
+  "version": "1.0.0",
+  "description": "Ubitron Mobility C2 — customer delivery",
+  "private": true,
+  "main": "run.js",
+  "scripts": {
+    "start": "node run.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ftp-srv": "^4.6.3",
+    "livekit-server-sdk": "^2.9.7",
+    "multer": "^2.2.0",
+    "node-llama-cpp": "^3.18.1",
+    "nodemailer": "^9.0.3",
+    "qrcode": "^1.5.4",
+    "sip": "0.0.6",
+    "socket.io": "^4.8.3",
+    "ws": "^8.21.0",
+    "xml2js": "^0.6.2"
+  }
+}

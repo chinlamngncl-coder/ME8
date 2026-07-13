@@ -55,18 +55,28 @@
     async function loadPolicyHint(targetId, role) {
         var el = typeof targetId === 'string' ? document.getElementById(targetId) : targetId;
         if (!el) return null;
+        var fallback = tr('mustChangePassword.exampleHint');
+        if (!fallback || fallback === 'mustChangePassword.exampleHint') {
+            fallback = 'Rules: at least 12 characters, with upper case, lower case, a number, and a symbol. Example you can type: ' + DEFAULT_EXAMPLE;
+        }
         try {
             var res = await fetch('/api/auth/password-policy', { credentials: 'same-origin' });
             var data = await res.json();
-            if (!res.ok || !data.ok || !data.policy) return null;
+            if (!res.ok || !data.ok || !data.policy) {
+                el.textContent = fallback;
+                return null;
+            }
             var policy = Object.assign({}, data.policy, {
                 minLength: data.policy.minLength || data.policy.minLengthOperator || 12,
+                example: data.policy.example || DEFAULT_EXAMPLE,
             });
             // role kept for callers; min length is unified for all dashboard roles
             if (role) { /* no-op: both roles share minLength */ }
-            el.textContent = policyHintText(policy);
+            var text = policyHintText(policy);
+            el.textContent = (text && text.indexOf('{') < 0) ? text : fallback;
             return policy;
         } catch (_) {
+            el.textContent = fallback;
             return null;
         }
     }

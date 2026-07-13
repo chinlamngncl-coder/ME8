@@ -1,0 +1,31 @@
+---
+description: When user says ship/pack/customer pack, print PRE-SHIP GATE checklist (not daily nag)
+alwaysApply: true
+---
+
+# ME8 / Mobility C2 — Pre-ship gate (pack time only)
+
+## Do not confuse with no-nag
+
+- **Never** open ordinary sessions with SOS ledger / TOTP “Ship parked” nags.
+- SOS ledger = PASS — do not re-ask.
+- This rule is **only** when the user asks to **ship / pack / customer pack / CREATE ship / packing checklist / send to client / PH KR delivery zip**.
+
+## When user asks to ship
+
+1. Read and enforce:  
+   `C:\Users\user\Desktop\Enterprise Mobility\ME8-INTERNAL\ship-desk\PRE-SHIP-GATE-CHECKLIST.md`
+2. Immediately print **Section A — One-screen summary** from that file (the PRE-SHIP GATE block).
+3. Do **not** declare “ready to send” until these are verified or user explicitly skips smoke:
+   - Bundled Node **22+**
+   - Ship deps include **multer** (and synced ME8 deps)
+   - Zip **root** has Install + Start bats + README + APK (if VC)
+   - Signed license, no private key
+   - Login + change-password **example hint** in the build
+   - Desk smoke: Start → `global`/`global123` on clean port (or user says skip)
+4. Reminds at pack time also: `FM_TOTP_SUSPENDED` must be off for real customer ship.
+5. If rebuild fails mid-way, **do not zip** a half folder (missing root bats = ship fail).
+
+## When user is not shipping
+
+Stay silent on this checklist.

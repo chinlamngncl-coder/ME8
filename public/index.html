@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mobility Axiom</title>
+    <title>Ubitron Mobility C2</title>
     <link rel="stylesheet" href="/vendor/leaflet/leaflet.css?v=20260701-vendor-local" />
     <link rel="stylesheet" href="/vendor/markercluster/MarkerCluster.css?v=20260701-vendor-local" />
     <link rel="stylesheet" href="/vendor/markercluster/MarkerCluster.Default.css?v=20260701-vendor-local" />
@@ -80,6 +80,16 @@
             display: flex; align-items: center; justify-content: center; line-height: 1;
         }
         .header-bell-badge[hidden] { display: none !important; }
+        .header-system-health {
+            display: inline-flex; align-items: center; max-width: 280px;
+            padding: 5px 10px; border-radius: 8px; border: 1px solid #475569;
+            font-size: 11px; font-weight: 700; letter-spacing: 0.01em;
+            background: #1e293b; color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .header-system-health[hidden] { display: none !important; }
+        .header-system-health.ok { border-color: rgba(34,197,94,0.45); color: #86efac; }
+        .header-system-health.bad { border-color: rgba(248,113,113,0.55); color: #fecaca; }
+        .header-system-health.warn { border-color: rgba(251,191,36,0.5); color: #fde68a; }
         .ma-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 998; }
         .ma-overlay[hidden] { display: none !important; }
         .ma-drawer {
@@ -5085,11 +5095,11 @@
     var pop = new URLSearchParams(window.location.search).get('popout');
     if (pop === 'map') {
         document.documentElement.classList.add('map-popout-mode');
-        document.title = 'Mobility Axiom — Map';
+        document.title = 'Ubitron Mobility C2 — Map';
     } else if (pop === 'analytics') {
         document.documentElement.classList.add('analytics-popout-mode');
         window.__mobilityAnalyticsPopout = true;
-        document.title = 'Mobility Axiom — Analytics';
+        document.title = 'Ubitron Mobility C2 — Analytics';
     }
 })();
 </script>
@@ -5298,9 +5308,9 @@
             </div>
         </div>
         <div id="header-actions">
-            <button type="button" id="missed-activity-bell" class="header-bell" data-i18n-title="missedActivity.title" aria-label="Missed activity" hidden>
+            <button type="button" id="missed-activity-bell" class="header-bell" data-i18n-title="missedActivity.title" aria-label="Alerts" hidden>
                 <svg class="header-bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-                <span id="missed-activity-label" class="header-bell-label">Missed</span>
+                <span id="missed-activity-label" class="header-bell-label">Alerts</span>
                 <span id="missed-activity-badge" class="header-bell-badge" hidden>0</span>
             </button>
             <div id="header-session-chip" class="header-session-chip" hidden>
@@ -5309,8 +5319,7 @@
                 <span id="header-session-role" class="header-session-role ss-role-badge" hidden></span>
                 <span id="header-session-display" class="header-session-display" hidden></span>
             </div>
-            <button type="button" id="header-voice-mute" class="header-voice-btn" aria-pressed="false" data-i18n-title="voiceAlerts.header.muteTitle" data-i18n-aria="voiceAlerts.header.muteTitle">🔊</button>
-            <button type="button" id="header-voice-repeat" class="header-voice-btn" data-i18n-title="voiceAlerts.header.repeatTitle" data-i18n-aria="voiceAlerts.header.repeatTitle" data-i18n="voiceAlerts.header.repeat">Repeat</button>
+            <span id="header-system-health" class="header-system-health" hidden aria-live="polite">System OK</span>
             <div id="header-lang-wrap">
                 <label for="header-lang" data-i18n="lang.label">Language</label>
                 <select id="header-lang" aria-label="Language"></select>
@@ -5449,7 +5458,7 @@
             <div id="map-wrapper">
                 <div class="map-canvas-wrap">
                     <div id="map-popout-bar">
-                        <span data-i18n="map.popoutBarTitle">Mobility Axiom — Map</span>
+                        <span data-i18n="map.popoutBarTitle">Ubitron Mobility C2 — Map</span>
                         <span class="map-popout-mirror-hint" data-i18n="map.popoutMirrorHint">Display only — control from main dashboard</span>
                         <button type="button" class="map-popout-close" onclick="window.close()" data-i18n="common.close">Close</button>
                     </div>
@@ -5534,6 +5543,10 @@
             <div class="settings-hub-head">
                 <h2 data-i18n="nav.settings">Settings</h2>
                 <div id="settings-health-strip" class="settings-health-strip" aria-live="polite">
+                    <div class="settings-health-chip" id="settings-chip-system">
+                        <span class="settings-health-chip-lbl" data-i18n="healthPlain.stripLabel">System</span>
+                        <span class="settings-health-chip-val" id="settings-val-system">—</span>
+                    </div>
                     <div class="settings-health-chip" id="settings-chip-fleet">
                         <span class="settings-health-chip-lbl" data-i18n="settingsHub.strip.fleet">Fleet</span>
                         <span class="settings-health-chip-val" id="settings-val-fleet">—</span>
@@ -6539,7 +6552,7 @@
     <div id="app-view-analytics" hidden>
         <div id="analytics-panel" class="ax-hub">
             <div id="analytics-popout-bar">
-                <span data-i18n="analytics.popoutBarTitle">Mobility Axiom — Face watch</span>
+                <span data-i18n="analytics.popoutBarTitle">Ubitron Mobility C2 — Face watch</span>
                 <span class="analytics-popout-desk-hint" data-i18n="analytics.popoutDeskHint">Map and dispatch stay on the Operations dashboard</span>
                 <button type="button" class="analytics-popout-close" onclick="window.close()" data-i18n="common.close">Close</button>
             </div>
@@ -7229,7 +7242,7 @@
     <script src="/js/tab-lifecycle.js?v=20260702-restore-8wc-v2"></script>
     <script src="/js/server-setup.js?v=20260709-controls-compact-v4"></script>
     <script src="/js/platform-smtp.js?v=20260706-smtp-settings"></script>
-    <script src="/js/settings-hub.js?v=20260711-fleet-health-degraded"></script>
+    <script src="/js/settings-hub.js?v=20260712-health-plain"></script>
     <script src="/js/live-viewer-telemetry.js?v=20260709-live-viewer-telemetry"></script>
     <script src="/js/tech-diagnostics.js?v=20260709-tech-pin-reset"></script>
     <script src="/js/usb-maintenance.js?v=20260609-usb2"></script>
@@ -7254,7 +7267,8 @@
     <script src="/js/route-trace.js?v=20260621-smart-gps"></script>
     <script src="/js/case-files-ui.js?v=20260627-delete-error-voice"></script>
     <script src="/js/evidence-hub.js?v=20260708-cold-archive"></script>
-    <script src="/js/missed-activity.js?v=20260710-missed-item-detail"></script>
+    <script src="/js/system-health-plain.js?v=20260712-health-plain"></script>
+    <script src="/js/missed-activity.js?v=20260712-alerts-copy"></script>
     <script src="/js/evidence-manager.js?v=20260712-popout-roster"></script>
     <script src="/js/chat-ui.js"></script>
     <script src="/js/video-wall.js?v=20260709-wall-claim"></script>
@@ -13734,9 +13748,9 @@
 <div id="fc-toast"></div>
 
 <div id="missed-activity-overlay" class="ma-overlay" hidden></div>
-<div id="missed-activity-drawer" class="ma-drawer" hidden role="dialog" aria-label="Missed activity">
+<div id="missed-activity-drawer" class="ma-drawer" hidden role="dialog" aria-label="Alerts">
     <div class="ma-drawer-head">
-        <h3 id="missed-activity-heading" data-i18n="missedActivity.title">Missed activity</h3>
+        <h3 id="missed-activity-heading" data-i18n="missedActivity.title">Alerts</h3>
         <button type="button" id="missed-activity-close" class="ma-drawer-close" aria-label="Close">✕</button>
     </div>
     <div id="missed-activity-list" class="ma-drawer-list"></div>

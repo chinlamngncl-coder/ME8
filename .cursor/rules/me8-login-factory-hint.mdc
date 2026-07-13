@@ -1,0 +1,26 @@
+---
+description: Login factory password hint — only for first-install mustChange; never always-on for lab/returning users
+alwaysApply: true
+---
+
+# Login factory password hint (locked)
+
+**Disc:** `docs/MOB-DISC-LOGIN-FACTORY-HINT-GATE.md`  
+**APPLY:** `mob-login-factory-hint-gate` (done 2026-07-12)
+
+## Never
+
+- Put “First install / global123” (or equivalent) **always visible** on `login.html`
+- Re-add permanent factory password chrome “to help clients” without the gate
+- Show that hint to returning lab / ME8 operators who already changed password
+
+## Always
+
+- Default: hint element **`hidden`**
+- Show only when `GET /api/auth/login-ui` → `showFactoryPasswordHint: true`
+- Server: only if install user `global` is active and `mustChangePassword === true`
+- API failure → keep hint **hidden**
+
+## If user says ship/pack
+
+Factory password belongs in **Migration / Installation guides** and the gated login hint for true first install — not as permanent login nag.

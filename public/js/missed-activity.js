@@ -1,6 +1,7 @@
 // mob-missed-activity-shell + mob-missed-item-detail
-// Header "Missed" bell + drawer. Click a row → detail panel (kind, device, time).
+// Header "Alerts" bell + drawer. Click a row → detail panel (kind, device, time).
 // Go to Operations selects the device when possible. No PTT/SIP pipeline edits.
+// mob-missed-bell-copy: never show humanizeKey "Label" from old missedActivity.label key.
 (function () {
     'use strict';
 
@@ -33,15 +34,30 @@
         return n;
     }
 
+    /** Match i18n.js humanizeKey — treat that as missing translation, use fallback. */
+    function humanizeKeyTail(key) {
+        var tail = String(key || '').split('.').pop() || String(key || '');
+        return tail
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/_/g, ' ')
+            .replace(/^./, function (c) { return c.toUpperCase(); })
+            .trim();
+    }
+
     function tr(key, fallback) {
         try {
+            function accept(v) {
+                if (!v || v === key) return false;
+                if (v === humanizeKeyTail(key)) return false;
+                return true;
+            }
             if (typeof window.tr === 'function') {
                 var v = window.tr(key);
-                if (v && v !== key) return v;
+                if (accept(v)) return v;
             }
             if (typeof I18n !== 'undefined' && I18n.t) {
                 var s = I18n.t(key);
-                if (s && s !== key) return s;
+                if (accept(s)) return s;
             }
         } catch (e) { /* ignore */ }
         return fallback;
@@ -103,7 +119,7 @@
                 title: tr('missedActivity.ptt', 'Missed PTT'),
                 tag: tr('missedActivity.pttTag', 'PTT'),
                 tagClass: '',
-                blurb: tr('missedActivity.pttDetail', 'Field PTT ended before an operator engaged the banner.'),
+                blurb: tr('missedActivity.pttDetail', 'Field PTT ended before an operator opened Alerts.'),
             };
         }
         if (kind === 'fall') {
@@ -148,7 +164,7 @@
             els.detail.hidden = true;
             els.detail.innerHTML = '';
         }
-        if (els.heading) els.heading.textContent = tr('missedActivity.title', 'Missed activity');
+        if (els.heading) els.heading.textContent = tr('missedActivity.title', 'Alerts');
     }
 
     function openDrawer() {
@@ -190,7 +206,7 @@
         var label = deviceLabel(camId);
         if (els.list) els.list.hidden = true;
         els.detail.hidden = false;
-        if (els.heading) els.heading.textContent = tr('missedActivity.detailTitle', 'Missed detail');
+        if (els.heading) els.heading.textContent = tr('missedActivity.detailTitle', 'Alert detail');
         els.detail.innerHTML =
             '<button type="button" class="ma-detail-back" id="ma-detail-back">← ' +
                 escText(tr('missedActivity.back', 'Back to list')) + '</button>' +
@@ -252,7 +268,7 @@
         if (!items || !items.length) {
             var empty = document.createElement('div');
             empty.className = 'ma-empty';
-            empty.textContent = tr('missedActivity.empty', 'No missed activity. All clear.');
+            empty.textContent = tr('missedActivity.empty', 'No alerts. All clear.');
             els.list.appendChild(empty);
             return;
         }
@@ -306,7 +322,7 @@
         els.label = document.getElementById('missed-activity-label');
         els.heading = document.getElementById('missed-activity-heading');
         if (!els.bell) return;
-        if (els.label) els.label.textContent = tr('missedActivity.label', 'Missed');
+        if (els.label) els.label.textContent = tr('missedActivity.bellText', 'Alerts');
 
         els.bell.addEventListener('click', function () {
             if (els.drawer && els.drawer.hidden) openDrawer();

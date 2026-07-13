@@ -23,12 +23,20 @@
         errEl.style.display = 'block';
     }
 
-    if (window.I18n && I18n.init) {
-        I18n.init().then(function () {
-            document.title = tr('mustChangePassword.documentTitle');
-            if (formBusy) formBusy.refreshDefaultLabel();
-        });
+    function readyLocales() {
+        if (window.I18n && I18n.init) return I18n.init();
+        return Promise.resolve();
     }
+
+    readyLocales().then(function () {
+        document.title = tr('mustChangePassword.documentTitle');
+        if (formBusy) formBusy.refreshDefaultLabel();
+        // Always show a typed example even if the policy API is slow or fails
+        var hintEl = document.getElementById('pwd-policy-hint');
+        if (hintEl && (!hintEl.textContent || hintEl.textContent.indexOf('{') >= 0)) {
+            hintEl.textContent = tr('mustChangePassword.exampleHint');
+        }
+    });
 
     fetch('/api/auth/session', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (data) {
         if (!data || !data.ok) {
@@ -39,13 +47,17 @@
             window.location.replace('/');
             return;
         }
-        if (window.PasswordPolicyUi) {
-            PasswordPolicyUi.loadPolicyHint('pwd-policy-hint', data.role).then(function (policy) {
+        readyLocales().then(function () {
+            if (!window.PasswordPolicyUi) return;
+            return PasswordPolicyUi.loadPolicyHint('pwd-policy-hint', data.role).then(function (policy) {
                 if (policy) {
                     PasswordPolicyUi.applyMinLength(['#pwd-new', '#pwd-confirm'], policy.minLength);
+                } else {
+                    var hintEl = document.getElementById('pwd-policy-hint');
+                    if (hintEl) hintEl.textContent = tr('mustChangePassword.exampleHint');
                 }
             });
-        }
+        });
     }).catch(function () {
         window.location.replace('/login.html');
     });
