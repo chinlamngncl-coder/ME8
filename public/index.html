@@ -90,10 +90,10 @@
         .header-system-health.ok { border-color: rgba(34,197,94,0.45); color: #86efac; }
         .header-system-health.bad { border-color: rgba(248,113,113,0.55); color: #fecaca; }
         .header-system-health.warn { border-color: rgba(251,191,36,0.5); color: #fde68a; }
-        .ma-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 998; }
+        .ma-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 27080; }
         .ma-overlay[hidden] { display: none !important; }
         .ma-drawer {
-            position: fixed; top: 0; right: 0; width: 360px; max-width: 92vw; height: 100vh; z-index: 999;
+            position: fixed; top: 0; right: 0; width: 360px; max-width: 92vw; height: 100vh; z-index: 27090;
             background: #0f172a; border-left: 1px solid #334155; box-shadow: -8px 0 24px rgba(0,0,0,0.4);
             display: flex; flex-direction: column;
         }
@@ -169,6 +169,17 @@
         #app-top-nav {
             flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 16px;
             background: var(--bg); border-bottom: 1px solid var(--border);
+            position: relative;
+            z-index: 26040;
+        }
+        /* mob-sos-banner-nonblocking-nav — header/nav stay above SOS ack dimmer; strip sits under tabs */
+        #header {
+            position: relative;
+            z-index: 26050;
+        }
+        body.sos-incident-active #header,
+        body.sos-incident-active #app-top-nav {
+            box-shadow: 0 1px 0 rgba(15, 23, 42, 0.65);
         }
         #app-top-nav button {
             padding: 10px 18px; font-size: 12px; font-weight: 600; border: none; border-radius: 8px 8px 0 0;
@@ -223,7 +234,7 @@
         .ax-license-gate-inner p { margin: 0; font-size: 12px; color: #94a3b8; line-height: 1.45; }
         #ax-hub-body[hidden] { display: none !important; }
         #ax-hub-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
-        .ax-fr-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; flex-shrink: 0; padding: 6px 0; }
+        .ax-fr-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; flex-shrink: 0; padding: 6px 0; width: 100%; }
         .ax-fr-toolbar label { font-size: 11px; color: #94a3b8; display: inline-flex; align-items: center; gap: 6px; }
         .ax-fr-toolbar input[type="range"] { width: 140px; }
         /* mob-ui-range-slider-visible — dark track + clear thumb (native white track is invisible) */
@@ -312,7 +323,8 @@
             border: 1px solid #334155; border-radius: 6px; background: #0b1220;
             overflow: hidden; display: flex; align-items: center; justify-content: center;
         }
-        .ax-fr-tile.is-live { border-color: #2563eb; }
+        .ax-fr-tile.is-live { border-color: #2563eb; cursor: pointer; }
+        .ax-fr-tile.is-focused { box-shadow: inset 0 0 0 2px #38bdf8; }
         .ax-fr-tile.is-tile-connecting { border-color: #2563eb; }
         .ax-fr-tile.is-tile-warn { border-color: #d97706; }
         .ax-fr-tile.is-tile-error { border-color: #dc2626; }
@@ -345,6 +357,17 @@
         }
         .ax-fr-tile-stop:hover { background: #7f1d1d; border-color: #b91c1c; color: #fff; }
         .ax-fr-tile-stop[hidden] { display: none !important; }
+        /* mob-fr-tile-sos-badge — corner chip on alarming FR tile only (not Stopped by BWC) */
+        .ax-fr-tile-sos-badge {
+            position: absolute; right: 30px; top: 5px; z-index: 3;
+            padding: 2px 7px; border-radius: 4px;
+            font-size: 10px; font-weight: 800; letter-spacing: 0.05em;
+            background: #dc2626; color: #fff; line-height: 16px;
+            pointer-events: none; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+        }
+        .ax-fr-tile-sos-badge.is-fall { background: #ea580c; }
+        .ax-fr-tile-sos-badge[hidden] { display: none !important; }
+        .ax-fr-tile.is-sos-alarm { border-color: #dc2626; }
         #ax-fr-watch-stop:not(:disabled) { border-color: #b91c1c; color: #fca5a5; }
         .ax-fr-tile-canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
         .ax-fr-watch {
@@ -492,7 +515,10 @@
         #ax-fr-watch-hint[hidden] { display: none !important; }
         .ax-fr-roster-focus { font-size: 10px !important; padding: 2px 6px !important; }
         .ax-fr-tile.is-fr-hit { border-color: #dc2626 !important; box-shadow: inset 0 0 0 2px #dc2626; }
+        /* mob-fr-matches-chip-snap-size — drop redundant Analytics title (nav tab is enough) */
+        #analytics-panel > h2 { display: none !important; }
         /* mob-fr-snap-rail-16-fit — 16 slots fill column; no scroll */
+        /* mob-fr-hits-toolbar-chips + mob-fr-matches-chip-snap-size — far-right; size = Recent snap */
         .ax-fr-crop-list {
             flex: 1; min-height: 0; height: 100%;
             display: grid; grid-template-columns: 1fr 1fr;
@@ -502,6 +528,67 @@
             margin: 0 0 6px; font-size: 11px; font-weight: 600;
             text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8;
             flex-shrink: 0;
+        }
+        .ax-fr-hits-bar {
+            display: inline-flex; align-items: center; gap: 8px;
+            margin-left: auto;
+            flex-shrink: 0;
+            max-width: 100%;
+            padding: 0;
+            border: none;
+            background: transparent;
+        }
+        .ax-fr-hits-bar-head {
+            display: inline-flex; flex-direction: column; align-items: flex-end; gap: 2px;
+            flex-shrink: 0;
+        }
+        .ax-fr-hits-bar-title {
+            margin: 0; font-size: 10px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8;
+            white-space: nowrap;
+        }
+        .ax-fr-hits-bar-sub { display: none !important; }
+        .ax-fr-hits-overflow {
+            font-size: 9px; font-weight: 700; color: #fbbf24;
+            padding: 1px 5px; border-radius: 999px;
+            background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35);
+        }
+        .ax-fr-hits-overflow[hidden] { display: none !important; }
+        .ax-fr-hits-list {
+            --fr-hit-chip-w: 104px;
+            --fr-hit-chip-h: 72px;
+            display: grid;
+            grid-template-columns: repeat(5, var(--fr-hit-chip-w));
+            grid-auto-rows: var(--fr-hit-chip-h);
+            gap: 4px;
+            min-height: 0;
+            max-height: none;
+        }
+        .ax-fr-hits-list .ax-fr-crop-card {
+            width: 100%;
+            height: 100%;
+            max-height: none;
+        }
+        .ax-fr-hits-list .ax-fr-crop-match-badge {
+            font-size: 7px; padding: 2px 4px; top: 3px; left: 3px;
+        }
+        .ax-fr-hits-list .ax-fr-crop-match-meta {
+            font-size: 9px; padding: 2px 3px; gap: 2px;
+        }
+        .ax-fr-hits-list .ax-fr-crop-match-name {
+            max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .ax-fr-crop-card.is-grade-poi {
+            border-color: #64748b; box-shadow: 0 0 0 1px #64748b;
+        }
+        .ax-fr-crop-card.is-grade-monitoring {
+            border-color: #ca8a04; box-shadow: 0 0 0 1px #ca8a04, 0 0 8px rgba(202, 138, 4, 0.25);
+        }
+        .ax-fr-crop-card.is-grade-suspect {
+            border-color: #f59e0b; box-shadow: 0 0 0 1px #f59e0b, 0 0 8px rgba(245, 158, 11, 0.3);
+        }
+        .ax-fr-crop-card.is-grade-blacklist {
+            border-color: #dc2626; box-shadow: 0 0 0 1px #dc2626, 0 0 8px rgba(220, 38, 38, 0.35);
         }
         .ax-fr-crop-card {
             position: relative;
@@ -531,11 +618,45 @@
             background: #dc2626; color: #fff; line-height: 1.2;
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
         }
+        /* mob-fr-offline-crop-play-at — Play available (investigation; not hit-only) */
+        .ax-fr-crop-play-badge {
+            position: absolute; top: 4px; right: 4px; z-index: 2;
+            font-size: 8px; font-weight: 700; letter-spacing: 0.04em;
+            padding: 2px 5px; border-radius: 3px;
+            background: #0ea5e9; color: #fff; line-height: 1.2;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+        }
+        .fr-offline-play {
+            position: fixed; inset: 0; z-index: 13000;
+            background: rgba(2, 6, 23, 0.72);
+            display: flex; align-items: center; justify-content: center;
+            padding: 24px;
+        }
+        .fr-offline-play[hidden] { display: none !important; }
+        .fr-offline-play-inner {
+            background: #0f172a; border: 1px solid #334155; border-radius: 10px;
+            max-width: min(920px, 96vw); width: 100%; padding: 12px;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+        }
+        .fr-offline-play-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 12px; margin-bottom: 8px;
+        }
+        .fr-offline-play-title { font-size: 12px; color: #cbd5e1; }
+        .fr-offline-play-video { width: 100%; max-height: 70vh; background: #000; border-radius: 6px; }
         .ax-fr-crop-match-meta {
             position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
             display: flex; align-items: center; justify-content: space-between; gap: 4px;
             padding: 3px 5px; background: linear-gradient(transparent, rgba(15, 23, 42, 0.92));
             font-size: 9px; font-weight: 600; color: #fecaca; line-height: 1.2;
+        }
+        .ax-fr-crop-match-meta.is-near {
+            justify-content: flex-end;
+            color: #e2e8f0;
+            background: linear-gradient(transparent, rgba(15, 23, 42, 0.88));
+        }
+        .ax-fr-crop-card.is-near-score {
+            border-color: #64748b;
         }
         .ax-fr-crop-match-name {
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;
@@ -550,22 +671,55 @@
             display: flex; align-items: center; justify-content: center;
             color: #64748b; font-size: 10px; background: #020617; line-height: 1.2;
         }
+        /* mob-fr-snap-lightbox-float — Analytics open: floating card (not the map companion) */
         #fr-snap-lightbox {
-            position: fixed; inset: 0; z-index: 27000;
-            background: rgba(0, 0, 0, 0.9); display: flex; align-items: center; justify-content: center;
-            padding: 24px; box-sizing: border-box;
+            position: fixed; z-index: 27000;
+            left: auto; right: 16px; top: auto; bottom: 16px;
+            width: min(420px, calc(100vw - 24px));
+            max-height: min(78vh, 720px);
+            display: flex; flex-direction: column;
+            background: #0f172a; border: 1px solid #475569; border-radius: 10px;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+            padding: 0; box-sizing: border-box; overflow: hidden;
+            pointer-events: auto;
         }
         #fr-snap-lightbox[hidden] { display: none !important; }
+        #fr-snap-lightbox.is-minimized {
+            width: min(280px, calc(100vw - 24px));
+            max-height: none;
+        }
+        #fr-snap-lightbox.is-minimized .fr-snap-lightbox-body { display: none !important; }
+        .fr-snap-float-chrome {
+            flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+            padding: 6px 8px; background: #1e293b; border-bottom: 1px solid #334155;
+            cursor: grab; user-select: none;
+        }
+        .fr-snap-float-chrome:active { cursor: grabbing; }
+        .fr-snap-float-title {
+            flex: 1; min-width: 0; font-size: 11px; font-weight: 700; color: #e2e8f0;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .fr-snap-float-btn {
+            flex-shrink: 0; width: 28px; height: 28px; padding: 0;
+            border: 1px solid #475569; border-radius: 6px;
+            background: #0f172a; color: #f8fafc; font-size: 14px; line-height: 26px;
+            text-align: center; cursor: pointer;
+        }
+        .fr-snap-float-btn:hover { border-color: #94a3b8; background: #334155; }
+        .fr-snap-lightbox-body {
+            display: flex; flex-direction: column; gap: 10px;
+            padding: 10px 12px 12px; overflow: auto; min-height: 0;
+        }
         .fr-snap-lightbox-inner {
-            display: flex; flex-direction: column; align-items: center; gap: 12px;
-            max-width: min(96vw, 920px); max-height: 90vh;
+            display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+            max-width: none; max-height: none; width: 100%;
         }
         #fr-snap-lightbox img {
-            max-width: 100%; max-height: min(70vh, 720px);
+            width: 100%; max-height: min(42vh, 360px);
             object-fit: contain; border-radius: 8px; border: 1px solid #475569; background: #000;
         }
         .fr-snap-lightbox-meta {
-            width: 100%; max-width: 520px; padding: 10px 12px;
+            width: 100%; max-width: none; padding: 8px 10px;
             background: #1e293b; border: 1px solid #475569; border-radius: 8px;
             color: #e2e8f0; font-size: 12px; box-sizing: border-box;
         }
@@ -574,10 +728,83 @@
         .fr-snap-lightbox-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
         .fr-snap-lightbox-actions .btn { font-size: 11px; }
         .fr-snap-lightbox-actions .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-        .fr-snap-lightbox-close {
-            position: absolute; top: 10px; right: 14px; z-index: 1;
-            width: 36px; height: 36px; border: 1px solid #64748b; border-radius: 8px;
-            background: #1e293b; color: #f8fafc; font-size: 22px; line-height: 1; cursor: pointer;
+        /* mob-fr-snap-map-anchor-card — FR snap lives on the map pin popup */
+        .leaflet-popup.fr-snap-map-popup .leaflet-popup-content-wrapper {
+            background: #0f172a; color: #e2e8f0; border: 1px solid #0ea5e9; border-radius: 10px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+        }
+        .leaflet-popup.fr-snap-map-popup .leaflet-popup-tip { background: #0f172a; }
+        .leaflet-popup.fr-snap-map-popup .leaflet-popup-content { margin: 10px 12px; min-width: 220px; }
+        .fr-snap-map-card { display: flex; flex-direction: column; gap: 8px; max-width: 280px; }
+        .fr-snap-map-card img {
+            width: 100%; max-height: 160px; object-fit: contain;
+            border-radius: 6px; border: 1px solid #334155; background: #000;
+        }
+        .fr-snap-map-card .fr-snap-map-meta { font-size: 11px; line-height: 1.35; color: #cbd5e1; }
+        .fr-snap-map-card .fr-snap-map-meta p { margin: 0 0 4px; }
+        .fr-snap-map-card .fr-snap-map-no-crop { color: #fbbf24; }
+        .fr-snap-map-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+        .fr-snap-map-actions .btn { font-size: 11px; padding: 4px 8px; }
+        .fr-snap-map-actions .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        /* mob-fr-map-expand-side-dock — Expand docks inside map stage (never under top nav) */
+        .fr-snap-side-dock {
+            position: absolute; z-index: 1200; box-sizing: border-box;
+            width: min(420px, 46%); max-height: calc(100% - 64px);
+            top: 52px; overflow: auto; padding: 10px 12px;
+            display: flex; flex-direction: column; gap: 8px;
+            background: #0f172a; color: #e2e8f0;
+            border: 1px solid #0ea5e9; border-radius: 10px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+            pointer-events: auto;
+        }
+        .fr-snap-side-dock.is-right { right: 12px; left: auto; }
+        .fr-snap-side-dock.is-left { left: 12px; right: auto; }
+        .fr-snap-side-dock[hidden] { display: none !important; }
+        .fr-snap-side-dock img {
+            width: 100%; max-height: min(360px, 55vh); object-fit: contain;
+            border-radius: 6px; border: 1px solid #334155; background: #000;
+        }
+        .fr-snap-side-dock .fr-snap-map-meta { font-size: 11px; line-height: 1.35; color: #cbd5e1; }
+        .fr-snap-side-dock .fr-snap-map-meta p { margin: 0 0 4px; }
+        .fr-snap-side-tether {
+            position: absolute; inset: 0; z-index: 1190;
+            width: 100%; height: 100%; pointer-events: none;
+        }
+        .fr-snap-side-tether[hidden] { display: none !important; }
+        .fr-snap-side-tether line {
+            stroke: #fb7185; stroke-width: 2; stroke-dasharray: 5 4;
+            opacity: 0.85;
+        }
+        /* mob-fr-map-pin-floating-tag — always-on label (BWC-style), no click to identify */
+        .fr-snap-map-pin-icon { background: transparent !important; border: none !important; }
+        .fr-snap-map-pin-wrap {
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+            pointer-events: none;
+        }
+        .fr-snap-map-pin-label {
+            position: relative;
+            font-size: 10px; font-weight: 700; line-height: 1.2; color: #9f1239;
+            background: rgba(255, 255, 255, 0.96); padding: 2px 7px; border-radius: 4px;
+            border: 1px solid #fda4af; max-width: 118px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22); margin-bottom: 7px;
+        }
+        .fr-snap-map-pin-label::before {
+            content: '';
+            position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%);
+            border: 7px solid transparent; border-top-color: #fda4af; border-bottom: none;
+            width: 0; height: 0;
+        }
+        .fr-snap-map-pin-label::after {
+            content: '';
+            position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%);
+            border: 5px solid transparent; border-top-color: rgba(255, 255, 255, 0.96); border-bottom: none;
+            width: 0; height: 0;
+        }
+        .fr-snap-map-marker-icon {
+            width: 18px; height: 18px; border-radius: 50%;
+            background: #e11d48; border: 2px solid #fff;
+            box-shadow: 0 0 0 2px rgba(225, 29, 72, 0.45);
         }
         .ax-fr-crop-rail {
             flex: 1; min-height: 0; overflow: hidden;
@@ -722,6 +949,63 @@
         body.fm-fr-lab-ui #ax-fr-preview-drawer,
         body.fm-fr-lab-ui #ax-fr-preview-toast { display: revert !important; }
         #ax-fr-preview-drawer { margin-left: auto; }
+        /* mob-track-b2-two-wvp-tiles — two WVP pictures; hidden unless body.fm-lab-wvp (FM_LAB_WVP=1) */
+        #me8-wvp-lab-tile { display: none !important; }
+        body.fm-lab-wvp #me8-wvp-lab-tile { display: flex !important; }
+        #me8-wvp-lab-tile {
+            position: fixed; right: 16px; bottom: 16px; z-index: 24000;
+            width: min(720px, 96vw); max-height: min(640px, 90vh);
+            flex-direction: column; gap: 8px;
+            padding: 10px 12px; border-radius: 10px;
+            background: rgba(15, 23, 42, 0.96);
+            border: 1px solid rgba(56, 189, 248, 0.45);
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+            color: #e2e8f0; font-size: 12px;
+        }
+        #me8-wvp-lab-tile.me8-wvp-lab-collapsed #me8-wvp-lab-body { display: none; }
+        .me8-wvp-lab-head {
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        }
+        .me8-wvp-lab-title { font-weight: 600; color: #7dd3fc; letter-spacing: 0.02em; }
+        .me8-wvp-lab-badge {
+            font-size: 10px; padding: 2px 6px; border-radius: 4px;
+            background: #334155; color: #cbd5e1;
+        }
+        .me8-wvp-lab-badge.ok { background: #14532d; color: #bbf7d0; }
+        .me8-wvp-lab-badge.bad { background: #7f1d1d; color: #fecaca; }
+        .me8-wvp-lab-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+        }
+        @media (max-width: 640px) {
+            .me8-wvp-lab-grid { grid-template-columns: 1fr; }
+        }
+        .me8-wvp-lab-slot {
+            display: flex; flex-direction: column; gap: 6px;
+            min-width: 0;
+        }
+        .me8-wvp-lab-slot-label {
+            font-size: 11px; font-weight: 600; color: #94a3b8;
+        }
+        .me8-wvp-lab-stage {
+            width: 100%; aspect-ratio: 16 / 9; background: #020617;
+            border-radius: 6px; overflow: hidden;
+        }
+        .me8-wvp-lab-stage video { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .me8-wvp-lab-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+        .me8-wvp-lab-row select {
+            flex: 1 1 100px; min-width: 0; font-size: 11px;
+            background: #0f172a; color: #e2e8f0; border: 1px solid #475569; border-radius: 6px; padding: 4px 6px;
+        }
+        .me8-wvp-lab-row button {
+            font-size: 11px; padding: 4px 8px; border-radius: 6px; cursor: pointer;
+            border: 1px solid #475569; background: #1e293b; color: #e2e8f0;
+        }
+        .me8-wvp-lab-row button.primary { background: #0369a1; border-color: #0284c7; }
+        #me8-wvp-lab-log {
+            max-height: 72px; overflow: auto; white-space: pre-wrap;
+            font-family: ui-monospace, Consolas, monospace; font-size: 10px;
+            color: #94a3b8; background: #020617; border-radius: 6px; padding: 6px;
+        }
         /* mob-fr-red-toast-shell — non-blocking hit toast (Act 1 shell; live promote Act 3) */
         #fr-red-toast {
             position: fixed; top: 16px; right: 16px; z-index: 25850;
@@ -890,6 +1174,43 @@
             border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 12px; box-sizing: border-box;
         }
         .ax-bl-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0; }
+        .ax-bl-threshold-inline {
+            display: inline-flex; align-items: center; gap: 6px; color: #cbd5e1; font-size: 12px; white-space: nowrap;
+        }
+        .ax-bl-threshold-inline .fm-range { width: 110px; }
+        .ax-bl-admin-modal {
+            position: fixed; inset: 0; z-index: 27200; display: flex; align-items: center; justify-content: center;
+            background: rgba(2, 6, 23, 0.62);
+        }
+        .ax-bl-admin-modal[hidden] { display: none !important; }
+        .ax-bl-admin-card {
+            width: 320px; max-width: calc(100vw - 28px); padding: 14px; border-radius: 8px;
+            border: 1px solid #334155; background: #0f172a; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+        }
+        .ax-bl-admin-card.is-face-picker { width: 620px; }
+        .ax-bl-admin-card p { margin: 0 0 10px; color: #e2e8f0; font-size: 13px; }
+        .ax-bl-admin-card input, .ax-bl-admin-card select {
+            width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 6px;
+            border: 1px solid #334155; background: #020617; color: #e2e8f0; font-size: 13px;
+        }
+        .ax-bl-admin-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+        .ax-bl-face-picker-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .ax-bl-face-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); gap: 8px; max-height: 280px; overflow: auto; }
+        .ax-bl-face-pick {
+            border: 1px solid #334155; border-radius: 7px; background: #020617; color: #cbd5e1;
+            padding: 4px; cursor: pointer; text-align: left;
+        }
+        .ax-bl-face-pick.is-active { border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6 inset; }
+        .ax-bl-face-pick img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 4px; display: block; }
+        .ax-bl-face-pick span { display: block; margin-top: 3px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ax-bl-face-picker-empty { color: #94a3b8; font-size: 12px; padding: 8px 2px; }
+        .ax-bl-samples { display: flex; flex-wrap: wrap; gap: 7px; margin: 10px 0; }
+        .ax-bl-sample-chip {
+            width: 58px; border: 1px solid #334155; border-radius: 6px; background: #020617;
+            padding: 3px; color: #94a3b8; font-size: 9px;
+        }
+        .ax-bl-sample-chip img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 4px; display: block; }
+        .ax-bl-sample-chip span { display: block; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .ax-bl-search {
             width: 220px; max-width: 100%; padding: 7px 10px; border-radius: 6px;
             border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 12px;
@@ -951,6 +1272,15 @@
         .ax-bl-drawer-dl dt:first-child { margin-top: 0; }
         .ax-bl-drawer-dl dd { margin: 2px 0 0; color: #e2e8f0; }
         .ax-bl-drawer-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        .ax-bl-match-debug-result {
+            margin: 10px 0 0; padding: 8px 10px; border-radius: 4px;
+            border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 12px; line-height: 1.45;
+            white-space: pre-wrap; max-width: 420px;
+        }
+        .ax-bl-match-debug-result.is-ok { border-color: #16a34a; color: #bbf7d0; }
+        .ax-bl-match-debug-result.is-low { border-color: #d97706; color: #fde68a; }
+        .ax-bl-match-debug-result.is-err { border-color: #b91c1c; color: #fecaca; }
+        .ax-bl-match-debug-result[hidden] { display: none !important; }
         #fr-alarm-panel .fr-alarm-grade-line { margin: 0 0 8px; font-size: 12px; color: #fecaca; }
         #fr-alarm-panel .fr-alarm-grade-line .ax-bl-grade { margin-right: 6px; }
         #ax-bl-crop-modal {
@@ -1698,7 +2028,47 @@
         .evidence-hub-panel { margin-top: 4px; }
         .evidence-hub-panel[hidden],
         #cf-list-wrap[hidden],
-        #cf-detail-wrap[hidden] { display: none !important; }
+        #cf-detail-wrap[hidden],
+        #ev-holds-preview[hidden] { display: none !important; }
+        .ev-holds-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 8px;
+            max-height: calc(100vh - 240px);
+            overflow: auto;
+            padding-bottom: 12px;
+        }
+        .ev-hold-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .ev-hold-thumb {
+            display: block; width: 100%; padding: 0; border: none; background: #0f172a; cursor: pointer;
+            aspect-ratio: 4 / 3; overflow: hidden;
+        }
+        .ev-hold-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .ev-hold-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 3px; }
+        .ev-hold-name { font-size: 12px; font-weight: 600; color: #e2e8f0; }
+        .ev-hold-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+        .ev-hold-id { font-size: 9px; color: #64748b; word-break: break-all; margin-top: 4px; }
+        .ev-holds-empty, .ev-holds-folder { grid-column: 1 / -1; margin: 8px 0 0; }
+        .ev-holds-preview {
+            position: fixed; inset: 0; z-index: 12000;
+            background: rgba(2, 6, 23, 0.72);
+            display: flex; align-items: center; justify-content: center;
+            padding: 24px;
+        }
+        .ev-holds-preview-inner {
+            background: #0f172a; border: 1px solid #334155; border-radius: 10px;
+            max-width: min(920px, 96vw); max-height: 92vh; overflow: auto; padding: 12px;
+        }
+        .ev-holds-preview-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+        .ev-holds-preview-inner img { max-width: 100%; max-height: 80vh; display: block; margin: 0 auto; }
         .rt-layout { display: grid; grid-template-columns: 1fr minmax(280px, 340px); gap: 14px; min-height: 420px; }
         @media (max-width: 960px) { .rt-layout { grid-template-columns: 1fr; } }
         #rt-map { height: 420px; border-radius: 10px; border: 1px solid #334155; background: #0f172a; }
@@ -2993,7 +3363,7 @@
             50% { background: rgba(234, 179, 8, 0.28); }
         }
         #ptt-rx-banner {
-            position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10000;
+            position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 27100;
             padding: 10px 18px; border-radius: 8px; cursor: pointer;
             background: #713f12; color: #fde047; border: 1px solid #eab308;
             font-size: 13px; font-weight: 600; box-shadow: 0 4px 20px rgba(0,0,0,0.45);
@@ -3004,7 +3374,7 @@
             animation: none; opacity: 0.95;
         }
         #ptt-rx-live-toast {
-            position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); top: auto; right: auto; z-index: 9999;
+            position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); top: auto; right: auto; z-index: 27095;
             padding: 7px 12px; border-radius: 8px; cursor: pointer;
             background: rgba(15, 23, 42, 0.94); color: #e2e8f0; border: 1px solid #475569;
             font-size: 12px; font-weight: 600; line-height: 1.3;
@@ -3204,6 +3574,11 @@
         #sos-banner-live-hint {
             display: block; width: 100%; text-align: left;
             font-size: 11px; font-weight: 500; opacity: 0.92; line-height: 1.35;
+        }
+        #sos-banner-nav-hint {
+            display: block; width: 100%; text-align: left;
+            font-size: 11px; font-weight: 600; opacity: 0.95; line-height: 1.35;
+            color: #fef3c7;
         }
         #sos-response-strip {
             display: grid;
@@ -4801,7 +5176,8 @@
         .ss-role-badge.operator { background: #1f2937; color: #a3e635; }
         .ss-readonly-banner { margin: 0 0 10px; padding: 8px 10px; border-radius: 6px; background: #422006; border: 1px solid #92400e; color: #fcd34d; font-size: 11px; }
         [data-ss-readonly="1"] input:not([type="file"]), [data-ss-readonly="1"] select, [data-ss-readonly="1"] #server-setup-save, [data-ss-readonly="1"] #ss-save-bwc-list, [data-ss-readonly="1"] .ss-device-actions button, [data-ss-readonly="1"] .ss-bwc-del { pointer-events: none; opacity: 0.55; }
-        #sos-ack-backdrop { position: fixed; inset: 0; z-index: 25000; background: rgba(15, 23, 42, 0.45); display: flex; align-items: flex-start; justify-content: flex-end; padding: 64px 12px 12px; pointer-events: none; }
+        /* mob-sos-banner-nonblocking-nav — dimmer starts under header+nav so tabs stay usable */
+        #sos-ack-backdrop { position: fixed; top: 96px; right: 0; bottom: 0; left: 0; z-index: 25000; background: rgba(15, 23, 42, 0.45); display: flex; align-items: flex-start; justify-content: flex-end; padding: 12px; pointer-events: none; }
         #sos-ack-backdrop[hidden] { display: none !important; }
         #sos-ack-panel { width: 100%; max-width: 360px; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 14px 16px; color: #e2e8f0; box-shadow: 0 8px 32px rgba(0,0,0,0.45); pointer-events: auto; }
         #sos-ack-panel h3 { margin: 0 0 6px; font-size: 14px; color: #fca5a5; }
@@ -5103,37 +5479,6 @@
     }
 })();
 </script>
-    <div id="sos-banner" class="kind-sos">
-        <div id="sos-banner-body">
-            <div class="sos-banner-top-row">
-                <span id="sos-banner-text"><span id="sos-banner-prefix" data-i18n="sos.banner.distress">OFFICER IN DISTRESS</span> · <span id="sos-cam"></span> · <span id="sos-time"></span></span>
-                <div class="sos-banner-actions">
-                    <button id="sos-ptt-team-btn" class="dismiss-btn sos-ptt-btn" type="button" onclick="pushSosPttTeamNow()" data-i18n="sos.banner.pttTeam" data-i18n-title="sos.banner.pttTeamTitle" aria-pressed="false">PTT team</button>
-                    <button class="dismiss-btn" type="button" onclick="openSosAcknowledge()" data-i18n="sos.acknowledge">Acknowledge</button>
-                </div>
-            </div>
-            <span id="sos-banner-live-hint" data-i18n="sos.banner.liveHint">If live video was on: press SOS on the BWC again if video does not start.</span>
-            <div id="sos-response-strip">
-                <label for="sos-response-radius"><span data-i18n="sos.response.radiusLabel">Response radius</span>
-                    <select id="sos-response-radius" data-i18n-aria="sos.response.radiusAria" aria-label="Response radius metres">
-                        <option value="200">200 m</option>
-                        <option value="300">300 m</option>
-                        <option value="400">400 m</option>
-                        <option value="500" selected>500 m</option>
-                        <option value="1000">1000 m</option>
-                    </select>
-                </label>
-                <span id="sos-response-summary" data-i18n="sos.response.scanning">Scanning for nearby units…</span>
-            </div>
-            <div id="sos-ptt-add-strip" hidden>
-                <button type="button" id="sos-ptt-member-btn" class="sos-ptt-add-member-btn">+ Team Member</button>
-                <div id="sos-ptt-member-panel" hidden>
-                    <div id="sos-ptt-add-list"></div>
-                </div>
-            </div>
-            <div id="sos-alarm-strip" hidden></div>
-        </div>
-    </div>
     <div id="fr-alarm-backdrop" hidden>
         <div id="fr-alarm-panel" role="dialog" aria-labelledby="fr-alarm-title">
             <h3 id="fr-alarm-title" data-i18n="analytics.fr.alarmTitle">Face match</h3>
@@ -5344,6 +5689,40 @@
             <button type="button" id="video-config-open" data-i18n="video.config" data-i18n-title="video.configTitle" title="Assign cameras to panels">Config</button>
         </div>
     </nav>
+
+    <!-- mob-sos-banner-nonblocking-nav: strip under tabs so Operations/Analytics stay reachable -->
+    <div id="sos-banner" class="kind-sos">
+        <div id="sos-banner-body">
+            <div class="sos-banner-top-row">
+                <span id="sos-banner-text"><span id="sos-banner-prefix" data-i18n="sos.banner.distress">OFFICER IN DISTRESS</span> · <span id="sos-cam"></span> · <span id="sos-time"></span></span>
+                <div class="sos-banner-actions">
+                    <button id="sos-ptt-team-btn" class="dismiss-btn sos-ptt-btn" type="button" onclick="pushSosPttTeamNow()" data-i18n="sos.banner.pttTeam" data-i18n-title="sos.banner.pttTeamTitle" aria-pressed="false">PTT team</button>
+                    <button class="dismiss-btn" type="button" onclick="openSosAcknowledge()" data-i18n="sos.acknowledge">Acknowledge</button>
+                </div>
+            </div>
+            <span id="sos-banner-nav-hint" data-i18n="sos.banner.navHint">You can switch tabs anytime — Acknowledge when you take ownership.</span>
+            <span id="sos-banner-live-hint" data-i18n="sos.banner.liveHint">If live video was on: press SOS on the BWC again if video does not start.</span>
+            <div id="sos-response-strip">
+                <label for="sos-response-radius"><span data-i18n="sos.response.radiusLabel">Response radius</span>
+                    <select id="sos-response-radius" data-i18n-aria="sos.response.radiusAria" aria-label="Response radius metres">
+                        <option value="200">200 m</option>
+                        <option value="300">300 m</option>
+                        <option value="400">400 m</option>
+                        <option value="500" selected>500 m</option>
+                        <option value="1000">1000 m</option>
+                    </select>
+                </label>
+                <span id="sos-response-summary" data-i18n="sos.response.scanning">Scanning for nearby units…</span>
+            </div>
+            <div id="sos-ptt-add-strip" hidden>
+                <button type="button" id="sos-ptt-member-btn" class="sos-ptt-add-member-btn">+ Team Member</button>
+                <div id="sos-ptt-member-panel" hidden>
+                    <div id="sos-ptt-add-list"></div>
+                </div>
+            </div>
+            <div id="sos-alarm-strip" hidden></div>
+        </div>
+    </div>
 
     <div id="app-view-ops">
     <div id="ops-cw-awareness" class="ops-cw-awareness" hidden role="status" aria-live="polite">
@@ -6574,16 +6953,20 @@
                 <div id="ax-panel-face" class="ax-hub-panel">
                     <div class="ax-fr-toolbar">
                         <span class="hint" data-i18n="analytics.fr.layoutHint">6 live tiles · up to 32 in watch set · rotate ~20s</span>
-                        <label for="ax-fr-threshold"><span data-i18n="analytics.fr.threshold">Match threshold</span>
-                            <input type="range" id="ax-fr-threshold" class="fm-range" min="70" max="99" value="75" step="1">
-                            <span id="ax-fr-threshold-val">75%</span>
-                        </label>
                         <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-load-video" data-i18n="analytics.fr.loadVideo">Load video (offline)</button>
                         <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-offline-cancel" hidden data-i18n="analytics.fr.offlineCancel">Cancel</button>
                         <input type="file" id="ax-fr-offline-file" accept=".mp4,.mov,.webm,.mkv,video/mp4,video/quicktime,video/webm" hidden>
                         <span id="ax-fr-offline-status" class="hint ax-fr-offline-status" hidden></span>
                         <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-preview-drawer" data-i18n="analytics.fr.previewDrawerLab">Preview alert (lab)</button>
                         <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-preview-toast" data-i18n="analytics.fr.previewToastLab">Preview toast (lab)</button>
+                        <!-- mob-fr-hits-rename: Known subjects (watchlist tray; not alert list) -->
+                        <div id="ax-fr-hits-bar" class="ax-fr-hits-bar" aria-label="Known subjects">
+                            <div class="ax-fr-hits-bar-head">
+                                <h4 class="ax-fr-hits-bar-title" id="ax-fr-hits-bar-title" data-i18n="analytics.fr.matchesShort">Known subjects</h4>
+                                <span id="ax-fr-hits-overflow" class="ax-fr-hits-overflow" hidden title="Additional matches beyond the five on-desk slots">+0</span>
+                            </div>
+                            <div id="ax-fr-hits-list" class="ax-fr-hits-list" role="list"></div>
+                        </div>
                     </div>
                     <div class="ax-fr-main">
                         <div class="ax-fr-left">
@@ -6617,9 +7000,7 @@
                     <div id="ax-fr-verify-result" class="ax-fr-verify-result" hidden></div>
                 </div>
                 <div id="ax-panel-blacklist" class="ax-hub-panel" hidden>
-                    <p class="setup-hint" data-i18n="analytics.bl.hint">Enroll people on the Watchlist from an ID or clear photo. Choose a watch grade (POI → Blacklist). Up to 5,000 active entries. Face matching must be running.</p>
-                    <p class="hint" data-i18n="analytics.bl.qualityHint">Use a clear, front-facing ID or mugshot. The face should fill much of the frame. JPEG or PNG. A large file is not enough if the face is tiny in the picture. Blurry or group photos will be rejected.</p>
-                    <p id="ax-bl-status" class="hint">—</p>
+                    <p id="ax-bl-status" class="hint" hidden></p>
                     <div class="ax-bl-enroll">
                         <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.name">Display name</span>
                             <input type="text" id="ax-bl-name" maxlength="120" autocomplete="off">
@@ -6663,6 +7044,7 @@
                         </label>
                         <button type="button" class="btn btn-ghost btn-sm" id="ax-bl-crop-open" data-i18n="analytics.bl.cropOpen">Crop &amp; check</button>
                         <button type="button" class="btn btn-action btn-sm" id="ax-bl-enroll-btn" data-i18n="analytics.bl.enroll">Add to watchlist</button>
+                        <button type="button" class="btn btn-action btn-sm" id="ax-bl-enroll-bwc-btn" title="Choose exact BWC snapshot from Face Watch Recent">Add recent snapshots from BWC</button>
                     </div>
                     <div id="ax-bl-crop-preview" class="ax-bl-crop-preview" hidden>
                         <img id="ax-bl-crop-preview-img" alt="">
@@ -6678,7 +7060,14 @@
                             <option value="suspect" data-i18n="analytics.bl.gradeSuspect">Suspect</option>
                             <option value="blacklist" data-i18n="analytics.bl.gradeBlacklist">Blacklist</option>
                         </select>
+                        <label class="ax-bl-threshold-inline" for="ax-bl-threshold"><span>Alert threshold</span>
+                            <input type="range" id="ax-bl-threshold" class="fm-range" min="70" max="99" value="75" step="1">
+                            <span id="ax-bl-threshold-val">75%</span>
+                        </label>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-bl-threshold-save">Save</button>
+                        <span id="ax-bl-threshold-meta" class="hint"></span>
                         <button type="button" class="btn btn-ghost btn-sm" id="ax-bl-refresh" data-i18n="analytics.bl.refresh">Refresh</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-bl-migrate-btn" data-i18n="analytics.bl.migrate" title="Maintenance only: refresh Watchlist face fingerprints for the current FR engine">Refresh vectors</button>
                         <span id="ax-bl-count" class="hint"></span>
                     </div>
                     <div class="ax-bl-table-wrap">
@@ -6700,13 +7089,60 @@
                             </tbody>
                         </table>
                     </div>
+                    <div id="ax-bl-threshold-modal" class="ax-bl-admin-modal" hidden>
+                        <div class="ax-bl-admin-card" role="dialog" aria-modal="true" aria-labelledby="ax-bl-threshold-modal-title">
+                            <p id="ax-bl-threshold-modal-title">Enter super admin password to save alert threshold.</p>
+                            <input type="password" id="ax-bl-threshold-password" autocomplete="current-password">
+                            <div class="ax-bl-admin-actions">
+                                <button type="button" class="btn btn-ghost btn-sm" id="ax-bl-threshold-cancel">Cancel</button>
+                                <button type="button" class="btn btn-action btn-sm" id="ax-bl-threshold-confirm">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="ax-bl-remove-modal" class="ax-bl-admin-modal" hidden>
+                        <div class="ax-bl-admin-card" role="dialog" aria-modal="true" aria-labelledby="ax-bl-remove-modal-title">
+                            <p id="ax-bl-remove-modal-title">Remove from Watchlist?</p>
+                            <div class="ax-bl-admin-actions">
+                                <button type="button" class="btn btn-ghost btn-sm" id="ax-bl-remove-cancel">Cancel</button>
+                                <button type="button" class="btn btn-action btn-sm" id="ax-bl-remove-confirm">Remove</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="ax-bl-migrate-modal" class="ax-bl-admin-modal" hidden>
+                        <div class="ax-bl-admin-card" role="dialog" aria-modal="true" aria-labelledby="ax-bl-migrate-modal-title">
+                            <p id="ax-bl-migrate-modal-title">Refresh Watchlist face fingerprints?</p>
+                            <p class="hint">Maintenance only. Photos stay the same; a backup is saved first.</p>
+                            <div class="ax-bl-admin-actions">
+                                <button type="button" class="btn btn-ghost btn-sm" id="ax-bl-migrate-cancel">Cancel</button>
+                                <button type="button" class="btn btn-action btn-sm" id="ax-bl-migrate-confirm">Refresh</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="ax-bl-face-picker-modal" class="ax-bl-admin-modal" hidden>
+                        <div class="ax-bl-admin-card is-face-picker" role="dialog" aria-modal="true" aria-labelledby="ax-bl-face-picker-title">
+                            <p id="ax-bl-face-picker-title">Choose recent snapshot from BWC</p>
+                            <div class="ax-bl-face-picker-filters">
+                                <select id="ax-bl-face-picker-group" aria-label="Group"></select>
+                                <select id="ax-bl-face-picker-cam" aria-label="BWC"></select>
+                            </div>
+                            <div id="ax-bl-face-picker-grid" class="ax-bl-face-picker-grid"></div>
+                            <div class="ax-bl-admin-actions">
+                                <button type="button" class="btn btn-ghost btn-sm" id="ax-bl-face-picker-cancel">Cancel</button>
+                                <button type="button" class="btn btn-action btn-sm" id="ax-bl-face-picker-use">Use face</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div id="ax-bl-drawer" hidden>
                     <div class="ax-bl-drawer-panel" role="dialog" aria-labelledby="ax-bl-drawer-title">
                         <h3 id="ax-bl-drawer-title">—</h3>
                         <img id="ax-bl-drawer-face" class="ax-bl-drawer-face" alt="" hidden>
                         <dl class="ax-bl-drawer-dl" id="ax-bl-drawer-dl"></dl>
+                        <div id="ax-bl-samples" class="ax-bl-samples"></div>
+                        <p id="ax-bl-match-debug-result" class="hint ax-bl-match-debug-result" hidden></p>
                         <div class="ax-bl-drawer-actions">
+                            <button type="button" class="btn btn-action btn-sm" id="ax-bl-add-sample-btn">Add recent snapshots from BWC</button>
+                            <button type="button" class="btn btn-action btn-sm" id="ax-bl-match-debug-btn" data-i18n="analytics.bl.matchDebug" title="Score this enroll vs the latest live face crop (same path as live match)">Score vs last snap</button>
                             <button type="button" class="btn btn-ghost btn-sm" id="ax-bl-drawer-close" data-i18n="analytics.bl.closeDetail">Close</button>
                         </div>
                     </div>
@@ -6730,6 +7166,7 @@
                 <button type="button" class="evidence-hub-nav-btn" data-panel="docks" id="ev-nav-docks" data-i18n="evidenceHub.navDocks">Docking Stations</button>
                 <button type="button" class="evidence-hub-nav-btn" data-panel="catalog" data-i18n="evidenceHub.navCatalog">Evidence Library</button>
                 <button type="button" class="evidence-hub-nav-btn" data-panel="case-files" data-i18n="evidenceHub.navCaseFiles">Case Files</button>
+                <button type="button" class="evidence-hub-nav-btn" data-panel="investigation-holds" data-i18n="evidenceHub.navInvestigationHolds">Investigation holds</button>
                 <button type="button" class="evidence-hub-nav-btn" data-panel="route-trace" data-i18n="evidenceHub.navRouteTrace">Route &amp; GPS</button>
                 <button type="button" class="evidence-hub-nav-btn" data-panel="settings" id="ev-nav-storage" hidden data-i18n="evidenceHub.navSettings">Storage</button>
             </nav>
@@ -6863,6 +7300,24 @@
                     <div class="ss-gate-actions">
                         <button type="button" id="cf-delete-cancel" class="btn btn-ghost btn-sm" data-i18n="common.cancel">Cancel</button>
                         <button type="button" id="cf-delete-submit" class="btn btn-action btn-sm cf-delete-btn" data-i18n="caseFiles.deleteCase">Delete</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="ev-panel-investigation-holds" class="evidence-hub-panel" hidden>
+                <p class="setup-hint" data-i18n="evidenceHub.holdsHint">Face snaps held for investigation from live FR. Browse here — no need to open the server folder.</p>
+                <div class="evidence-toolbar">
+                    <button type="button" class="btn btn-action btn-sm" id="ev-holds-refresh" data-i18n="evidence.refresh">Refresh</button>
+                    <span id="ev-holds-meta" class="hint"></span>
+                </div>
+                <div id="ev-holds-grid" class="ev-holds-grid"></div>
+                <div id="ev-holds-preview" class="ev-holds-preview" hidden>
+                    <div class="ev-holds-preview-inner">
+                        <div class="ev-holds-preview-bar">
+                            <span id="ev-holds-preview-cap" class="hint"></span>
+                            <button type="button" class="btn btn-ghost btn-sm" id="ev-holds-preview-close" data-i18n="common.close">Close</button>
+                        </div>
+                        <img id="ev-holds-preview-img" alt="">
                     </div>
                 </div>
             </div>
@@ -7228,6 +7683,8 @@
 
     <!-- mob-me8-restore-8wc-v2-ops: v2 inline ops boot + ME8 enterprise glue; VC via vc-lazy -->
     <script src="/vendor/jsmpeg.min.js"></script>
+    <script src="/vendor/mpegts.min.js"></script>
+    <script src="/js/live-player-factory.js?v=20260714-zlm-soft"></script>
     <script src="/js/i18n.js?v=20260702-restore-8wc-v2"></script>
     <script src="/js/session-bus.js?v=20260702-settings-session-sync"></script>
     <script src="/js/mobility-map-gis.js?v=20260709-place-search"></script>
@@ -7244,7 +7701,7 @@
     <script src="/js/platform-smtp.js?v=20260706-smtp-settings"></script>
     <script src="/js/settings-hub.js?v=20260712-health-plain"></script>
     <script src="/js/live-viewer-telemetry.js?v=20260709-live-viewer-telemetry"></script>
-    <script src="/js/tech-diagnostics.js?v=20260709-tech-pin-reset"></script>
+    <script src="/js/tech-diagnostics.js?v=20260713-fr-engine-health"></script>
     <script src="/js/usb-maintenance.js?v=20260609-usb2"></script>
     <script src="/js/lab-security.js?v=20260708-identity-copy"></script>
     <script src="/js/cloud-deployment.js?v=20260609-cloud"></script>
@@ -7255,23 +7712,25 @@
     <script src="/js/ptt-rx.js?v=20260629-live-toast"></script>
     <script src="/js/audit-trail-hub.js?v=20260630-audit-preset-ux"></script>
     <script src="/js/license-features.js?v=20260707-license-gate"></script>
-    <script src="/js/fr-live-watch.js?v=20260712-popout-roster"></script>
-    <script src="/js/fr-offline-video.js?v=20260710-offline-crops"></script>
+    <script src="/js/fr-live-watch.js?v=20260715-threshold-admin"></script>
+    <script src="/js/fr-offline-video.js?v=20260715-threshold-admin"></script>
     <script src="/js/fr-enroll-cropper.js?v=20260710-fr-cropper"></script>
-    <script src="/js/fr-alarm.js?v=20260712-toast-alert-field"></script>
-    <script src="/js/analytics-hub.js?v=20260712-popout-roster"></script>
+    <script src="/js/fr-alarm.js?v=20260713-rail-scored-only"></script>
+    <script src="/js/wvp-lab-tile.js?v=20260715-live-chase"></script>
+    <script src="/js/analytics-hub.js?v=20260715-draft-refresh-guard"></script>
     <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/operator-ui.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/ev-context-rail.js?v=20260627-rail-trim"></script>
     <script src="/js/evidence-storage-ui.js?v=20260709-storage-tier-wide"></script>
     <script src="/js/route-trace.js?v=20260621-smart-gps"></script>
     <script src="/js/case-files-ui.js?v=20260627-delete-error-voice"></script>
-    <script src="/js/evidence-hub.js?v=20260708-cold-archive"></script>
+    <script src="/js/fr-kept-ui.js?v=20260713-investigation-holds"></script>
+    <script src="/js/evidence-hub.js?v=20260713-investigation-holds"></script>
     <script src="/js/system-health-plain.js?v=20260712-health-plain"></script>
     <script src="/js/missed-activity.js?v=20260712-alerts-copy"></script>
-    <script src="/js/evidence-manager.js?v=20260712-popout-roster"></script>
+    <script src="/js/evidence-manager.js?v=20260713-ops-map-resize"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260709-wall-claim"></script>
+    <script src="/js/video-wall.js?v=20260714-zlm-soft"></script>
     <script src="/js/video-matrix.js?v=20260629-live-cap-8"></script>
     <script src="/js/fleet-ui.js?v=20260706-eight-cap-align"></script>
     <script src="/js/map-popout-sync.js?v=20260612-mirror"></script>
@@ -7338,6 +7797,9 @@
         var pinVideoDockSyncTimer = null;
         var pinVideoSyncTimers = Object.create(null);
         var pinVideoStoppedByUser = Object.create(null);
+        var bwcLiveRecordingByCam = Object.create(null);
+        var bwcRecDotStyleInstalled = false;
+        var bwcRecDotSyncTimers = Object.create(null);
 
         function markPinVideoUserStop(camId) {
             if (!camId) return;
@@ -7574,6 +8036,7 @@
                 btn.hidden = !live;
                 btn.disabled = !live;
             });
+            syncAllBwcLiveRecordingRecDots();
         }
         window.fixIdleSlotCallButtons = fixIdleSlotCallButtons;
 
@@ -7581,7 +8044,10 @@
             if (!method) return method;
             return function () {
                 var out = method.apply(this, arguments);
-                setTimeout(fixIdleSlotCallButtons, 0);
+                setTimeout(function () {
+                    fixIdleSlotCallButtons();
+                    syncAllBwcLiveRecordingRecDots();
+                }, 0);
                 return out;
             };
         }
@@ -7593,6 +8059,7 @@
                 setTimeout(function () {
                     if (typeof closePinPopupsWithoutWallPlayer === 'function') closePinPopupsWithoutWallPlayer();
                     fixIdleSlotCallButtons();
+                    syncAllBwcLiveRecordingRecDots();
                 }, 200);
             };
         }
@@ -7605,13 +8072,17 @@
         if (VideoWall.notifyStreamStopped) VideoWall.notifyStreamStopped = wrapVideoWallCallUi(VideoWall.notifyStreamStopped.bind(VideoWall));
         if (VideoWall.stopAllVideo) VideoWall.stopAllVideo = wrapVideoWallCallUi(VideoWall.stopAllVideo.bind(VideoWall));
         setTimeout(fixIdleSlotCallButtons, 0);
-        setTimeout(fixIdleSlotCallButtons, 400);
+        setTimeout(function () {
+            fixIdleSlotCallButtons();
+            syncAllBwcLiveRecordingRecDots();
+        }, 400);
 
         BwcDevices.init().then(function () {
             return VideoConfig.init();
         }).then(function () {
             if (typeof VideoWall.relabelWallSlots === 'function') VideoWall.relabelWallSlots();
             if (typeof fixIdleSlotCallButtons === 'function') fixIdleSlotCallButtons();
+            syncAllBwcLiveRecordingRecDots();
         });
 
         var sessionLoad = (global.SessionBus && SessionBus.get)
@@ -7774,6 +8245,11 @@
                 merged.deviceTime = prevCache.deviceTime;
             }
             window.globalTelemetryCache[data.cameraId] = merged;
+            if (data.recording != null) {
+                // This BWC reports Record ON for HQ live encode too; do not show REC from DeviceStatus alone.
+                updateBwcRecordingState(data.cameraId, false);
+                scheduleBwcLiveRecordingRecDotSync(data.cameraId);
+            }
 
             var root = mapPopupRootForCam(data.cameraId);
             if (!root) return;
@@ -7924,6 +8400,148 @@
 
         function normalizeCamId(camId) {
             return String(camId || '').trim();
+        }
+
+        function bwcRecordingState(value) {
+            if (value === true || value === 1) return true;
+            if (value === false || value === 0) return false;
+            var text = String(value == null ? '' : value).trim().toLowerCase();
+            if (!text || text === '—' || text === '--') return null;
+            if (['1', 'true', 'on', 'yes', 'started', 'recording', 'active'].indexOf(text) >= 0) return true;
+            if (['0', 'false', 'off', 'no', 'stopped', 'idle', 'inactive'].indexOf(text) >= 0) return false;
+            return null;
+        }
+
+        function updateBwcRecordingState(camId, value) {
+            var id = normalizeCamId(camId);
+            if (!id) return null;
+            var state = bwcRecordingState(value);
+            if (state !== null) bwcLiveRecordingByCam[id] = state;
+            return state;
+        }
+
+        function cachedBwcRecordingState(camId) {
+            var id = normalizeCamId(camId);
+            if (!id) return false;
+            if (Object.prototype.hasOwnProperty.call(bwcLiveRecordingByCam, id)) {
+                return !!bwcLiveRecordingByCam[id];
+            }
+            var cache = window.globalTelemetryCache && window.globalTelemetryCache[id];
+            var state = cache ? bwcRecordingState(cache.recording) : null;
+            if (state !== null) {
+                bwcLiveRecordingByCam[id] = state;
+                return state;
+            }
+            return false;
+        }
+
+        function ensureBwcRecDotStyle() {
+            if (bwcRecDotStyleInstalled || document.getElementById('bwc-live-rec-dot-style')) {
+                bwcRecDotStyleInstalled = true;
+                return;
+            }
+            var style = document.createElement('style');
+            style.id = 'bwc-live-rec-dot-style';
+            style.textContent = ''
+                + '.bwc-live-rec-dot{position:absolute;top:8px;left:8px;z-index:26;display:inline-flex;'
+                + 'align-items:center;gap:5px;padding:3px 7px;border-radius:999px;border:1px solid rgba(248,113,113,.85);'
+                + 'background:rgba(127,29,29,.94);color:#fecaca;font:800 10px/1.1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;'
+                + 'letter-spacing:.08em;text-transform:uppercase;box-shadow:0 6px 16px rgba(0,0,0,.45);pointer-events:none}'
+                + '.bwc-live-rec-dot[hidden]{display:none!important}'
+                + '.bwc-live-rec-dot:before{content:"";width:6px;height:6px;border-radius:999px;background:#ef4444;'
+                + 'box-shadow:0 0 10px rgba(248,113,113,.95);animation:bwcLiveRecPulse 1s ease-in-out infinite}'
+                + '@keyframes bwcLiveRecPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.72)}}';
+            document.head.appendChild(style);
+            bwcRecDotStyleInstalled = true;
+        }
+
+        function setBwcRecDot(host, visible) {
+            if (!host) return;
+            ensureBwcRecDotStyle();
+            var dot = host.querySelector('.bwc-live-rec-dot');
+            if (!dot) {
+                dot = document.createElement('span');
+                dot.className = 'bwc-live-rec-dot';
+                dot.textContent = 'REC';
+                dot.setAttribute('aria-label', 'Recording');
+                dot.hidden = true;
+                host.appendChild(dot);
+            }
+            var pos = '';
+            try { pos = window.getComputedStyle(host).position; } catch (_) { pos = ''; }
+            if (!pos || pos === 'static') host.style.position = 'relative';
+            dot.hidden = !visible;
+        }
+
+        function slotHasBwcRecDotHost(slotEl, camId) {
+            if (!slotEl || !camId) return false;
+            if (typeof VideoWall !== 'undefined') {
+                if (VideoWall.wallHasPlayerForCam && VideoWall.wallHasPlayerForCam(camId)) return true;
+                if (VideoWall.isCameraLive && VideoWall.isCameraLive(camId)) return true;
+            }
+            var stage = slotEl.querySelector('.video-slot-stage');
+            if (stage && stage.querySelector('canvas, video')) return true;
+            var st = slotEl.querySelector('.video-slot-status');
+            var label = st && st.textContent ? st.textContent.trim().toLowerCase() : '';
+            return !!(label && ['idle', 'stopped', 'offline'].indexOf(label) < 0);
+        }
+
+        function mapPinHasBwcRecDotHost(host, camId) {
+            if (!host || !camId) return false;
+            if (host.classList.contains('map-pin-has-live') || host.classList.contains('vid-box-live')) return true;
+            if (host.querySelector('canvas, video')) return true;
+            return !!(typeof VideoWall !== 'undefined' && VideoWall.mapPinHasLiveVideo && VideoWall.mapPinHasLiveVideo(camId));
+        }
+
+        function syncBwcLiveRecordingRecDots(camId) {
+            var id = normalizeCamId(camId);
+            if (!id) return;
+            var recording = cachedBwcRecordingState(id);
+            document.querySelectorAll('.video-slot[data-slot]').forEach(function (slotEl) {
+                if (normalizeCamId(slotOwnCamId(slotEl)) !== id) return;
+                var stage = slotEl.querySelector('.video-slot-stage');
+                setBwcRecDot(stage, recording && slotHasBwcRecDotHost(slotEl, id));
+            });
+            var root = mapPopupRootForCam(id);
+            if (root) {
+                var host = root.querySelector('.map-pin-video') || root.querySelector('.vid-box');
+                setBwcRecDot(host, recording && mapPinHasBwcRecDotHost(host, id));
+            }
+        }
+
+        function scheduleBwcLiveRecordingRecDotSync(camId) {
+            var id = normalizeCamId(camId);
+            if (!id) return;
+            if (bwcRecDotSyncTimers[id]) {
+                bwcRecDotSyncTimers[id].forEach(function (t) { clearTimeout(t); });
+            }
+            syncBwcLiveRecordingRecDots(id);
+            bwcRecDotSyncTimers[id] = [120, 450, 1000, 2200].map(function (ms) {
+                return setTimeout(function () {
+                    syncBwcLiveRecordingRecDots(id);
+                }, ms);
+            });
+        }
+
+        function syncAllBwcLiveRecordingRecDots() {
+            var seen = Object.create(null);
+            Object.keys(bwcLiveRecordingByCam).forEach(function (id) {
+                seen[normalizeCamId(id)] = true;
+            });
+            if (window.globalTelemetryCache) {
+                Object.keys(window.globalTelemetryCache).forEach(function (id) {
+                    seen[normalizeCamId(id)] = true;
+                });
+            }
+            document.querySelectorAll('.video-slot[data-slot]').forEach(function (slotEl) {
+                var id = normalizeCamId(slotOwnCamId(slotEl));
+                if (id) seen[id] = true;
+            });
+            getOpenPinCamIds().forEach(function (id) {
+                id = normalizeCamId(id);
+                if (id) seen[id] = true;
+            });
+            Object.keys(seen).forEach(syncBwcLiveRecordingRecDots);
         }
 
         var recentlyAckedSosByCam = {};
@@ -9489,6 +10107,7 @@
                 if (typeof VideoWall !== 'undefined' && VideoWall.updateMapPinStopButton) {
                     VideoWall.updateMapPinStopButton(camId);
                 }
+                syncBwcLiveRecordingRecDots(camId);
             });
         }
 
@@ -10071,7 +10690,344 @@
             }
         }
         window.upsertDeviceMarker = upsertDeviceMarker;
-        window.showFrSnapOnMap = function (lat, lon, camId) {
+        var frSnapMapMarker = null;
+        var frSnapMapSlot = null;
+        var frSnapSideDockOpen = false;
+        var frSnapSideDockBound = false;
+
+        function frSnapMapHost() {
+            try {
+                if (typeof map !== 'undefined' && map && map.getContainer) return map.getContainer();
+            } catch (_) { /* ignore */ }
+            return document.getElementById('map');
+        }
+
+        function ensureFrSnapSideDockUi() {
+            var host = frSnapMapHost();
+            if (!host) return null;
+            if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+            var dock = document.getElementById('fr-snap-side-dock');
+            if (!dock) {
+                dock = document.createElement('div');
+                dock.id = 'fr-snap-side-dock';
+                dock.className = 'fr-snap-side-dock';
+                dock.hidden = true;
+                dock.setAttribute('role', 'dialog');
+                dock.setAttribute('aria-label', 'FR snap review');
+                host.appendChild(dock);
+            }
+            var tether = document.getElementById('fr-snap-side-tether');
+            if (!tether) {
+                tether = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                tether.id = 'fr-snap-side-tether';
+                tether.setAttribute('class', 'fr-snap-side-tether');
+                tether.setAttribute('hidden', '');
+                var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.id = 'fr-snap-side-tether-line';
+                line.setAttribute('x1', '0');
+                line.setAttribute('y1', '0');
+                line.setAttribute('x2', '0');
+                line.setAttribute('y2', '0');
+                tether.appendChild(line);
+                host.appendChild(tether);
+            }
+            if (!frSnapSideDockBound && typeof map !== 'undefined' && map) {
+                frSnapSideDockBound = true;
+                map.on('moveend', updateFrSnapSideTether);
+                map.on('zoomend', updateFrSnapSideTether);
+                map.on('resize', updateFrSnapSideTether);
+            }
+            return dock;
+        }
+
+        function closeFrSnapSideDock() {
+            frSnapSideDockOpen = false;
+            var dock = document.getElementById('fr-snap-side-dock');
+            var tether = document.getElementById('fr-snap-side-tether');
+            if (dock) {
+                dock.hidden = true;
+                dock.innerHTML = '';
+            }
+            if (tether) tether.setAttribute('hidden', '');
+        }
+
+        function updateFrSnapSideTether() {
+            if (!frSnapSideDockOpen || !frSnapMapMarker || typeof map === 'undefined' || !map) return;
+            var dock = document.getElementById('fr-snap-side-dock');
+            var tether = document.getElementById('fr-snap-side-tether');
+            var line = document.getElementById('fr-snap-side-tether-line');
+            var host = frSnapMapHost();
+            if (!dock || !tether || !line || !host || dock.hidden) return;
+            try {
+                var ll = frSnapMapMarker.getLatLng();
+                var pt = map.latLngToContainerPoint(ll);
+                var hostW = host.clientWidth || 0;
+                var hostH = host.clientHeight || 0;
+                tether.setAttribute('viewBox', '0 0 ' + hostW + ' ' + hostH);
+                tether.setAttribute('width', String(hostW));
+                tether.setAttribute('height', String(hostH));
+                var dockRect = dock.getBoundingClientRect();
+                var hostRect = host.getBoundingClientRect();
+                var dockMidY = (dockRect.top - hostRect.top) + (dockRect.height / 2);
+                var dockX = dock.classList.contains('is-left')
+                    ? (dockRect.right - hostRect.left)
+                    : (dockRect.left - hostRect.left);
+                line.setAttribute('x1', String(Math.round(pt.x)));
+                line.setAttribute('y1', String(Math.round(pt.y)));
+                line.setAttribute('x2', String(Math.round(dockX)));
+                line.setAttribute('y2', String(Math.round(dockMidY)));
+                tether.removeAttribute('hidden');
+            } catch (_) { /* ignore */ }
+        }
+
+        function buildFrSnapCardInnerHtml(snap, opts) {
+            opts = opts || {};
+            var lat = parseFloat(snap.lat);
+            var lon = parseFloat(snap.lon);
+            var name = snap.deviceLabel || snap.camId || '—';
+            var timeStr = snap.at ? String(snap.at) : '—';
+            try {
+                if (snap.at) timeStr = new Date(snap.at).toLocaleString();
+            } catch (_) { /* ignore */ }
+            var gpsStr = (Number.isFinite(lat) && Number.isFinite(lon))
+                ? (lat.toFixed(5) + ', ' + lon.toFixed(5))
+                : '—';
+            var scoreStr = (snap.scorePct != null && Number.isFinite(Number(snap.scorePct)))
+                ? ('Match: ' + snap.scorePct + '%')
+                : '';
+            var crop = String(snap.cropUrl || '').replace(/"/g, '&quot;');
+            var hasCrop = !!crop;
+            var noCropHint = typeof dashboardTr === 'function'
+                ? dashboardTr('analytics.fr.snapKeepNoCrop')
+                : 'No face crop for this pin — open the snap again to Keep';
+            var expandLabel = opts.expanded
+                ? (typeof dashboardTr === 'function' ? dashboardTr('analytics.fr.snapMinimize') : 'Minimize')
+                : (typeof dashboardTr === 'function' ? dashboardTr('analytics.fr.snapExpand') : 'Expand');
+            return (
+                (hasCrop ? ('<img src="' + crop + '" alt="">') : '') +
+                '<div class="fr-snap-map-meta">' +
+                '<p><strong>' + escapePinText(name) + '</strong>' +
+                (snap.camId ? (' · ' + escapePinText(String(snap.camId))) : '') + '</p>' +
+                '<p>' + escapePinText(timeStr) + '</p>' +
+                '<p>' + escapePinText(gpsStr) + '</p>' +
+                (scoreStr ? ('<p>' + escapePinText(scoreStr) + '</p>') : '') +
+                (!hasCrop ? ('<p class="fr-snap-map-no-crop">' + escapePinText(noCropHint) + '</p>') : '') +
+                '</div>' +
+                '<div class="fr-snap-map-actions">' +
+                '<button type="button" class="btn btn-sm fr-snap-map-expand"' +
+                (hasCrop ? '' : ' disabled') + '>' + escapePinText(expandLabel) + '</button>' +
+                '<button type="button" class="btn btn-sm fr-snap-map-copy">' +
+                escapePinText(typeof dashboardTr === 'function' ? dashboardTr('analytics.fr.snapCopyLoc') : 'Copy location') +
+                '</button>' +
+                (hasCrop
+                    ? ('<button type="button" class="btn btn-sm fr-snap-map-keep">' +
+                        escapePinText(typeof dashboardTr === 'function' ? dashboardTr('analytics.fr.snapKeep') : 'Keep') +
+                        '</button>')
+                    : '') +
+                '<button type="button" class="btn btn-sm fr-snap-map-close">' +
+                escapePinText(typeof dashboardTr === 'function' ? dashboardTr('common.close') : 'Close') +
+                '</button>' +
+                '</div>'
+            );
+        }
+
+        function openFrSnapSideDock() {
+            var snap = frSnapMapSlot;
+            if (!snap || !snap.cropUrl) return;
+            var dock = ensureFrSnapSideDockUi();
+            if (!dock || typeof map === 'undefined' || !map || !frSnapMapMarker) return;
+            var ll = frSnapMapMarker.getLatLng();
+            var pt = map.latLngToContainerPoint(ll);
+            var host = frSnapMapHost();
+            var midX = host ? (host.clientWidth / 2) : 0;
+            var onRight = pt.x < midX;
+            dock.classList.toggle('is-right', onRight);
+            dock.classList.toggle('is-left', !onRight);
+            dock.innerHTML = buildFrSnapCardInnerHtml(snap, { expanded: true });
+            dock.dataset.lat = String(snap.lat);
+            dock.dataset.lon = String(snap.lon);
+            dock.dataset.cam = String(snap.camId || '');
+            dock.hidden = false;
+            frSnapSideDockOpen = true;
+            bindFrSnapMapPopupActions(dock);
+            try { frSnapMapMarker.closePopup(); } catch (_) { /* ignore */ }
+            setTimeout(updateFrSnapSideTether, 30);
+        }
+
+        function returnFrSnapToPinBubble() {
+            closeFrSnapSideDock();
+            if (frSnapMapMarker && frSnapMapMarker.openPopup) {
+                try { frSnapMapMarker.openPopup(); } catch (_) { /* ignore */ }
+            }
+        }
+
+        function clearFrSnapMapAnchor() {
+            closeFrSnapSideDock();
+            try {
+                if (frSnapMapMarker && typeof map !== 'undefined' && map) {
+                    if (map.removeLayer) map.removeLayer(frSnapMapMarker);
+                }
+            } catch (_) { /* ignore */ }
+            frSnapMapMarker = null;
+            frSnapMapSlot = null;
+        }
+
+        function bindFrSnapMapPopupActions(root) {
+            if (!root || root._frSnapBound) return;
+            root._frSnapBound = true;
+            var expandBtn = root.querySelector('.fr-snap-map-expand');
+            var copyBtn = root.querySelector('.fr-snap-map-copy');
+            var keepBtn = root.querySelector('.fr-snap-map-keep');
+            var closeBtn = root.querySelector('.fr-snap-map-close');
+            if (expandBtn) {
+                expandBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    /* mob-fr-map-expand-side-dock — Expand → map-pane side dock; Minimize → pin bubble */
+                    if (frSnapSideDockOpen && root.id === 'fr-snap-side-dock') {
+                        returnFrSnapToPinBubble();
+                        return;
+                    }
+                    openFrSnapSideDock();
+                });
+            }
+            if (copyBtn) {
+                copyBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var lat = parseFloat(root.getAttribute('data-lat'));
+                    var lon = parseFloat(root.getAttribute('data-lon'));
+                    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+                    var text = lat.toFixed(6) + ', ' + lon.toFixed(6);
+                    var done = function (ok) {
+                        if (typeof window.FrAlarm !== 'undefined' && typeof FrAlarm.toast === 'function') {
+                            FrAlarm.toast(ok ? 'Copied' : 'Copy failed', 2500);
+                        }
+                    };
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text).then(function () { done(true); }).catch(function () { done(false); });
+                    } else {
+                        done(false);
+                    }
+                });
+            }
+            if (keepBtn) {
+                keepBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    /* mob-fr-map-keep-require-crop */
+                    var slot = frSnapMapSlot;
+                    if (!slot || !slot.cropUrl) {
+                        if (typeof window.FrAlarm !== 'undefined' && typeof FrAlarm.toast === 'function') {
+                            FrAlarm.toast(
+                                typeof dashboardTr === 'function'
+                                    ? dashboardTr('analytics.fr.snapKeepNoCrop')
+                                    : 'No face crop for this pin — open the snap again to Keep',
+                                4000
+                            );
+                        }
+                        return;
+                    }
+                    if (typeof window.FrAlarm !== 'undefined' && typeof FrAlarm.keepEvidencePack === 'function') {
+                        FrAlarm.keepEvidencePack(slot);
+                    }
+                });
+            }
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    clearFrSnapMapAnchor();
+                });
+            }
+        }
+
+        /** mob-fr-snap-map-anchor-card — Ops + pan + popup card on the GPS point */
+        window.openFrSnapMapAnchorCard = function (snap) {
+            if (!snap) return false;
+            var lat = parseFloat(snap.lat);
+            var lon = parseFloat(snap.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+            if (typeof map === 'undefined' || !map || !L) return false;
+            try {
+                var opsBtn = document.getElementById('nav-tab-ops');
+                if (opsBtn) opsBtn.click();
+                map.setView([lat, lon], Math.max(map.getZoom() || 14, 16), { animate: true });
+                if (snap.camId && typeof upsertDeviceMarker === 'function') {
+                    upsertDeviceMarker(snap.camId, lat, lon, false, false, true);
+                }
+                clearFrSnapMapAnchor();
+                frSnapMapSlot = snap;
+                var crop = String(snap.cropUrl || '').replace(/"/g, '&quot;');
+                var hasCrop = !!crop;
+                var html =
+                    '<div class="fr-snap-map-card" data-lat="' + lat + '" data-lon="' + lon + '" data-cam="' +
+                    escapePinText(snap.camId || '') + '" data-has-crop="' + (hasCrop ? '1' : '0') + '">' +
+                    buildFrSnapCardInnerHtml(snap, { expanded: false }) +
+                    '</div>';
+                /* mob-fr-map-pin-floating-tag — FR · name visible without click */
+                var name = snap.deviceLabel || snap.camId || '—';
+                var tagWho = snap.displayName || name || '—';
+                var tagPrefix = (typeof dashboardTr === 'function'
+                    ? dashboardTr('analytics.fr.snapMapPinTag')
+                    : 'FR snap');
+                var tagText = tagPrefix + ' · ' + tagWho;
+                if (snap.scorePct != null && Number.isFinite(Number(snap.scorePct))) {
+                    tagText += ' · ' + Math.round(Number(snap.scorePct)) + '%';
+                }
+                var icon = L.divIcon({
+                    className: 'fr-snap-map-pin-icon',
+                    html: '<div class="fr-snap-map-pin-wrap">' +
+                        '<div class="fr-snap-map-pin-label" title="' + escapePinText(tagText) + '">' +
+                        escapePinText(tagText) + '</div>' +
+                        '<div class="fr-snap-map-marker-icon"></div></div>',
+                    iconSize: [120, 52],
+                    iconAnchor: [60, 46],
+                    popupAnchor: [0, -40],
+                });
+                frSnapMapMarker = L.marker([lat, lon], { icon: icon, zIndexOffset: 2500 });
+                frSnapMapMarker.bindPopup(html, {
+                    maxWidth: 440,
+                    className: 'fr-snap-map-popup',
+                    autoPan: true,
+                    autoClose: false,
+                    closeOnClick: false,
+                    offset: [0, -4],
+                });
+                frSnapMapMarker.addTo(map);
+                frSnapMapMarker.on('popupopen', function () {
+                    if (frSnapSideDockOpen) return;
+                    var node = frSnapMapMarker.getPopup() && frSnapMapMarker.getPopup().getElement
+                        ? frSnapMapMarker.getPopup().getElement()
+                        : null;
+                    var card = node ? node.querySelector('.fr-snap-map-card') : null;
+                    if (card) bindFrSnapMapPopupActions(card);
+                });
+                frSnapMapMarker.on('popupclose', function () {
+                    /* keep marker until Close / next snap; side-dock may own review */
+                });
+                frSnapMapMarker.openPopup();
+                setTimeout(function () {
+                    try { if (typeof map.invalidateSize === 'function') map.invalidateSize(); } catch (_) { /* ignore */ }
+                    if (frSnapSideDockOpen) return;
+                    try { frSnapMapMarker.openPopup(); } catch (_) { /* ignore */ }
+                    var node = frSnapMapMarker.getPopup() && frSnapMapMarker.getPopup().getElement
+                        ? frSnapMapMarker.getPopup().getElement()
+                        : null;
+                    var card = node ? node.querySelector('.fr-snap-map-card') : null;
+                    if (card) bindFrSnapMapPopupActions(card);
+                }, 120);
+                return true;
+            } catch (_) {
+                clearFrSnapMapAnchor();
+                return false;
+            }
+        };
+
+        window.showFrSnapOnMap = function (lat, lon, camId, snap) {
+            if (snap && typeof window.openFrSnapMapAnchorCard === 'function') {
+                return window.openFrSnapMapAnchorCard(snap);
+            }
             if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
             try {
                 var opsBtn = document.getElementById('nav-tab-ops');
@@ -10464,6 +11420,7 @@
             if (typeof VideoWall !== 'undefined' && VideoWall.updateMapPinStopButton) {
                 VideoWall.updateMapPinStopButton(id);
             }
+            syncBwcLiveRecordingRecDots(id);
         }
 
         var canMapDeviceControl = false;
@@ -13755,6 +14712,47 @@
     </div>
     <div id="missed-activity-list" class="ma-drawer-list"></div>
     <div id="missed-activity-detail" class="ma-detail" hidden></div>
+</div>
+
+<!-- mob-track-b2-two-wvp-tiles — lab only; body.fm-lab-wvp when FM_LAB_WVP=1 -->
+<div id="me8-wvp-lab-tile" hidden aria-label="Lab WVP two live tiles">
+    <div class="me8-wvp-lab-head">
+        <span class="me8-wvp-lab-title">Lab · WVP two tiles</span>
+        <span id="me8-wvp-lab-badge" class="me8-wvp-lab-badge">off</span>
+        <button type="button" id="me8-wvp-lab-min" title="Minimize">▁</button>
+    </div>
+    <div id="me8-wvp-lab-body">
+        <div class="me8-wvp-lab-row">
+            <button type="button" id="me8-wvp-lab-refresh">Refresh cams</button>
+        </div>
+        <div class="me8-wvp-lab-grid">
+            <div class="me8-wvp-lab-slot">
+                <div class="me8-wvp-lab-slot-label">Tile A</div>
+                <div id="me8-wvp-lab-stage-a" class="me8-wvp-lab-stage"></div>
+                <div class="me8-wvp-lab-row">
+                    <select id="me8-wvp-lab-device-a" aria-label="WVP device A"></select>
+                    <select id="me8-wvp-lab-channel-a" aria-label="WVP channel A"></select>
+                </div>
+                <div class="me8-wvp-lab-row">
+                    <button type="button" id="me8-wvp-lab-play-a" class="primary">Play A</button>
+                    <button type="button" id="me8-wvp-lab-stop-a">Stop A</button>
+                </div>
+            </div>
+            <div class="me8-wvp-lab-slot">
+                <div class="me8-wvp-lab-slot-label">Tile B</div>
+                <div id="me8-wvp-lab-stage-b" class="me8-wvp-lab-stage"></div>
+                <div class="me8-wvp-lab-row">
+                    <select id="me8-wvp-lab-device-b" aria-label="WVP device B"></select>
+                    <select id="me8-wvp-lab-channel-b" aria-label="WVP channel B"></select>
+                </div>
+                <div class="me8-wvp-lab-row">
+                    <button type="button" id="me8-wvp-lab-play-b" class="primary">Play B</button>
+                    <button type="button" id="me8-wvp-lab-stop-b">Stop B</button>
+                </div>
+            </div>
+        </div>
+        <div id="me8-wvp-lab-log"></div>
+    </div>
 </div>
 </body>
 </html>

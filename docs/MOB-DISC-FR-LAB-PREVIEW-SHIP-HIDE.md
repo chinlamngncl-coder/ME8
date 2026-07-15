@@ -1,6 +1,6 @@
 # MOB DISC — FR lab preview buttons · not on customer ship
 
-**Status:** DISC only — **2026-07-11**  
+**Status:** **APPLIED** 2026-07-11 (`mob-fr-lab-preview-gate` in `860945e` lab-fr-alert-ui-1b) — MOB-APPLY confirmed 2026-07-13  
 **Trigger:** Operator — “Preview alert (lab)” / “Preview toast (lab)” look like a university project; must not ship to customers  
 **Search:** lab preview, ax-fr-preview-drawer, ship hide, dev tools, FM_LAB  
 **Related:** `MOB-DISC-FR-NOT-MIXED-LIVE-SOS-PTT.md`, `MOB-DISC-CUSTOMER-FACING-NAMING.md`

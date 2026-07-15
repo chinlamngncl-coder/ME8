@@ -22,7 +22,7 @@ function fail(msg) {
 }
 
 if (!fs.existsSync(path.join(root, 'run.js'))) {
-  fail('run.js missing — use the Mobility Axiom delivery pack.');
+  fail('run.js missing — use the Ubitron Mobility C2 delivery pack.');
 }
 
 if (!fs.existsSync(path.join(root, 'package.json'))) {
@@ -36,8 +36,18 @@ if (!fs.existsSync(vendorFfmpeg)) {
 ok('Media engine ready');
 
 const nodeMajor = parseInt(process.versions.node.split('.')[0], 10);
-if (nodeMajor < 18) fail('Node 18+ required (found ' + process.version + ')');
+if (nodeMajor < 22) fail('Node 22+ required (found ' + process.version + ') — re-download the delivery pack');
 ok('Node ' + process.version);
+
+const requiredModules = ['dotenv', 'express', 'multer', 'ftp-srv', 'ws', 'socket.io', 'xml2js', 'sip', 'livekit-server-sdk', 'nodemailer', 'qrcode'];
+for (const mod of requiredModules) {
+  try {
+    require.resolve(mod, { paths: [root] });
+    ok('module ' + mod);
+  } catch (_) {
+    fail('Missing application library "' + mod + '" — re-download the delivery pack (do not run npm install yourself).');
+  }
+}
 
 const modelFile = String(process.env.FM_LLM_MODEL_FILE || 'qwen2.5-1.5b-instruct-q4_k_m.gguf').trim();
 if (/qwen2\.5-3b/i.test(modelFile) || /qwen2\.5-72b/i.test(modelFile)) {
@@ -76,4 +86,4 @@ if (process.env.FM_RENTAL_MODE === '1' || process.env.FM_LICENSE_REQUIRED === '1
   }
 }
 
-if (!quiet) console.log('\nMobility Axiom install check passed.\n');
+if (!quiet) console.log('\nUbitron Mobility C2 install check passed.\n');

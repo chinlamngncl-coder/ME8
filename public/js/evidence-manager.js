@@ -266,6 +266,64 @@
         return TabLifecycle.shouldLoad(tab);
     }
 
+    /** mob-ops-map-resize-after-tab — refill Leaflet after hidden Ops / SOS strip height change */
+    function invalidateOpsMapOnce() {
+        try {
+            if (global.FleetUi && FleetUi.refreshLayout) FleetUi.refreshLayout();
+            else if (typeof global.map !== 'undefined' && global.map && global.map.invalidateSize) {
+                global.map.invalidateSize();
+            }
+        } catch (_) { /* ignore */ }
+        try {
+            if (typeof global.map !== 'undefined' && global.map && global.map.invalidateSize) {
+                global.map.invalidateSize();
+            }
+        } catch (_) { /* ignore */ }
+        try {
+            if (global.MobilityMapGis && MobilityMapGis.invalidateSize) MobilityMapGis.invalidateSize();
+        } catch (_) { /* ignore */ }
+    }
+
+    function scheduleOpsMapResize() {
+        function pass() { invalidateOpsMapOnce(); }
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(function () {
+                pass();
+                requestAnimationFrame(function () {
+                    pass();
+                    setTimeout(pass, 50);
+                    setTimeout(pass, 160);
+                    setTimeout(pass, 350);
+                });
+            });
+        } else {
+            pass();
+            setTimeout(pass, 50);
+            setTimeout(pass, 160);
+            setTimeout(pass, 350);
+        }
+    }
+
+    function bindOpsMapResizeObserver() {
+        if (typeof ResizeObserver === 'undefined') return;
+        var wrap = document.getElementById('map-wrapper') || document.getElementById('map');
+        if (!wrap || wrap.getAttribute('data-ops-map-ro') === '1') return;
+        wrap.setAttribute('data-ops-map-ro', '1');
+        var debounceTimer = null;
+        var ro = new ResizeObserver(function () {
+            var ops = document.getElementById('app-view-ops');
+            if (ops && ops.hidden) return;
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function () {
+                debounceTimer = null;
+                invalidateOpsMapOnce();
+            }, 40);
+        });
+        ro.observe(wrap);
+        var banner = document.getElementById('sos-banner');
+        if (banner) ro.observe(banner);
+    }
+
     function showTab(tab, opts) {
         opts = opts || {};
         const loadData = tabShouldLoad(tab, opts);
@@ -371,9 +429,8 @@
             const ws = document.getElementById('server-config-workspace');
             if (ws && !ws.hidden) ServerSetup.closeConfig();
         }
-        if (tab === 'ops' && global.FleetUi && FleetUi.refreshLayout) {
-            requestAnimationFrame(function () { FleetUi.refreshLayout(); });
-        }
+        /* mob-ops-map-resize-after-tab — Leaflet keeps stale size after Analytics/SOS chrome */
+        if (tab === 'ops') scheduleOpsMapResize();
         if (tab === 'ops' && loadData && global.OpsCwAwareness && OpsCwAwareness.refresh) {
             OpsCwAwareness.refresh();
         }
@@ -429,6 +486,7 @@
                 }
             });
         }
+        bindOpsMapResizeObserver();
         if (global.EvidenceHub && EvidenceHub.bindUi) EvidenceHub.bindUi();
         if (global.EvidenceStorageUi && EvidenceStorageUi.bindUi) EvidenceStorageUi.bindUi();
         if (global.AuditTrailHub && AuditTrailHub.bindUi) AuditTrailHub.bindUi();
@@ -460,6 +518,7 @@
         refresh: loadCatalog,
         showTab: showTab,
         loadEvidencePaths: loadEvidencePaths,
+        scheduleOpsMapResize: scheduleOpsMapResize,
     };
 
     if (document.readyState === 'loading') {

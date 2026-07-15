@@ -228,15 +228,14 @@ Local changes since Gate B git push:
 
 ---
 
-## PARKED — ZLM latency below ~8–10s (2026-07-06)
+## PARKED — ZLM latency below ~8–10s (2026-07-06) → **RESUMED**
 
-**Status:** deferred — user said “go to that later”  
-**Search:** `latency parked`, `skip transcode`, `H.264 BWC`
+**Was:** deferred (“go to that later”)  
+**Now (2026-07-14):** user said `MOB DISC zlm latency` — **near handover, must solve**.  
+**Active disc:** `docs/MOB-DISC-ZLM-LATENCY-HANDOVER.md`
 
-**Bench today:** ZLM proxy genre usable — **~8–10s** stable OSD vs wall **~2s**. Relay-latency MOB PASS (`droppedChunks: 0`). Player low-latency MOB **reverted** (caused minutes lag).
+**Bench then:** ZLM proxy ~**8–10s** vs wall ~**2s**. Relay-latency MOB PASS. Player chase MOB **reverted** (minutes lag).
 
-**Do not retry:** mpegts `liveBufferLatencyChasing` / stash-off on test page.
+**Still do not retry:** mpegts `liveBufferLatencyChasing` / stash-off.
 
-**Later MOB direction (lab/ship):** skip mpeg1→H.264 relay when BWC sends H.264 — or Gate C/D architecture — not player buffer tweaks.
-
-**Resume when user says:** `MOB DISC zlm latency` or `Approved` + named latency MOB.
+**Direction:** measure → cut hops / better play URL → skip double convert — not buffer knobs. See handover disc.

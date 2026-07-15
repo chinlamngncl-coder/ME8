@@ -5,13 +5,16 @@ Do NOT copy lab storage/ from a dev bench to customers.
 
 Use on the customer server (or reset a lab bench to factory state):
 
-  1. Stop Fleet (close RESTART-FLEET window).
+  1. Stop Fleet (net stop UbitronC2, or close RESTART-FLEET lab window).
   2. From ME8 root:
        .\NEW-ME8-INSTALL.ps1
      Optional: .\NEW-ME8-INSTALL.ps1 -LanIp 10.0.0.50
        (writes .env from template — operators never edit .env after handoff)
   3. Configure FTP, SIP, and users in Settings → Server Config.
-  4. .\RESTART-FLEET.bat
+  4. Enterprise (recommended): run PowerShell **as Administrator**:
+       .\INSTALL-UBITRON-SERVICE.ps1
+     Service auto-starts on boot — operators only open the portal URL.
+     Lab / debug: .\RESTART-FLEET.bat instead (console window).
   5. Verify:
        .\VERIFY-ME8-FRESH.ps1
   6. Security sign-off (IT):

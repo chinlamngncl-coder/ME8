@@ -202,6 +202,14 @@
         return valid ? tr('tech.health.licenseValid') : tr('tech.health.licenseMissing');
     }
 
+    function frEngineStatusLabel(fr) {
+        if (!fr || fr.featureEnabled === false || fr.status === 'off') {
+            return tr('tech.health.frOff');
+        }
+        if (fr.ok || fr.status === 'ok') return tr('tech.health.frOk');
+        return tr('tech.health.frDown');
+    }
+
     async function loadHealth() {
         const el = document.getElementById('ss-tech-health');
         if (!el) return;
@@ -215,7 +223,11 @@
             const fl = h.fleet || {};
             const mem = h.memory || {};
             const lic = h.license || {};
+            const fr = h.fr || {};
             const uptimeMin = Math.max(1, Math.floor((h.uptimeSec || 0) / 60));
+            const frTitle = (fr.engine && (fr.ok || fr.status === 'ok'))
+                ? (' title="' + esc(String(fr.engine)) + '"')
+                : '';
             el.innerHTML =
                 '<div class="ss-tech-grid">' +
                 '<div class="ss-tech-card"><strong>' + esc(tr('tech.health.uptime')) + '</strong><span>' +
@@ -232,6 +244,8 @@
                 esc(tr('tech.health.memoryValue', { mb: mem.heapUsedMb || 0 })) + '</span></div>' +
                 '<div class="ss-tech-card"><strong>' + esc(tr('tech.health.license')) + '</strong><span>' +
                 licenseStatusLabel(!!lic.valid) + '</span></div>' +
+                '<div class="ss-tech-card"' + frTitle + '><strong>' + esc(tr('tech.health.frEngine')) + '</strong><span>' +
+                esc(frEngineStatusLabel(fr)) + '</span></div>' +
                 '</div>';
             updateTraceStatus(h.trace);
         } catch (err) {

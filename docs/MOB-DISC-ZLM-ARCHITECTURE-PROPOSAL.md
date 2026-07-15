@@ -1,6 +1,6 @@
 # MOB DISC — ZLM architecture proposal (design review)
 
-**Status:** Gate **B PASS** 2026-07-06 — see `docs/MOB-DISC-ZLM-GATE-B-PASS.md`. Gate C+ still proposal-only.  
+**Status:** Gate **B PASS** 2026-07-06. Gate **C PASS** 2026-07-14 (`liveMediaAdapter` side relay + operator checkpoint). Gate D still proposal-only.  
 **Mode:** Architecture-first. **No patches** to `video-wall.js`, `liveStreamPool.js`, or operator config without named MOB.  
 **Search:** `ZLM architecture`, `adapter`, `design review`, `Approved`
 

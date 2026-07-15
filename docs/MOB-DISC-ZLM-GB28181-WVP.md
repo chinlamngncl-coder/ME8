@@ -1,36 +1,40 @@
-# MOB-DISC-ZLM-GB28181-WVP
+# MOB-DISC — ZLM + WVP-Pro (GB28181 scale)
 
-## What this is
+**Status:** `mob-wvp-zlm-lab-bringup` **APPLIED** 2026-07-14 — container **UP** (Docker Hub `648540858/wvp_pro`)  
+**Search:** `WVP`, `WVP-Pro`, `GB28181`, `wvp-zlm`, `tender scale`
 
-When you win the tender, the system needs to handle hundreds of cameras at once.  
-`wvp-GB28181-pro` is the software that manages all those camera connections and passes video to ZLM.  
-This disc tracks the plan to set it up.
+## Plain English
 
-## Current state
+| Name | Role |
+|------|------|
+| **WVP-Pro** | GB28181 front desk — cameras register; manages many streams |
+| **ZLM** | Media engine — this lab image bundles WVP+ZLM together |
 
-- ZLM is running in Docker. Gate B passed (2026-07-06).
-- wvp is not installed yet.
+## Bringup result (this PC)
 
-## What wvp does (plain English)
+| Check | Result |
+|-------|--------|
+| Image | `648540858/wvp_pro:latest` (Aliyun image dead) |
+| Container `me8-wvp` | Running |
+| UI | `http://192.168.1.38:18080` / `http://127.0.0.1:18080` |
+| GB SIP host port | **5061** (Fleet **5060** untouched) |
+| Bundled ZLM HTTP | host **18088** |
+| BWC `me8-zlm` | Still on **8080** (separate) |
 
-Each camera registers itself with wvp like checking in at a hotel front desk.  
-wvp tells ZLM to start receiving that camera's video.  
-The dashboard gets the stream URL from the broker as normal — nothing changes on screen.
+## Operator proof
 
-## Files I will create (no existing files touched)
+1. Open UI → login **admin** / **admin** (try admin123 if needed)  
+2. Register one GB camera → SIP IP = LAN, port **5061**  
+3. See device in WVP; play there (not Fleet wall)  
 
-| File | What it is |
-|---|---|
-| `docker/wvp/docker-compose.wvp.yml` | Starts wvp + database + cache containers |
-| `docker/wvp/wvp-config/application.yml` | wvp settings — points to ZLM |
-| `docker/wvp/README-WVP-LAB.md` | How to start it and test one camera |
+**2026-07-14:** device + channel + **Play PASS** (top speed). Lab play URL port: `mob-wvp-play-host-port-80`.  
+**Speed vs our wall:** `docs/MOB-DISC-WVP-TOP-SPEED-VS-WALL.md` (DISC only).
 
-## Locked files — not touched
+## Scripts
 
-`sipServer.js`, `pttServer.js`, `server.js`, `video-wall.js` — none of these change.  
-PTT keeps working on the existing stack.
+- `START-WVP-LAB.bat` / `STOP-WVP-LAB.bat`  
+- `docker/wvp/README-WVP-LAB.md`
 
-## Status
+## Not this MOB
 
-PARKED — waiting for `MOB-APPLY mob-wvp-docker-scaffold`.  
-ZLM Docker network confirmed: `me8-zlm_default` (2026-07-07).
+Fleet wall ↔ WVP URL join · slim WVP→me8-zlm only · customer pack without Docker

@@ -46,7 +46,7 @@ $PublicKeySrc = Join-Path $IssuerRoot 'keys\license-public.pem'
 
 $ForbiddenNames = @(
     'server.js', 'BASELINE-TRIAL-GOLD.md', 'BASELINE-ME8-POC-DEMO.md', 'CS.md', 'CLAUDE.md',
-    'RESTORE-TRIAL-GOLD.ps1', 'VERIFY-TRIAL-GOLD.ps1', 'test-zlm.html', 'license-private.pem'
+    'RESTORE-TRIAL-GOLD.ps1', 'VERIFY-TRIAL-GOLD.ps1', 'test-zlm.html', 'test-wvp-tile.html', 'license-private.pem'
 )
 $ForbiddenDirs = @(
     'lib', '.cursor', '.git', 'baseline', 'docs', 'mobile-android', 'pack',
@@ -143,11 +143,15 @@ foreach ($html in @('index.html', 'login.html', 'command-wall.html')) {
         $raw = $raw -replace '(<meta charset="UTF-8">)', "`$1`n    <meta name=`"fm-locales`" content=`"en,fil,ko`">"
     }
     $zlm = Join-Path $appDir "public\$html"
-    if ($html -eq 'test-zlm.html') { continue }
+    if ($html -eq 'test-zlm.html' -or $html -eq 'test-wvp-tile.html') { continue }
     Set-Content $p $raw -Encoding UTF8 -NoNewline
 }
 $labZlm = Join-Path $appDir 'public\test-zlm.html'
 if (Test-Path $labZlm) { Remove-Item $labZlm -Force }
+$labWvp = Join-Path $appDir 'public\test-wvp-tile.html'
+if (Test-Path $labWvp) { Remove-Item $labWvp -Force }
+$labWvpJs = Join-Path $appDir 'public\js\wvp-lab-tile.js'
+if (Test-Path $labWvpJs) { Remove-Item $labWvpJs -Force }
 
 Write-Step 'Stage docker, vendor, FR sidecar...'
 Copy-Tree (Join-Path $AppRoot 'docker') (Join-Path $appDir 'docker')
@@ -162,6 +166,25 @@ foreach ($labFile in @('zlm.compose.yml', 'zlm-config.example.ini', 'docker-comp
 }
 New-Item -ItemType Directory -Force -Path (Join-Path $appDir 'vendor\ffmpeg-lgpl') | Out-Null
 Copy-Item $ffmpegSrc (Join-Path $appDir 'vendor\ffmpeg-lgpl\ffmpeg.exe') -Force
+
+# mvp-zlm-in-pack — optional Windows MediaServer in customer pack (no Docker)
+$zlmSrcExe = Join-Path $AppRoot 'vendor\zlmediakit\MediaServer.exe'
+if (Test-Path $zlmSrcExe) {
+    $zlmDst = Join-Path $appDir 'vendor\zlmediakit'
+    New-Item -ItemType Directory -Force -Path $zlmDst | Out-Null
+    Copy-Item $zlmSrcExe (Join-Path $zlmDst 'MediaServer.exe') -Force
+    Get-ChildItem (Join-Path $AppRoot 'vendor\zlmediakit') -Filter '*.dll' -File -ErrorAction SilentlyContinue | ForEach-Object {
+        Copy-Item $_.FullName (Join-Path $zlmDst $_.Name) -Force
+    }
+    $zlmCfg = Join-Path $AppRoot 'vendor\zlmediakit\config.ini'
+    $zlmCfgEx = Join-Path $AppRoot 'vendor\zlmediakit\config.ini.example'
+    if (Test-Path $zlmCfg) { Copy-Item $zlmCfg (Join-Path $zlmDst 'config.ini') -Force }
+    elseif (Test-Path $zlmCfgEx) { Copy-Item $zlmCfgEx (Join-Path $zlmDst 'config.ini') -Force }
+    Copy-Item (Join-Path $AppRoot 'vendor\zlmediakit\README.md') (Join-Path $zlmDst 'README.md') -Force -ErrorAction SilentlyContinue
+    Write-Host "  included vendor\zlmediakit\MediaServer.exe"
+} else {
+    Write-Host "  skip ZLM pack binary (vendor\zlmediakit\MediaServer.exe missing — run INSTALL-ZLM-PACK.ps1)"
+}
 
 $frDst = Join-Path $appDir 'fr-sidecar'
 New-Item -ItemType Directory -Force -Path $frDst | Out-Null

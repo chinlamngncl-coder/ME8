@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ME8 — one tile from WVP (lab)</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, sans-serif; margin: 0; padding: 1rem; background: #111; color: #eee; }
+        h1 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.5rem; }
+        p, li { color: #aaa; font-size: 0.9rem; }
+        ol { margin: 0 0 1rem 1.2rem; }
+        label { display: block; margin-bottom: 0.25rem; font-size: 0.85rem; }
+        input, select {
+            width: 100%; max-width: 28rem; padding: 0.5rem; margin-bottom: 0.75rem;
+            border: 1px solid #444; background: #222; color: #fff; border-radius: 4px;
+        }
+        button {
+            padding: 0.5rem 1rem; margin-right: 0.5rem; margin-bottom: 0.5rem;
+            border: 0; border-radius: 4px; background: #2a6df4; color: #fff; cursor: pointer;
+        }
+        button.secondary { background: #444; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #stage {
+            width: 100%; max-width: 720px; aspect-ratio: 16/9;
+            background: #000; border: 1px solid #333; border-radius: 4px; position: relative;
+        }
+        #stage video { width: 100%; height: 100%; display: block; object-fit: contain; }
+        #log {
+            margin-top: 1rem; padding: 0.75rem; background: #1a1a1a; border-radius: 4px;
+            font-family: ui-monospace, monospace; font-size: 0.75rem; white-space: pre-wrap;
+            max-height: 14rem; overflow: auto;
+        }
+        .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; margin-left: 0.5rem; background: #555; }
+        .badge.ok { background: #1b5e20; }
+        .badge.bad { background: #7f1d1d; }
+        .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-end; margin-bottom: 0.5rem; }
+        .field { flex: 1 1 14rem; min-width: 12rem; }
+    </style>
+</head>
+<body>
+    <h1>One live tile from WVP <span id="badge" class="badge">idle</span></h1>
+    <p>Lab only — <strong>not</strong> the command wall. Same fast path as WVP Play, shown inside Fleet login.</p>
+    <ol>
+        <li>WVP lab up (<code>START-WVP-LAB.bat</code>). Host play port <strong>80</strong> mapped.</li>
+        <li>Point <strong>one</strong> GB cam at LAN IP, SIP port <strong>5061</strong> (not Fleet 5060).</li>
+        <li>Refresh devices → select channel → <strong>Play</strong>.</li>
+        <li>When done, put the cam back on Fleet <strong>5060</strong>.</li>
+    </ol>
+
+    <div class="row">
+        <div class="field">
+            <label for="deviceSel">Device</label>
+            <select id="deviceSel"><option value="">— load devices —</option></select>
+        </div>
+        <div class="field">
+            <label for="channelSel">Channel</label>
+            <select id="channelSel"><option value="">—</option></select>
+        </div>
+    </div>
+    <div class="row">
+        <div class="field">
+            <label for="deviceId">Or paste device ID</label>
+            <input id="deviceId" type="text" placeholder="34020000001329000009" autocomplete="off">
+        </div>
+        <div class="field">
+            <label for="channelId">Channel ID (blank = same as device)</label>
+            <input id="channelId" type="text" placeholder="usually same as device" autocomplete="off">
+        </div>
+    </div>
+
+    <div>
+        <button type="button" id="btnRefresh">Refresh devices</button>
+        <button type="button" id="btnPlay">Play</button>
+        <button type="button" id="btnStop" class="secondary">Stop</button>
+    </div>
+
+    <div id="stage"></div>
+    <div id="log"></div>
+
+    <script src="/vendor/mpegts.min.js"></script>
+    <script>
+(function () {
+    var badge = document.getElementById('badge');
+    var logEl = document.getElementById('log');
+    var stage = document.getElementById('stage');
+    var deviceSel = document.getElementById('deviceSel');
+    var channelSel = document.getElementById('channelSel');
+    var deviceInput = document.getElementById('deviceId');
+    var channelInput = document.getElementById('channelId');
+    var player = null;
+    var playing = null;
+
+    function log(msg) {
+        var t = new Date().toLocaleTimeString();
+        logEl.textContent = t + ' — ' + msg + '\n' + logEl.textContent;
+    }
+
+    function setBadge(text, cls) {
+        badge.textContent = text;
+        badge.className = 'badge' + (cls ? ' ' + cls : '');
+    }
+
+    /** Avoid cryptic JSON.parse errors when server returns login HTML. */
+    async function readJson(res) {
+        var text = await res.text();
+        var trimmed = (text || '').trim();
+        if (!trimmed) {
+            throw new Error('Empty reply (HTTP ' + res.status + ') — re-login Fleet on http://192.168.1.38:3988');
+        }
+        if (trimmed.charAt(0) === '<' || /login\.html/i.test(trimmed)) {
+            throw new Error('Got login page, not API — open Fleet login first, then this page again (same host 192.168.1.38)');
+        }
+        try {
+            return JSON.parse(trimmed);
+        } catch (err) {
+            throw new Error('Bad API reply (HTTP ' + res.status + '): ' + trimmed.slice(0, 120));
+        }
+    }
+
+    function destroyPlayer() {
+        if (player) {
+            try { player.pause(); } catch (_) {}
+            try { player.unload(); } catch (_) {}
+            try { player.detachMediaElement(); } catch (_) {}
+            try { player.destroy(); } catch (_) {}
+            player = null;
+        }
+        stage.innerHTML = '';
+    }
+
+    function absolutizeUrl(url) {
+        if (!url) return url;
+        if (/^https?:\/\//i.test(url) || /^wss?:\/\//i.test(url)) return url;
+        var base = window.location && window.location.origin
+            ? window.location.origin
+            : ((window.location.protocol || 'http:') + '//' + (window.location.host || ''));
+        return base + (url.charAt(0) === '/' ? url : '/' + url);
+    }
+
+    function playFlv(url, opts) {
+        opts = opts || {};
+        destroyPlayer();
+        if (!window.mpegts || !mpegts.getFeatureList().mseLivePlayback) {
+            log('mpegts.js not available');
+            setBadge('no player', 'bad');
+            return;
+        }
+        var abs = absolutizeUrl(url);
+        var cross = /^https?:\/\//i.test(abs) && abs.indexOf(window.location.origin) !== 0;
+        var video = document.createElement('video');
+        video.controls = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.autoplay = true;
+        stage.appendChild(video);
+        player = mpegts.createPlayer({
+            type: 'flv',
+            isLive: true,
+            url: abs,
+            hasAudio: false,
+            hasVideo: true,
+            withCredentials: !cross,
+        }, {
+            enableWorker: false,
+            lazyLoad: false,
+            enableStashBuffer: false,
+            stashInitialSize: 128,
+            liveBufferLatencyChasing: false,
+        });
+        player.attachMediaElement(video);
+        player.load();
+        var p = video.play();
+        if (p && p.catch) p.catch(function () { log('autoplay blocked — click video'); });
+        setBadge('playing', 'ok');
+        log((opts.via || 'play') + ' ' + abs);
+        try {
+            player.on(mpegts.Events.ERROR, function (errType, errDetail) {
+                log('mpegts error: ' + errType + ' ' + (errDetail || ''));
+                if (opts.fallbackUrl && !opts._fellBack) {
+                    opts._fellBack = true;
+                    log('direct failed → Fleet proxy');
+                    playFlv(opts.fallbackUrl, { via: 'proxy-fallback' });
+                    return;
+                }
+                setBadge('player err', 'bad');
+            });
+        } catch (_) {}
+    }
+
+    async function refreshDevices() {
+        setBadge('loading');
+        try {
+            var st = await fetch('/api/lab/wvp/status', { credentials: 'same-origin' });
+            var stData = await readJson(st);
+            if (!st.ok) {
+                log((stData && stData.error) || 'status failed — login to Fleet first? FM_LAB_WVP=1?');
+                setBadge('auth/status fail', 'bad');
+                return;
+            }
+            log('WVP health: ' + JSON.stringify(stData.health || {}));
+            var res = await fetch('/api/lab/wvp/devices', { credentials: 'same-origin' });
+            var data = await readJson(res);
+            if (!res.ok) {
+                log((data && data.error) || 'device list failed');
+                setBadge('devices fail', 'bad');
+                return;
+            }
+            deviceSel.innerHTML = '';
+            var list = data.list || [];
+            if (!list.length) {
+                deviceSel.innerHTML = '<option value="">(no devices — register cam on SIP 5061)</option>';
+                setBadge('no devices', 'bad');
+                log('No WVP devices. Point one cam at WVP port 5061.');
+                return;
+            }
+            list.forEach(function (d) {
+                var opt = document.createElement('option');
+                opt.value = d.deviceId;
+                opt.textContent = (d.online ? '[ON] ' : '[off] ') + (d.name || d.deviceId) + ' — ' + d.deviceId;
+                deviceSel.appendChild(opt);
+            });
+            deviceInput.value = list[0].deviceId;
+            setBadge(list.length + ' device(s)', 'ok');
+            await loadChannels(list[0].deviceId);
+        } catch (err) {
+            log(String(err && err.message || err));
+            setBadge('error', 'bad');
+        }
+    }
+
+    async function loadChannels(deviceId) {
+        channelSel.innerHTML = '<option value="">…</option>';
+        if (!deviceId) return;
+        var res = await fetch('/api/lab/wvp/devices/' + encodeURIComponent(deviceId) + '/channels', { credentials: 'same-origin' });
+        var data = await readJson(res);
+        channelSel.innerHTML = '';
+        if (!res.ok) {
+            log((data && data.error) || 'channels failed');
+            return;
+        }
+        (data.list || []).forEach(function (ch) {
+            var opt = document.createElement('option');
+            opt.value = ch.channelId;
+            opt.textContent = (ch.name || ch.channelId) + ' — ' + ch.channelId;
+            channelSel.appendChild(opt);
+        });
+        if (data.list && data.list[0]) {
+            channelInput.value = data.list[0].channelId;
+        }
+    }
+
+    deviceSel.addEventListener('change', function () {
+        deviceInput.value = deviceSel.value;
+        loadChannels(deviceSel.value);
+    });
+    channelSel.addEventListener('change', function () {
+        channelInput.value = channelSel.value;
+    });
+
+    document.getElementById('btnRefresh').addEventListener('click', refreshDevices);
+
+    document.getElementById('btnPlay').addEventListener('click', async function () {
+        var deviceId = (deviceInput.value || deviceSel.value || '').trim();
+        var channelId = (channelInput.value || channelSel.value || '').trim();
+        if (!deviceId) {
+            log('Enter / select a device ID');
+            return;
+        }
+        destroyPlayer();
+        try {
+            log('Starting WVP play…');
+            var res = await fetch('/api/lab/wvp/play', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ deviceId: deviceId, channelId: channelId || deviceId }),
+            });
+            var data = await readJson(res);
+            if (!res.ok) {
+                log((data && data.error) || 'play failed');
+                setBadge('play fail', 'bad');
+                return;
+            }
+            playing = { deviceId: data.deviceId, channelId: data.channelId };
+            playFlv(data.directFlv || data.upstreamFlv || data.flvUrl, {
+                via: (data.preferDirect !== false && (data.directFlv || data.upstreamFlv)) ? 'direct-zlm' : 'proxy',
+                fallbackUrl: (data.directFlv || data.upstreamFlv) ? data.flvUrl : null,
+            });
+        } catch (err) {
+            log(String(err && err.message || err));
+            setBadge('error', 'bad');
+        }
+    });
+
+    document.getElementById('btnStop').addEventListener('click', async function () {
+        destroyPlayer();
+        setBadge('stopped');
+        if (!playing) return;
+        try {
+            await fetch('/api/lab/wvp/stop', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(playing),
+            });
+            log('stop sent');
+        } catch (err) {
+            log('stop: ' + (err && err.message || err));
+        }
+        playing = null;
+    });
+
+    refreshDevices();
+})();
+    </script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Bundle portable Node 20 + npm dependencies into a delivery pack appDir.
+ * Bundle portable Node 22 + npm dependencies into a delivery pack appDir.
+ * ME8 requires Node 22+ (built-in node:sqlite in siteDb.js). Match SaaS trial lane 22.18.0.
  * Usage: node scripts/bundle-ship-node.js <appRoot> <appDir>
  */
 'use strict';
@@ -12,7 +13,7 @@ const { execSync } = require('child_process');
 
 const appRoot = path.resolve(process.argv[2] || '');
 const appDir = path.resolve(process.argv[3] || '');
-const NODE_VERSION = process.env.FM_SHIP_NODE_VERSION || '20.18.1';
+const NODE_VERSION = process.env.FM_SHIP_NODE_VERSION || '22.18.0';
 const NODE_ZIP = `node-v${NODE_VERSION}-win-x64.zip`;
 const NODE_URL = `https://nodejs.org/dist/v${NODE_VERSION}/${NODE_ZIP}`;
 

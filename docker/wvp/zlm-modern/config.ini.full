@@ -1,0 +1,760 @@
+﻿#!!!!µ¡ñΘàìτ╜«µûçΣ╗╢Σ╕║ΦîâΣ╛ïΘàìτ╜«µûçΣ╗╢∩╝îµäÅσ£¿σæèΦ»ëΦ»╗ΦÇà∩╝îσÉäΣ╕¬Θàìτ╜«Θí╣τÜäσà╖Σ╜ôσÉ½Σ╣ëσÆîΣ╜£τö¿∩╝î
+#!!!!Φ»ÑΘàìτ╜«µûçΣ╗╢σ£¿µëºΦíîcmakeµù╢∩╝îΣ╝Üµï╖Φ┤¥Φç│release/${µôìΣ╜£τ│╗τ╗ƒτ▒╗σ₧ï}/${τ╝ûΦ»æτ▒╗σ₧ï}(Σ╛ïσªérelease/linux/Debug) µûçΣ╗╢σñ╣πÇé
+#!!!!Φ»ÑµûçΣ╗╢σñ╣(release/${µôìΣ╜£τ│╗τ╗ƒτ▒╗σ₧ï}/${τ╝ûΦ»æτ▒╗σ₧ï})σÉîµù╢Σ╣ƒµÿ»σÅ»µëºΦíîτ¿ïσ║ÅτöƒµêÉτ¢«µáçΦ╖»σ╛ä∩╝îσ£¿µëºΦíîMediaServerΦ┐¢τ¿ïµù╢∩╝îσ«âΣ╝ÜΘ╗ÿΦ«ñσèáΦ╜╜σÉîτ¢«σ╜òΣ╕ïτÜäconfig.iniµûçΣ╗╢Σ╜£Σ╕║Θàìτ╜«µûçΣ╗╢∩╝î
+#!!!!Σ╜áσªéµ₧£Σ┐«µö╣µ¡ñΦîâΣ╛ïΘàìτ╜«µûçΣ╗╢(conf/config.ini)∩╝îσ╣╢Σ╕ìΣ╝ÜΦó½MediaServerΦ┐¢τ¿ïσèáΦ╜╜∩╝îσ¢áΣ╕║MediaServerΦ┐¢τ¿ïΘ╗ÿΦ«ñσèáΦ╜╜τÜäµÿ»release/${µôìΣ╜£τ│╗τ╗ƒτ▒╗σ₧ï}/${τ╝ûΦ»æτ▒╗σ₧ï}/config.iniπÇé
+#!!!!σ╜ôτä╢∩╝îΣ╜áµ»Åµ¼íµëºΦíîcmake∩╝îΦ»ÑµûçΣ╗╢τí«σ«₧Σ╝ÜΦó½µï╖Φ┤¥Φç│release/${µôìΣ╜£τ│╗τ╗ƒτ▒╗σ₧ï}/${τ╝ûΦ»æτ▒╗σ₧ï}/config.ini∩╝î
+#!!!!Σ╜åµÿ»Σ╕ÇΦê¼σ╗║Φ««Σ╜áτ¢┤µÄÑΣ┐«µö╣release/${µôìΣ╜£τ│╗τ╗ƒτ▒╗σ₧ï}/${τ╝ûΦ»æτ▒╗σ₧ï}/config.iniµûçΣ╗╢∩╝îΣ┐«µö╣µ¡ñµûçΣ╗╢Σ╕ÇΦê¼Σ╕ìΦ╡╖Σ╜£τö¿,ΘÖñΘ¥₧Σ╜áΦ┐ÉΦíîMediaServerµù╢Σ╜┐τö¿-cσÅéµò░µîçσ«Üσê░µ¡ñµûçΣ╗╢πÇé
+#!!!! This is a sample configuration file intended to explain the specific meanings and functions of each item.
+#!!!! During the `cmake` execution, this file is copied to the `release/${OS type}/${build type}` directory.
+#!!!! This directory is also the target path where the MediaServer executable runs and looks for `config.ini` by default.
+#!!!! Modifying this sample file (`conf/config.ini`) will not affect the MediaServer process while it runs.
+#!!!! Although executing `cmake` overwrites the target config file, it is highly recommended to modify `release/${OS type}/${build type}/config.ini` directly.
+#!!!! Changes made here will only take effect if you explicitly load this file using the `-c` parameter when starting the MediaServer.
+
+[api]
+# µÿ»σÉªΦ░âΦ»òhttp api,σÉ»τö¿Φ░âΦ»òσÉÄ∩╝îΣ╝Üµëôσì░µ»Åµ¼íhttpΦ»╖µ▒éτÜäσåàσ«╣σÆîσ¢₧σñì
+# Enable HTTP API debugging. When enabled, it logs the content and responses of each HTTP request.
+apiDebug=1
+
+# Σ╕ÇΣ║¢µ»öΦ╛âµòÅµäƒτÜähttp apiσ£¿Φ«┐Θù«µù╢Θ£ÇΦªüµÅÉΣ╛¢secret∩╝îσÉªσêÖµùáµ¥âΘÖÉΦ░âτö¿
+# σªéµ₧£µÿ»ΘÇÜΦ┐ç127.0.0.1Φ«┐Θù«,ΘéúΣ╣êσÅ»Σ╗ÑΣ╕ìµÅÉΣ╛¢secret
+# For some sensitive HTTP APIs, a secret must be provided when accessing them, otherwise the call is unauthorized.
+# If accessed via 127.0.0.1, the secret does not need to be provided.
+secret=035c73f7-bb6b-4889-a715-d9eb2d1925cc
+
+# µê¬σ¢╛Σ┐¥σ¡ÿΦ╖»σ╛äµá╣τ¢«σ╜ò∩╝îµê¬σ¢╛ΘÇÜΦ┐çhttp api(/index/api/getSnap)τöƒµêÉσÆîΦÄ╖σÅû
+# Root directory for saving snapshots generated via the `/index/api/getSnap` API.
+snapRoot=./www/snap/
+
+# Θ╗ÿΦ«ñµê¬σ¢╛σ¢╛τëç∩╝îσ£¿σÉ»σè¿FFmpegµê¬σ¢╛σÉÄΣ╜åµÿ»µê¬σ¢╛Φ┐ÿµ£¬τöƒµêÉµù╢∩╝îσÅ»Σ╗ÑΦ┐öσ¢₧Θ╗ÿΦ«ñτÜäΘóäΦ«╛σ¢╛τëç
+# Default placeholder image returned while FFmpeg is generating the actual snapshot.
+defaultSnap=./www/logo.png
+
+# downloadFile httpµÄÑσÅúσÅ»Φ«┐Θù«µûçΣ╗╢τÜäµá╣τ¢«σ╜ò∩╝îµö»µîüσñÜΣ╕¬τ¢«σ╜ò∩╝îΣ╕ìσÉîτ¢«σ╜òΘÇÜΦ┐çσêåσÅ╖(;)σêåΘÜö
+# Root directories accessible via the `downloadFile` API. Separate multiple directories with semicolons (;).
+downloadRoot=./www
+
+[ffmpeg]
+# FFmpegσÅ»µëºΦíîτ¿ïσ║ÅΦ╖»σ╛ä,µö»µîüτ¢╕σ»╣Φ╖»σ╛ä/τ╗¥σ»╣Φ╖»σ╛ä
+# Path to the FFmpeg executable. Both relative and absolute paths are supported.
+bin=/usr/bin/ffmpeg
+
+# FFmpegµïëµ╡üσåìµÄ¿µ╡üτÜäσæ╜Σ╗ñµ¿íµ¥┐∩╝îΘÇÜΦ┐çΦ»Ñµ¿íµ¥┐σÅ»Σ╗ÑΦ«╛τ╜«Φ»╕σªéτ╝ûτáüτ¡ëτÜäΣ╕ÇΣ║¢σÅéµò░
+# FFmpeg command template for pulling and re-publishing streams (used to define re-encoding parameters).
+cmd=%s -re -i %s -c:a aac -strict -2 -ar 44100 -ab 48k -c:v libx264 -f flv %s
+
+# FFmpegτöƒµêÉµê¬σ¢╛τÜäσæ╜Σ╗ñ∩╝îσÅ»Σ╗ÑΘÇÜΦ┐çΣ┐«µö╣Φ»ÑΘàìτ╜«µö╣σÅÿµê¬σ¢╛σêåΦ╛¿τÄçµêûΦ┤¿ΘçÅ
+# FFmpeg command template for generating snapshots. Modify this to change resolution or quality.
+snap=%s -i %s -y -f mjpeg -frames:v 1 -an %s
+
+# FFmpegµùÑσ┐ùτÜäΦ╖»σ╛ä∩╝îσªéµ₧£τ╜«τ⌐║σêÖΣ╕ìτöƒµêÉFFmpegµùÑσ┐ù
+# σÅ»Σ╗ÑΣ╕║τ¢╕σ»╣(τ¢╕σ»╣Σ║Äµ£¼σÅ»µëºΦíîτ¿ïσ║Åτ¢«σ╜ò)µêûτ╗¥σ»╣Φ╖»σ╛ä
+# Path to the FFmpeg log file (relative or absolute). Leave empty to disable logging.
+log=./ffmpeg/ffmpeg.log
+
+# Φç¬σè¿ΘçìσÉ»τÜäµù╢Θù┤(τºÆ), Θ╗ÿΦ«ñΣ╕║0, Σ╣ƒσ░▒µÿ»Σ╕ìΦç¬σè¿ΘçìσÉ». Σ╕╗Φªüµÿ»Σ╕║Σ║åΘü┐σàìΘò┐µù╢Θù┤ffmpegµïëµ╡üσ»╝Φç┤τÜäΣ╕ìσÉîµ¡ÑτÄ░Φ▒í
+# Automatic restart interval in seconds (0 to disable). Helps prevent A/V desync caused by prolonged FFmpeg stream pulling.
+restart_sec=0
+
+# Φ╜¼σìÅΦ««τ¢╕σà│σ╝Çσà│∩╝¢σªéµ₧£addStreamProxy apiσÆîon_publish hookσ¢₧σñìµ£¬µîçσ«ÜΦ╜¼σìÅΦ««σÅéµò░∩╝îσêÖΘççτö¿Φ┐ÖΣ║¢Θàìτ╜«Θí╣
+# Protocol conversion default switches. Used if protocol conversions aren't specified via the `addStreamProxy` API or the `on_publish` webhook.
+[protocol]
+# Φ╜¼σìÅΦ««µù╢∩╝îµÿ»σÉªσ╝ÇσÉ»σ╕ºτ║ºµù╢Θù┤µê│Φªåτ¢û
+# 0:Θççτö¿µ║ÉΦºåΘóæµ╡üτ╗¥σ»╣µù╢Θù┤µê│∩╝îΣ╕ìσüÜΣ╗╗Σ╜òµö╣σÅÿ
+# 1:Θççτö¿zlmediakitµÄÑµö╢µò░µì«µù╢τÜäτ│╗τ╗ƒµù╢Θù┤µê│(µ£ëσ╣│µ╗æσñäτÉå)
+# 2:Θççτö¿µ║ÉΦºåΘóæµ╡üµù╢Θù┤µê│τ¢╕σ»╣µù╢Θù┤µê│(σó₧Θò┐ΘçÅ)∩╝îµ£ëσüÜµù╢Θù┤µê│Φ╖│Φ╖âσÆîσ¢₧ΘÇÇτƒ½µ¡ú
+# Frame-level timestamp override mode during protocol conversion:
+# - 0: Use absolute timestamp from the source (no modification).
+# - 1: Use ZLMediaKit system timestamp upon data reception (with smoothing).
+# - 2: Use relative timestamp increments, with correction for jumps and backwards drifts.
+modify_stamp=2
+
+# Φ╜¼σìÅΦ««µÿ»σÉªσ╝ÇσÉ»Θƒ│Θóæ
+# Whether to enable audio output during protocol conversion.
+enable_audio=1
+
+# µ╖╗σèáAACΘ¥ÖΘƒ│Θƒ│Θóæ∩╝îσ£¿σà│Θù¡Θƒ│Θóæµù╢∩╝îµ¡ñσ╝Çσà│µùáµòê
+# Whether to inject AAC silent audio (ignored if `enable_audio` is 0).
+add_mute_audio=1
+
+# µùáΣ║║Φºéτ£ïµù╢∩╝îµÿ»σÉªτ¢┤µÄÑσà│Θù¡(ΦÇîΣ╕ìµÿ»ΘÇÜΦ┐çon_none_reader hookΦ┐öσ¢₧close)
+# µ¡ñΘàìτ╜«τ╜«1µù╢∩╝îµ¡ñµ╡üσªéµ₧£µùáΣ║║Φºéτ£ï∩╝îσ░åΣ╕ìΦºªσÅæon_none_reader hookσ¢₧Φ░â∩╝î
+# ΦÇîµÿ»σ░åτ¢┤µÄÑσà│Θù¡µ╡ü
+# Whether to immediately close an unwatched stream directly instead of relying on the `on_none_reader` hook returning 'close'.
+# If enabled (1), an unwatched stream is closed outright without triggering the hook callback.
+auto_close=0
+
+# µÄ¿µ╡üµû¡σ╝ÇσÉÄσÅ»Σ╗Ñσ£¿Φ╢àµù╢µù╢Θù┤σåàΘçìµû░Φ┐₧µÄÑΣ╕èτ╗ºτ╗¡µÄ¿µ╡ü∩╝îΦ┐Öµá╖µÆ¡µö╛σÖ¿Σ╝ÜµÄÑτ¥ÇµÆ¡µö╛πÇé
+# τ╜«0σà│Θù¡µ¡ñτë╣µÇº(µÄ¿µ╡üµû¡σ╝ÇΣ╝Üσ»╝Φç┤τ½ïσì│µû¡σ╝ÇµÆ¡µö╛σÖ¿)
+# µ¡ñσÅéµò░Σ╕ìσ║öσñºΣ║ÄµÆ¡µö╛σÖ¿Φ╢àµù╢µù╢Θù┤;σìòΣ╜ìµ»½τºÆ
+# Defines a grace period (in milliseconds) allowing a disconnected publisher to reconnect and resume streaming.
+# During this period, active player connections are maintained rather than dropped.
+# Set to 0 to disable this feature, which means dropping a publisher will immediately disconnect all its current players.
+# This value must not exceed the player's configured timeout.
+continue_push_ms=15000
+
+# σ╣│µ╗æσÅæΘÇüσ«Üµù╢σÖ¿Θù┤ΘÜö∩╝îσìòΣ╜ìµ»½τºÆ∩╝îτ╜«0σêÖσà│Θù¡∩╝¢σ╝ÇσÉ»σÉÄσ╜▒σôìcpuµÇºΦâ╜σÉîµù╢σó₧σèáσåàσ¡ÿ
+# Φ»ÑΘàìτ╜«σ╝ÇσÉ»σÉÄσÅ»Σ╗ÑΦºúσå│Σ╕ÇΣ║¢µ╡üσÅæΘÇüΣ╕ìσ╣│µ╗æσ»╝Φç┤zlmediakitΦ╜¼σÅæΣ╣ƒΣ╕ìσ╣│µ╗æτÜäΘù«Θóÿ
+# Smooth sending timer interval in milliseconds (0 to disable). Enabling this increases CPU and memory usage.
+# This solves the issue where unsteady upstream publishing causes ZLMediaKit's forwarding to also be unsteady.
+paced_sender_ms=0
+
+# µÿ»σÉªσ╝ÇσÉ»Φ╜¼µìóΣ╕║hls(mpegts)
+# Whether to enable conversion to HLS (mpegts).
+enable_hls=1
+
+# µÿ»σÉªσ╝ÇσÉ»Φ╜¼µìóΣ╕║hls(fmp4)
+# Whether to enable conversion to HLS (fmp4).
+enable_hls_fmp4=0
+
+# µÿ»σÉªσ╝ÇσÉ»MP4σ╜òσê╢
+# Whether to enable MP4 recording.
+enable_mp4=0
+
+# µÿ»σÉªσ╝ÇσÉ»Φ╜¼µìóΣ╕║rtsp/webrtc
+# Whether to enable conversion to RTSP/WebRTC.
+enable_rtsp=1
+
+# µÿ»σÉªσ╝ÇσÉ»Φ╜¼µìóΣ╕║rtmp/flv
+# Whether to enable conversion to RTMP/FLV.
+enable_rtmp=1
+
+# µÿ»σÉªσ╝ÇσÉ»Φ╜¼µìóΣ╕║http-ts/ws-ts
+# Whether to enable conversion to HTTP-TS/WS-TS.
+enable_ts=1
+
+# µÿ»σÉªσ╝ÇσÉ»Φ╜¼µìóΣ╕║http-fmp4/ws-fmp4
+# Whether to enable conversion to HTTP-FMP4/WS-FMP4.
+enable_fmp4=1
+
+# µÿ»σÉªσ░åmp4σ╜òσê╢σ╜ôσüÜΦºéτ£ïΦÇà
+# Whether to treat MP4 recording tasks as active stream viewers.
+mp4_as_player=0
+
+# mp4σêçτëçσñºσ░Å∩╝îσìòΣ╜ìτºÆ
+# Maximum duration of MP4 recording segments in seconds.
+mp4_max_second=3600
+
+# mp4σ╜òσê╢Σ┐¥σ¡ÿΦ╖»σ╛ä
+# Directory path for saving MP4 recordings.
+mp4_save_path=./www
+
+# hlsσ╜òσê╢Σ┐¥σ¡ÿΦ╖»σ╛ä
+# Directory path for saving HLS recordings.
+hls_save_path=./www
+
+###### Σ╗ÑΣ╕ïµÿ»µîëΘ£ÇΦ╜¼σìÅΦ««τÜäσ╝Çσà│∩╝îσ£¿µ╡ïΦ»òZLMediaKitτÜäµÄÑµö╢µÄ¿µ╡üµÇºΦâ╜µù╢∩╝îΦ»╖µèèΣ╕ïΘ¥óσ╝Çσà│τ╜«1
+###### σ»╣Σ║ÄΣ╕ìΣ╜┐τö¿τÜäσìÅΦ««∩╝îσÅ»Σ╗Ñσ░åσ╝Çσà│Φ«╛τ╜«Σ╕║ 1 Σ╗ÑΦèéτ£üΦ╡äµ║É∩╝êΦÖ╜τä╢ΘªûΣ╕¬µÆ¡µö╛ΦÇàΣ╜ôΘ¬îτ¿ìσ╖«∩╝îΣ╜åΣ╛¥τä╢σÅ»Σ╗ÑµÆ¡µö╛∩╝ëπÇé
+###### σ»╣Σ║Äσ╕îµ£¢ΦÄ╖σ╛ùµ£ÇΣ╜│τö¿µê╖Σ╜ôΘ¬îτÜäσìÅΦ««∩╝îΦ»╖Φ«╛τ╜«Σ╕║ 0∩╝êΘªûσ▒ÅτºÆσ╝Ç∩╝îΣ╕öµùáΦè▒σ▒ÅτÄ░Φ▒í∩╝ëπÇé
+###### On-demand protocol conversion switches. Set these to 1 during stream reception performance testing to save resources.
+###### For unused protocols, setting them to 1 saves resources (with a slight startup delay for the first viewer).
+###### For the best user experience (instant playback and no visual artifacts (glitches)), set them to 0.
+
+# hlsσìÅΦ««µÿ»σÉªµîëΘ£ÇτöƒµêÉ∩╝îσªéµ₧£hls.segNumΘàìτ╜«Σ╕║0(µäÅσæ│τ¥Çhlsσ╜òσê╢)∩╝îΘéúΣ╣êhlsσ░åΣ╕Çτ¢┤τöƒµêÉ(Σ╕ìτ«íµ¡ñσ╝Çσà│)
+# Whether to generate HLS streams on demand. If `hls.segNum` is configured to 0 (implies HLS recording), HLS streams generate continuously regardless of this switch.
+hls_demand=0
+
+# rtsp[s]σìÅΦ««µÿ»σÉªµîëΘ£ÇτöƒµêÉ
+# Whether to generate RTSP[S] streams on demand.
+rtsp_demand=0
+
+# rtmp[s]πÇühttp[s]-flvπÇüws[s]-flvσìÅΦ««µÿ»σÉªµîëΘ£ÇτöƒµêÉ
+# Whether to generate RTMP[S], HTTP[S]-FLV, and WS[S]-FLV streams on demand.
+rtmp_demand=0
+
+# http[s]-tsσìÅΦ««µÿ»σÉªµîëΘ£ÇτöƒµêÉ
+# Whether to generate HTTP[S]-TS streams on demand.
+ts_demand=0
+
+# http[s]-fmp4πÇüws[s]-fmp4σìÅΦ««µÿ»σÉªµîëΘ£ÇτöƒµêÉ
+# Whether to generate HTTP[S]-FMP4 and WS[S]-FMP4 streams on demand.
+fmp4_demand=0
+
+[general]
+# µÿ»σÉªσÉ»τö¿ΦÖÜµïƒΣ╕╗µ£║
+# Whether to enable virtual hosting.
+enableVhost=0
+
+# µÆ¡µö╛σÖ¿µêûµÄ¿µ╡üσÖ¿σ£¿µû¡σ╝ÇσÉÄΣ╝ÜΦºªσÅæhook.on_flow_reportΣ║ïΣ╗╢(Σ╜┐τö¿σñÜσ░æµ╡üΘçÅΣ║ïΣ╗╢)∩╝î
+# flowThresholdσÅéµò░µÄºσê╢ΦºªσÅæhook.on_flow_reportΣ║ïΣ╗╢ΘÿêσÇ╝∩╝îΣ╜┐τö¿µ╡üΘçÅΦ╢àΦ┐çΦ»ÑΘÿêσÇ╝σÉÄµëìΦºªσÅæ∩╝îσìòΣ╜ìKB
+# When a player or publisher disconnects, it triggers the `hook.on_flow_report` event (an event reporting how much traffic was used).
+# The `flowThreshold` parameter controls the threshold for triggering the `hook.on_flow_report` event; it is only triggered when the used traffic exceeds this threshold, in KB.
+flowThreshold=1024
+
+# µÆ¡µö╛µ£ÇσñÜτ¡ëσ╛àµù╢Θù┤∩╝îσìòΣ╜ìµ»½τºÆ
+# µÆ¡µö╛σ£¿µÆ¡µö╛µƒÉΣ╕¬µ╡üµù╢∩╝îσªéµ₧£Φ»Ñµ╡üΣ╕ìσ¡ÿσ£¿∩╝î
+# ZLMediaKitΣ╝Üµ£ÇσñÜΦ«⌐µÆ¡µö╛σÖ¿τ¡ëσ╛àmaxStreamWaitMSµ»½τºÆ
+# σªéµ₧£σ£¿Φ┐ÖΣ╕¬µù╢Θù┤σåà∩╝îΦ»Ñµ╡üµ│¿σåîµêÉσèƒ∩╝îΘéúΣ╣êΣ╝Üτ½ïσì│Φ┐öσ¢₧µÆ¡µö╛σÖ¿µÆ¡µö╛µêÉσèƒ
+# σÉªσêÖΦ┐öσ¢₧µÆ¡µö╛σÖ¿µ£¬µë╛σê░Φ»Ñµ╡ü∩╝îΦ»Ñµ£║σê╢τÜäτ¢«τÜäµÿ»σÅ»Σ╗ÑσàêµÆ¡µö╛σåìµÄ¿µ╡ü
+# Maximum playback wait time in milliseconds.
+# When a requested stream does not exist, ZLMediaKit delays the player for up to `maxStreamWaitMS`.
+# If the stream is successfully registered within this period, it immediately returns playback success.
+# Otherwise, it returns 'stream not found'. This mechanism enables 'play before push' workflows.
+maxStreamWaitMS=15000
+
+# µƒÉΣ╕¬µ╡üµùáΣ║║Φºéτ£ïµù╢∩╝îΦºªσÅæhook.on_stream_none_readerΣ║ïΣ╗╢τÜäµ£Çσñºτ¡ëσ╛àµù╢Θù┤∩╝îσìòΣ╜ìµ»½τºÆ
+# σ£¿ΘàìσÉêhook.on_stream_none_readerΣ║ïΣ╗╢µù╢∩╝îσÅ»Σ╗ÑσüÜσê░µùáΣ║║Φºéτ£ïΦç¬σè¿σü£µ¡óµïëµ╡üµêûσü£µ¡óµÄÑµö╢µÄ¿µ╡ü
+# The continuous unwatched duration (in ms) required to trigger the `hook.on_stream_none_reader` event.
+# Combined with the `hook.on_stream_none_reader` event, this enables automatically stopping origin pulls or disconnecting publishers when a stream remains unwatched.
+streamNoneReaderDelayMS=20000
+
+# µïëµ╡üΣ╗úτÉåµù╢σªéµ₧£µû¡µ╡üσåìΘçìΦ┐₧µêÉσèƒµÿ»σÉªσêáΘÖñσëìΣ╕Çµ¼íτÜäσ¬ÆΣ╜ôµ╡üµò░µì«∩╝îσªéµ₧£σêáΘÖñσ░åΘçìµû░σ╝Çσºï∩╝î
+# σªéµ₧£Σ╕ìσêáΘÖñσ░åΣ╝ÜµÄÑτ¥ÇΣ╕èΣ╕Çµ¼íτÜäµò░µì«τ╗ºτ╗¡σåÖ(σ╜òσê╢hls/mp4µù╢Σ╝Üτ╗ºτ╗¡σ£¿σëìΣ╕ÇΣ╕¬µûçΣ╗╢σÉÄΘ¥óσåÖ)
+# Whether to flush cached media data upon successfully reconnecting after an origin pull proxy disconnection. If flushed, the stream restarts cleanly.
+# If not flushed, the new data will append directly to the previous data (when recording HLS/MP4, it continues appending to the previous file).
+resetWhenRePlay=1
+
+# σÉêσ╣╢σåÖτ╝ôσ¡ÿσñºσ░Å(σìòΣ╜ìµ»½τºÆ)∩╝îσÉêσ╣╢σåÖµîçµ£ìσèíσÖ¿τ╝ôσ¡ÿΣ╕Çσ«ÜτÜäµò░µì«σÉÄµëìΣ╝ÜΣ╕Çµ¼íµÇºσåÖσàÑsocket∩╝îΦ┐Öµá╖Φâ╜µÅÉΘ½ÿµÇºΦâ╜∩╝îΣ╜åµÿ»Σ╝ÜµÅÉΘ½ÿσ╗╢µù╢
+# σ╝ÇσÉ»σÉÄΣ╝ÜσÉîµù╢σà│Θù¡TCP_NODELAYσ╣╢σ╝ÇσÉ»MSG_MORE
+# Write coalescing cache duration in ms. The server caches data up to this interval before writing to the socket in bulk, improving performance at the cost of slight latency.
+# Enabling this disables `TCP_NODELAY` and enables `MSG_MORE`.
+mergeWriteMS=0
+
+# µ£ìσèíσÖ¿σö»Σ╕Çid∩╝îτö¿Σ║ÄΦºªσÅæhookµù╢σî║σê½µÿ»σô¬σÅ░µ£ìσèíσÖ¿
+# Unique server ID, used to distinguish which server it is when triggering a hook.
+mediaServerId=your_server_id
+
+# µ£ÇσñÜτ¡ëσ╛àµ£¬σê¥σºïσîûτÜäTrackµù╢Θù┤∩╝îσìòΣ╜ìµ»½τºÆ∩╝îΦ╢àµù╢Σ╣ïσÉÄΣ╝Üσ┐╜τòÑµ£¬σê¥σºïσîûτÜäTrack
+# Maximum wait time (in ms) for uninitialized Tracks. After the timeout, any uninitialized Tracks will be ignored.
+wait_track_ready_ms=10000
+
+# µ£ÇσñÜτ¡ëσ╛àΘƒ│ΘóæTrackµö╢σê░µò░µì«µù╢Θù┤∩╝îσìòΣ╜ìµ»½τºÆ∩╝îΦ╢àµù╢Σ╕öσ«îσà¿µ▓íµö╢σê░Θƒ│Θóæµò░µì«∩╝îσ┐╜τòÑΘƒ│ΘóæTrack
+# σèáσ┐½µƒÉΣ║¢σ╕ªσ░üΦúàτÜäµ╡ümetadataΦ»┤µÿÄµ£ëΘƒ│Θóæ∩╝îΣ╜åµÿ»σ«₧ΘÖàΣ╕èµ▓íµ£ëτÜäµ╡üreadyµù╢Θù┤∩╝êµ»öσªéσ╛êσñÜσÄéσòåτÜäGB28181 PS∩╝ë
+# Maximum wait time (in ms) before an audio track receives its first data packet. If it times out and absolutely no audio data has been received, the audio Track is ignored.
+# This speeds up the ready time for certain packaged streams whose metadata falsely claims to include audio, but actually do not (e.g., GB28181 PS).
+wait_audio_track_data_ms=1000
+
+# σªéµ₧£µ╡üσÅ¬µ£ëσìòTrack∩╝îµ£ÇσñÜτ¡ëσ╛àΦïÑσ╣▓µ»½τºÆ∩╝îΦ╢àµù╢σÉÄµ£¬µö╢σê░σà╢Σ╗ûTrackτÜäµò░µì«∩╝îσêÖΦ«ñΣ╕║µÿ»σìòTrack
+# σªéµ₧£σìÅΦ««σàâµò░µì«µ£ëσú░µÿÄτë╣σ«Ütrackµò░∩╝îΘéúΣ╣êµùáµ¡ñτ¡ëσ╛àµù╢Θù┤
+# Maximum wait time (in ms) for additional tracks if a stream currently has only one.
+# If no data from other tracks is received within this timeout, it is considered a single-track stream.
+# This delay is bypassed if protocol metadata explicitly declares the track count.
+wait_add_track_ms=3000
+
+# σªéµ₧£trackµ£¬σ░▒τ╗¬∩╝îµêæΣ╗¼σàêτ╝ôσ¡ÿσ╕ºµò░µì«∩╝îΣ╜åµÿ»µ£ëµ£ÇσñºΣ╕¬µò░ΘÖÉσê╢∩╝îΘÿ▓µ¡óσåàσ¡ÿµ║óσç║
+# If a track is not ready, we first cache the frame data, but there is a maximum count limit to prevent memory overflow.
+unready_frame_cache=100
+
+# µÿ»σÉªσÉ»τö¿Φºéτ£ïΣ║║µò░σÅÿσîûΣ║ïΣ╗╢σ╣┐µÆ¡∩╝îτ╜«1σêÖσÉ»τö¿∩╝îτ╜«0σêÖσà│Θù¡
+# Whether to enable broadcasting of viewership change events. Set to 1 to enable, set to 0 to disable.
+broadcast_player_count_changed=0
+
+# τ╗æσ«ÜτÜäµ£¼σ£░τ╜æσìíip
+# Bound local network interface IP address.
+listen_ip=::
+
+[hls]
+# hlsσåÖµûçΣ╗╢τÜäbufσñºσ░Å∩╝îΦ░âµò┤σÅéµò░σÅ»Σ╗ÑµÅÉΘ½ÿµûçΣ╗╢ioµÇºΦâ╜
+# Buffer size used when writing HLS segment files. Increasing this value can improve disk I/O performance.
+fileBufSize=65536
+
+# hlsµ£Çσñºσêçτëçµù╢Θù┤
+# Target maximum duration of a single HLS segment.
+segDur=2
+
+# m3u8τ┤óσ╝òΣ╕¡,hlsΣ┐¥τòÖσêçτëçΣ╕¬µò░(σ«₧ΘÖàΣ┐¥τòÖσêçτëçΣ╕¬µò░+segRetainΣ╕¬)
+# σªéµ₧£Φ«╛τ╜«Σ╕║0∩╝îσêÖΣ╕ìσêáΘÖñσêçτëçΣ╕öm3u8µûçΣ╗╢σà¿ΘçÅΦ«░σ╜òσêçτëçσêùΦí¿
+# Number of HLS segments retained within the m3u8 playlist index (actual chunks kept = this value + `segRetain`).
+# Set to 0 to retain all segments and record the full segment list in the m3u8 file.
+segNum=3
+
+# HLSσêçτëçσ╗╢Φ┐ƒΣ╕¬µò░∩╝îσñºΣ║Ä0σ░åτöƒµêÉhls_delay.m3u8µûçΣ╗╢∩╝î0σêÖΣ╕ìτöƒµêÉ
+# The segment delay count for HLS. If greater than 0, an `hls_delay.m3u8` variant playlist is generated; if 0, it will not be generated.
+segDelay=0
+
+# HLSσêçτëçΣ╗Äm3u8µûçΣ╗╢Σ╕¡τº╗ΘÖñσÉÄ∩╝îτ╗ºτ╗¡Σ┐¥τòÖσ£¿τúüτ¢ÿΣ╕èτÜäΣ╕¬µò░
+# Number of outdated HLS segments to keep on disk after removal from the m3u8 playlist.
+segRetain=5
+
+# µÿ»σÉªσ╣┐µÆ¡ hlsσêçτëç(ts/fmp4)σ«îµêÉΘÇÜτƒÑ(on_record_ts)
+# Whether to broadcast HLS segment (TS/FMP4) completion notifications via `on_record_ts`.
+broadcastRecordTs=0
+
+# τ¢┤µÆ¡hlsµûçΣ╗╢σêáΘÖñσ╗╢µù╢∩╝îσìòΣ╜ìτºÆ∩╝îissue: #913
+# Delay in seconds before deleting expired live HLS segments. Refer to issue: #913.
+deleteDelaySec=10
+
+# µ¡ñΘÇëΘí╣σ╝ÇσÉ»σÉÄm3u8µûçΣ╗╢Φ┐ÿµÿ»Φí¿τÄ░Σ╕║τ¢┤µÆ¡∩╝îΣ╜åµÿ»σêçτëçµûçΣ╗╢Σ╝ÜΦó½σà¿Θâ¿Σ┐¥τòÖΣ╕║τé╣µÆ¡τö¿
+# segDurΦ«╛τ╜«Σ╕║0µêûsegKeepΦ«╛τ╜«Σ╕║1τÜäµâàσå╡Σ╕ï∩╝îµ»ÅΣ╕¬σêçτëçµûçΣ╗╢σñ╣Σ╕ïΣ╝ÜτöƒµêÉΣ╕ÇΣ╕¬vod.m3u8µûçΣ╗╢τö¿Σ║Äτé╣µÆ¡Φ»Ñµù╢Θù┤µ«╡τÜäσ╜òσâÅ
+# When enabled, the `m3u8` playlist functions as live media, but segment chunks are permanently preserved in storage for Video On Demand (VOD).
+# If either `segKeep` is 1 or `segDur` is 0, a `vod.m3u8` playlist is also generated in each segment's folder for VOD playback of that specific recorded period.
+segKeep=0
+
+# σªéµ₧£Φ«╛τ╜«Σ╕║1∩╝îσêÖτ¼¼Σ╕ÇΣ╕¬σêçτëçΘò┐σ║ªσ╝║σê╢Φ«╛τ╜«Σ╕║1Σ╕¬GOPπÇéσ╜ôGOPσ░ÅΣ║ÄsegDur∩╝îσÅ»Σ╗ÑµÅÉΘ½ÿΘªûσ▒ÅΘÇƒσ║ª
+# If set to 1, the length of the first segment is forcibly set to exactly 1 GOP.
+# When the GOP is smaller than `segDur`, this can improve the initial startup (instant playback) speed.
+fastRegister=0
+
+# fmp4 HLSσêçτëçµûçΣ╗╢τÜäµë⌐σ▒òσÉì∩╝îΣ╛ïσªé .mp4 µêû .m4s(fmp4σ¬ÆΣ╜ôµ«╡τÜäµáçσçåµë⌐σ▒òσÉì)∩╝¢initµ«╡σºïτ╗êΣ╕║init.mp4∩╝împegtsσêçτëçσºïτ╗êΣ╕║.ts
+# File extension for fMP4 HLS segment files, e.g. .mp4 or .m4s (the standard extension for fMP4 media segments).
+# The init segment is always init.mp4, and mpegts segments are always .ts.
+fmp4SegExt=.mp4
+[hook]
+# µÿ»σÉªσÉ»τö¿hookΣ║ïΣ╗╢∩╝îσÉ»τö¿σÉÄ∩╝îµÄ¿µïëµ╡üΘâ╜σ░åΦ┐¢ΦíîΘë┤µ¥â
+# Whether to enable webhook events. When enabled, pushing and pulling streams requires authentication.
+enable=0
+# µÆ¡µö╛σÖ¿µêûµÄ¿µ╡üσÖ¿Σ╜┐τö¿µ╡üΘçÅΣ║ïΣ╗╢∩╝îτ╜«τ⌐║σêÖσà│Θù¡
+# Player or publisher flow traffic event. Leave empty to disable.
+on_flow_report=
+# Φ«┐Θù«httpµûçΣ╗╢Θë┤µ¥âΣ║ïΣ╗╢∩╝îτ╜«τ⌐║σêÖσà│Θù¡Θë┤µ¥â
+# HTTP file access authentication event. Leave empty to disable.
+on_http_access=
+# µÆ¡µö╛Θë┤µ¥âΣ║ïΣ╗╢∩╝îτ╜«τ⌐║σêÖσà│Θù¡Θë┤µ¥â
+# Playback authentication event. Leave empty to disable.
+on_play=
+# µÄ¿µ╡üΘë┤µ¥âΣ║ïΣ╗╢∩╝îτ╜«τ⌐║σêÖσà│Θù¡Θë┤µ¥â
+# Publishing authentication event. Leave empty to disable.
+on_publish=
+# σ╜òσê╢mp4σêçτëçσ«îµêÉΣ║ïΣ╗╢
+# MP4 segment recording completion event.
+on_record_mp4=
+# σ╜òσê╢ hls ts(µêûfmp4) σêçτëçσ«îµêÉΣ║ïΣ╗╢
+# HLS TS (or fmp4) segment recording completion event.
+on_record_ts=
+# rtspµÆ¡µö╛Θë┤µ¥âΣ║ïΣ╗╢∩╝îµ¡ñΣ║ïΣ╗╢Σ╕¡µ»öσ»╣rtspτÜäτö¿µê╖σÉìσ»åτáü
+# RTSP playback authentication event (used to verify RTSP username and password).
+on_rtsp_auth=
+# rtspµÆ¡µö╛µÿ»σÉªσ╝ÇσÉ»Σ╕ôσ▒₧Θë┤µ¥âΣ║ïΣ╗╢∩╝îτ╜«τ⌐║σêÖσà│Θù¡rtspΘë┤µ¥âπÇértspµÆ¡µö╛Θë┤µ¥âΦ┐ÿµö»µîüurlµû╣σ╝ÅΘë┤µ¥â
+# σ╗║Φ««σ╝ÇσÅæΦÇàτ╗ƒΣ╕ÇΘççτö¿urlσÅéµò░µû╣σ╝ÅΘë┤µ¥â∩╝îrtspτö¿µê╖σÉìσ»åτáüΘë┤µ¥âΣ╕ÇΦê¼σ£¿Φ«╛σñçΣ╕èτö¿τÜäµ»öΦ╛âσñÜ
+# σ╝ÇσÉ»rtspΣ╕ôσ▒₧Θë┤µ¥âσÉÄ∩╝îσ░åΣ╕ìσåìΦºªσÅæon_playΘë┤µ¥âΣ║ïΣ╗╢
+# Whether to enable a dedicated RTSP realm authentication event (leave empty to disable; URL-based auth remains supported).
+# We recommend standardizing on URL parameters; RTSP username/password auth is mostly for hardware devices.
+# Enabling this bypasses the standard `on_play` webhook.
+on_rtsp_realm=
+# Φ┐£τ¿ïtelnetΦ░âΦ»òΘë┤µ¥âΣ║ïΣ╗╢
+# Remote telnet debugging authentication event.
+on_shell_login=
+# τ¢┤µÆ¡µ╡üµ│¿σåîµêûµ│¿ΘöÇΣ║ïΣ╗╢
+# Live stream registration or unregistration event.
+on_stream_changed=
+# Φ┐çµ╗ñon_stream_changed hookτÜäσìÅΦ««τ▒╗σ₧ï∩╝îσÅ»Σ╗ÑΘÇëµï⌐σÅ¬τ¢æσÉ¼µƒÉΣ║¢µäƒσà┤Φ╢úτÜäσìÅΦ««∩╝¢τ╜«τ⌐║σêÖΣ╕ìΦ┐çµ╗ñσìÅΦ««
+# Filter the protocol types for the `on_stream_changed` hook to listen only to specific protocols. Leave empty to disable filtering.
+stream_changed_schemas=rtsp/rtmp/fmp4/ts/hls/hls.fmp4
+# µùáΣ║║Φºéτ£ïµ╡üΣ║ïΣ╗╢∩╝îΘÇÜΦ┐çΦ»ÑΣ║ïΣ╗╢∩╝îσÅ»Σ╗ÑΘÇëµï⌐µÿ»σÉªσà│Θù¡µùáΣ║║Φºéτ£ïτÜäµ╡üπÇéΘàìσÉêgeneral.streamNoneReaderDelayMSΘÇëΘí╣Σ╕ÇΦ╡╖Σ╜┐τö¿
+# Triggered when a stream has no viewers. Combined with `general.streamNoneReaderDelayMS`, this enables closing unwatched streams.
+on_stream_none_reader=
+# µÆ¡µö╛µù╢∩╝îµ£¬µë╛σê░µ╡üΣ║ïΣ╗╢∩╝îΘÇÜΦ┐çΘàìσÉêhook.on_stream_none_readerΣ║ïΣ╗╢σÅ»Σ╗Ñσ«îµêÉµîëΘ£Çµïëµ╡ü
+# Triggered when a requested stream is not found. Combined with `hook.on_stream_none_reader`, this enables on-demand origin pulling.
+on_stream_not_found=
+# µ£ìσèíσÖ¿σÉ»σè¿µèÑσæè∩╝îσÅ»Σ╗Ñτö¿Σ║Äµ£ìσèíσÖ¿τÜäσ┤⌐µ║âΘçìσÉ»Σ║ïΣ╗╢τ¢æσÉ¼
+# Server startup report. Useful for monitoring server crashes and restarts.
+on_server_started=
+# µ£ìσèíσÖ¿ΘÇÇσç║µèÑσæè∩╝îσ╜ôµ£ìσèíσÖ¿µ¡úσ╕╕ΘÇÇσç║µù╢ΦºªσÅæ
+# Server exit report, triggered when the server shuts down normally.
+on_server_exited=
+# serverΣ┐¥µ┤╗Σ╕èµèÑ
+# Server keep-alive reporting event.
+on_server_keepalive=
+# σÅæΘÇürtp(startSendRtp)Φó½σè¿σà│Θù¡µù╢σ¢₧Φ░â
+# Callback triggered when RTP sending (`startSendRtp`) is passively closed.
+on_send_rtp_stopped=
+# rtp server Φ╢àµù╢µ£¬µö╢σê░µò░µì«
+# RTP server timeout event due to not receiving data.
+on_rtp_server_timeout=
+# hook apiµ£Çσñºτ¡ëσ╛àσ¢₧σñìµù╢Θù┤∩╝îσìòΣ╜ìτºÆ
+# Maximum wait time in seconds for Webhook API responses.
+timeoutSec=10
+# keepalive hookΦºªσÅæΘù┤ΘÜö,σìòΣ╜ìτºÆ∩╝îfloatτ▒╗σ₧ï
+# Interval in seconds (float) for triggering the keep-alive webhook.
+alive_interval=10.0
+# hookΘÇÜτƒÑσñ▒Φ┤ÑΘçìΦ»òµ¼íµò░,µ¡úµò┤µò░πÇéΣ╕║0Σ╕ìΘçìΦ»ò∩╝î1µù╢ΘçìΦ»òΣ╕Çµ¼í∩╝îΣ╗Ñµ¡ñτ▒╗µÄ¿
+# Webhook notification failure retry attempts. Must be a non-negative integer (0 to disable).
+retry=1
+# hookΘÇÜτƒÑσñ▒Φ┤ÑΘçìΦ»òσ╗╢µù╢∩╝îσìòΣ╜ìτºÆ∩╝îfloatσ₧ï
+# Delay in seconds (float) between webhook retry attempts.
+retry_delay=3.0
+
+[cluster]
+# Φ«╛τ╜«µ║Éτ½Öµïëµ╡üurlµ¿íµ¥┐, µá╝σ╝ÅΦ╖ƒprintfτ▒╗Σ╝╝∩╝îτ¼¼Σ╕ÇΣ╕¬%sµîçσ«Üapp,τ¼¼Σ║îΣ╕¬%sµîçσ«Üstream_id,
+# σ╝ÇσÉ»Θ¢åτ╛ñµ¿íσ╝ÅσÉÄ∩╝îon_stream_not_foundσÆîon_stream_none_reader hookσ░åµùáµòê.
+# µ║»µ║Éµ¿íσ╝Åµö»µîüΣ╗ÑΣ╕ïτ▒╗σ₧ï:
+# rtmpµû╣σ╝Å: rtmp://127.0.0.1:1935/%s/%s
+# rtspµû╣σ╝Å: rtsp://127.0.0.1:554/%s/%s
+# hlsµû╣σ╝Å: http://127.0.0.1:80/%s/%s/hls.m3u8
+# http-tsµû╣σ╝Å: http://127.0.0.1:80/%s/%s.live.ts
+# µö»µîüσñÜΣ╕¬µ║Éτ½Ö∩╝îΣ╕ìσÉîµ║Éτ½ÖΘÇÜΦ┐çσêåσÅ╖(;)σêåΘÜö
+# Origin pull URL template (printf style: first `%s` is app, second `%s` is stream_id).
+# When cluster mode is enabled, `on_stream_not_found` and `on_stream_none_reader` webhooks are disabled.
+# Supported origin pull protocols:
+# RTMP mode: rtmp://127.0.0.1:1935/%s/%s
+# RTSP mode: rtsp://127.0.0.1:554/%s/%s
+# HLS mode: http://127.0.0.1:80/%s/%s/hls.m3u8
+# HTTP-TS mode: http://127.0.0.1:80/%s/%s.live.ts
+# Separate multiple origin servers with semicolons (;).
+origin_url=
+# µ║»µ║ÉµÇ╗Φ╢àµù╢µù╢Θò┐∩╝îσìòΣ╜ìτºÆ∩╝îfloatσ₧ï∩╝¢σüçσªéµ║Éτ½Öµ£ë3Σ╕¬∩╝îΘéúΣ╣êσìòµ¼íµ║»µ║ÉΦ╢àµù╢µù╢Θù┤Σ╕║timeout_secΘÖñΣ╗Ñ3
+# σìòµ¼íµ║»µ║ÉΦ╢àµù╢µù╢Θù┤Σ╕ìΦªüΦ╢àΦ┐çgeneral.maxStreamWaitMSΘàìτ╜«
+# Total origin pull timeout in seconds (float).
+# The single origin attempt timeout (total timeout divided by the number of origins) should not exceed `general.maxStreamWaitMS`.
+timeout_sec=15
+# µ║»µ║Éσñ▒Φ┤Ñσ░¥Φ»òµ¼íµò░∩╝î-1µù╢µ░╕Σ╣àσ░¥Φ»ò
+# Failure retry attempts for origin pulling (-1 for infinite retries).
+retry_count=3
+
+[http]
+# httpµ£ìσèíσÖ¿σ¡ùτ¼ªτ╝ûτáüΘ¢å
+# HTTP server character encoding.
+charSet=utf-8
+# httpΘô╛µÄÑΦ╢àµù╢µù╢Θù┤
+# HTTP connection timeout in seconds.
+keepAliveSecond=30
+# httpΦ»╖µ▒éΣ╜ôµ£Çσñºσ¡ùΦèéµò░∩╝îσªéµ₧£postτÜäbodyσñ¬σñº∩╝îσêÖΣ╕ìΘÇéσÉêτ╝ôσ¡ÿbodyσ£¿σåàσ¡ÿ
+# Maximum number of bytes for the HTTP request body. If the POST body is too large, it is not suitable to cache the body in memory.
+maxReqSize=40960
+# 404τ╜æΘí╡σåàσ«╣∩╝îτö¿µê╖σÅ»Σ╗ÑΦç¬σ«ÜΣ╣ë404τ╜æΘí╡
+# Custom 404 page content. Users can customize the 404 response page here.
+#notFound=<html><head><title>404 Not Found</title></head><body bgcolor="white"><center><h1>µé¿Φ«┐Θù«τÜäΦ╡äµ║ÉΣ╕ìσ¡ÿσ£¿∩╝ü</h1></center><hr><center>ZLMediaKit-4.0</center></body></html>
+# httpµ£ìσèíσÖ¿τ¢æσÉ¼τ½»σÅú
+# HTTP server listening port.
+port=80
+# httpµûçΣ╗╢µ£ìσèíσÖ¿µá╣τ¢«σ╜ò
+# σÅ»Σ╗ÑΣ╕║τ¢╕σ»╣(τ¢╕σ»╣Σ║Äµ£¼σÅ»µëºΦíîτ¿ïσ║Åτ¢«σ╜ò)µêûτ╗¥σ»╣Φ╖»σ╛ä
+# HTTP file server root directory (relative or absolute path).
+rootPath=./www
+# httpµûçΣ╗╢µ£ìσèíσÖ¿Φ»╗µûçΣ╗╢τ╝ôσ¡ÿσñºσ░Å∩╝îσìòΣ╜ìBYTE∩╝îΦ░âµò┤Φ»ÑσÅéµò░σÅ»Σ╗ÑΣ╝ÿσîûµûçΣ╗╢ioµÇºΦâ╜
+# HTTP file server read cache size in bytes. Tweak to optimize file I/O performance.
+sendBufSize=65536
+# httpsµ£ìσèíσÖ¿τ¢æσÉ¼τ½»σÅú
+# HTTPS server listening port.
+sslport=443
+# µÿ»σÉªµÿ╛τñ║µûçΣ╗╢σñ╣ΦÅ£σìò∩╝îσ╝ÇσÉ»σÉÄσÅ»Σ╗Ñµ╡ÅΦºêµûçΣ╗╢σñ╣
+# Whether to enable directory browsing menus.
+dirMenu=1
+# ΦÖÜµïƒτ¢«σ╜ò, ΦÖÜµïƒτ¢«σ╜òσÉìσÆîµûçΣ╗╢Φ╖»σ╛äΣ╜┐τö¿","ΘÜöσ╝Ç∩╝îσñÜΣ╕¬Θàìτ╜«Φ╖»σ╛äΘù┤τö¿";"ΘÜöσ╝Ç
+# Σ╛ïσªéΦ╡ïσÇ╝Σ╕║ app_a,/path/to/a;app_b,/path/to/b ΘéúΣ╣ê
+# Φ«┐Θù« http://127.0.0.1/app_a/file_a σ»╣σ║öτÜäµûçΣ╗╢Φ╖»σ╛äΣ╕║ /path/to/a/file_a
+# Φ«┐Θù« http://127.0.0.1/app_b/file_b σ»╣σ║öτÜäµûçΣ╗╢Φ╖»σ╛äΣ╕║ /path/to/b/file_b
+# Φ«┐Θù«σà╢Σ╗ûhttpΦ╖»σ╛ä,σ»╣σ║öτÜäµûçΣ╗╢Φ╖»σ╛äΦ┐ÿµÿ»σ£¿rootPathσåà
+# Virtual directory mappings. Format: virtual_name,path;virtual_name,path (name and file path separated by ",", multiple mappings separated by ";").
+# For example, set `app_a,/path/to/a;app_b,/path/to/b` then:
+# Accessing `http://127.0.0.1/app_a/file_a` maps to `/path/to/a/file_a`.
+# Accessing `http://127.0.0.1/app_b/file_b` maps to `/path/to/b/file_b`, while other HTTP paths still map to files under `rootPath`.
+virtualPath=
+# τªüµ¡óσÉÄτ╝ÇτÜäµûçΣ╗╢Σ╜┐τö¿mmapτ╝ôσ¡ÿ∩╝îΣ╜┐τö¿ΓÇ£,ΓÇ¥ΘÜöσ╝Ç
+# Σ╛ïσªéΦ╡ïσÇ╝Σ╕║ .mp4,.flv
+# ΘéúΣ╣êΦ«┐Θù«σÉÄτ╝ÇΣ╕║.mp4Σ╕Ä.flv τÜäµûçΣ╗╢Σ╕ìτ╝ôσ¡ÿ
+# Disables `mmap` caching for specific file extensions. Use `,` to separate multiple extensions.
+# Example: `.mp4,.flv` means files with these extensions bypass the `mmap` cache.
+forbidCacheSuffix=
+# σÅ»Σ╗ÑµèèhttpΣ╗úτÉåσëìτ£ƒσ«₧σ«óµê╖τ½»ipµö╛σ£¿httpσñ┤Σ╕¡∩╝Ühttps://github.com/ZLMediaKit/ZLMediaKit/issues/1388
+# σêçσï┐µÜ┤Θ£▓µ¡ñkey∩╝îσÉªσêÖσÅ»Φâ╜σ»╝Φç┤Σ╝¬ΘÇáσ«óµê╖τ½»ip
+# Header name to trust for extracting the real client IP from an HTTP proxy request header. See: https://github.com/ZLMediaKit/ZLMediaKit/issues/1388
+# Do not expose this key, as it may lead to forged client IPs.
+forwarded_ip_header=
+# Θ╗ÿΦ«ñσàüΦ«╕µëÇµ£ëΦ╖¿σƒƒΦ»╖µ▒é
+# Whether to allow all cross-origin requests by default (sets generic CORS headers).
+allow_cross_domains=1
+# σàüΦ«╕Φ«┐Θù«http apiσÆîhttpµûçΣ╗╢τ┤óσ╝òτÜäipσ£░σ¥ÇΦîâσ¢┤τÖ╜σÉìσìò∩╝îτ╜«τ⌐║µâàσå╡Σ╕ïΣ╕ìσüÜΘÖÉσê╢
+# IP whitelist ranges allowed to access the HTTP API and file indexes. Leave empty to allow any IP without restrictions.
+allow_ip_range=::1,127.0.0.1,172.16.0.0-172.31.255.255,192.168.0.0-192.168.255.255,10.0.0.0-10.255.255.255
+
+[multicast]
+# rtpτ╗äµÆ¡µê¬µ¡óτ╗äµÆ¡ipσ£░σ¥Ç
+# Maximum IP address for the multicast pool.
+addrMax=239.255.255.255
+# rtpτ╗äµÆ¡Φ╡╖σºïτ╗äµÆ¡ipσ£░σ¥Ç
+# Minimum IP address for the multicast pool.
+addrMin=239.0.0.0
+# τ╗äµÆ¡udp ttl
+# TTL (Time to Live) for multicast UDP packets.
+udpTTL=64
+
+[record]
+# mp4σ╜òσê╢µêûmp4τé╣µÆ¡τÜäσ║öτö¿σÉì∩╝îΘÇÜΦ┐çΘÖÉσê╢σ║öτö¿σÉì∩╝îσÅ»Σ╗ÑΘÿ▓µ¡óΘÜÅµäÅτé╣µÆ¡
+# τé╣µÆ¡τÜäµûçΣ╗╢σ┐àΘí╗µö╛τ╜«σ£¿µ¡ñµûçΣ╗╢σñ╣Σ╕ï
+# Application name for MP4 recording/VOD. Restricting this prevents unauthorized VOD access.
+# VOD files must be placed within this specific folder.
+appName=record
+# mp4σ╜òσê╢σåÖµûçΣ╗╢τ╝ôσ¡ÿ∩╝îσìòΣ╜ìBYTE,Φ░âµò┤σÅéµò░σÅ»Σ╗ÑµÅÉΘ½ÿµûçΣ╗╢ioµÇºΦâ╜
+# MP4 recording write cache size in bytes. Tweak to optimize file I/O performance.
+fileBufSize=65536
+# mp4τé╣µÆ¡µ»Åµ¼íµ╡üσîûµò░µì«ΘçÅ∩╝îσìòΣ╜ìµ»½τºÆ∩╝î
+# σçÅσ░æΦ»ÑσÇ╝σÅ»Σ╗ÑΦ«⌐τé╣µÆ¡µò░µì«σÅæΘÇüΘçÅµ¢┤σ╣│µ╗æ∩╝îσó₧σñºΦ»ÑσÇ╝σêÖµ¢┤Φèéτ£ücpuΦ╡äµ║É
+# Duration (in ms) of MP4 data streamed per VOD transmission block.
+# Decreasing this value smooths transmission; increasing it saves CPU resources.
+sampleMS=500
+# mp4σ╜òσê╢σ«îµêÉσÉÄµÿ»σÉªΦ┐¢ΦíîΣ║îµ¼íσà│Θö«σ╕ºτ┤óσ╝òσåÖσàÑσñ┤Θâ¿
+# Whether to write a secondary keyframe index into the MP4 header after recording completes (fast start).
+fastStart=0
+# MP4τé╣µÆ¡(rtsp/rtmp/http-flv/ws-flv)µÿ»σÉªσ╛¬τÄ»µÆ¡µö╛µûçΣ╗╢
+# Controls whether MP4 VOD playback (rtsp/rtmp/http-flv/ws-flv) loops the file when it reaches the end.
+fileRepeat=0
+# MP4σ╜òσê╢σåÖµûçΣ╗╢µá╝σ╝Åµÿ»σÉªΘççτö¿fmp4∩╝îσÉ»τö¿τÜäΦ»¥∩╝îµû¡τö╡µ£¬σ«îµêÉσ╜òσê╢τÜäµûçΣ╗╢Σ╣ƒΦâ╜µ¡úσ╕╕µëôσ╝Ç
+# Whether to use the fmp4 format for MP4 recording. Enables normal playback of interrupted recordings (e.g., due to power loss).
+enableFmp4=0
+
+[rtmp]
+# rtmpσ┐àΘí╗σ£¿µ¡ñµù╢Θù┤σåàσ«îµêÉµÅíµëï∩╝îσÉªσêÖµ£ìσèíσÖ¿Σ╝Üµû¡σ╝ÇΘô╛µÄÑ∩╝îσìòΣ╜ìτºÆ
+# RTMP handshake timeout in seconds. The server drops the connection if not completed.
+handshakeSecond=15
+# rtmpΦ╢àµù╢µù╢Θù┤∩╝îσªéµ₧£Φ»Ñµù╢Θù┤σåàµ£¬µö╢σê░σ«óµê╖τ½»τÜäµò░µì«∩╝î
+# µêûΦÇàtcpσÅæΘÇüτ╝ôσ¡ÿΦ╢àΦ┐çΦ┐ÖΣ╕¬µù╢Θù┤∩╝îσêÖΣ╝Üµû¡σ╝ÇΦ┐₧µÄÑ∩╝îσìòΣ╜ìτºÆ
+# RTMP keep-alive timeout in seconds. Connections drop if no data from the client is received,
+# or if the TCP send buffer stall exceeds this duration.
+keepAliveSecond=15
+# rtmpµ£ìσèíσÖ¿τ¢æσÉ¼τ½»σÅú
+# RTMP server listening port.
+port=1935
+# rtmpsµ£ìσèíσÖ¿τ¢æσÉ¼σ£░σ¥Ç
+# RTMPS server listening port.
+sslport=0
+# rtmpµÿ»σÉªτ¢┤µÄÑΣ╗úτÉåµ¿íσ╝Å
+# Whether to enable direct proxy mode for RTMP.
+directProxy=1
+# h265/opus/vp8/vp9/av1 rtmpµëôσîàΘççτö¿σó₧σ╝║σ₧ïrtmpµáçσçåΦ┐ÿµÿ»σ¢╜σåàµïôσ▒òµáçσçå
+# Whether RTMP packaging for H265/Opus/VP8/VP9/AV1 uses the Enhanced RTMP standard (1) or the domestic extended standard (0).
+enhanced=1
+
+[rtp]
+# Θƒ│Θóæmtuσñºσ░Å∩╝îΦ»ÑσÅéµò░ΘÖÉσê╢rtpµ£Çσñºσ¡ùΦèéµò░∩╝îµÄ¿ΦìÉΣ╕ìΦªüΦ╢àΦ┐ç1400
+# σèáσñºΦ»ÑσÇ╝Σ╝ÜµÿÄµÿ╛σó₧σèáτ¢┤µÆ¡σ╗╢µù╢
+# Audio MTU size (restricts max RTP payload in bytes). We recommend keeping this <= 1400.
+# Increasing this value significantly increases live streaming latency.
+audioMtuSize=600
+# ΦºåΘóæmtuσñºσ░Å∩╝îΦ»ÑσÅéµò░ΘÖÉσê╢rtpµ£Çσñºσ¡ùΦèéµò░∩╝îµÄ¿ΦìÉΣ╕ìΦªüΦ╢àΦ┐ç1400
+# Video MTU size (restricts max RTP payload in bytes). We recommend keeping this <= 1400.
+videoMtuSize=1400
+# rtpσîàµ£ÇσñºΘò┐σ║ªΘÖÉσê╢∩╝îσìòΣ╜ìKB,Σ╕╗Φªüτö¿Σ║ÄΦ»åσê½TCPΣ╕èΣ╕ïµûçτá┤σ¥Åµù╢∩╝îΦÄ╖σÅûσê░ΘöÖΦ»»τÜärtp
+# Max RTP packet length in KB. Mainly used to identify receiving wrong RTP packets when TCP stream contexts are corrupted.
+rtpMaxSize=10
+# rtp µëôσîàµù╢∩╝îΣ╜Äσ╗╢Φ┐ƒσ╝Çσà│∩╝îΘ╗ÿΦ«ñσà│Θù¡∩╝êΣ╕║0∩╝ë∩╝îh264σ¡ÿσ£¿Σ╕Çσ╕ºσñÜΣ╕¬slice∩╝êNAL∩╝ëτÜäµâàσå╡∩╝îσ£¿Φ┐Öτºìµâàσå╡Σ╕ï∩╝îσªéµ₧£σ╝ÇσÉ»σÅ»Φâ╜Σ╝Üσ»╝Φç┤τö╗Θ¥óΦè▒σ▒Å
+# Low-latency mode for RTP packaging (disabled by default). Enabling this for H.264 video with multiple slices per frame may cause visual artifacts (glitches).
+lowLatency=0
+# H264 rtpµëôσîàµ¿íσ╝Åµÿ»σÉªΘççτö¿stap-aµ¿íσ╝Å(Σ╕║Σ║åσ£¿ΦÇüτëêµ£¼µ╡ÅΦºêσÖ¿Σ╕èσà╝σ«╣webrtc)Φ┐ÿµÿ»Θççτö¿Single NAL unit packet per H.264 µ¿íσ╝Å
+# µ£ëΣ║¢ΦÇüτÜärtspΦ«╛σñçΣ╕ìµö»µîüstap-a rtp∩╝îΦ«╛τ╜«µ¡ñΘàìτ╜«Σ╕║0σÅ»µÅÉΘ½ÿσà╝σ«╣µÇº
+# Whether H.264 RTP packaging uses the `stap-a` mode (for older WebRTC browser compatibility) or the `Single NAL unit packet per H.264` mode.
+# Set this to 0 to improve compatibility with legacy RTSP devices that do not support `stap-a`.
+h264_stap_a=1
+
+[rtp_proxy]
+# σ»╝σç║Φ░âΦ»òµò░µì«(σîàµï¼rtp/ps/h264)Φç│Φ»Ñτ¢«σ╜ò,τ╜«τ⌐║σêÖσà│Θù¡µò░µì«σ»╝σç║
+# Directory for exporting debugging data (rtp/ps/h264). Leave empty to disable.
+dumpDir=
+# udpσÆîtcpΣ╗úτÉåµ£ìσèíσÖ¿∩╝îµö»µîürtp(σ┐àΘí╗µÿ»tsµêûpsτ▒╗σ₧ï)Σ╗úτÉå
+# UDP/TCP proxy server listening port. Supports RTP proxying (must be TS or PS).
+port=10000
+# rtpΦ╢àµù╢µù╢Θù┤∩╝îσìòΣ╜ìτºÆ
+# RTP timeout in seconds.
+timeoutSec=15
+# ΘÜÅµ£║τ½»σÅúΦîâσ¢┤∩╝îµ£Çσ░æτí«Σ┐¥36Σ╕¬τ½»σÅú
+# Φ»ÑΦîâσ¢┤σÉîµù╢ΘÖÉσê╢rtspµ£ìσèíσÖ¿udpτ½»σÅúΦîâσ¢┤
+# Random port range (ensure at least 36 ports).
+# This also restricts the UDP port range for the RTSP server.
+port_range=30000-35000
+# rtp h264 Φ┤ƒΦ╜╜τÜäpt
+# RTP payload type (PT) for H.264.
+h264_pt=98
+# rtp h265 Φ┤ƒΦ╜╜τÜäpt
+# RTP payload type (PT) for H.265.
+h265_pt=99
+# rtp ps Φ┤ƒΦ╜╜τÜäpt
+# RTP payload type (PT) for PS.
+ps_pt=96
+# rtp opus Φ┤ƒΦ╜╜τÜäpt
+# RTP payload type (PT) for Opus.
+opus_pt=100
+# startSendRtpπÇüstartRecordτ¢╕σà│σèƒΦâ╜µÿ»σÉªµÅÉσëìσ╝ÇσÉ»gopτ╝ôσ¡ÿΣ╝ÿσîûτ║ºΦüöτºÆσ╝ÇΣ╜ôΘ¬î∩╝îΘ╗ÿΦ«ñσ╝ÇσÉ», σ╣╢τ╝ôσ¡ÿ1Σ╕¬GOP
+# σªéµ₧£Σ╕ìΦ░âτö¿startSendRtpπÇüstartRecordσÉÄτ¢╕σà│µÄÑσÅú∩╝îσÅ»Σ╗Ñτ╜«0Φèéτ£üσåàσ¡ÿ∩╝¢σªéµ₧£τ╝ôσ¡ÿσñÜΣ╕¬gop∩╝îσÅ»Σ╗ÑσèáσñºΦ»ÑσÅéµò░
+# Whether to pre-enable GOP caching for `startSendRtp` and `startRecord` to optimize instant playback for cascaded streams. Enabled by default, caching 1 GOP.
+# If these functions are unused, set to 0 to save memory; to cache multiple GOPs, increase this value.
+gop_cache=1
+
+# σ¢╜µáçσÅæΘÇüg711 rtp µëôσîàµù╢∩╝îµ»ÅΣ╕¬σîàτÜäΦ»¡Θƒ│µù╢Θò┐µÿ»σñÜσ░æ∩╝îΘ╗ÿΦ«ñµÿ»100 ms∩╝îΦîâσ¢┤Σ╕║20~180ms (gb28181-2016∩╝îc.2.4Φºäσ«Ü)∩╝î
+# µ£ÇσÑ╜Σ╕║20 τÜäσÇìµò░∩╝îτ¿ïσ║ÅΦç¬σè¿σÉæ20τÜäσÇìµò░σÅûµò┤
+# Audio duration (in ms) per packet when packaging G.711 RTP for GB standards. Defaults to 100 ms (range: 20~180ms per gb28181-2016, c.2.4).
+# A multiple of 20 is recommended; the program auto-rounds to the nearest multiple.
+rtp_g711_dur_ms=100
+# udpµÄÑµö╢µò░µì«socket bufferσñºσ░ÅΘàìτ╜«
+# 4*1024*1024=4196304
+# Socket buffer size for receiving UDP data.
+udp_recv_socket_buffer=4194304
+# ps/tsΦºúµ₧ÉσÉÄµÿ»σÉªτ¡ëσ╛àΣ╕ïΣ╕Çσ╕ºΣ╗Ñσêñµû¡µ£¼σ╕ºµÿ»σÉªσ«îµò┤∩╝îσ╝ÇσÉ»σÉÄµÅÉΘ½ÿσà╝σ«╣µÇº∩╝îΣ╜åµÿ»σÅ»Φâ╜σó₧σèáσ╗╢µù╢
+# Whether to wait for the next frame after parsing PS/TS to verify frame completeness. Improves compatibility but may increase latency.
+merge_frame=1
+
+[rtc]
+# webrtc Σ┐íΣ╗ñµ£ìσèíσÖ¿τ½»σÅú
+# WebRTC signaling server port.
+signalingPort=3000
+signalingSslPort=3001
+# STUN/TURNµ£ìσèíσÖ¿τ½»σÅú
+# STUN/TURN server port.
+icePort=3478
+iceTcpPort=3478
+# STUN/TURNτ½»σÅúµÿ»σÉªΣ╜┐Φâ╜TURNµ£ìσèí
+# Whether to enable TURN services on the STUN/TURN ports.
+enableTurn=1
+# ICEΣ╝áΦ╛ôτ¡ûτòÑ∩╝Ü0=Σ╕ìΘÖÉσê╢(Θ╗ÿΦ«ñ)∩╝î1=Σ╗àµö»µîüRelayΦ╜¼σÅæ∩╝î2=Σ╗àµö»µîüP2Pτ¢┤Φ┐₧
+# ICE transport policy: 0 (No restrictions, default), 1 (Relay forwarding only), 2 (P2P direct connection only).
+iceTransportPolicy=0
+# STUN/TURN µ£ìσèíIceσ»åτáü
+# ICE credentials for STUN/TURN services.
+iceUfrag=ZLMediaKit
+icePwd=ZLMediaKit
+# webrtc datachannelµÿ»σÉªσ¢₧µÿ╛µò░µì«∩╝îµ╡ïΦ»òτö¿
+# Whether WebRTC Datachannel echoes received data (used for testing).
+datachannel_echo=1
+
+max_stun_retry=7
+# TURNµ£ìσèíσêåΘàìτ½»σÅúµ▒á
+# Port range allocated for TURN services.
+port_range=49152-65535
+# rtcµÆ¡µö╛µÄ¿µ╡üπÇüµÆ¡µö╛Φ╢àµù╢µù╢Θù┤
+# Timeout in seconds for RTC stream publishing and playback.
+timeoutSec=15
+# µ£¼µ£║σ»╣rtcσ«óµê╖τ½»τÜäσÅ»Φºüip∩╝îΣ╜£Σ╕║µ£ìσèíσÖ¿µù╢Σ╕ÇΦê¼Σ╕║σà¼τ╜æip∩╝îσÅ»µ£ëσñÜΣ╕¬∩╝îτö¿','σêåσ╝Ç∩╝îσ╜ôτ╜«τ⌐║µù╢∩╝îΣ╝ÜΦç¬σè¿ΦÄ╖σÅûτ╜æσìíip
+# σÉîµù╢µö»µîüτÄ»σóâσÅÿΘçÅ∩╝îΣ╗Ñ$σ╝Çσñ┤∩╝îσªé"$EXTERN_IP"; Φ»╖σÅéΦÇâ∩╝Ühttps://github.com/ZLMediaKit/ZLMediaKit/pull/1786
+# IP address(es) visible to RTC clients (typically public IPs). Separate multiple IPs with commas (',').
+# Leave empty to auto-acquire network card IPs. Also supports env vars starting with `$`, e.g., `"$EXTERN_IP"`; please refer to: https://github.com/ZLMediaKit/ZLMediaKit/pull/1786
+externIP=
+# σ╜ôµîçσ«ÜΣ║åinterfaces,ICEµ£ìσèíσÖ¿Σ╝ÜΣ╜┐τö¿µîçσ«Üτ╜æσìíbind socket
+# Σ╗ÑΦºúσå│σà¼τ╜æIPΣ╜┐τö¿σ╝╣µÇºσà¼τ╜æIPΘàìτ╜«σ«₧τÄ░(Θâ¿τ╜▓µ£║σÖ¿µùáµ│òbindΦ»Ñσà¼τ╜æipτÜäΘù«Θóÿ)
+# µö»µîüτÄ»σóâσÅÿΘçÅ∩╝îΣ╗Ñ$σ╝Çσñ┤∩╝îσªé"$PRIVATE_IP"
+# If specified, the ICE server binds the socket to this specific network card.
+# Solves binding issues on machines with Elastic Public IPs that cannot directly bind the public IP.
+# Supports environment variables starting with `$`, e.g., `"$PRIVATE_IP"`.
+interfaces=
+# rtc udpµ£ìσèíσÖ¿τ¢æσÉ¼τ½»σÅúσÅ╖∩╝îµëÇµ£ërtcσ«óµê╖τ½»σ░åΘÇÜΦ┐çΦ»Ñτ½»σÅúΣ╝áΦ╛ôstun/dtls/srtp/srtcpµò░µì«∩╝î
+# Φ»Ñτ½»σÅúµÿ»σñÜτ║┐τ¿ïτÜä∩╝îσÉîµù╢µö»µîüσ«óµê╖τ½»τ╜æτ╗£σêçµìóσ»╝Φç┤τÜäΦ┐₧µÄÑΦ┐üτº╗
+# Θ£ÇΦªüµ│¿µäÅτÜäµÿ»∩╝îσªéµ₧£µ£ìσèíσÖ¿σ£¿natσåà∩╝îΘ£ÇΦªüσüÜτ½»σÅúµÿáσ░äµù╢∩╝îσ┐àΘí╗τí«Σ┐¥σñûτ╜æµÿáσ░äτ½»σÅúΦ╖ƒΦ»Ñτ½»σÅúΣ╕ÇΦç┤
+# RTC UDP server listening port. Handles STUN/DTLS/SRTP/SRTCP data for all RTC clients.
+# Multi-threaded and supports connection migration during client network switching.
+# Note: For deployment behind a NAT, the external mapped port MUST match this port exactly.
+port=8000
+# rtc tcpµ£ìσèíσÖ¿τ¢æσÉ¼τ½»σÅúσÅ╖∩╝îσ£¿udp Σ╕ìΘÇÜτÜäµâàσå╡Σ╕ï∩╝îΣ╝ÜΣ╜┐τö¿tcpΣ╝áΦ╛ôµò░µì«
+# Φ»Ñτ½»σÅúµÿ»σñÜτ║┐τ¿ïτÜä∩╝îσÉîµù╢µö»µîüσ«óµê╖τ½»τ╜æτ╗£σêçµìóσ»╝Φç┤τÜäΦ┐₧µÄÑΦ┐üτº╗
+# Θ£ÇΦªüµ│¿µäÅτÜäµÿ»∩╝îσªéµ₧£µ£ìσèíσÖ¿σ£¿natσåà∩╝îΘ£ÇΦªüσüÜτ½»σÅúµÿáσ░äµù╢∩╝îσ┐àΘí╗τí«Σ┐¥σñûτ╜æµÿáσ░äτ½»σÅúΦ╖ƒΦ»Ñτ½»σÅúΣ╕ÇΦç┤
+# RTC TCP server listening port. Used as a fallback if UDP is unreachable.
+# Multi-threaded and supports connection migration during client network switching.
+# Note: For deployment behind a NAT, the external mapped port MUST match this port exactly.
+tcpPort=8000
+# Φ«╛τ╜«rembµ»öτë╣τÄç∩╝îΘ¥₧0µù╢σà│Θù¡twccσ╣╢σ╝ÇσÉ»rembπÇéΦ»ÑΦ«╛τ╜«σ£¿rtcµÄ¿µ╡üµù╢µ£ëµòê∩╝îσÅ»Σ╗ÑµÄºσê╢µÄ¿µ╡üτö╗Φ┤¿
+# τ¢«σëìσ╖▓τ╗Åσ«₧τÄ░twccΦç¬σè¿Φ░âµò┤τáüτÄç∩╝îσà│Θù¡rembµá╣µì«τ£ƒσ«₧τ╜æτ╗£τè╢σå╡Φ░âµò┤τáüτÄç
+# REMB bitrate threshold. Non-zero values disable TWCC and enable REMB (effective for RTC publishing to control picture quality).
+# ZLMediaKit natively supports automatic TWCC bitrate adjustment; disabling REMB allows rates to adjust naturally based on actual network conditions.
+rembBitRate=0
+# rtcµö»µîüτÜäΘƒ│Θóæcodecτ▒╗σ₧ï,σ£¿σëìΘ¥óτÜäΣ╝ÿσàêτ║ºµ¢┤Θ½ÿ
+# Σ╗ÑΣ╕ïΦîâΣ╛ïΣ╕║µëÇµ£ëµö»µîüτÜäΘƒ│Θóæcodec
+# Supported RTC audio codecs (listed in descending priority).
+preferredCodecA=PCMA,PCMU,opus,mpeg4-generic
+# rtcµö»µîüτÜäΦºåΘóæcodecτ▒╗σ₧ï,σ£¿σëìΘ¥óτÜäΣ╝ÿσàêτ║ºµ¢┤Θ½ÿ
+# Σ╗ÑΣ╕ïΦîâΣ╛ïΣ╕║µëÇµ£ëµö»µîüτÜäΦºåΘóæcodec
+# Supported RTC video codecs (listed in descending priority).
+preferredCodecV=H264,H265,AV1,VP9,VP8
+
+# webrtcµ»öτë╣τÄçΦ«╛τ╜«
+# WebRTC bitrate settings.
+start_bitrate=0
+max_bitrate=0
+min_bitrate=0
+
+# nackµÄÑµö╢τ½», rtpσÅæΘÇüτ½»∩╝îzlmσÅæΘÇürtcµ╡ü
+# rtpΘçìσÅæτ╝ôσ¡ÿσêùΘÿƒµ£ÇσñºΘò┐σ║ª∩╝îσìòΣ╜ìµ»½τºÆ
+# NACK receiver / RTP sender queue (ZLM sending RTC streams).
+# Maximum length of the RTP retransmission cache queue in ms.
+maxRtpCacheMS=5000
+# rtpΘçìσÅæτ╝ôσ¡ÿσêùΘÿƒµ£ÇσñºΘò┐σ║ª∩╝îσìòΣ╜ìΣ╕¬µò░
+# Maximum length of the RTP retransmission cache queue in packet count.
+maxRtpCacheSize=2048
+
+# nackσÅæΘÇüτ½»∩╝îrtpµÄÑµö╢τ½»∩╝îzlmµÄÑµö╢rtcµÄ¿µ╡ü
+# µ£ÇσñºΣ┐¥τòÖτÜärtpΣ╕óσîàτè╢µÇüΣ╕¬µò░
+# NACK sender / RTP receiver queue (ZLM receiving RTC streams).
+# Maximum number of retained RTP packet-loss states.
+nackMaxSize=2048
+# rtpΣ╕óσîàτè╢µÇüµ£ÇΘò┐Σ┐¥τòÖµù╢Θù┤
+# Maximum retention time for RTP packet-loss states in ms.
+nackMaxMS=3000
+# nackµ£ÇσñÜΦ»╖µ▒éΘçìΣ╝áµ¼íµò░
+# Maximum number of NACK retransmission requests.
+nackMaxCount=15
+# nackΘçìΣ╝áΘóæτÄç∩╝îrttτÜäσÇìµò░
+# NACK retransmission frequency (multiple of RTT).
+nackIntervalRatio=1.0
+# ΦºåΘóænackσîàΣ╕¡rtpΣ╕¬µò░∩╝îσçÅσ░Åµ¡ñσÇ╝σÅ»Σ╗ÑΦ«⌐nackσîàσôìσ║öµ¢┤τü╡µòÅ
+# Number of RTP packets in a video NACK packet. Lower values make NACK responses more sensitive.
+nackRtpSize=8
+# Θƒ│ΘóænackσîàΣ╕¡rtpΣ╕¬µò░∩╝îσçÅσ░Åµ¡ñσÇ╝σÅ»Σ╗ÑΦ«⌐nackσîàσôìσ║öµ¢┤τü╡µòÅ
+# Number of RTP packets in an audio NACK packet. Lower values make NACK responses more sensitive.
+nackAudioRtpSize=4
+# µÿ»σÉªσ░¥Φ»òΦ┐çµ╗ñ bσ╕º
+# Whether to attempt filtering out B-frames.
+bfilter=0
+# µÿ»σÉªΣ╝ÿσàêΘççτö¿webrtc over tcpµ¿íσ╝Å
+# Whether to prioritize WebRTC over TCP mode.
+preferred_tcp=0
+
+[srt]
+# srtµÆ¡µö╛µÄ¿µ╡üπÇüµÆ¡µö╛Φ╢àµù╢µù╢Θù┤,σìòΣ╜ìτºÆ
+# Timeout in seconds for SRT stream publishing and playback.
+timeoutSec=5
+# srt udpµ£ìσèíσÖ¿τ¢æσÉ¼τ½»σÅúσÅ╖∩╝îµëÇµ£ësrtσ«óµê╖τ½»σ░åΘÇÜΦ┐çΦ»Ñτ½»σÅúΣ╝áΦ╛ôsrtµò░µì«∩╝î
+# Φ»Ñτ½»σÅúµÿ»σñÜτ║┐τ¿ïτÜä∩╝îσÉîµù╢µö»µîüσ«óµê╖τ½»τ╜æτ╗£σêçµìóσ»╝Φç┤τÜäΦ┐₧µÄÑΦ┐üτº╗
+# SRT UDP server listening port. Handles SRT data for all clients.
+# Multi-threaded and supports connection migration during client network switching.
+port=9000
+# srt σìÅΦ««Σ╕¡σ╗╢Φ┐ƒτ╝ôσ¡ÿτÜäΣ╝░τ«ùσÅéµò░∩╝îσ£¿µÅíµëïΘÿ╢µ«╡Σ╝░τ«ùrtt ,τä╢σÉÄlatencyMul*rtt Σ╕║µ£Çσñºτ╝ôσ¡ÿµù╢Θò┐∩╝îµ¡ñσÅéµò░Φ╢èσñº∩╝îΦí¿τñ║τ¡ëσ╛àΘçìΣ╝áτÜäµù╢Θò┐σ░▒Φ╢èσñº
+# SRT protocol delay buffer estimation parameter. Handshake estimated `RTT * latencyMul` sets the maximum buffer duration. Larger values increase wait times for retransmissions.
+latencyMul=4
+# σîàτ╝ôσ¡ÿτÜäσñºσ░Å
+# Packet buffer size.
+pktBufSize=8192
+# srt udpµ£ìσèíσÖ¿τÜäσ»åτáü,Σ╕║τ⌐║Φí¿τñ║Σ╕ìσèáσ»å
+# SRT UDP server password (leave empty to disable encryption).
+passPhrase=
+
+[rtsp]
+# rtspΣ╕ôµ£ëΘë┤µ¥âµû╣σ╝Åµÿ»Θççτö¿base64Φ┐ÿµÿ»md5µû╣σ╝Å
+# Whether RTSP dedicated authentication uses base64 or md5.
+authBasic=0
+# rtspµïëµ╡üπÇüµÄ¿µ╡üΣ╗úτÉåµÿ»σÉªµÿ»τ¢┤µÄÑΣ╗úτÉåµ¿íσ╝Å
+# τ¢┤µÄÑΣ╗úτÉåσÉÄµö»µîüΣ╗╗µäÅτ╝ûτáüµá╝σ╝Å∩╝îΣ╜åµÿ»Σ╝Üσ»╝Φç┤GOPτ╝ôσ¡ÿµùáµ│òσ«ÜΣ╜ìσê░Iσ╕º∩╝îσÅ»Φâ╜Σ╝Üσ»╝Φç┤σ╝ÇµÆ¡Φè▒σ▒Å
+# σ╣╢Σ╕öσªéµ₧£µÿ»tcpµû╣σ╝Åµïëµ╡ü∩╝îσªéµ₧£rtpσñºΣ║ÄmtuΣ╝Üσ»╝Φç┤µùáµ│òΣ╜┐τö¿udpµû╣σ╝ÅΣ╗úτÉå
+# σüçσ«Üµé¿τÜäµïëµ╡üµ║Éσ£░σ¥ÇΣ╕ìµÿ»264µêû265µêûAAC∩╝îΘéúΣ╣êΣ╜áσÅ»Σ╗ÑΣ╜┐τö¿τ¢┤µÄÑΣ╗úτÉåτÜäµû╣σ╝Åµ¥Ñµö»µîürtspΣ╗úτÉå
+# σªéµ₧£Σ╜áµÿ»rtspµÄ¿µïëµ╡ü∩╝îΣ╜åµÿ»webrtcµÆ¡µö╛∩╝îΣ╣ƒσ╗║Φ««σà│Θù¡τ¢┤µÄÑΣ╗úτÉåµ¿íσ╝Å∩╝î
+# σ¢áΣ╕║τ¢┤µÄÑΣ╗úτÉåµù╢∩╝îrtpΣ╕¡σÅ»Φâ╜µ▓íµ£ësps pps,Σ╝Üσ»╝Φç┤webrtcµùáµ│òµÆ¡µö╛; σÅªσñûwebrtcΣ╣ƒΣ╕ìµö»µîüSingle NAL Unit Packetsτ▒╗σ₧ïrtp
+# Θ╗ÿΦ«ñσ╝ÇσÉ»rtspτ¢┤µÄÑΣ╗úτÉå∩╝îrtmpτö▒Σ║Äµ▓íµ£ëΦ┐ÖΣ║¢Θù«Θóÿ∩╝îµÿ»σ╝║σê╢σ╝ÇσÉ»τ¢┤µÄÑΣ╗úτÉåτÜä
+# Whether to enable direct proxy mode for RTSP pulling/publishing.
+# Direct proxying supports any codec but bypasses GOP cache I-frame detection, potentially causing initial visual artifacts.
+# Furthermore, if pulling via TCP, an RTP payload exceeding the MTU will make UDP proxying unusable.
+# Assuming your pull source format is not H264, H265, or AAC, you can use direct proxy mode to support RTSP proxying.
+# If you are pulling/pushing via RTSP but playing via WebRTC, it is also recommended to disable direct proxy mode;
+# this is because direct proxies may drop SPS/PPS (preventing WebRTC playback), and WebRTC does not support `Single NAL Unit Packets` RTP.
+# RTSP direct proxy is enabled by default. RTMP natively enforces direct proxying because it lacks these issues.
+directProxy=1
+# rtspσ┐àΘí╗σ£¿µ¡ñµù╢Θù┤σåàσ«îµêÉµÅíµëï∩╝îσÉªσêÖµ£ìσèíσÖ¿Σ╝Üµû¡σ╝ÇΘô╛µÄÑ∩╝îσìòΣ╜ìτºÆ
+# RTSP handshake timeout in seconds. The server drops the connection if not completed.
+handshakeSecond=15
+# rtspΦ╢àµù╢µù╢Θù┤∩╝îσªéµ₧£Φ»Ñµù╢Θù┤σåàµ£¬µö╢σê░σ«óµê╖τ½»τÜäµò░µì«∩╝î
+# µêûΦÇàtcpσÅæΘÇüτ╝ôσ¡ÿΦ╢àΦ┐çΦ┐ÖΣ╕¬µù╢Θù┤∩╝îσêÖΣ╝Üµû¡σ╝ÇΦ┐₧µÄÑ∩╝îσìòΣ╜ìτºÆ
+# RTSP keep-alive timeout in seconds. Connections drop if no data is received or if the TCP send buffer stalls for this duration.
+keepAliveSecond=15
+# rtspµ£ìσèíσÖ¿τ¢æσÉ¼σ£░σ¥Ç
+# RTSP server listening port.
+port=554
+# rtspsµ£ìσèíσÖ¿τ¢æσÉ¼σ£░σ¥Ç
+# RTSPS server listening port.
+sslport=0
+# rtsp Φ╜¼σÅæµÿ»σÉªΣ╜┐τö¿Σ╜Äσ╗╢Φ┐ƒµ¿íσ╝Å∩╝îσ╜ôσ╝ÇσÉ»µù╢∩╝îΣ╕ìΣ╝Üτ╝ôσ¡ÿrtpσîà∩╝îµ¥ÑµÅÉΘ½ÿσ╣╢σÅæ∩╝îσÅ»Σ╗ÑΘÖìΣ╜ÄΣ╕Çσ╕ºτÜäσ╗╢Φ┐ƒ
+# Whether RTSP forwarding uses low-latency mode. Skips RTP packet caching to improve concurrency and reduce latency by one frame.
+lowLatency=0
+# σ╝║σê╢σìÅσòårtpΣ╝áΦ╛ôµû╣σ╝Å (0:TCP,1:UDP,2:MULTICAST,-1:Σ╕ìΘÖÉσê╢)
+# σ╜ôσ«óµê╖τ½»σÅæΦ╡╖RTSP SETUPτÜäµù╢σÇÖσªéµ₧£Σ╝áΦ╛ôτ▒╗σ₧ïσÆîµ¡ñΘàìτ╜«Σ╕ìΣ╕ÇΦç┤σêÖΦ┐öσ¢₧461 Unsupported transport
+# Φ┐½Σ╜┐σ«óµê╖τ½»Θçìµû░SETUPσ╣╢σêçµìóσê░σ»╣σ║öσìÅΦ««πÇéτ¢«σëìµö»µîüFFMPEGσÆîVLC
+# Force RTP transport negotiation type (0: TCP, 1: UDP, 2: MULTICAST, -1: No limits).
+# When the client initiates RTSP SETUP, if the transport type conflicts with this configuration, it returns `461 Unsupported transport`.
+# This forces the client to re-SETUP and switch to the corresponding protocol. Currently supports FFmpeg and VLC.
+rtpTransportType=-1
+
+[shell]
+# Φ░âΦ»òtelnetµ£ìσèíσÖ¿µÄÑσÅùµ£Çσñºbufferσñºσ░Å
+# Maximum buffer size accepted by the debugging Telnet server.
+maxReqSize=1024
+# Φ░âΦ»òtelnetµ£ìσèíσÖ¿τ¢æσÉ¼τ½»σÅú
+# Debugging Telnet server listening port.
+port=0
+
+# onvifµÉ£τ┤óτö¿
+# Used for ONVIF search.
+[onvif]
+port=3702

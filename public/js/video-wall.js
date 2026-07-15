@@ -1,7 +1,8 @@
 /**
  * Six-slot live video wall — panels 1–4 fixed; panels 5–6 poll extra online BWCs.
  *
- * Player: JSMpeg (public/vendor/jsmpeg.min.js) — not flv.js / native video tag.
+ * Player: JSMpeg first. Soft ZLM overlay (mob-zlm-wall-safe-no-wipe) only for
+ * single-cam wall — never wipe panel; Open All skips ZLM.
  * Video WS: ws://host:(HTTP+1) e.g. 3889 — server bridge fans out (clients:2+).
  * Audio WS: ws://host:(HTTP+2) e.g. 3890 — PCM Web Audio, separate from JSMpeg.
  *
@@ -1785,6 +1786,7 @@
             destroyMapPlayer(slotIndex.slice(4));
             return;
         }
+        if (typeof slotIndex === 'number') destroyZlmWallOverlay(slotIndex);
         const p = players.get(slotIndex);
         const boundCam = activeStreams.get(slotIndex)
             || (typeof slotIndex === 'number' && getSlots()[slotIndex] && getSlots()[slotIndex].dataset.camId)
@@ -2602,6 +2604,60 @@
         return ensureInvite(camId, force);
     }
 
+    /** Soft ZLM overlays by wall slot — JSMpeg stays; overlay removed on fail/stop. */
+    const zlmWallOverlays = new Map();
+
+    function destroyZlmWallOverlay(slotKey) {
+        const h = zlmWallOverlays.get(slotKey);
+        if (!h) return;
+        zlmWallOverlays.delete(slotKey);
+        try { h.destroy(); } catch (_) { /* ignore */ }
+    }
+
+    /** One-cam ZLM soft try only — Open All / multi-live stays JSMpeg. */
+    function wallZlmSoftUpgradeAllowed() {
+        if (openAllReservedIds && openAllReservedIds.length) return false;
+        if (openAllOccupiedSlots.size > 0) return false;
+        try {
+            if (wallActiveCamIds().length > 1) return false;
+        } catch (_) { /* ignore */ }
+        return !!(global.Me8LivePlayerFactory
+            && typeof global.Me8LivePlayerFactory.fetchDescriptorPreferZlm === 'function'
+            && typeof global.Me8LivePlayerFactory.softAttachZlmOverlay === 'function');
+    }
+
+    function scheduleWallZlmSoftUpgrade(slotKey, camId, slotEl) {
+        if (typeof slotKey !== 'number' || !camId || !slotEl) return;
+        if (!wallZlmSoftUpgradeAllowed()) return;
+        setTimeout(function () {
+            if (!wallZlmSoftUpgradeAllowed()) return;
+            if (activeStreams.get(slotKey) !== camId) return;
+            if (!players.has(slotKey)) return;
+            const stage = slotEl.querySelector('.video-slot-stage');
+            if (!stage) return;
+            destroyZlmWallOverlay(slotKey);
+            global.Me8LivePlayerFactory.fetchDescriptorPreferZlm(camId, { tries: 5, gapMs: 600 })
+                .then(function (desc) {
+                    if (!wallZlmSoftUpgradeAllowed()) return;
+                    if (activeStreams.get(slotKey) !== camId) return;
+                    if (!players.has(slotKey)) return;
+                    if (!desc || desc.engine !== 'zlm' || !desc.flvUrl) return;
+                    const handle = global.Me8LivePlayerFactory.softAttachZlmOverlay(stage, desc, {
+                        proveMs: 450,
+                        timeoutMs: 8000,
+                        onProven: function () {
+                            /* JSMpeg kept under overlay for pin mirror — no wipe */
+                        },
+                        onFail: function () {
+                            zlmWallOverlays.delete(slotKey);
+                        },
+                    });
+                    if (handle) zlmWallOverlays.set(slotKey, handle);
+                })
+                .catch(function () { /* keep JSMpeg */ });
+        }, 2200);
+    }
+
     function attachCanvasPlayer(canvas, slotKey, camId, statusEl, connectDelayMs, slotEl) {
         if (!canvas) return;
         if (camId) clearBwcStallWatch(camId);
@@ -2701,6 +2757,7 @@
                     players.set(slotKey, player);
                     if (camId) registerActivePlayer(camId, 'wall', player, canvas);
                     releaseWallSlot(slotKey, camId);
+                    scheduleWallZlmSoftUpgrade(slotKey, camId, slotEl);
                 }
                 if (camId) activeStreams.set(slotKey === 'map' ? mapStreamKey(camId) : slotKey, camId);
                 if (slotKey === 'map' && camId) updateMapPinStopButton(camId);

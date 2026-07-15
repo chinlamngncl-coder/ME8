@@ -19,7 +19,7 @@ function Copy-Tree($src, $dst) {
 
 $ForbiddenNames = @(
     'server.js', 'BASELINE-TRIAL-GOLD.md', 'CS.md', 'CLAUDE.md', 'RESTORE-TRIAL-GOLD.ps1', 'VERIFY-TRIAL-GOLD.ps1',
-    'test-zlm.html'
+    'test-zlm.html', 'test-wvp-tile.html'
 )
 $ForbiddenDirs = @(
     'lib', '.cursor', '.git', 'baseline', 'docs', 'mobile-android',
@@ -73,6 +73,10 @@ Write-Step 'Stage public UI...'
 Copy-Tree (Join-Path $AppRoot 'public') (Join-Path $appDir 'public')
 $labZlmPage = Join-Path $appDir 'public\test-zlm.html'
 if (Test-Path $labZlmPage) { Remove-Item $labZlmPage -Force }
+$labWvpPage = Join-Path $appDir 'public\test-wvp-tile.html'
+if (Test-Path $labWvpPage) { Remove-Item $labWvpPage -Force }
+$labWvpJs = Join-Path $appDir 'public\js\wvp-lab-tile.js'
+if (Test-Path $labWvpJs) { Remove-Item $labWvpJs -Force }
 
 if ($Variant -eq 'Cn') {
     $locDir = Join-Path $appDir 'public\locales'

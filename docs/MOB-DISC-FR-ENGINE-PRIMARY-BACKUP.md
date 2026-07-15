@@ -1,6 +1,6 @@
 # MOB DISC — FR engine: primary fast stack · DeepFace backup only
 
-**Status:** DISC 2026-07-11 — **`mob-fr-engine-bench-harness` APPLIED 2026-07-13** (script only; run when images ready). Next: `mob-fr-sidecar-primary-poc` after CSV PASS.  
+**Status:** DISC 2026-07-11 — **`mob-fr-engine-bench-harness` APPLIED 2026-07-13** · **`mob-fr-sidecar-primary-poc` APPLIED 2026-07-13** · **`mob-fr-poller-batch-grab` APPLIED 2026-07-13** · **`mob-fr-engine-lab-enable-onnx` APPLIED 2026-07-13** (lab `.env` → onnx; code default still DeepFace). Next: re-enroll watchlist → optional cutover.  
 **Trigger:** Face watch **snapshots now start** (runtime PASS) but **slow**; **matching worse** than capture  
 **Search:** DeepFace backup, primary engine, SeetaFace6, InsightFace, slow match, engine bench  
 **Related:** `MOB-DISC-FR-ENGINE-SLOW-LOW-MATCH.md`, `MOB-DISC-FR-ENGINE-SEETAFACE6-FACEXZOO.md`, `MOB-DISC-RUNTIME-FR-CHILD-PROCESS.md`
@@ -98,8 +98,9 @@ flowchart LR
 | Step | MOB | Outcome |
 |------|-----|---------|
 | **1** | `mob-fr-engine-bench-harness` | Script: 20 BWC stills + enroll mugshots → CSV timings + scores for **primary candidates vs DeepFace** |
-| **2** | `mob-fr-sidecar-primary-poc` | New implementation behind `FM_FR_ENGINE=onnx` (or `seeta`); **load-once**, **`/represent-probe-batch`**, timing JSON |
-| **3** | `mob-fr-poller-batch-grab` | Node: 3 grabs → **one** HTTP batch call per cam tick |
+| **2** | `mob-fr-sidecar-primary-poc` | **APPLIED 2026-07-13** — `fr-sidecar-fast/` ONNX + `FM_FR_ENGINE` routing; batch endpoint; Seeta reserved |
+| **2b** | `mob-fr-engine-lab-enable-onnx` | **APPLIED 2026-07-13** — lab `.env` `FM_FR_ENGINE=onnx`; code default unchanged |
+| **3** | `mob-fr-poller-batch-grab` | **APPLIED 2026-07-13** — N JPEG grabs → one `/represent-probe-batch` (`FM_FR_BATCH_PROBE=0` = legacy) |
 | **4** | `mob-fr-gallery-re-enroll-migrate` | Re-embed watchlist (dim change); DeepFace gallery kept for rollback |
 | **5** | `mob-fr-engine-cutover` | Default primary; DeepFace = `FM_FR_ENGINE=deepface` only |
 

@@ -109,12 +109,8 @@
 
     function uploadFile(file) {
         if (!file || busy) return;
-        var thrEl = document.getElementById('ax-fr-threshold');
-        var thr = thrEl ? parseInt(thrEl.value, 10) : 75;
-        if (isNaN(thr)) thr = 75;
         var fd = new FormData();
         fd.append('video', file);
-        fd.append('threshold', String(thr));
         setBusy(true);
         setStatus(tr('analytics.fr.offlineUploading', 'Uploading video…'), '');
         fetch('/api/analytics/fr/offline-video', {

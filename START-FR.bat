@@ -1,10 +1,10 @@
 @echo off
-title Ubitron — Start face recognition
+title Ubitron — Start face recognition (lab / first-time install)
 cd /d "%~dp0"
 
 echo.
-echo  Face recognition service (demo / server)
-echo  Folder: %~dp0fr-sidecar
+echo  LAB / FIRST-TIME ONLY — enterprise uses UbitronC2 service + FM_FR_SIDECAR_AUTO=1
+echo  Face recognition sidecar — folder: %~dp0fr-sidecar
 echo.
 
 where py >nul 2>&1

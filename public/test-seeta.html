@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Seeta lab proof</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1220; color: #e2e8f0; max-width: 560px; margin: 40px auto; padding: 0 16px; }
+    h1 { font-size: 1.25rem; }
+    .hint { color: #94a3b8; font-size: 0.9rem; }
+    label { display: block; margin: 14px 0 6px; font-size: 0.85rem; color: #94a3b8; }
+    input[type=file] { width: 100%; }
+    button { margin-top: 16px; padding: 10px 16px; background: #2563eb; color: #fff; border: 0; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    button:disabled { opacity: 0.5; }
+    #out { margin-top: 18px; padding: 12px 14px; border: 1px solid #334155; border-radius: 6px; background: #0f172a; white-space: pre-wrap; }
+    #out.ok { border-color: #16a34a; color: #bbf7d0; }
+    #out.fail { border-color: #d97706; color: #fde68a; }
+    #out.err { border-color: #b91c1c; color: #fecaca; }
+    #health { font-size: 0.85rem; color: #94a3b8; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Seeta lab — compare two photos</h1>
+  <p class="hint">Same person → see Match %. Product bar is 70%. This page talks to Seeta on port 8767 only (does not change live Face watch yet).</p>
+  <div id="health">Checking Seeta…</div>
+  <label>Photo A <input type="file" id="f1" accept="image/*"></label>
+  <label>Photo B <input type="file" id="f2" accept="image/*"></label>
+  <button type="button" id="go">Compare</button>
+  <div id="out" hidden></div>
+  <script>
+    function show(el, text, cls) {
+      el.hidden = false;
+      el.textContent = text;
+      el.className = cls || '';
+    }
+    fetch('/api/lab/seeta/health', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+      var h = document.getElementById('health');
+      if (j && j.ok) h.textContent = 'Seeta: OK · model ' + (j.model || '') + ' · dims ' + (j.dims || '—');
+      else h.textContent = 'Seeta not ready — run INSTALL-SEETA-LAB.ps1 then START-SEETA-LAB.bat. ' + (j && (j.error || j.hint || j.message) || '');
+    }).catch(function () {
+      document.getElementById('health').textContent = 'Fleet cannot reach Seeta on 8767. Start START-SEETA-LAB.bat first.';
+    });
+    document.getElementById('go').onclick = function () {
+      var f1 = document.getElementById('f1').files[0];
+      var f2 = document.getElementById('f2').files[0];
+      var out = document.getElementById('out');
+      var btn = document.getElementById('go');
+      if (!f1 || !f2) { show(out, 'Pick two photos.', 'err'); return; }
+      btn.disabled = true;
+      show(out, 'Checking…', '');
+      Promise.all([fileToB64(f1), fileToB64(f2)]).then(function (pair) {
+        return fetch('/api/lab/seeta/verify', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image1_b64: pair[0], image2_b64: pair[1] }),
+        }).then(function (r) {
+          return r.json().then(function (j) { return { status: r.status, j: j }; });
+        });
+      }).then(function (pack) {
+        var j = pack.j || {};
+        if (j.ok && j.scorePct != null) {
+          var line = 'Match: ' + j.scorePct + '% · need 70% · ' + (j.verified ? 'pass' : 'fail');
+          show(out, line, j.verified ? 'ok' : 'fail');
+        } else {
+          show(out, (j.message || j.error || j.hint || 'Compare failed') + (j.detail ? '\n' + j.detail : ''), 'err');
+        }
+      }).catch(function (e) {
+        show(out, 'Network error — is Fleet up? ' + String(e && e.message || e), 'err');
+      }).finally(function () { btn.disabled = false; });
+    };
+    function fileToB64(file) {
+      return new Promise(function (resolve, reject) {
+        var r = new FileReader();
+        r.onload = function () {
+          var s = String(r.result || '');
+          var i = s.indexOf(',');
+          resolve(i >= 0 ? s.slice(i + 1) : s);
+        };
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+    }
+  </script>
+</body>
+</html>

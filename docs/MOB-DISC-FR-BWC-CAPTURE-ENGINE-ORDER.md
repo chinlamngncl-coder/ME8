@@ -170,7 +170,7 @@ These MOBs do **not** wait for 2nd sidecar:
 
 | MOB | Fix |
 |-----|-----|
-| `mob-fr-capture-grab-tune` | `FM_FR_GRAB_MS` 800–1200; shorter post-EOF wait; fail-fast on dead stream |
+| `mob-fr-capture-grab-tune` | **APPLIED 2026-07-13** — default `FM_FR_GRAB_MS=1000`, short EOF, fail-fast no-data |
 | `mob-fr-capture-pool-tap` | Reuse live tile decode / pool buffer — **no new ffmpeg spawn per grab** (bigger MOB — after grab tune) |
 | `mob-fr-probe-side-face-gate` | Soften clip gate for side boxes; reject only true half-out-of-frame |
 | `mob-fr-poller-parallel-cams` | Probe 4 live cams concurrently (respect 8-live SOP) |

@@ -178,6 +178,13 @@ if (Test-Path $ffmpegBin) {
     Write-Fail 'vendor\ffmpeg-lgpl\ffmpeg.exe MISSING — run scripts\download-ffmpeg-lgpl.ps1 before packing'
 }
 
+$zlmBin = Join-Path $AppRoot 'vendor\zlmediakit\MediaServer.exe'
+if (Test-Path $zlmBin) {
+    Write-Ok 'ZLM pack binary present: vendor\zlmediakit\MediaServer.exe (mvp-zlm-in-pack)'
+} else {
+    Write-Warn 'vendor\zlmediakit\MediaServer.exe missing — optional for pack; run scripts\INSTALL-ZLM-PACK.ps1 -SourceDir <windows build> before customer pack with ZLM'
+}
+
 $llmBin = Join-Path $AppRoot 'vendor\llm'
 $llmFiles = @(Get-ChildItem $llmBin -Filter '*.gguf' -ErrorAction SilentlyContinue)
 if ($llmFiles.Count -gt 0) {

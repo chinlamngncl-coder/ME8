@@ -34,6 +34,14 @@ vendor/llm/*.part
 vendor/ffmpeg-lgpl/*.exe
 vendor/ffmpeg-lgpl/*.dll
 
+# ZLM pack binary (mvp-zlm-in-pack) — INSTALL-ZLM-PACK.ps1; not committed
+vendor/zlmediakit/MediaServer.exe
+vendor/zlmediakit/MediaServer
+vendor/zlmediakit/*.dll
+vendor/zlmediakit/config.ini
+!vendor/zlmediakit/config.ini.example
+!vendor/zlmediakit/README.md
+
 # ---- Android build output ----
 mobile-android/**/build/
 mobile-android/**/.gradle/

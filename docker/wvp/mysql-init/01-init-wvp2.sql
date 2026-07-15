@@ -1,0 +1,468 @@
+CREATE DATABASE IF NOT EXISTS wvp2 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE wvp2;
+/*建表*/
+drop table IF EXISTS wvp_device;
+create table IF NOT EXISTS wvp_device
+(
+    id                                  bigint primary key auto_increment,
+    device_id                           varchar(50) not null,
+    name                                varchar(255),
+    manufacturer                        varchar(255),
+    model                               varchar(255),
+    firmware                            varchar(255),
+    transport                           varchar(50),
+    stream_mode                         varchar(50),
+    on_line                             tinyint(1)    default false,
+    register_time                       varchar(50),
+    keepalive_time                      varchar(50),
+    ip                                  varchar(50),
+    create_time                         varchar(50),
+    update_time                         varchar(50),
+    port                                integer,
+    expires                             integer,
+    subscribe_cycle_for_catalog         integer DEFAULT 0,
+    subscribe_cycle_for_mobile_position integer DEFAULT 0,
+    mobile_position_submission_interval integer DEFAULT 5,
+    subscribe_cycle_for_alarm           integer DEFAULT 0,
+    host_address                        varchar(50),
+    charset                             varchar(50),
+    ssrc_check                          tinyint(1)    default false,
+    geo_coord_sys                       varchar(50),
+    media_server_id                     varchar(50) default 'auto',
+    custom_name                         varchar(255),
+    sdp_ip                              varchar(50),
+    local_ip                            varchar(50),
+    password                            varchar(255),
+    as_message_channel                  tinyint(1)    default false,
+    heart_beat_interval                 integer,
+    heart_beat_count                    integer,
+    position_capability                 integer,
+    broadcast_push_after_ack            tinyint(1)    default false,
+    server_id                           varchar(50),
+    constraint uk_device_device unique (device_id)
+);
+
+drop table IF EXISTS wvp_device_alarm;
+create table IF NOT EXISTS wvp_device_alarm
+(
+    id                bigint primary key auto_increment,
+    device_id         varchar(50) not null,
+    channel_id        varchar(50) not null,
+    alarm_priority    varchar(50),
+    alarm_method      varchar(50),
+    alarm_time        varchar(50),
+    alarm_description varchar(255),
+    longitude         double precision,
+    latitude          double precision,
+    alarm_type        varchar(50),
+    create_time       varchar(50) not null
+);
+
+drop table IF EXISTS wvp_device_mobile_position;
+create table IF NOT EXISTS wvp_device_mobile_position
+(
+    id              bigint primary key auto_increment,
+    device_id       varchar(50) not null,
+    channel_id      varchar(50) not null,
+    device_name     varchar(255),
+    time            varchar(50),
+    longitude       double precision,
+    latitude        double precision,
+    altitude        double precision,
+    speed           double precision,
+    direction       double precision,
+    report_source   varchar(50),
+    create_time     varchar(50)
+);
+
+drop table IF EXISTS wvp_device_channel;
+create table IF NOT EXISTS wvp_device_channel
+(
+    id                           bigint primary key auto_increment,
+    device_id                    varchar(50),
+    name                         varchar(255),
+    manufacturer                 varchar(50),
+    model                        varchar(50),
+    owner                        varchar(50),
+    civil_code                   varchar(50),
+    block                        varchar(50),
+    address                      varchar(50),
+    parental                     integer,
+    parent_id                    varchar(50),
+    safety_way                   integer,
+    register_way                 integer,
+    cert_num                     varchar(50),
+    certifiable                  integer,
+    err_code                     integer,
+    end_time                     varchar(50),
+    secrecy                      integer,
+    ip_address                   varchar(50),
+    port                         integer,
+    password                     varchar(255),
+    status                       varchar(50),
+    longitude                    double precision,
+    latitude                     double precision,
+    ptz_type                     integer,
+    position_type                integer,
+    room_type                    integer,
+    use_type                     integer,
+    supply_light_type            integer,
+    direction_type               integer,
+    resolution                   varchar(255),
+    business_group_id            varchar(255),
+    download_speed               varchar(255),
+    svc_space_support_mod        integer,
+    svc_time_support_mode        integer,
+    create_time                  varchar(50) not null,
+    update_time                  varchar(50) not null,
+    sub_count                    integer,
+    stream_id                    varchar(255),
+    has_audio                    tinyint(1) default false,
+    gps_time                     varchar(50),
+    stream_identification        varchar(50),
+    channel_type                 int  default 0        not null,
+    gb_device_id                 varchar(50),
+    gb_name                      varchar(255),
+    gb_manufacturer              varchar(255),
+    gb_model                     varchar(255),
+    gb_owner                     varchar(255),
+    gb_civil_code                varchar(255),
+    gb_block                     varchar(255),
+    gb_address                   varchar(255),
+    gb_parental                  integer,
+    gb_parent_id                 varchar(255),
+    gb_safety_way                integer,
+    gb_register_way              integer,
+    gb_cert_num                  varchar(50),
+    gb_certifiable               integer,
+    gb_err_code                  integer,
+    gb_end_time                  varchar(50),
+    gb_secrecy                   integer,
+    gb_ip_address                varchar(50),
+    gb_port                      integer,
+    gb_password                  varchar(50),
+    gb_status                    varchar(50),
+    gb_longitude                 double,
+    gb_latitude                  double,
+    gb_business_group_id         varchar(50),
+    gb_ptz_type                  integer,
+    gb_position_type             integer,
+    gb_room_type                 integer,
+    gb_use_type                  integer,
+    gb_supply_light_type         integer,
+    gb_direction_type            integer,
+    gb_resolution                varchar(255),
+    gb_download_speed            varchar(255),
+    gb_svc_space_support_mod     integer,
+    gb_svc_time_support_mode     integer,
+    record_plan_id               integer,
+    data_type                    integer not null,
+    data_device_id               integer not null,
+    gps_speed                    double precision,
+    gps_altitude                 double precision,
+    gps_direction                double precision,
+    index (data_type),
+    index (data_device_id),
+    constraint uk_wvp_unique_channel unique (gb_device_id)
+);
+
+drop table IF EXISTS wvp_media_server;
+create table IF NOT EXISTS wvp_media_server
+(
+    id                  varchar(255) primary key auto_increment,
+    ip                  varchar(50),
+    hook_ip             varchar(50),
+    sdp_ip              varchar(50),
+    stream_ip           varchar(50),
+    http_port           integer,
+    http_ssl_port       integer,
+    rtmp_port           integer,
+    rtmp_ssl_port       integer,
+    rtp_proxy_port      integer,
+    rtsp_port           integer,
+    rtsp_ssl_port       integer,
+    flv_port            integer,
+    flv_ssl_port        integer,
+    ws_flv_port         integer,
+    ws_flv_ssl_port     integer,
+    auto_config         tinyint(1)                  default false,
+    secret              varchar(50),
+    type                varchar(50) default 'zlm',
+    rtp_enable          tinyint(1)                  default false,
+    rtp_port_range      varchar(50),
+    send_rtp_port_range varchar(50),
+    record_assist_port  integer,
+    default_server      tinyint(1)                  default false,
+    create_time         varchar(50),
+    update_time         varchar(50),
+    hook_alive_interval integer,
+    record_path         varchar(255),
+    record_day          integer               default 7,
+    transcode_suffix    varchar(255),
+    server_id           varchar(50),
+    constraint uk_media_server_unique_ip_http_port unique (ip, http_port, server_id)
+);
+
+drop table IF EXISTS wvp_platform;
+create table IF NOT EXISTS wvp_platform
+(
+    id                    bigint primary key auto_increment,
+    enable                tinyint(1) default false,
+    name                  varchar(255),
+    server_gb_id          varchar(50),
+    server_gb_domain      varchar(50),
+    server_ip             varchar(50),
+    server_port           integer,
+    device_gb_id          varchar(50),
+    device_ip             varchar(50),
+    device_port           varchar(50),
+    username              varchar(255),
+    password              varchar(50),
+    expires               varchar(50),
+    keep_timeout          varchar(50),
+    transport             varchar(50),
+    civil_code            varchar(50),
+    manufacturer          varchar(255),
+    model                 varchar(255),
+    address               varchar(255),
+    character_set         varchar(50),
+    ptz                   tinyint(1) default false,
+    rtcp                  tinyint(1) default false,
+    status                tinyint(1) default false,
+    catalog_group         integer,
+    register_way          integer,
+    secrecy               integer,
+    create_time           varchar(50),
+    update_time           varchar(50),
+    as_message_channel    tinyint(1) default false,
+    catalog_with_platform integer default 1,
+    catalog_with_group    integer default 1,
+    catalog_with_region   integer default 1,
+    auto_push_channel     tinyint(1) default true,
+    send_stream_ip        varchar(50),
+    server_id             varchar(50),
+    constraint uk_platform_unique_server_gb_id unique (server_gb_id)
+);
+
+drop table IF EXISTS wvp_platform_channel;
+create table IF NOT EXISTS wvp_platform_channel
+(
+    id                           bigint primary key auto_increment,
+    platform_id                  integer,
+    device_channel_id            integer,
+    custom_device_id             varchar(50),
+    custom_name                  varchar(255),
+    custom_manufacturer          varchar(50),
+    custom_model                 varchar(50),
+    custom_owner                 varchar(50),
+    custom_civil_code            varchar(50),
+    custom_block                 varchar(50),
+    custom_address               varchar(50),
+    custom_parental              integer,
+    custom_parent_id             varchar(50),
+    custom_safety_way            integer,
+    custom_register_way          integer,
+    custom_cert_num              varchar(50),
+    custom_certifiable           integer,
+    custom_err_code              integer,
+    custom_end_time              varchar(50),
+    custom_secrecy               integer,
+    custom_ip_address            varchar(50),
+    custom_port                  integer,
+    custom_password              varchar(255),
+    custom_status                varchar(50),
+    custom_longitude             double precision,
+    custom_latitude              double precision,
+    custom_ptz_type              integer,
+    custom_position_type         integer,
+    custom_room_type             integer,
+    custom_use_type              integer,
+    custom_supply_light_type     integer,
+    custom_direction_type        integer,
+    custom_resolution            varchar(255),
+    custom_business_group_id     varchar(255),
+    custom_download_speed        varchar(255),
+    custom_svc_space_support_mod integer,
+    custom_svc_time_support_mode integer,
+    constraint uk_platform_gb_channel_platform_id_catalog_id_device_channel_id unique (platform_id, device_channel_id),
+    constraint uk_platform_gb_channel_device_id unique (custom_device_id)
+);
+
+drop table IF EXISTS wvp_platform_group;
+create table IF NOT EXISTS wvp_platform_group
+(
+    id          bigint primary key auto_increment,
+    platform_id integer,
+    group_id    integer,
+    constraint uk_wvp_platform_group_platform_id_group_id unique (platform_id, group_id)
+);
+
+drop table IF EXISTS wvp_platform_region;
+create table IF NOT EXISTS wvp_platform_region
+(
+    id          bigint primary key auto_increment,
+    platform_id integer,
+    region_id   integer,
+    constraint uk_wvp_platform_region_platform_id_group_id unique (platform_id, region_id)
+);
+
+drop table IF EXISTS wvp_stream_proxy;
+create table IF NOT EXISTS wvp_stream_proxy
+(
+    id                         bigint primary key auto_increment,
+    type                       varchar(50),
+    app                        varchar(255),
+    stream                     varchar(255),
+    src_url                    varchar(255),
+    timeout                    integer,
+    ffmpeg_cmd_key             varchar(255),
+    rtsp_type                  varchar(50),
+    media_server_id            varchar(50),
+    enable_audio               tinyint(1) default false,
+    enable_mp4                 tinyint(1) default false,
+    pulling                    tinyint(1) default false,
+    enable                     tinyint(1) default false,
+    enable_remove_none_reader  tinyint(1) default false,
+    create_time                varchar(50),
+    name                       varchar(255),
+    update_time                varchar(50),
+    stream_key                 varchar(255),
+    server_id                  varchar(50),
+    enable_disable_none_reader tinyint(1) default false,
+    relates_media_server_id    varchar(50),
+    constraint uk_stream_proxy_app_stream unique (app, stream)
+);
+
+drop table IF EXISTS wvp_stream_push;
+create table IF NOT EXISTS wvp_stream_push
+(
+    id                 bigint primary key auto_increment,
+    app                varchar(255),
+    stream             varchar(255),
+    create_time        varchar(50),
+    media_server_id    varchar(50),
+    server_id          varchar(50),
+    push_time          varchar(50),
+    status             tinyint(1) default false,
+    update_time        varchar(50),
+    pushing            tinyint(1) default false,
+    self               tinyint(1) default false,
+    start_offline_push tinyint(1) default true,
+    constraint uk_stream_push_app_stream unique (app, stream)
+);
+
+drop table IF EXISTS wvp_cloud_record;
+create table IF NOT EXISTS wvp_cloud_record
+(
+    id              bigint primary key auto_increment,
+    app             varchar(255),
+    stream          varchar(255),
+    call_id         varchar(255),
+    start_time      bigint,
+    end_time        bigint,
+    media_server_id varchar(50),
+    server_id       varchar(50),
+    file_name       varchar(255),
+    folder          varchar(500),
+    file_path       varchar(500),
+    collect         tinyint(1) default false,
+    file_size       bigint,
+    time_len        double precision
+);
+
+drop table IF EXISTS wvp_user;
+create table IF NOT EXISTS wvp_user
+(
+    id          bigint primary key auto_increment,
+    username    varchar(255),
+    password    varchar(255),
+    role_id     integer,
+    create_time varchar(50),
+    update_time varchar(50),
+    push_key    varchar(50),
+    constraint uk_user_username unique (username)
+);
+
+drop table IF EXISTS wvp_user_role;
+create table IF NOT EXISTS wvp_user_role
+(
+    id          bigint primary key auto_increment,
+    name        varchar(50),
+    authority   varchar(50),
+    create_time varchar(50),
+    update_time varchar(50)
+);
+
+
+drop table IF EXISTS wvp_user_api_key;
+create table IF NOT EXISTS wvp_user_api_key
+(
+    id          bigint primary key auto_increment,
+    user_id     bigint,
+    app         varchar(255),
+    api_key     text,
+    expired_at  bigint,
+    remark      varchar(255),
+    enable      tinyint(1) default true,
+    create_time varchar(50),
+    update_time varchar(50)
+);
+
+
+/*初始数据*/
+INSERT INTO wvp_user
+VALUES (1, 'admin', '21232f297a57a5a743894a0e4a801fc3', 1, '2021-04-13 14:14:57', '2021-04-13 14:14:57',
+        '3e80d1762a324d5b0ff636e0bd16f1e3');
+INSERT INTO wvp_user_role
+VALUES (1, 'admin', '0', '2021-04-13 14:14:57', '2021-04-13 14:14:57');
+
+drop table IF EXISTS wvp_common_group;
+create table IF NOT EXISTS wvp_common_group
+(
+    id               bigint primary key auto_increment,
+    device_id        varchar(50)  NOT NULL,
+    name             varchar(255) NOT NULL,
+    parent_id        int,
+    parent_device_id varchar(50) DEFAULT NULL,
+    business_group   varchar(50)  NOT NULL,
+    create_time      varchar(50)  NOT NULL,
+    update_time      varchar(50)  NOT NULL,
+    civil_code       varchar(50) default null,
+    constraint uk_common_group_device_platform unique (device_id)
+);
+
+drop table IF EXISTS wvp_common_region;
+create table IF NOT EXISTS wvp_common_region
+(
+    id               bigint primary key auto_increment,
+    device_id        varchar(50)  NOT NULL,
+    name             varchar(255) NOT NULL,
+    parent_id        int,
+    parent_device_id varchar(50) DEFAULT NULL,
+    create_time      varchar(50)  NOT NULL,
+    update_time      varchar(50)  NOT NULL,
+    constraint uk_common_region_device_id unique (device_id)
+);
+
+drop table IF EXISTS wvp_record_plan;
+create table IF NOT EXISTS wvp_record_plan
+(
+    id              bigint primary key auto_increment,
+    snap            tinyint(1) default false,
+    name            varchar(255) NOT NULL,
+    create_time     varchar(50),
+    update_time     varchar(50)
+);
+
+drop table IF EXISTS wvp_record_plan_item;
+create table IF NOT EXISTS wvp_record_plan_item
+(
+    id              bigint primary key auto_increment,
+    start           int,
+    stop            int,
+    week_day        int,
+    plan_id         int,
+    create_time     varchar(50),
+    update_time     varchar(50)
+);
+

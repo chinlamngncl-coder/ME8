@@ -51,6 +51,9 @@
         var pinVideoDockSyncTimer = null;
         var pinVideoSyncTimers = Object.create(null);
         var pinVideoStoppedByUser = Object.create(null);
+        var bwcLiveRecordingByCam = Object.create(null);
+        var bwcRecDotStyleInstalled = false;
+        var bwcRecDotSyncTimers = Object.create(null);
 
         function markPinVideoUserStop(camId) {
             if (!camId) return;
@@ -284,6 +287,7 @@
                 btn.hidden = !live;
                 btn.disabled = !live;
             });
+            syncAllBwcLiveRecordingRecDots();
         }
         window.fixIdleSlotCallButtons = fixIdleSlotCallButtons;
 
@@ -291,7 +295,10 @@
             if (!method) return method;
             return function () {
                 var out = method.apply(this, arguments);
-                setTimeout(fixIdleSlotCallButtons, 0);
+                setTimeout(function () {
+                    fixIdleSlotCallButtons();
+                    syncAllBwcLiveRecordingRecDots();
+                }, 0);
                 return out;
             };
         }
@@ -303,6 +310,7 @@
                 setTimeout(function () {
                     if (typeof closePinPopupsWithoutWallPlayer === 'function') closePinPopupsWithoutWallPlayer();
                     fixIdleSlotCallButtons();
+                    syncAllBwcLiveRecordingRecDots();
                 }, 200);
             };
         }
@@ -315,13 +323,17 @@
         if (VideoWall.notifyStreamStopped) VideoWall.notifyStreamStopped = wrapVideoWallCallUi(VideoWall.notifyStreamStopped.bind(VideoWall));
         if (VideoWall.stopAllVideo) VideoWall.stopAllVideo = wrapVideoWallCallUi(VideoWall.stopAllVideo.bind(VideoWall));
         setTimeout(fixIdleSlotCallButtons, 0);
-        setTimeout(fixIdleSlotCallButtons, 400);
+        setTimeout(function () {
+            fixIdleSlotCallButtons();
+            syncAllBwcLiveRecordingRecDots();
+        }, 400);
 
         BwcDevices.init().then(function () {
             return VideoConfig.init();
         }).then(function () {
             if (typeof VideoWall.relabelWallSlots === 'function') VideoWall.relabelWallSlots();
             if (typeof fixIdleSlotCallButtons === 'function') fixIdleSlotCallButtons();
+            syncAllBwcLiveRecordingRecDots();
         });
 
         function applyDashboardSession(data) {
@@ -495,6 +507,11 @@
                 merged.deviceTime = prevCache.deviceTime;
             }
             window.globalTelemetryCache[data.cameraId] = merged;
+            if (data.recording != null) {
+                // This BWC reports Record ON for HQ live encode too; do not show REC from DeviceStatus alone.
+                updateBwcRecordingState(data.cameraId, false);
+                scheduleBwcLiveRecordingRecDotSync(data.cameraId);
+            }
 
             var root = mapPopupRootForCam(data.cameraId);
             if (!root) return;
@@ -584,6 +601,112 @@
         }
         window.showMapPinToast = showMapPinToast;
 
+        function companionButtonLabel(data) {
+            var raw = String((data && (data.event || data.button)) || '').trim();
+            if (!raw) return 'BWC button';
+            return raw
+                .replace(/^KEYCODE_/, '')
+                .replace(/^BUTTON_/, '')
+                .replace(/_PRESSED$/, '')
+                .replace(/_/g, ' ');
+        }
+
+        function showCompanionButtonEvent(data) {
+            if (!data || !data.cameraId) return;
+            var camId = normalizeCamId(data.cameraId);
+            var who = (typeof FleetDisplay !== 'undefined' && FleetDisplay.friendlyDeviceName)
+                ? FleetDisplay.friendlyDeviceName(camId)
+                : ('BWC #' + String(camId).slice(-4));
+            showMapPinToast('BWC button · ' + companionButtonLabel(data) + ' · ' + who);
+            if (typeof console !== 'undefined' && console.info) {
+                console.info('[BWC companion button]', data);
+            }
+        }
+
+        function bwcActivityLabel(data) {
+            var label = String((data && data.label) || '').trim();
+            if (label) return label;
+            if (data && data.kind === 'recording') return data.state === 'off' ? 'Recording stopped' : 'Recording started';
+            if (data && data.kind === 'audio') return data.state === 'off' ? 'Audio stopped' : 'Audio started';
+            return 'BWC activity';
+        }
+
+        function styleBwcActivityOverlay(el) {
+            el.style.position = 'absolute';
+            el.style.left = '10px';
+            el.style.right = '10px';
+            el.style.bottom = '10px';
+            el.style.zIndex = '24';
+            el.style.padding = '8px 10px';
+            el.style.borderRadius = '8px';
+            el.style.border = '1px solid rgba(250, 204, 21, 0.75)';
+            el.style.background = 'rgba(113, 63, 18, 0.92)';
+            el.style.color = '#fef3c7';
+            el.style.fontSize = '12px';
+            el.style.fontWeight = '800';
+            el.style.letterSpacing = '0.04em';
+            el.style.textAlign = 'center';
+            el.style.textTransform = 'uppercase';
+            el.style.boxShadow = '0 8px 24px rgba(0,0,0,0.45)';
+            el.style.pointerEvents = 'none';
+            el.style.opacity = '0';
+            el.style.transition = 'opacity 0.18s ease';
+        }
+
+        function flashBwcActivityOverlay(host, message) {
+            if (!host || !message) return false;
+            var el = host.querySelector('.bwc-activity-live-overlay');
+            if (!el) {
+                el = document.createElement('div');
+                el.className = 'bwc-activity-live-overlay';
+                el.setAttribute('role', 'status');
+                el.setAttribute('aria-live', 'polite');
+                styleBwcActivityOverlay(el);
+                host.appendChild(el);
+            }
+            el.textContent = message;
+            el.style.opacity = '1';
+            if (el._bwcActivityTimer) clearTimeout(el._bwcActivityTimer);
+            el._bwcActivityTimer = setTimeout(function () {
+                el.style.opacity = '0';
+            }, 4600);
+            return true;
+        }
+
+        function showBwcActivityTag(data) {
+            if (!data || !data.cameraId) return;
+            var camId = normalizeCamId(data.cameraId);
+            if (data.kind === 'recording') {
+                updateBwcRecordingState(camId, data.state);
+                scheduleBwcLiveRecordingRecDotSync(camId);
+                return;
+            }
+            var who = (typeof FleetDisplay !== 'undefined' && FleetDisplay.friendlyDeviceName)
+                ? FleetDisplay.friendlyDeviceName(camId)
+                : ('BWC #' + String(camId).slice(-4));
+            var message = bwcActivityLabel(data) + ' - ' + who;
+            var shown = false;
+
+            document.querySelectorAll('.video-slot[data-slot]').forEach(function (slotEl) {
+                if (normalizeCamId(slotOwnCamId(slotEl)) !== camId) return;
+                if (typeof VideoWall !== 'undefined' && VideoWall.isLiveCamId && !VideoWall.isLiveCamId(camId)) return;
+                var stage = slotEl.querySelector('.video-slot-stage');
+                if (stage) shown = flashBwcActivityOverlay(stage, message) || shown;
+            });
+
+            var root = mapPopupRootForCam(camId);
+            if (root) {
+                var mapLive = typeof VideoWall !== 'undefined' && VideoWall.mapPinHasLiveVideo && VideoWall.mapPinHasLiveVideo(camId);
+                var host = root.querySelector('.map-pin-video') || root.querySelector('.vid-box');
+                if (mapLive && host) shown = flashBwcActivityOverlay(host, message) || shown;
+            }
+
+            if (shown) showMapPinToast('Live BWC activity - ' + message);
+            if (typeof console !== 'undefined' && console.info) {
+                console.info('[BWC activity tag]', data);
+            }
+        }
+
         function isMapViewportNarrow() {
             return window.innerWidth < MAP_VIEWPORT_NARROW_PX;
         }
@@ -645,6 +768,148 @@
 
         function normalizeCamId(camId) {
             return String(camId || '').trim();
+        }
+
+        function bwcRecordingState(value) {
+            if (value === true || value === 1) return true;
+            if (value === false || value === 0) return false;
+            var text = String(value == null ? '' : value).trim().toLowerCase();
+            if (!text || text === '—' || text === '--') return null;
+            if (['1', 'true', 'on', 'yes', 'started', 'recording', 'active'].indexOf(text) >= 0) return true;
+            if (['0', 'false', 'off', 'no', 'stopped', 'idle', 'inactive'].indexOf(text) >= 0) return false;
+            return null;
+        }
+
+        function updateBwcRecordingState(camId, value) {
+            var id = normalizeCamId(camId);
+            if (!id) return null;
+            var state = bwcRecordingState(value);
+            if (state !== null) bwcLiveRecordingByCam[id] = state;
+            return state;
+        }
+
+        function cachedBwcRecordingState(camId) {
+            var id = normalizeCamId(camId);
+            if (!id) return false;
+            if (Object.prototype.hasOwnProperty.call(bwcLiveRecordingByCam, id)) {
+                return !!bwcLiveRecordingByCam[id];
+            }
+            var cache = window.globalTelemetryCache && window.globalTelemetryCache[id];
+            var state = cache ? bwcRecordingState(cache.recording) : null;
+            if (state !== null) {
+                bwcLiveRecordingByCam[id] = state;
+                return state;
+            }
+            return false;
+        }
+
+        function ensureBwcRecDotStyle() {
+            if (bwcRecDotStyleInstalled || document.getElementById('bwc-live-rec-dot-style')) {
+                bwcRecDotStyleInstalled = true;
+                return;
+            }
+            var style = document.createElement('style');
+            style.id = 'bwc-live-rec-dot-style';
+            style.textContent = ''
+                + '.bwc-live-rec-dot{position:absolute;top:8px;left:8px;z-index:26;display:inline-flex;'
+                + 'align-items:center;gap:5px;padding:3px 7px;border-radius:999px;border:1px solid rgba(248,113,113,.85);'
+                + 'background:rgba(127,29,29,.94);color:#fecaca;font:800 10px/1.1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;'
+                + 'letter-spacing:.08em;text-transform:uppercase;box-shadow:0 6px 16px rgba(0,0,0,.45);pointer-events:none}'
+                + '.bwc-live-rec-dot[hidden]{display:none!important}'
+                + '.bwc-live-rec-dot:before{content:"";width:6px;height:6px;border-radius:999px;background:#ef4444;'
+                + 'box-shadow:0 0 10px rgba(248,113,113,.95);animation:bwcLiveRecPulse 1s ease-in-out infinite}'
+                + '@keyframes bwcLiveRecPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.72)}}';
+            document.head.appendChild(style);
+            bwcRecDotStyleInstalled = true;
+        }
+
+        function setBwcRecDot(host, visible) {
+            if (!host) return;
+            ensureBwcRecDotStyle();
+            var dot = host.querySelector('.bwc-live-rec-dot');
+            if (!dot) {
+                dot = document.createElement('span');
+                dot.className = 'bwc-live-rec-dot';
+                dot.textContent = 'REC';
+                dot.setAttribute('aria-label', 'Recording');
+                dot.hidden = true;
+                host.appendChild(dot);
+            }
+            var pos = '';
+            try { pos = window.getComputedStyle(host).position; } catch (_) { pos = ''; }
+            if (!pos || pos === 'static') host.style.position = 'relative';
+            dot.hidden = !visible;
+        }
+
+        function slotHasBwcRecDotHost(slotEl, camId) {
+            if (!slotEl || !camId) return false;
+            if (typeof VideoWall !== 'undefined') {
+                if (VideoWall.wallHasPlayerForCam && VideoWall.wallHasPlayerForCam(camId)) return true;
+                if (VideoWall.isCameraLive && VideoWall.isCameraLive(camId)) return true;
+            }
+            var stage = slotEl.querySelector('.video-slot-stage');
+            if (stage && stage.querySelector('canvas, video')) return true;
+            var st = slotEl.querySelector('.video-slot-status');
+            var label = st && st.textContent ? st.textContent.trim().toLowerCase() : '';
+            return !!(label && ['idle', 'stopped', 'offline'].indexOf(label) < 0);
+        }
+
+        function mapPinHasBwcRecDotHost(host, camId) {
+            if (!host || !camId) return false;
+            if (host.classList.contains('map-pin-has-live') || host.classList.contains('vid-box-live')) return true;
+            if (host.querySelector('canvas, video')) return true;
+            return !!(typeof VideoWall !== 'undefined' && VideoWall.mapPinHasLiveVideo && VideoWall.mapPinHasLiveVideo(camId));
+        }
+
+        function syncBwcLiveRecordingRecDots(camId) {
+            var id = normalizeCamId(camId);
+            if (!id) return;
+            var recording = cachedBwcRecordingState(id);
+            document.querySelectorAll('.video-slot[data-slot]').forEach(function (slotEl) {
+                if (normalizeCamId(slotOwnCamId(slotEl)) !== id) return;
+                var stage = slotEl.querySelector('.video-slot-stage');
+                setBwcRecDot(stage, recording && slotHasBwcRecDotHost(slotEl, id));
+            });
+            var root = mapPopupRootForCam(id);
+            if (root) {
+                var host = root.querySelector('.map-pin-video') || root.querySelector('.vid-box');
+                setBwcRecDot(host, recording && mapPinHasBwcRecDotHost(host, id));
+            }
+        }
+
+        function scheduleBwcLiveRecordingRecDotSync(camId) {
+            var id = normalizeCamId(camId);
+            if (!id) return;
+            if (bwcRecDotSyncTimers[id]) {
+                bwcRecDotSyncTimers[id].forEach(function (t) { clearTimeout(t); });
+            }
+            syncBwcLiveRecordingRecDots(id);
+            bwcRecDotSyncTimers[id] = [120, 450, 1000, 2200].map(function (ms) {
+                return setTimeout(function () {
+                    syncBwcLiveRecordingRecDots(id);
+                }, ms);
+            });
+        }
+
+        function syncAllBwcLiveRecordingRecDots() {
+            var seen = Object.create(null);
+            Object.keys(bwcLiveRecordingByCam).forEach(function (id) {
+                seen[normalizeCamId(id)] = true;
+            });
+            if (window.globalTelemetryCache) {
+                Object.keys(window.globalTelemetryCache).forEach(function (id) {
+                    seen[normalizeCamId(id)] = true;
+                });
+            }
+            document.querySelectorAll('.video-slot[data-slot]').forEach(function (slotEl) {
+                var id = normalizeCamId(slotOwnCamId(slotEl));
+                if (id) seen[id] = true;
+            });
+            getOpenPinCamIds().forEach(function (id) {
+                id = normalizeCamId(id);
+                if (id) seen[id] = true;
+            });
+            Object.keys(seen).forEach(syncBwcLiveRecordingRecDots);
         }
 
         var recentlyAckedSosByCam = {};
@@ -2201,6 +2466,7 @@
                 if (typeof VideoWall !== 'undefined' && VideoWall.updateMapPinStopButton) {
                     VideoWall.updateMapPinStopButton(camId);
                 }
+                syncBwcLiveRecordingRecDots(camId);
             });
         }
 
@@ -3152,6 +3418,7 @@
             if (typeof VideoWall !== 'undefined' && VideoWall.updateMapPinStopButton) {
                 VideoWall.updateMapPinStopButton(id);
             }
+            syncBwcLiveRecordingRecDots(id);
         }
 
         var canMapDeviceControl = false;
@@ -3471,6 +3738,12 @@
             FleetUi.onDeviceStatus(data);
             setTelemetryUi(data);
         });
+        socket.on('bwc-companion-button-event', function (data) {
+            showCompanionButtonEvent(data);
+        });
+        socket.on('bwc-activity-tag', function (data) {
+            showBwcActivityTag(data);
+        });
 
         function applyGpsMapUpdate(camId, lat, lon, isSos, online) {
             upsertDeviceMarker(camId, lat, lon, isSos, false, online);
@@ -3641,9 +3914,11 @@
             if (!banner) return;
             if (!n) {
                 banner.style.display = 'none';
+                document.body.classList.remove('sos-incident-active');
                 return;
             }
             banner.style.display = 'flex';
+            document.body.classList.add('sos-incident-active');
             var alarm = getFocusedSosAlarm();
             if (!alarm) return;
             pendingSosAck = alarm;
@@ -5315,6 +5590,7 @@
                 body: '{}',
             }).catch(function () { /* ignore */ });
             document.getElementById('sos-banner').style.display = 'none';
+            document.body.classList.remove('sos-incident-active');
             sosIncidentActive = false;
             activeAlarmKind = 'sos';
             pendingSosAck = null;

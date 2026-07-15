@@ -1,6 +1,6 @@
 # MOB DISC — FR Map / Go to map · Ops pin focus · officer live video
 
-**Status:** DISC only — **2026-07-11**  
+**Status:** DISC only — **2026-07-11** (`mob-fr-hit-gps-on-emit` APPLIED; `mob-fr-map-focus-pin` APPLIED)  
 **Trigger:** Operator — Map / Go to map click does nothing; should jump Ops and zoom catching BWC pin for live video  
 **Search:** Map button, Go to map, showFrSnapOnMap, goOpsOnHit, pin focus, SOS parity  
 **Related:** `MOB-DISC-FR-ALERT-GO-OPS-MAP.md`, `MOB-DISC-FR-ALERT-UX-SOP-INDUSTRY-SOS-PARITY.md`

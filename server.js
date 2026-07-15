@@ -12,6 +12,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 
 const fs = require('fs');
+const crypto = require('crypto');
 const { spawn } = require('child_process');
 
 const WebSocket = require('ws');
@@ -20,6 +21,7 @@ const hdaMsg = require('./lib/hdaMessageProtocol');
 
 const mediaSession = require('./lib/mediaSession');
 const liveStreamPool = require('./lib/liveStreamPool');
+const liveMediaAdapter = require('./lib/liveMediaAdapter');
 const { createLiveVoiceHint } = require('./lib/liveVoiceHint');
 const liveViewers = require('./lib/liveViewers');
 const DASHBOARD_MAX_LIVE = parseInt(process.env.FM_MAX_CONCURRENT_LIVE || '8', 10) || 8;
@@ -37,13 +39,21 @@ const multer = require('multer');
 const log = require('./lib/fleetLog');
 
 process.on('uncaughtException', (err) => {
+    // mob-sec-epipe-log-guard: stdout/stderr broken pipes can throw while logging.
+    // Do not log EPIPE back through console/fleetLog, or Fleet can loop red text.
+    if (err && err.code === 'EPIPE' && err.syscall === 'write') {
+        return;
+    }
+
     try {
         log.web.err('uncaughtException — process kept alive', {
             message: err && err.message,
             stack: err && err.stack ? String(err.stack).split('\n').slice(0, 6).join(' | ') : null,
         });
     } catch (_) {
-        console.error('uncaughtException', err);
+        try {
+            process.stderr.write('Fatal uncaughtException: ' + (err && err.message ? err.message : '') + '\n');
+        } catch (__) { /* ignore */ }
     }
 });
 
@@ -100,9 +110,10 @@ const faceTrackSidecar = require('./lib/faceTrackSidecar');
 const frSidecarClient = require('./lib/frSidecarClient');
 const frVerifyErrors = require('./lib/frVerifyErrors');
 const frBlacklist = require('./lib/frBlacklist');
-const frEnrollQuality = require('./lib/frEnrollQuality');
 const frLivePoller = require('./lib/frLivePoller');
 const frSnapLedger = require('./lib/frSnapLedger');
+const frKeptEvidence = require('./lib/frKeptEvidence');
+const frMatchDebug = require('./lib/frMatchDebug');
 const frOfflineVideo = require('./lib/frOfflineVideo');
 const frFieldAlert = require('./lib/frFieldAlert');
 const faceRedactRegions = require('./lib/faceRedactRegions');
@@ -163,6 +174,40 @@ const mapGeocode = require('./lib/mapGeocode');
 const BASE_DIR = __dirname;
 const FACE_PLATE_DIR = path.join(BASE_DIR, 'storage', 'face-plate');
 const STORAGE_DIR = path.join(BASE_DIR, 'storage');
+const FR_SETTINGS_FILE = path.join(STORAGE_DIR, 'fr-settings.json');
+const FR_MATCH_THRESHOLD_DEFAULT = Math.max(70, Math.min(99, parseInt(process.env.FM_FR_MATCH_MIN || '75', 10) || 75));
+
+function normalizeFrMatchThreshold(value) {
+    const n = parseInt(value, 10);
+    if (!Number.isFinite(n)) return FR_MATCH_THRESHOLD_DEFAULT;
+    return Math.max(70, Math.min(99, n));
+}
+
+function loadFrSettings() {
+    try {
+        const raw = JSON.parse(fs.readFileSync(FR_SETTINGS_FILE, 'utf8'));
+        return {
+            matchThreshold: normalizeFrMatchThreshold(raw && raw.matchThreshold),
+            updatedAt: raw && raw.updatedAt || null,
+            updatedBy: raw && raw.updatedBy || null,
+        };
+    } catch (_) {
+        return {
+            matchThreshold: FR_MATCH_THRESHOLD_DEFAULT,
+            updatedAt: null,
+            updatedBy: null,
+        };
+    }
+}
+
+function saveFrSettings(next) {
+    const current = loadFrSettings();
+    const out = Object.assign({}, current, next || {});
+    out.matchThreshold = normalizeFrMatchThreshold(out.matchThreshold);
+    try { fs.mkdirSync(STORAGE_DIR, { recursive: true }); } catch (_) { /* ignore */ }
+    fs.writeFileSync(FR_SETTINGS_FILE, JSON.stringify(out, null, 2), 'utf8');
+    return out;
+}
 
 try {
     const vaultAcl = serverSecrets.ensureVaultAtRest(STORAGE_DIR);
@@ -225,6 +270,7 @@ if (process.env.FM_LLM_WARMUP === '1') {
 dashboardAuth.init(STORAGE_DIR);
 dockRegistry.init(STORAGE_DIR);
 frBlacklist.init(STORAGE_DIR);
+frKeptEvidence.init(STORAGE_DIR);
 dispatchGroups.init(STORAGE_DIR);
 firmwareOta.init({
     vendorRoot: path.join(__dirname, 'vendor', 'firmware-ota'),
@@ -262,6 +308,7 @@ const HTTP_PORT = parseInt(process.env.FM_HTTP_PORT || process.env.PORT || '3888
 /** Optional PIN to open SOS log detail (full notes). Empty = no lock. Set FM_SOS_LEDGER_PIN in .env */
 const SOS_LEDGER_PIN = (process.env.FM_SOS_LEDGER_PIN || '').trim();
 const HTTPS_UPLOAD_TOKEN = (process.env.FM_HTTPS_UPLOAD_TOKEN || '').trim();
+const BWC_COMPANION_TOKEN = (process.env.FM_BWC_COMPANION_TOKEN || '').trim();
 const VIDEO_WS_PORT = parseInt(process.env.FM_VIDEO_WS_PORT || String(HTTP_PORT + 1), 10);
 const AUDIO_WS_PORT = parseInt(process.env.FM_AUDIO_WS_PORT || String(HTTP_PORT + 2), 10);
 const PTT_ENABLED = process.env.FM_PTT_ENABLED === '1';
@@ -480,6 +527,8 @@ liveStreamPool.setOnVideoDecode((camId) => {
             }
         }
         schedulePttGroupRefreshForCam(camId, 'stream-decode');
+        /* Gate C: ZLM side path only — wall stays pool/JSMpeg until Gate D. */
+        liveMediaAdapter.onPoolLive(camId, { host: HOST, videoWsPort: VIDEO_WS_PORT });
     }
     liveViewers.notifyStreamReady(io, camId);
 });
@@ -1374,6 +1423,7 @@ app.get('/api/auth/session', (req, res) => {
         permissions: dashboardAuth.getPermissionsForSession(session),
         dispatchScope: dispatchScopePayloadForSession(session),
         ...dashboardAuth.recoveryEmailSessionPayload(user),
+        labWvp: String(process.env.FM_LAB_WVP || '').trim() === '1',
     });
 });
 
@@ -1396,13 +1446,36 @@ app.post('/api/tech/login', loginRateLimit, techAccess.loginHandler(log));
 app.post('/api/tech/logout', techAccess.logoutHandler);
 app.get('/api/tech/session', techAccess.sessionHandler);
 
-app.get('/api/tech/health', techAccess.requireTechAuth, (req, res) => {
+app.get('/api/tech/health', techAccess.requireTechAuth, async (req, res) => {
     try {
-        res.json({ ok: true, health: platformHealth.collectHealth(techHealthDeps()) });
+        const health = platformHealth.collectHealth(techHealthDeps());
+        /* mob-tech-health-fr-engine-card — plain OK/Down/Off; no vendor names in payload labels */
+        health.fr = await collectFrEngineHealthForTech();
+        res.json({ ok: true, health });
     } catch (err) {
         res.status(500).json(opErr(err));
     }
 });
+
+async function collectFrEngineHealthForTech() {
+    const featureEnabled = !!licenseFeatures.isFeatureEnabled('fr');
+    if (!featureEnabled) {
+        return { status: 'off', featureEnabled: false, ok: false };
+    }
+    let runtime = null;
+    try {
+        runtime = await frSidecarClient.health();
+    } catch (_) {
+        runtime = null;
+    }
+    const ok = !!(runtime && runtime.ok);
+    return {
+        status: ok ? 'ok' : 'down',
+        featureEnabled: true,
+        ok: ok,
+        engine: runtime && runtime.engine ? String(runtime.engine) : frSidecarClient.activeEngine(),
+    };
+}
 
 function sendLiveViewerTelemetry(res) {
     try {
@@ -1606,6 +1679,10 @@ app.get('/api/auth-audit-ship-checklist', dashboardAuth.requireSuperAdmin, (req,
 });
 
 gisOffline.registerGisOfflineRoutes(app);
+
+app.post('/api/bwc-companion/sos-trigger', requireBwcCompanionToken, handleBwcCompanionSosTrigger);
+app.post('/api/bwc-companion/button-event', requireBwcCompanionToken, handleBwcCompanionButtonEvent);
+app.post('/api/bwc-companion/telemetry', requireBwcCompanionToken, handleBwcCompanionTelemetry);
 
 app.use(dashboardAuth.requireDashboardAuth);
 
@@ -2126,6 +2203,231 @@ app.post('/api/bwc-devices', (req, res) => {
         res.status(500).json(opErr(err));
     }
 });
+
+function companionTokenFromRequest(req) {
+    const auth = String((req.headers && req.headers.authorization) || '').trim();
+    if (/^Bearer\s+/i.test(auth)) return auth.replace(/^Bearer\s+/i, '').trim();
+    return String((req.headers && req.headers['x-bwc-companion-token']) || '').trim();
+}
+
+function secureTokenEqual(actual, expected) {
+    if (!actual || !expected) return false;
+    const a = Buffer.from(String(actual), 'utf8');
+    const b = Buffer.from(String(expected), 'utf8');
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function requireBwcCompanionToken(req, res, next) {
+    if (!BWC_COMPANION_TOKEN) {
+        return res.status(503).json(opErr("bwc_companion_not_configured"));
+    }
+    if (!secureTokenEqual(companionTokenFromRequest(req), BWC_COMPANION_TOKEN)) {
+        log.web.warn('bwc companion auth rejected', { ip: req.ip || null });
+        return res.status(401).json(opErr("Unauthorized"));
+    }
+    return next();
+}
+
+function companionCamId(body) {
+    const id = String((body && (body.cameraId || body.camId || body.deviceId)) || '').trim();
+    if (!id || !isBwcCameraId(id)) {
+        const err = new Error('valid_bwc_camera_id_required');
+        err.status = 400;
+        throw err;
+    }
+    return id;
+}
+
+function normalizeCompanionBattery(body) {
+    const raw = body && (
+        body.battery != null ? body.battery
+            : body.batteryPct != null ? body.batteryPct
+                : body.batteryPercent != null ? body.batteryPercent
+                    : body.level
+    );
+    if (raw == null || raw === '') return null;
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+        const pct = raw > 0 && raw <= 1 ? Math.round(raw * 100) : Math.round(raw);
+        if (pct >= 0 && pct <= 100) return pct + '%';
+    }
+    const text = String(raw).trim();
+    if (!text) return null;
+    const n = parseFloat(text.replace('%', ''));
+    if (Number.isFinite(n) && n >= 0 && n <= 100) return Math.round(n) + '%';
+    return text.slice(0, 24);
+}
+
+function companionBool01(value) {
+    if (value === true || value === 1) return '1';
+    if (value === false || value === 0) return '0';
+    const text = String(value == null ? '' : value).trim().toLowerCase();
+    if (['1', 'true', 'on', 'yes', 'start', 'started', 'recording'].includes(text)) return '1';
+    if (['0', 'false', 'off', 'no', 'stop', 'stopped', 'idle'].includes(text)) return '0';
+    return null;
+}
+
+function normalizeCompanionButton(body) {
+    const raw = String((body && (body.button || body.key || body.keyName || body.keyCode || body.event)) || '').trim();
+    const upper = raw.toUpperCase();
+    const numeric = {
+        '131': 'KEYCODE_F1',
+        '132': 'KEYCODE_F2',
+        '133': 'KEYCODE_F3',
+        '134': 'KEYCODE_F4',
+        '137': 'KEYCODE_F7',
+    };
+    if (numeric[upper]) return numeric[upper];
+    if (/^(KEYCODE_)?F[12347]$/.test(upper)) return upper.startsWith('KEYCODE_') ? upper : 'KEYCODE_' + upper;
+    if (/^BUTTON_F[12347]$/.test(upper)) return 'KEYCODE_' + upper.replace('BUTTON_', '');
+    return upper.slice(0, 48);
+}
+
+function companionAction(body) {
+    const raw = String((body && body.action) || '').trim().toUpperCase();
+    if (raw === 'DOWN' || raw === 'ACTION_DOWN') return 'ACTION_DOWN';
+    if (raw === 'UP' || raw === 'ACTION_UP') return 'ACTION_UP';
+    return raw || 'ACTION_DOWN';
+}
+
+function companionButtonTelemetry(body) {
+    const eventText = String((body && (body.event || body.eventName || body.mediaState || body.state)) || '').toUpperCase();
+    const updates = {};
+    const recordingExplicit = companionBool01(body && (body.recording != null ? body.recording : body.videoRecording));
+    const audioExplicit = companionBool01(body && body.audio);
+    if (recordingExplicit != null) updates.recording = recordingExplicit;
+    if (audioExplicit != null) updates.audio = audioExplicit;
+
+    if (updates.recording == null && /(VIDEO|RECORD)/.test(eventText)) {
+        if (/(STOP|OFF|END|FALSE|0)/.test(eventText)) updates.recording = '0';
+        else if (/(START|ON|PRESS|TRUE|1)/.test(eventText)) updates.recording = '1';
+    }
+    if (updates.audio == null && /AUDIO/.test(eventText)) {
+        if (/(STOP|OFF|END|FALSE|0)/.test(eventText)) updates.audio = '0';
+        else if (/(START|ON|PRESS|TRUE|1)/.test(eventText)) updates.audio = '1';
+    }
+    return updates;
+}
+
+function emitCompanionDeviceStatus(camId, updates, source) {
+    const cleanUpdates = updates || {};
+    const rec = fleetRegistry.ensure(camId);
+    const prev = (rec && rec.telemetry) || {};
+    const serverStamp = siteTime.formatEvidence(new Date());
+    const payload = Object.assign({}, prev, {
+        cameraId: camId,
+        battery: cleanUpdates.battery != null ? cleanUpdates.battery : (prev.battery || '—'),
+        signal: cleanUpdates.signal != null ? cleanUpdates.signal : (prev.signal || '—'),
+        recording: cleanUpdates.recording != null ? cleanUpdates.recording : (prev.recording != null ? prev.recording : '0'),
+        audio: cleanUpdates.audio != null ? cleanUpdates.audio : (prev.audio != null ? prev.audio : '0'),
+        callstate: cleanUpdates.callstate != null ? cleanUpdates.callstate : (prev.callstate != null ? prev.callstate : '0'),
+        volume: cleanUpdates.volume != null ? cleanUpdates.volume : (prev.volume || '—'),
+        antishake: cleanUpdates.antishake != null ? cleanUpdates.antishake : (prev.antishake != null ? prev.antishake : '0'),
+        appversion: cleanUpdates.appversion != null ? cleanUpdates.appversion : (prev.appversion || '—'),
+        deviceTime: serverStamp,
+        deviceTimeSource: 'server',
+        serverTime: serverStamp,
+        siteTimezone: siteTime.getTimezone(),
+        companionSource: source || 'bwc-companion',
+        companionUpdatedAt: new Date().toISOString(),
+    });
+    Object.keys(cleanUpdates).forEach((key) => {
+        if (payload[key] == null) payload[key] = cleanUpdates[key];
+    });
+    fleetRegistry.updateTelemetry(camId, payload);
+    observeBwcActivityStatus(camId, payload, source || 'bwc-companion');
+    emitToDashboardSockets('device-status', payload, camId);
+    return payload;
+}
+
+function handleBwcCompanionSosTrigger(req, res) {
+    try {
+        const body = req.body || {};
+        const camId = companionCamId(body);
+        const gps = lastGpsByCam[camId] || {};
+        const lat = body.lat != null ? body.lat : gps.lat;
+        const lon = body.lon != null ? body.lon : gps.lon;
+        touchDeviceOnline(camId);
+        const result = deviceAlarm.raiseDeviceAlarm({
+            cameraId: camId,
+            alarmKind: 'sos',
+            alarmTime: body.at || body.sentAt || new Date().toLocaleTimeString(),
+            lat: lat != null ? lat : null,
+            lon: lon != null ? lon : null,
+            source: 'bwc-companion',
+            alarmMethod: 'accessibility-key',
+            alarmType: normalizeCompanionButton(Object.assign({}, body, { button: body.button || 'KEYCODE_F4' })),
+        });
+        log.sip.info('bwc companion sos trigger', { camId, result });
+        res.json({ ok: true, cameraId: camId, result });
+    } catch (err) {
+        res.status(err.status || 500).json(opErr(err));
+    }
+}
+
+function handleBwcCompanionButtonEvent(req, res) {
+    try {
+        const body = req.body || {};
+        const camId = companionCamId(body);
+        const button = normalizeCompanionButton(body);
+        const action = companionAction(body);
+        if (!button) return res.status(400).json(opErr("button_required"));
+        touchDeviceOnline(camId);
+        const payload = {
+            ok: true,
+            cameraId: camId,
+            button,
+            action,
+            event: String(body.event || body.eventName || (button + '_' + action)).trim().slice(0, 80),
+            source: 'bwc-companion',
+            at: new Date().toISOString(),
+        };
+        const updates = companionButtonTelemetry(body);
+        let status = null;
+        if (Object.keys(updates).length) {
+            status = emitCompanionDeviceStatus(camId, updates, 'bwc-companion-button');
+        }
+        emitToDashboardSockets('bwc-companion-button-event', payload, camId);
+        log.sip.info('bwc companion button event', { camId, button, action, event: payload.event, updates });
+        res.json(Object.assign({}, payload, { statusUpdated: !!status }));
+    } catch (err) {
+        res.status(err.status || 500).json(opErr(err));
+    }
+}
+
+function handleBwcCompanionTelemetry(req, res) {
+    try {
+        const body = req.body || {};
+        const camId = companionCamId(body);
+        touchDeviceOnline(camId);
+        const battery = normalizeCompanionBattery(body);
+        const updates = {};
+        if (battery) {
+            updates.battery = battery;
+            mergeBatteryTelemetry(camId, battery, 'bwc-companion');
+        }
+        const charging = companionBool01(body.charging);
+        if (charging != null) updates.charging = charging;
+        ['storageFreeBytes', 'storageTotalBytes', 'voltageMv', 'temperatureC'].forEach((key) => {
+            if (body[key] != null) updates[key] = body[key];
+        });
+        const status = emitCompanionDeviceStatus(camId, updates, 'bwc-companion-telemetry');
+        const payload = {
+            ok: true,
+            cameraId: camId,
+            battery: battery || null,
+            charging: charging,
+            storageFreeBytes: body.storageFreeBytes != null ? body.storageFreeBytes : null,
+            storageTotalBytes: body.storageTotalBytes != null ? body.storageTotalBytes : null,
+            source: 'bwc-companion',
+            at: new Date().toISOString(),
+        };
+        emitToDashboardSockets('bwc-companion-telemetry', payload, camId);
+        log.sip.info('bwc companion telemetry', { camId, battery, charging });
+        res.json(Object.assign({}, payload, { statusUpdated: !!status }));
+    } catch (err) {
+        res.status(err.status || 500).json(opErr(err));
+    }
+}
 
 app.post('/api/auth/verify', (req, res) => {
     const body = req.body || {};
@@ -3260,8 +3562,10 @@ app.post('/api/platform/smtp/test', dashboardAuth.requireSuperAdmin, async (req,
     }
 });
 
-// --- Gate B: ZLM lab bench (FM_LAB_ZLM=1). No pool hooks; no start-video changes. ---
-if (process.env.FM_LAB_ZLM === '1') {
+// --- ZLM lab + pack (mvp-zlm-in-pack): FLV proxy / test routes when lab OR pack flags on ---
+if (process.env.FM_LAB_ZLM === '1'
+    || process.env.FM_ZLM_PACK === '1'
+    || process.env.FM_ZLM_SPAWN === '1') {
     const livePlaybackBroker = require('./lib/livePlaybackBroker');
     const zlmLabRelay = require('./lib/zlmLabRelay');
     const zlmProcess = require('./lib/zlmProcess');
@@ -3269,8 +3573,10 @@ if (process.env.FM_LAB_ZLM === '1') {
     const zlmIngestLab = require('./lib/zlmIngestLab');
 
     function labZlmOnly(req, res, next) {
-        if (process.env.FM_LAB_ZLM !== '1') {
-            return res.status(404).json(opErr('Lab ZLM disabled (FM_LAB_ZLM=0)'));
+        if (process.env.FM_LAB_ZLM !== '1'
+            && process.env.FM_ZLM_PACK !== '1'
+            && process.env.FM_ZLM_SPAWN !== '1') {
+            return res.status(404).json(opErr('ZLM lab/pack routes disabled'));
         }
         return next();
     }
@@ -3354,11 +3660,191 @@ if (process.env.FM_LAB_ZLM === '1') {
         }
     });
 
-    log.media.info('zlm lab gate B routes enabled', {
+    log.media.info('zlm lab/pack routes enabled', {
         testPage: '/test-zlm.html',
         flvProxy: '/api/lab/zlm/flv/:stream.live.flv',
+        pack: process.env.FM_ZLM_PACK === '1' || process.env.FM_ZLM_SPAWN === '1',
     });
 }
+
+/** mob-track-b1-one-tile-wvp-play — one Fleet lab tile plays WVP/ZLM (not wall / not pool FFmpeg). */
+(function registerWvpLabRoutes() {
+    if (String(process.env.FM_LAB_WVP || '').trim() !== '1') return;
+    const wvpLab = require('./lib/wvpLabClient');
+
+    function labWvpOnly(req, res, next) {
+        if (!wvpLab.isEnabled()) {
+            return res.status(404).json(opErr('WVP lab disabled (FM_LAB_WVP=0)'));
+        }
+        return next();
+    }
+
+    app.get('/api/lab/wvp/status', dashboardAuth.requireDashboardAuth, labWvpOnly, async (req, res) => {
+        try {
+            res.json({ ok: true, health: await wvpLab.health() });
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
+    app.get('/api/lab/wvp/devices', dashboardAuth.requireDashboardAuth, labWvpOnly, async (req, res) => {
+        try {
+            const page = parseInt(String((req.query && req.query.page) || '1'), 10) || 1;
+            const count = parseInt(String((req.query && req.query.count) || '50'), 10) || 50;
+            res.json({ ok: true, ...(await wvpLab.listDevices(page, count)) });
+        } catch (err) {
+            res.status(400).json(opErr(err));
+        }
+    });
+
+    app.get('/api/lab/wvp/devices/:deviceId/channels', dashboardAuth.requireDashboardAuth, labWvpOnly, async (req, res) => {
+        try {
+            const deviceId = String((req.params && req.params.deviceId) || '').trim();
+            res.json({ ok: true, ...(await wvpLab.listChannels(deviceId)) });
+        } catch (err) {
+            res.status(400).json(opErr(err));
+        }
+    });
+
+    app.post('/api/lab/wvp/play', dashboardAuth.requireDashboardAuth, labWvpOnly, express.json({ limit: '16kb' }), async (req, res) => {
+        try {
+            const deviceId = String((req.body && req.body.deviceId) || (req.query && req.query.deviceId) || '').trim();
+            const channelId = String((req.body && req.body.channelId) || (req.query && req.query.channelId) || '').trim();
+            const play = await wvpLab.startPlay(deviceId, channelId);
+            res.json({ ok: true, engine: 'wvp', ...play });
+        } catch (err) {
+            res.status(400).json(opErr(err));
+        }
+    });
+
+    app.post('/api/lab/wvp/stop', dashboardAuth.requireDashboardAuth, labWvpOnly, express.json({ limit: '16kb' }), async (req, res) => {
+        try {
+            const deviceId = String((req.body && req.body.deviceId) || (req.query && req.query.deviceId) || '').trim();
+            const channelId = String((req.body && req.body.channelId) || (req.query && req.query.channelId) || '').trim();
+            res.json({ ok: true, ...(await wvpLab.stopPlay(deviceId, channelId)) });
+        } catch (err) {
+            res.status(400).json(opErr(err));
+        }
+    });
+
+    app.get('/api/lab/wvp/flv', labWvpOnly, (req, res) => {
+        try {
+            const token = String((req.query && req.query.labWvp) || '').trim();
+            if (!token) {
+                return res.status(401).json(opErr('labWvp token required'));
+            }
+            wvpLab.proxyFlv(req, res, token);
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
+    log.media.info('wvp lab routes enabled', {
+        testPage: '/test-wvp-tile.html',
+        base: (wvpLab.cfg() && wvpLab.cfg().base) || null,
+    });
+})();
+
+/** mob-fr-seeta-windows-lab-proof — proxy to Seeta lab sidecar :8767 (does not change live FR engine). */
+(function registerSeetaLabRoutes() {
+    const http = require('http');
+    const seetaPort = parseInt(process.env.FM_FR_SIDECAR_SEETA_PORT || '8767', 10) || 8767;
+    const seetaHost = process.env.FM_FR_SIDECAR_HOST || '127.0.0.1';
+
+    function seetaHttpJson(method, urlPath, body, timeoutMs) {
+        return new Promise((resolve) => {
+            const payload = body != null ? Buffer.from(JSON.stringify(body), 'utf8') : null;
+            const req = http.request({
+                hostname: seetaHost,
+                port: seetaPort,
+                path: urlPath,
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(payload ? { 'Content-Length': payload.length } : {}),
+                },
+                timeout: timeoutMs || 120000,
+            }, (res) => {
+                let data = '';
+                res.on('data', (c) => { data += c; });
+                res.on('end', () => {
+                    let parsed = null;
+                    try { parsed = JSON.parse(data); } catch (_) { parsed = { ok: false, raw: String(data || '').slice(0, 400) }; }
+                    resolve({ status: res.statusCode || 0, body: parsed });
+                });
+            });
+            req.on('error', (err) => resolve({
+                status: 0,
+                body: {
+                    ok: false,
+                    error: 'seeta_unreachable',
+                    message: err && err.message,
+                    hint: 'Run fr-sidecar-seeta\\START-SEETA-LAB.bat first',
+                },
+            }));
+            req.on('timeout', () => {
+                req.destroy();
+                resolve({ status: 0, body: { ok: false, error: 'seeta_timeout' } });
+            });
+            if (payload) req.write(payload);
+            req.end();
+        });
+    }
+
+    app.get('/api/lab/seeta/health', async (req, res) => {
+        try {
+            const r = await seetaHttpJson('GET', '/health', null, 5000);
+            const status = r.status >= 200 && r.status < 600 ? r.status : 502;
+            res.status(status === 0 ? 502 : status).json(r.body || { ok: false });
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
+    app.post('/api/lab/seeta/verify', async (req, res) => {
+        try {
+            const body = req.body || {};
+            if (!body.image1_b64 && !body.path1) {
+                return res.status(400).json(opErr('image1_b64 or path1 required'));
+            }
+            if (!body.image2_b64 && !body.path2) {
+                return res.status(400).json(opErr('image2_b64 or path2 required'));
+            }
+            const r = await seetaHttpJson('POST', '/verify', {
+                image1_b64: body.image1_b64 || undefined,
+                image2_b64: body.image2_b64 || undefined,
+                path1: body.path1 || undefined,
+                path2: body.path2 || undefined,
+            }, 120000);
+            const status = r.status >= 200 && r.status < 600 ? r.status : 502;
+            res.status(status === 0 ? 502 : status).json(r.body || { ok: false, error: 'seeta_empty' });
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+})();
+
+/** Gate D — playback descriptor for dashboard wall (auth). Pins still use pool path. */
+app.get('/api/live/playback', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    try {
+        const camId = String((req.query && req.query.camId) || '').trim();
+        if (!camId) return res.status(400).json(opErr('camId required'));
+        const livePlaybackBroker = require('./lib/livePlaybackBroker');
+        const zlmLabRelay = require('./lib/zlmLabRelay');
+        const zlmProcess = require('./lib/zlmProcess');
+        const desc = await livePlaybackBroker.getDescriptor(camId, {
+            req,
+            publicHost: HOST,
+            videoWsPort: VIDEO_WS_PORT,
+            isStreamingForCam: (id) => liveStreamPool.isStreamingForCam(id),
+            relay: zlmLabRelay,
+            zlm: zlmProcess,
+        });
+        res.json(desc);
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
 
 function requireMapDeviceControl(req, res, next) {
     const session = req.dashboardUser;
@@ -5119,6 +5605,114 @@ app.get('/api/analytics/fr/blacklist', dashboardAuth.requireDashboardAuth, (req,
     }
 });
 
+app.get('/api/analytics/fr/settings', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    const settings = loadFrSettings();
+    res.json({
+        ok: true,
+        matchThreshold: settings.matchThreshold,
+        defaultMatchThreshold: FR_MATCH_THRESHOLD_DEFAULT,
+        min: 70,
+        max: 99,
+        updatedAt: settings.updatedAt,
+        updatedBy: settings.updatedBy,
+        canManage: !!(req.dashboardUser && dashboardAuth.roleCanManageServer(req.dashboardUser.role)),
+    });
+});
+
+app.post('/api/analytics/fr/settings', dashboardAuth.requireSuperAdmin, express.json({ limit: '8kb' }), (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    const body = req.body || {};
+    const adminPassword = body.adminPassword != null ? String(body.adminPassword) : '';
+    if (!dashboardAuth.verifySessionPassword(req.dashboardUser, adminPassword)) {
+        return res.status(403).json(opErr('Your super admin password is required'));
+    }
+    const before = loadFrSettings();
+    const threshold = normalizeFrMatchThreshold(body.matchThreshold);
+    const next = saveFrSettings({
+        matchThreshold: threshold,
+        updatedAt: new Date().toISOString(),
+        updatedBy: req.dashboardUser && req.dashboardUser.username || '',
+    });
+    if (frLivePoller && typeof frLivePoller.setMatchThresholdForActiveWatches === 'function') {
+        frLivePoller.setMatchThresholdForActiveWatches(next.matchThreshold);
+    }
+    auditLog.recordFromRequest(req, 'analytics.fr_settings_threshold_save', {
+        target: 'fr-match-threshold',
+        detail: {
+            oldThreshold: before.matchThreshold,
+            newThreshold: next.matchThreshold,
+        },
+    });
+    res.json({ ok: true, settings: next });
+});
+
+/** mob-fr-gallery-re-enroll-migrate: backup index + re-embed all photos for active engine */
+app.post('/api/analytics/fr/blacklist/re-enroll-migrate', dashboardAuth.requireSuperAdmin, express.json({ limit: '8kb' }), async (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const engine = frSidecarClient.activeEngine();
+        if (engine === 'seeta') {
+            return res.status(503).json(Object.assign(
+                frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 503),
+                { reason: 'engine_not_wired', engine }
+            ));
+        }
+        const ready = await frSidecarClient.ensureReady();
+        if (!ready || !ready.ok) {
+            return res.status(503).json(Object.assign(
+                frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 503),
+                { reason: 'sidecar_down', engine }
+            ));
+        }
+        const force = !!(req.body && req.body.force);
+        const model = (req.body && req.body.model) || process.env.FM_FR_MODEL || 'Facenet';
+        const out = await frBlacklist.migrateEmbeddings({
+            engine,
+            model,
+            force,
+            representPath: (absPath, m) => frSidecarClient.representPath(absPath, m),
+        });
+        if (!out.ok) {
+            return res.status(500).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 500));
+        }
+        auditLog.recordFromRequest(req, 'analytics.fr_blacklist_re_enroll_migrate', {
+            target: 'fr-blacklist',
+            detail: {
+                engine: out.engine,
+                backupFile: out.backupFile,
+                total: out.total,
+                migrated: out.migrated,
+                skipped: out.skipped,
+                failed: out.failed,
+            },
+        });
+        try {
+            log.web.info('fr blacklist re-enroll migrate', {
+                engine: out.engine,
+                migrated: out.migrated,
+                skipped: out.skipped,
+                failed: out.failed,
+                backupFile: out.backupFile,
+            });
+        } catch (_) { /* ignore */ }
+        res.json(out);
+    } catch (err) {
+        try {
+            log.web.warn('fr blacklist re-enroll migrate exception', {
+                message: String(err && err.message || err).slice(0, 200),
+            });
+        } catch (_) { /* ignore */ }
+        res.status(500).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 500));
+    }
+});
+
 app.post('/api/analytics/fr/enroll-preflight', dashboardAuth.requireSuperAdmin, (req, res) => {
     if (!licenseFeatures.isFeatureEnabled('fr')) {
         return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
@@ -5133,21 +5727,6 @@ app.post('/api/analytics/fr/enroll-preflight', dashboardAuth.requireSuperAdmin, 
                 return res.status(400).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.BAD_FILE, 400));
             }
             cleanup.push(req.file.path);
-            const sizeGate = frEnrollQuality.checkEnrollImageFile(req.file.path, req.file.size);
-            if (!sizeGate.ok) {
-                const code = sizeGate.code === 'fr.image_too_small'
-                    ? frVerifyErrors.CODES.IMAGE_TOO_SMALL
-                    : frVerifyErrors.CODES.BAD_FILE;
-                return res.status(400).json(Object.assign(
-                    frVerifyErrors.operatorPayload(code, 400),
-                    {
-                        gate: sizeGate.gate || 'file',
-                        width: sizeGate.width || null,
-                        height: sizeGate.height || null,
-                        preflight: true,
-                    }
-                ));
-            }
             const model = (req.body && req.body.model) || process.env.FM_FR_MODEL || 'Facenet';
             const rep = await frSidecarClient.representPath(req.file.path, model);
             if (rep && rep.ok === false) {
@@ -5214,20 +5793,6 @@ app.post('/api/analytics/fr/blacklist', dashboardAuth.requireSuperAdmin, (req, r
             if (!displayName) {
                 return res.status(400).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NEED_NAME, 400));
             }
-            const sizeGate = frEnrollQuality.checkEnrollImageFile(req.file.path, req.file.size);
-            if (!sizeGate.ok) {
-                const code = sizeGate.code === 'fr.image_too_small'
-                    ? frVerifyErrors.CODES.IMAGE_TOO_SMALL
-                    : frVerifyErrors.CODES.BAD_FILE;
-                return res.status(400).json(Object.assign(
-                    frVerifyErrors.operatorPayload(code, 400),
-                    {
-                        gate: sizeGate.gate || 'file',
-                        width: sizeGate.width || null,
-                        height: sizeGate.height || null,
-                    }
-                ));
-            }
             const model = (req.body && req.body.model) || process.env.FM_FR_MODEL || 'Facenet';
             const rep = await frSidecarClient.representPath(req.file.path, model);
             const classified = frVerifyErrors.classifySidecarResult(rep && rep.ok === false ? rep : null);
@@ -5259,6 +5824,7 @@ app.post('/api/analytics/fr/blacklist', dashboardAuth.requireSuperAdmin, (req, r
                 lastIncident: req.body && req.body.lastIncident,
                 embedding: rep.embedding,
                 model: rep.model || model,
+                engine: frSidecarClient.activeEngine(),
                 photoPath: req.file.path,
                 enrolledBy: actor,
             });
@@ -5291,6 +5857,186 @@ app.post('/api/analytics/fr/blacklist', dashboardAuth.requireSuperAdmin, (req, r
             });
         }
     });
+});
+
+/**
+ * mob-fr-enroll-from-bwc-still — enroll watchlist from a Recent / snap-ledger face crop
+ * (same camera domain as live). Uses representProbePath, not ID-photo size gates.
+ */
+app.post('/api/analytics/fr/blacklist/enroll-from-snap', dashboardAuth.requireSuperAdmin, express.json({ limit: '16kb' }), async (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const body = req.body || {};
+        const displayName = String(body.displayName || '').trim();
+        if (!displayName) {
+            return res.status(400).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NEED_NAME, 400));
+        }
+        let cropFile = body.cropFile ? path.basename(String(body.cropFile)) : '';
+        if (!cropFile) {
+            return res.status(400).json(Object.assign(
+                frVerifyErrors.operatorPayload(frVerifyErrors.CODES.BAD_FILE, 400),
+                { error: 'no_crop_selected', message: 'Choose a recent face first' }
+            ));
+        }
+        let cropAbs = cropFile ? (frSnapLedger.cropAbsolutePath(cropFile) || frLivePoller.cropAbsolutePath(cropFile)) : null;
+        let snapMeta = null;
+        if (cropAbs) {
+            const rows = frSnapLedger.list({ limit: 40 });
+            for (let i = 0; i < rows.length; i++) {
+                if (rows[i].cropFile === cropFile) {
+                    snapMeta = rows[i];
+                    break;
+                }
+            }
+        }
+        if (!cropAbs || !fs.existsSync(cropAbs)) {
+            return res.status(400).json(Object.assign(
+                frVerifyErrors.operatorPayload(frVerifyErrors.CODES.BAD_FILE, 400),
+                { error: 'crop_missing', message: 'Snap crop file not found' }
+            ));
+        }
+        const ready = await frSidecarClient.ensureReady();
+        if (!ready || !ready.ok) {
+            return res.status(503).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.SERVICE_DOWN, 503));
+        }
+        const model = body.model || process.env.FM_FR_MODEL || 'Facenet';
+        /* Same embed path as live poller — domain match to BWC stills */
+        const rep = await frSidecarClient.representProbePath(cropAbs, model);
+        if (!rep || rep.ok === false || !Array.isArray(rep.embedding) || rep.embedding.length < 64) {
+            const classified = frVerifyErrors.classifySidecarResult(rep && rep.ok === false ? rep : null);
+            const c = classified || { code: frVerifyErrors.CODES.FAILED, httpStatus: 422 };
+            return res.status(c.httpStatus || 422).json(Object.assign(
+                frVerifyErrors.operatorPayload(c.code || frVerifyErrors.CODES.FAILED, c.httpStatus || 422),
+                { error: 'probe_failed', gate: rep && rep.gate || null }
+            ));
+        }
+        let notes = String(body.notes || '').trim();
+        const camBit = snapMeta && (snapMeta.deviceLabel || snapMeta.camId);
+        if (camBit) {
+            const tag = 'BWC enroll · ' + String(camBit);
+            notes = notes ? (notes + ' · ' + tag) : tag;
+        } else if (!notes) {
+            notes = 'BWC enroll · from live snap';
+        }
+        const actor = req.dashboardUser && (req.dashboardUser.username || req.dashboardUser.displayName) || '';
+        const enrolled = frBlacklist.enroll({
+            displayName,
+            idNumber: body.idNumber,
+            notes: notes.slice(0, 500),
+            listStatus: body.listStatus,
+            reasonCode: body.reasonCode,
+            reasonOther: body.reasonOther,
+            lastSeen: body.lastSeen || (camBit ? String(camBit) : ''),
+            lastIncident: body.lastIncident,
+            embedding: rep.embedding,
+            model: rep.model || model,
+            engine: frSidecarClient.activeEngine(),
+            photoPath: cropAbs,
+            enrolledBy: actor,
+        });
+        if (!enrolled.ok) {
+            const code = enrolled.code === 'fr.blacklist_full'
+                ? frVerifyErrors.CODES.BLACKLIST_FULL
+                : (enrolled.code === 'fr.need_name' ? frVerifyErrors.CODES.NEED_NAME : frVerifyErrors.CODES.FAILED);
+            return res.status(400).json(frVerifyErrors.operatorPayload(code, 400));
+        }
+        auditLog.recordFromRequest(req, 'analytics.fr_blacklist_enroll_bwc_snap', {
+            target: enrolled.entry.id,
+            detail: {
+                displayName: enrolled.entry.displayName,
+                cropFile,
+                camId: snapMeta && snapMeta.camId || null,
+                listStatus: enrolled.entry.listStatus,
+                engine: frSidecarClient.activeEngine(),
+            },
+        });
+        res.json({
+            ok: true,
+            entry: enrolled.entry,
+            count: frBlacklist.list().count,
+            source: 'bwc-snap',
+            cropFile,
+            camId: snapMeta && snapMeta.camId || null,
+        });
+    } catch (e) {
+        try {
+            log.web.warn('fr enroll-from-snap exception', {
+                message: String(e && e.message || e).slice(0, 200),
+            });
+        } catch (_) { /* ignore */ }
+        res.status(500).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 500));
+    }
+});
+
+app.post('/api/analytics/fr/blacklist/:id/sample-from-snap', dashboardAuth.requireSuperAdmin, express.json({ limit: '16kb' }), async (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const body = req.body || {};
+        const cropFile = body.cropFile ? path.basename(String(body.cropFile)) : '';
+        if (!cropFile) {
+            return res.status(400).json(Object.assign(
+                frVerifyErrors.operatorPayload(frVerifyErrors.CODES.BAD_FILE, 400),
+                { error: 'no_crop_selected', message: 'Choose a recent face first' }
+            ));
+        }
+        const cropAbs = frSnapLedger.cropAbsolutePath(cropFile) || frLivePoller.cropAbsolutePath(cropFile);
+        if (!cropAbs || !fs.existsSync(cropAbs)) {
+            return res.status(400).json(Object.assign(
+                frVerifyErrors.operatorPayload(frVerifyErrors.CODES.BAD_FILE, 400),
+                { error: 'crop_missing', message: 'Snap crop file not found' }
+            ));
+        }
+        const ready = await frSidecarClient.ensureReady();
+        if (!ready || !ready.ok) {
+            return res.status(503).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.SERVICE_DOWN, 503));
+        }
+        const model = body.model || process.env.FM_FR_MODEL || 'Facenet';
+        const rep = await frSidecarClient.representProbePath(cropAbs, model);
+        if (!rep || rep.ok === false || !Array.isArray(rep.embedding) || rep.embedding.length < 64) {
+            const classified = frVerifyErrors.classifySidecarResult(rep && rep.ok === false ? rep : null);
+            const c = classified || { code: frVerifyErrors.CODES.FAILED, httpStatus: 422 };
+            return res.status(c.httpStatus || 422).json(Object.assign(
+                frVerifyErrors.operatorPayload(c.code || frVerifyErrors.CODES.FAILED, c.httpStatus || 422),
+                { error: 'probe_failed', gate: rep && rep.gate || null }
+            ));
+        }
+        const actor = req.dashboardUser && (req.dashboardUser.username || req.dashboardUser.displayName) || '';
+        const out = frBlacklist.addSample(req.params.id, {
+            embedding: rep.embedding,
+            model: rep.model || model,
+            engine: frSidecarClient.activeEngine(),
+            photoPath: cropAbs,
+            cropFile,
+            source: 'recent-face',
+            qualityScore: rep.qualityScore,
+            createdBy: actor,
+        });
+        if (!out.ok) {
+            const code = out.code === 'fr.not_found' ? frVerifyErrors.CODES.NOT_FOUND : frVerifyErrors.CODES.FAILED;
+            return res.status(out.code === 'fr.not_found' ? 404 : 400).json(frVerifyErrors.operatorPayload(code, out.code === 'fr.not_found' ? 404 : 400));
+        }
+        auditLog.recordFromRequest(req, 'analytics.fr_blacklist_sample_add', {
+            target: req.params.id,
+            detail: {
+                cropFile,
+                sampleId: out.sample && out.sample.sampleId,
+                source: 'recent-face',
+                engine: frSidecarClient.activeEngine(),
+            },
+        });
+        res.json({ ok: true, entry: out.entry, sample: out.sample, cropFile });
+    } catch (e) {
+        try {
+            log.web.warn('fr sample-from-snap exception', {
+                message: String(e && e.message || e).slice(0, 200),
+            });
+        } catch (_) { /* ignore */ }
+        res.status(500).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 500));
+    }
 });
 
 app.patch('/api/analytics/fr/blacklist/:id', dashboardAuth.requireSuperAdmin, express.json({ limit: '8kb' }), (req, res) => {
@@ -5336,6 +6082,15 @@ app.get('/api/analytics/fr/blacklist/:id/photo', dashboardAuth.requireDashboardA
     res.sendFile(p);
 });
 
+app.get('/api/analytics/fr/blacklist/:id/sample/:sampleId/photo', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    const p = frBlacklist.samplePhotoAbsolutePath(req.params.id, req.params.sampleId);
+    if (!p) return res.status(404).end();
+    res.type('image/jpeg').sendFile(p);
+});
+
 app.get('/api/analytics/fr/crop/:file', dashboardAuth.requireDashboardAuth, (req, res) => {
     if (!licenseFeatures.isFeatureEnabled('fr')) {
         return res.status(403).end();
@@ -5370,6 +6125,148 @@ app.get('/api/analytics/fr/snap/:file', dashboardAuth.requireDashboardAuth, (req
     const p = frSnapLedger.cropAbsolutePath(req.params.file);
     if (!p) return res.status(404).end();
     res.type('image/jpeg').sendFile(p);
+});
+
+/** mob-fr-match-debug-enroll-vs-live — gallery (+ fresh enroll) vs live snap crop % */
+app.post('/api/analytics/fr/match-debug', dashboardAuth.requireDashboardAuth, express.json({ limit: '8kb' }), async (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const body = req.body || {};
+        const out = await frMatchDebug.compareEnrollVsLive({
+            entryId: body.entryId || body.id,
+            cropFile: body.cropFile || null,
+        });
+        if (!out.ok) {
+            const status = out.error === 'not_found' ? 404
+                : (out.error === 'sidecar_down' ? 503 : 400);
+            try {
+                log.web.info('fr match-debug fail', {
+                    error: out.error,
+                    entryId: body.entryId || body.id || null,
+                    cropFile: body.cropFile || null,
+                });
+            } catch (_) { /* ignore */ }
+            return res.status(status).json(out);
+        }
+        try {
+            log.web.info('fr match-debug', {
+                entryId: out.entry && out.entry.id,
+                displayName: out.entry && out.entry.displayName,
+                scorePct: out.scorePct,
+                clears70: out.clears70,
+                enrollFreshVsProbePct: out.enrollFreshVsProbePct,
+                enrollFreshVsGalleryPct: out.enrollFreshVsGalleryPct,
+                engine: out.engine,
+                cropFile: out.crop && out.crop.cropFile,
+                camId: out.crop && out.crop.camId,
+                dims: out.dims,
+            });
+        } catch (_) { /* ignore */ }
+        res.json(out);
+    } catch (err) {
+        res.status(500).json({
+            ok: false,
+            error: 'failed',
+            message: String(err && err.message || err).slice(0, 160),
+        });
+    }
+});
+
+/* mob-fr-snap-keep-evidence-pack — Keep → storage/fr-kept (toast only, no second UI tab) */
+app.post('/api/analytics/fr/kept', dashboardAuth.requireDashboardAuth, express.json({ limit: '6mb' }), (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const body = req.body || {};
+        const camId = String(body.camId || '').trim();
+        if (camId) {
+            try { assertSessionCanAccessCam(req.dashboardUser || dashboardAuth.sessionFromRequest(req), camId); }
+            catch (err) { return res.status(403).json(opErr(err)); }
+        }
+        const result = frKeptEvidence.keep({
+            jpegB64: body.jpegB64 || body.cropB64,
+            camId: camId || null,
+            deviceLabel: body.deviceLabel,
+            at: body.at,
+            lat: body.lat,
+            lon: body.lon,
+            scorePct: body.scorePct,
+            match: body.match,
+            displayName: body.displayName,
+            blacklistId: body.blacklistId,
+            hitId: body.hitId,
+            source: 'operator-keep',
+        });
+        if (!result.ok) {
+            return res.status(400).json({ ok: false, error: result.error || 'keep_failed' });
+        }
+        res.json({
+            ok: true,
+            id: result.id,
+            folderHint: result.folderHint,
+            jpgFile: result.jpgFile,
+            jsonFile: result.jsonFile,
+            hint: 'Saved to Investigation holds on the server (Evidence tab). IT path: ' + result.folderHint + '.',
+        });
+    } catch (err) {
+        res.status(500).json({ ok: false, error: String(err && err.message || err).slice(0, 120) });
+    }
+});
+
+/* mob-fr-kept-evidence-ui — list / thumb for Evidence → Investigation holds */
+app.get('/api/analytics/fr/kept', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        let rows = frKeptEvidence.list({
+            limit: req.query.limit,
+            camId: req.query.camId,
+        });
+        rows = rows.filter(function (r) {
+            if (!r.camId) return true;
+            try {
+                assertSessionCanAccessCam(session, r.camId);
+                return true;
+            } catch (_) {
+                return false;
+            }
+        });
+        res.json({
+            ok: true,
+            holds: rows,
+            folderHint: frKeptEvidence.folderHint(),
+            count: rows.length,
+        });
+    } catch (err) {
+        res.status(500).json({ ok: false, error: String(err && err.message || err).slice(0, 120) });
+    }
+});
+
+app.get('/api/analytics/fr/kept/:id/jpg', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).end();
+    }
+    try {
+        const meta = frKeptEvidence.getById(req.params.id);
+        if (!meta) return res.status(404).end();
+        if (meta.camId) {
+            try {
+                assertSessionCanAccessCam(req.dashboardUser || dashboardAuth.sessionFromRequest(req), meta.camId);
+            } catch (_) {
+                return res.status(403).end();
+            }
+        }
+        const p = frKeptEvidence.jpgAbsolutePath(meta.jpgFile || meta.id);
+        if (!p) return res.status(404).end();
+        res.type('image/jpeg').sendFile(p);
+    } catch (_) {
+        res.status(500).end();
+    }
 });
 
 /* mob-fr-standby-ptt-group: FR hit standby response team (SOS-like radio, not Alert field beep) */
@@ -5481,11 +6378,10 @@ app.post('/api/analytics/fr/offline-video', dashboardAuth.requireDashboardAuth, 
         if (!req.file || !req.file.path) {
             return res.status(400).json({ ok: false, error: 'need_file', message: 'Choose a video file.' });
         }
-        const thr = req.body && req.body.threshold != null ? parseInt(req.body.threshold, 10) : undefined;
         const started = frOfflineVideo.startJob({
             videoPath: req.file.path,
             fileName: req.file.originalname || req.file.filename,
-            threshold: thr,
+            threshold: loadFrSettings().matchThreshold,
         });
         if (!started.ok) {
             try { fs.unlinkSync(req.file.path); } catch (_) { /* ignore */ }
@@ -5506,6 +6402,20 @@ app.get('/api/analytics/fr/offline-video/status', dashboardAuth.requireDashboard
         return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
     }
     res.json({ ok: true, job: frOfflineVideo.getStatus() });
+});
+
+/* mob-fr-offline-crop-play-at — stream retained offline source for Play from crop */
+app.get('/api/analytics/fr/offline-video/:jobId/media', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).end();
+    }
+    try {
+        const p = frOfflineVideo.getMediaAbsolutePath(req.params.jobId);
+        if (!p) return res.status(404).json({ ok: false, error: 'media_gone', message: 'Video no longer available. Load the file again.' });
+        res.sendFile(path.resolve(p));
+    } catch (_) {
+        res.status(500).end();
+    }
 });
 
 app.post('/api/analytics/fr/offline-video/cancel', dashboardAuth.requireDashboardAuth, (req, res) => {
@@ -7090,8 +8000,11 @@ loadGpsCache();
 const GPS_POLL_MS = parseInt(process.env.FM_GPS_POLL_MS || '120000', 10);
 const STATUS_QUERY_COOLDOWN_MS = parseInt(process.env.FM_STATUS_QUERY_COOLDOWN_MS || '90000', 10);
 const GPS_QUERY_COOLDOWN_MS = parseInt(process.env.FM_GPS_QUERY_COOLDOWN_MS || '120000', 10);
+const BWC_ACTIVITY_TAGS_FILE = path.join(STORAGE_DIR, 'bwc-activity-tags.jsonl');
+const BWC_ACTIVITY_SWEEP_MS = Math.max(10000, parseInt(process.env.FM_BWC_ACTIVITY_SWEEP_MS || '30000', 10) || 30000);
 const lastStatusQueryAtByCam = new Map();
 const lastGpsQueryAtByCam = new Map();
+const lastBwcActivityStateByCam = new Map();
 const LOGIN_REPLAY_STAGGER_BASE_MS = parseInt(process.env.FM_LOGIN_REPLAY_STAGGER_BASE_MS || '400', 10);
 const LOGIN_REPLAY_STAGGER_STEP_MS = parseInt(process.env.FM_LOGIN_REPLAY_STAGGER_STEP_MS || '300', 10);
 const LOGIN_REPLAY_SOS_PAUSE_MS = parseInt(process.env.FM_LOGIN_REPLAY_SOS_PAUSE_MS || '60000', 10);
@@ -7465,6 +8378,7 @@ function startMediaFromDashboard(payload, requestSocket) {
 
     if (inviteMode === 'video' && dashboardVideo.isStreamingForCam(camId)) {
         log.media.info('invite skipped', { reason: 'already_streaming', camId });
+        liveMediaAdapter.onPoolLive(camId, { host: HOST, videoWsPort: VIDEO_WS_PORT });
         const surface = liveViewers.normalizeSurface(parsed.surface || (payload && payload.surface));
         if (requestSocket && requestSocket.connected) {
             requestSocket.emit('video-stream-ready', { camId, surface });
@@ -8102,6 +9016,8 @@ function releaseCamStreamWhenUnwatched(camId, opts) {
 
     stopVideoInProgress.add(camId);
     log.media.info('pool stop — no dashboard viewers', { camId });
+    /* Gate C: stop ZLM side relay before pool stop (wall path unchanged). */
+    liveMediaAdapter.onPoolStop(camId);
     if (pttVoiceCallCamId === camId) {
         pttVoiceCallCamId = null;
         emitBwcCallState(camId, false, null);
@@ -8144,6 +9060,7 @@ io.on('connection', (socket) => {
         username: session ? session.username : null,
         dispatchScope: dispatchScopePayloadForSession(session),
         frLabUi: isFrLabUiEnabled(),
+        labWvp: String(process.env.FM_LAB_WVP || '').trim() === '1',
         displayMonitor3: getDisplayMonitor3Profile(),
         siteTime: {
             timezone: siteTime.getTimezone(),
@@ -8167,6 +9084,7 @@ io.on('connection', (socket) => {
         const camId = data && data.cameraId ? String(data.cameraId).trim() : null;
         if (!camId) return;
         queryDeviceStatus(camId, { force: true });
+        startFastStatusPolling(camId, 'pin-open');
         maybeQueryGpsForDevice(camId, { force: true });
     });
 
@@ -8175,6 +9093,7 @@ io.on('connection', (socket) => {
         log.web.info('dashboard selected device', { camId: dashboardSelectedCamId });
         if (dashboardSelectedCamId) {
             queryDeviceStatus(dashboardSelectedCamId, { force: true });
+            startFastStatusPolling(dashboardSelectedCamId, 'select-device');
             const g = lastGpsByCam[dashboardSelectedCamId];
             if (g) {
                 socket.emit('gps-update', {
@@ -8468,6 +9387,7 @@ io.on('connection', (socket) => {
         const camId = parsed.camId;
         const mode = parsed.mode || 'video';
         const surface = liveViewers.normalizeSurface(parsed.surface || (payload && payload.surface));
+        if (camId && mode === 'video') startFastStatusPolling(camId, 'start-video');
         if (camId && mode === 'video') {
             const beforeSurfaces = liveViewers.socketSurfacesForCam(socket.id, camId);
             const viewers = liveViewers.addView(socket.id, camId, surface);
@@ -8542,7 +9462,7 @@ io.on('connection', (socket) => {
     socket.on('fr-watch-slots', (payload) => {
         if (!licenseFeatures.isFeatureEnabled('fr')) return;
         const cams = payload && Array.isArray(payload.camIds) ? payload.camIds : [];
-        const thr = payload && payload.threshold != null ? payload.threshold : undefined;
+        const thr = loadFrSettings().matchThreshold;
         frLivePoller.setWatchSlots(socket.id, cams, thr);
     });
 
@@ -8974,6 +9894,106 @@ function pushFleetRoster(camId, sn, online, opts) {
 
 }
 
+function bwcActivity01(value) {
+    if (value === true || value === 1) return '1';
+    if (value === false || value === 0) return '0';
+    const text = String(value == null ? '' : value).trim().toLowerCase();
+    if (!text || text === '—' || text === '--') return null;
+    if (['1', 'true', 'on', 'yes', 'started', 'recording', 'active'].includes(text)) return '1';
+    if (['0', 'false', 'off', 'no', 'stopped', 'idle', 'inactive'].includes(text)) return '0';
+    return null;
+}
+
+function bwcActivityLabel(field, value, initial) {
+    if (field === 'recording') {
+        if (value === '1') return initial ? 'Recording active' : 'Recording started';
+        return 'Recording stopped';
+    }
+    if (field === 'audio') {
+        if (value === '1') return initial ? 'Audio active' : 'Audio started';
+        return 'Audio stopped';
+    }
+    return value === '1' ? 'BWC activity started' : 'BWC activity stopped';
+}
+
+function appendBwcActivityTag(tag) {
+    try {
+        if (!fs.existsSync(STORAGE_DIR)) fs.mkdirSync(STORAGE_DIR, { recursive: true });
+        fs.appendFileSync(BWC_ACTIVITY_TAGS_FILE, JSON.stringify(tag) + '\n');
+    } catch (err) {
+        log.sip.warn('bwc activity tag append failed', {
+            camId: tag && tag.cameraId,
+            message: err && err.message ? err.message : String(err),
+        });
+    }
+}
+
+function emitBwcActivityTag(tag) {
+    appendBwcActivityTag(tag);
+    try {
+        auditLog.record('bwc.activity_tag', {
+            target: tag.cameraId,
+            detail: {
+                activityId: tag.id,
+                kind: tag.kind,
+                state: tag.state,
+                label: tag.label,
+                source: tag.source,
+                live: tag.live,
+                deviceTime: tag.deviceTime || null,
+            },
+        });
+    } catch (_) { /* audit optional */ }
+    log.sip.info('bwc activity tag', {
+        camId: tag.cameraId,
+        kind: tag.kind,
+        state: tag.state,
+        label: tag.label,
+        source: tag.source,
+        live: tag.live,
+        file: BWC_ACTIVITY_TAGS_FILE,
+    });
+    emitToDashboardSockets('bwc-activity-tag', tag, tag.cameraId);
+}
+
+function observeBwcActivityStatus(camId, payload, source) {
+    const id = String(camId || '').trim();
+    if (!id || !isBwcCameraId(id) || !payload) return;
+    const prev = lastBwcActivityStateByCam.get(id) || {};
+    const next = Object.assign({}, prev);
+    [
+        { field: 'recording', kind: 'recording' },
+        { field: 'audio', kind: 'audio' },
+    ].forEach((item) => {
+        const value = bwcActivity01(payload[item.field]);
+        if (value == null) return;
+        const hadPrev = prev[item.field] != null;
+        const changed = hadPrev && prev[item.field] !== value;
+        const initialActive = !hadPrev && value === '1';
+        next[item.field] = value;
+        if (!changed && !initialActive) return;
+        const now = new Date();
+        const live = liveViewers.countForCam(id) > 0;
+        const tag = {
+            id: crypto.randomUUID(),
+            cameraId: id,
+            operatorName: resolveOperatorNameForCam(id),
+            kind: item.kind,
+            state: value === '1' ? 'on' : 'off',
+            previousState: hadPrev ? (prev[item.field] === '1' ? 'on' : 'off') : null,
+            initial: !hadPrev,
+            label: bwcActivityLabel(item.field, value, !hadPrev),
+            source: source || 'device-status',
+            live,
+            deviceTime: payload.deviceTime && payload.deviceTime !== '—' ? payload.deviceTime : null,
+            serverTime: siteTime.formatEvidence(now),
+            at: now.toISOString(),
+        };
+        emitBwcActivityTag(tag);
+    });
+    lastBwcActivityStateByCam.set(id, next);
+}
+
 function mergeBatteryTelemetry(camId, batteryRaw, source) {
     if (!camId || batteryRaw == null || batteryRaw === '') return false;
     const battery = telemetryFromXml.formatBattery(batteryRaw) || String(batteryRaw).trim();
@@ -9097,6 +10117,7 @@ function emitDeviceStatus(camId, notify, rawXml, source) {
     }
     fleetRegistry.updateTelemetry(camId, payload);
     getVoiceIntercomTelemetry().onDeviceStatus(camId, payload, source);
+    observeBwcActivityStatus(camId, payload, source);
     emitToDashboardSockets('device-status', payload, camId);
     return true;
 }
@@ -9203,6 +10224,51 @@ function queryDeviceStatus(camId, opts) {
     return true;
 }
 
+function queryFastDeviceStatus(camId) {
+    if (!getContactUriForCam(camId) || !camId) {
+        log.sip.warn('fast device status query skipped', { camId, hasContact: !!getContactUriForCam(camId) });
+        return false;
+    }
+    sendStatusQuery(camId, 'DeviceStatus');
+    setTimeout(() => sendStatusQuery(camId, 'DeviceStatus', 'target'), 500);
+    return true;
+}
+
+const fastStatusPollByCam = new Map();
+const FAST_STATUS_POLL_MS = Math.max(1000, parseInt(process.env.FM_BWC_FAST_STATUS_POLL_MS || '2000', 10) || 2000);
+const FAST_STATUS_POLL_WINDOW_MS = Math.max(15000, parseInt(process.env.FM_BWC_FAST_STATUS_WINDOW_MS || '180000', 10) || 180000);
+
+function startFastStatusPolling(camId, reason) {
+    const id = String(camId || '').trim();
+    if (!id || !isBwcCameraId(id)) return false;
+    if (!getContactUriForCam(id)) {
+        log.sip.info('fast status poll skipped', { camId: id, reason, hasContact: false });
+        return false;
+    }
+    const existing = fastStatusPollByCam.get(id);
+    if (existing) {
+        clearInterval(existing.interval);
+        clearTimeout(existing.stop);
+    }
+    queryFastDeviceStatus(id);
+    const interval = setInterval(() => {
+        queryFastDeviceStatus(id);
+    }, FAST_STATUS_POLL_MS);
+    const stop = setTimeout(() => {
+        clearInterval(interval);
+        fastStatusPollByCam.delete(id);
+        log.sip.info('fast status poll stopped', { camId: id });
+    }, FAST_STATUS_POLL_WINDOW_MS);
+    fastStatusPollByCam.set(id, { interval, stop });
+    log.sip.info('fast status poll started', {
+        camId: id,
+        reason: reason || 'operator',
+        intervalMs: FAST_STATUS_POLL_MS,
+        windowMs: FAST_STATUS_POLL_WINDOW_MS,
+    });
+    return true;
+}
+
 function maybeQueryGpsForDevice(camId, opts) {
     if (!getContactUriForCam(camId) || !camId || !deviceNeedsGpsPoll(camId)) return false;
     const force = !!(opts && opts.force);
@@ -9227,6 +10293,45 @@ function pollGpsForOnlineDevices(opts) {
         else run();
     });
     return online.length;
+}
+
+function pollBwcActivityForOnlineDevices() {
+    const online = fleetRegistry.getDashboardFleet().filter((d) => (
+        d && d.online && isBwcCameraId(d.id) && getContactUriForCam(d.id)
+    ));
+    online.forEach((d, i) => {
+        setTimeout(() => queryFastDeviceStatus(d.id), i * 350);
+    });
+    if (online.length) {
+        log.sip.info('bwc activity sweep', { count: online.length, intervalMs: BWC_ACTIVITY_SWEEP_MS });
+    }
+    return online.length;
+}
+
+function compactSipBody(content, maxLen) {
+    return String(content || '').replace(/\s+/g, ' ').trim().slice(0, maxLen || 2000);
+}
+
+function sipHeaderUri(headers, name) {
+    const h = headers && headers[name];
+    if (!h) return '';
+    if (h.uri) return String(h.uri);
+    return String(h);
+}
+
+function logInboundSipRaw(request, remote) {
+    if (!request || !request.content) return;
+    const method = String(request.method || '').toUpperCase();
+    if (method !== 'MESSAGE' && method !== 'NOTIFY') return;
+    log.sip.info('bwc raw inbound sip body', {
+        method,
+        from: sipHeaderUri(request.headers, 'from'),
+        to: sipHeaderUri(request.headers, 'to'),
+        remote: remote && remote.address ? `${remote.address}:${remote.port || ''}` : null,
+        contentType: request.headers && request.headers['content-type'] ? String(request.headers['content-type']) : '',
+        bytes: Buffer.byteLength(String(request.content || ''), 'utf8'),
+        body: compactSipBody(request.content, 2000),
+    });
 }
 
 /** After restart: restore every known-online BWC onto the map (any fleet size). */
@@ -9330,6 +10435,8 @@ function scheduleMsgLinkCheck(camId) {
 sipListenerReady = false;
 try {
 sip.start({ address: BIND_HOST, port: SIP_PORT }, (request, remote) => {
+
+    logInboundSipRaw(request, remote);
 
     if (request.method === 'REGISTER') {
 
@@ -9668,6 +10775,30 @@ const ports = mediaSession.getPorts();
     }
 
     log.web.info('dashboard listening', { url: `http://${HOST}:${HTTP_PORT}`, folder: __dirname });
+    /* mvp-zlm-in-pack — spawn vendor MediaServer when FM_ZLM_SPAWN/PACK=1; no-op if binary missing */
+    setImmediate(() => {
+        try {
+            const zlmProcessBoot = require('./lib/zlmProcess');
+            zlmProcessBoot.ensureStarted().then((r) => {
+                if (r && r.ok) {
+                    log.media.info('zlm ensureStarted ok', {
+                        reason: r.reason,
+                        packBinary: r.packBinary,
+                        childRunning: r.childRunning,
+                    });
+                } else {
+                    log.media.info('zlm ensureStarted skipped', {
+                        reason: r && r.reason,
+                        hint: r && r.hint,
+                    });
+                }
+            }).catch((err) => {
+                log.media.warn('zlm ensureStarted failed', { message: String(err && err.message || err) });
+            });
+        } catch (err) {
+            log.media.warn('zlm ensureStarted load failed', { message: String(err && err.message || err) });
+        }
+    });
     if (licenseFeatures.isFeatureEnabled('fr') && frSidecarClient.isAutoStartEnabled()) {
         setImmediate(() => {
             frSidecarClient.bootstrap().then((r) => {
@@ -9689,9 +10820,11 @@ const ports = mediaSession.getPorts();
         queryOnRegister: true,
         gpsPollMs: GPS_POLL_MS,
         statusQueryCooldownMs: STATUS_QUERY_COOLDOWN_MS,
+        bwcActivitySweepMs: BWC_ACTIVITY_SWEEP_MS,
         logFile: log.logFile,
     });
     setInterval(pollGpsForOnlineDevices, GPS_POLL_MS);
+    setInterval(pollBwcActivityForOnlineDevices, BWC_ACTIVITY_SWEEP_MS);
 
     log.sip.info('sip listening', { publicHost: HOST, bind: BIND_HOST, port: SIP_PORT });
 

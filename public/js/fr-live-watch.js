@@ -14,6 +14,7 @@
     var pinned = Object.create(null); // camId -> true (hold on a slot)
     var slotCam = [null, null, null, null, null, null];
     var players = [null, null, null, null, null, null];
+    var focusedSlot = -1; // mob-fr-stop-video-selected — tile click target for Stop video
     var rotateTimer = null;
     var rotateCursor = 0;
     var fleetById = Object.create(null);
@@ -44,6 +45,8 @@
 
     var tileSignalTimers = [null, null, null, null, null, null];
     var tileSignalRetried = Object.create(null);
+    /** mob-fr-tile-sos-badge — camId -> 'sos' | 'fall' (active alarms only) */
+    var sosKindByCam = Object.create(null);
 
     function tr(key, fallback) {
         if (typeof I18n !== 'undefined' && I18n.t) {
@@ -441,6 +444,83 @@
             stopBtn.hidden = !camId;
             stopBtn.setAttribute('aria-label', tr('analytics.fr.tileStop', 'Stop this tile'));
         }
+        applyTileSosBadge(tile, camId);
+    }
+
+    function normalizeFrCamId(camId) {
+        return String(camId == null ? '' : camId).trim();
+    }
+
+    function isActiveSosCam(camId) {
+        var id = normalizeFrCamId(camId);
+        if (!id) return false;
+        if (typeof global.getActiveSosCamIds === 'function') {
+            var ids = global.getActiveSosCamIds() || [];
+            for (var i = 0; i < ids.length; i++) {
+                if (normalizeFrCamId(ids[i]) === id) return true;
+            }
+            return false;
+        }
+        return !!sosKindByCam[id];
+    }
+
+    function reconcileSosKindMap() {
+        var keep = Object.create(null);
+        if (typeof global.getActiveSosCamIds === 'function') {
+            (global.getActiveSosCamIds() || []).forEach(function (raw) {
+                var id = normalizeFrCamId(raw);
+                if (!id) return;
+                keep[id] = sosKindByCam[id] || 'sos';
+            });
+        } else {
+            Object.keys(sosKindByCam).forEach(function (id) { keep[id] = sosKindByCam[id]; });
+        }
+        sosKindByCam = keep;
+    }
+
+    function ensureTileSosBadge(tile) {
+        if (!tile) return null;
+        var badge = tile.querySelector('.ax-fr-tile-sos-badge');
+        if (badge) return badge;
+        badge = document.createElement('span');
+        badge.className = 'ax-fr-tile-sos-badge';
+        badge.hidden = true;
+        badge.setAttribute('aria-live', 'polite');
+        tile.appendChild(badge);
+        return badge;
+    }
+
+    function applyTileSosBadge(tile, camId) {
+        var badge = ensureTileSosBadge(tile);
+        if (!badge) return;
+        var id = normalizeFrCamId(camId);
+        var active = id && isActiveSosCam(id);
+        if (!active) {
+            badge.hidden = true;
+            badge.classList.remove('is-fall');
+            if (tile) tile.classList.remove('is-sos-alarm');
+            return;
+        }
+        var kind = sosKindByCam[id] || 'sos';
+        var isFall = kind === 'fall';
+        badge.textContent = isFall
+            ? tr('analytics.fr.tileFallBadge', 'FALL')
+            : tr('analytics.fr.tileSosBadge', 'SOS');
+        badge.title = isFall
+            ? tr('analytics.fr.tileFallBadgeTitle', 'Fall alert on this BWC')
+            : tr('analytics.fr.tileSosBadgeTitle', 'SOS alert on this BWC');
+        badge.classList.toggle('is-fall', isFall);
+        badge.hidden = false;
+        if (tile) tile.classList.add('is-sos-alarm');
+    }
+
+    function syncAllTileSosBadges() {
+        reconcileSosKindMap();
+        for (var i = 0; i < LIVE_SLOTS; i++) {
+            var tile = tileEl(i);
+            if (!tile) continue;
+            applyTileSosBadge(tile, slotCam[i] || tile.getAttribute('data-cam') || '');
+        }
     }
 
     function destroyPlayer(slot) {
@@ -476,12 +556,8 @@
     function emitWatchSlots() {
         var sock = getSocket();
         if (!sock) return;
-        var thrEl = document.getElementById('ax-fr-threshold');
-        var thr = thrEl ? parseInt(thrEl.value, 10) : 75;
-        if (isNaN(thr)) thr = 75;
         sock.emit('fr-watch-slots', {
             camIds: watching ? activeSlotCams() : [],
-            threshold: thr,
         });
     }
 
@@ -585,6 +661,51 @@
         return -1;
     }
 
+    function findEmptySlot() {
+        for (var i = 0; i < LIVE_SLOTS; i++) {
+            if (!slotCam[i]) return i;
+        }
+        return -1;
+    }
+
+    function syncTileFocusUi() {
+        for (var i = 0; i < LIVE_SLOTS; i++) {
+            var tile = tileEl(i);
+            if (tile) tile.classList.toggle('is-focused', focusedSlot === i);
+        }
+    }
+
+    function setFocusedSlot(slot) {
+        if (typeof slot !== 'number' || isNaN(slot) || slot < 0 || slot >= LIVE_SLOTS) {
+            focusedSlot = -1;
+        } else {
+            focusedSlot = slot;
+        }
+        syncTileFocusUi();
+    }
+
+    function endWatchSession() {
+        watching = false;
+        focusedSlot = -1;
+        if (rotateTimer) {
+            clearInterval(rotateTimer);
+            rotateTimer = null;
+        }
+        syncTileFocusUi();
+    }
+
+    /** Fill empty tiles from remaining watch-set cams (not the stopped ones). */
+    function fillEmptySlots() {
+        if (!watching) return;
+        while (true) {
+            var slot = findEmptySlot();
+            if (slot < 0) break;
+            var next = nextRotateCandidate();
+            if (!next) break;
+            startSlot(slot, next);
+        }
+    }
+
     function rotateOnce() {
         if (!watching) return;
         if (selected.length <= LIVE_SLOTS) return;
@@ -607,13 +728,49 @@
     }
 
     function stopWatch() {
-        watching = false;
-        if (rotateTimer) {
-            clearInterval(rotateTimer);
-            rotateTimer = null;
-        }
+        endWatchSession();
         for (var i = 0; i < LIVE_SLOTS; i++) stopSlot(i, true);
         emitWatchSlots();
+        updateWatchButtons();
+        renderWatchList();
+    }
+
+    /**
+     * Stop video = focused live tile only. Removes cam from rotate pool so it
+     * does not return; free slot can be filled by selecting another BWC.
+     */
+    function stopSelectedVideo() {
+        if (!watching) return;
+        var camId = (focusedSlot >= 0 && focusedSlot < LIVE_SLOTS) ? slotCam[focusedSlot] : null;
+        if (!camId) {
+            showWatchHint(tr('analytics.fr.stopVideoNeedFocus',
+                'Click a live tile first, then Stop video'));
+            return;
+        }
+        removeCamFromWatch(camId);
+    }
+
+    /** Remove one cam from watch set + tear down its tile; stay watching if others remain. */
+    function removeCamFromWatch(camId) {
+        camId = String(camId || '');
+        if (!camId) return;
+        var idx = selected.indexOf(camId);
+        if (idx >= 0) selected.splice(idx, 1);
+        delete pinned[camId];
+        for (var i = 0; i < LIVE_SLOTS; i++) {
+            if (slotCam[i] === camId) {
+                if (focusedSlot === i) focusedSlot = -1;
+                stopSlot(i, true);
+            }
+        }
+        if (!selected.length) {
+            endWatchSession();
+            emitWatchSlots();
+        } else if (watching) {
+            fillEmptySlots();
+            emitWatchSlots();
+        }
+        syncTileFocusUi();
         updateWatchButtons();
         renderWatchList();
     }
@@ -621,10 +778,12 @@
     function startWatch() {
         if (!selected.length) return;
         watching = true;
+        focusedSlot = -1;
         fillInitialSlots();
         if (rotateTimer) clearInterval(rotateTimer);
         rotateTimer = setInterval(rotateOnce, ROTATE_MS);
         emitWatchSlots();
+        syncTileFocusUi();
         updateWatchButtons();
         renderWatchList();
     }
@@ -637,19 +796,17 @@
             if (idx >= 0) return;
             if (selected.length >= MAX_WATCH) return;
             selected.push(camId);
-        } else {
-            if (idx < 0) return;
-            selected.splice(idx, 1);
-            delete pinned[camId];
             if (watching) {
-                for (var i = 0; i < LIVE_SLOTS; i++) {
-                    if (slotCam[i] === camId) {
-                        stopSlot(i, true);
-                        var next = nextRotateCandidate();
-                        if (next) startSlot(i, next);
-                    }
+                var empty = findEmptySlot();
+                if (empty >= 0 && deviceOnline(camId) && activeSlotCams().indexOf(camId) < 0) {
+                    startSlot(empty, camId);
+                    emitWatchSlots();
                 }
             }
+        } else {
+            if (idx < 0) return;
+            removeCamFromWatch(camId);
+            return;
         }
         updateWatchButtons();
         renderWatchList();
@@ -833,7 +990,7 @@
             (watching ? '' : ' disabled') + '>' +
             esc(tr('analytics.fr.stopVideo', 'Stop video')) + '</button>' +
             '<button type="button" class="btn btn-ghost btn-sm" id="ax-fr-watch-stop-all"' +
-            (watching || selected.length === 0 ? ' disabled' : '') + '>' +
+            (!watching && selected.length === 0 ? ' disabled' : '') + '>' +
             esc(tr('analytics.fr.stopAll', 'Stop all')) + '</button>' +
             '<button type="button" class="btn btn-ghost btn-sm" id="ax-fr-roster-clear"' +
             (selected.length === 0 ? ' disabled' : '') + '>' +
@@ -894,9 +1051,27 @@
                 if (!tile) return;
                 var slot = parseInt(tile.getAttribute('data-slot'), 10);
                 if (isNaN(slot) || slot < 0) return;
-                stopSlot(slot, true);
-                updateWatchButtons();
-                renderWatchList();
+                var camId = slotCam[slot];
+                if (camId) removeCamFromWatch(camId);
+                else {
+                    stopSlot(slot, true);
+                    updateWatchButtons();
+                    renderWatchList();
+                }
+            });
+        });
+        document.querySelectorAll('.ax-fr-tile').forEach(function (tile) {
+            if (tile._frFocusBound) return;
+            tile._frFocusBound = true;
+            tile.addEventListener('click', function (ev) {
+                if (ev.target && ev.target.closest && ev.target.closest('.ax-fr-tile-stop')) return;
+                var slot = parseInt(tile.getAttribute('data-slot'), 10);
+                if (isNaN(slot) || slot < 0) return;
+                if (!slotCam[slot]) {
+                    setFocusedSlot(-1);
+                    return;
+                }
+                setFocusedSlot(slot);
             });
         });
     }
@@ -907,7 +1082,7 @@
         var stopAllBtn = document.getElementById('ax-fr-watch-stop-all');
         var clearBtn = document.getElementById('ax-fr-roster-clear');
         if (startBtn) startBtn.onclick = function () { startWatch(); };
-        if (stopBtn) stopBtn.onclick = function () { stopWatch(); };
+        if (stopBtn) stopBtn.onclick = function () { stopSelectedVideo(); };
         if (stopAllBtn) stopAllBtn.onclick = function () { stopAllWatch(); };
         if (clearBtn) clearBtn.onclick = function () { clearWatchSet(); };
 
@@ -1064,6 +1239,20 @@
                 }
             }
         });
+        /* mob-fr-tile-sos-badge — chip on FR tile for active SOS/FALL cam */
+        sock.on('sos-alarm', function (data) {
+            if (!data || !data.cameraId) return;
+            var id = normalizeFrCamId(data.cameraId);
+            if (!id) return;
+            sosKindByCam[id] = (data.alarmKind === 'fall') ? 'fall' : 'sos';
+            syncAllTileSosBadges();
+        });
+        sock.on('sos-acknowledged', function (data) {
+            if (data && data.cameraId) {
+                delete sosKindByCam[normalizeFrCamId(data.cameraId)];
+            }
+            syncAllTileSosBadges();
+        });
     }
 
     function onFacePanelShow() {
@@ -1094,6 +1283,7 @@
             updateWatchButtons();
             renderWatchList();
         }
+        syncAllTileSosBadges();
     }
 
     function onHideOrLeave() {

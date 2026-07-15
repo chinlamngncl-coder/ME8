@@ -1,6 +1,6 @@
 # MOB DISC — Commit / push now, or new version? (discussion only)
 
-**Status:** OPEN — **no commit, no push, no baseline** until you say go-ahead  
+**Status:** COMMIT DONE 2026-07-13 — `lab-ops-hygiene` on `main` (`fafd55d`) · **not pushed** until you say push  
 **Date:** 2026-07-13  
 **Search:** commit, push, baseline, new version, genre  
 **Tree:** `Desktop\Enterprise Mobility\ME8` · branch `main`

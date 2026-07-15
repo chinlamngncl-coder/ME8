@@ -410,6 +410,10 @@
             if (panelWarm('case-files', force)) return;
             if (global.CaseFilesUi && CaseFilesUi.onShow) CaseFilesUi.onShow({ force: true });
             markPanelLoaded('case-files');
+        } else if (currentPanel === 'investigation-holds') {
+            if (panelWarm('investigation-holds', force)) return;
+            if (global.FrKeptUi && FrKeptUi.onShow) FrKeptUi.onShow({ force: true });
+            markPanelLoaded('investigation-holds');
         } else if (currentPanel === 'detail' && currentDetailId) {
             if (panelWarm('detail', force)) return;
             loadDetail(currentDetailId, force);

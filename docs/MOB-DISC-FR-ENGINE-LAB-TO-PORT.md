@@ -1,6 +1,6 @@
 # MOB DISC — FR engine lab → ship port (DeepFace is not the product)
 
-**Status:** DISC 2026-07-11 — **`mob-fr-engine-bench-harness` APPLIED 2026-07-13**. Operator FAIL context: enroll/crop/snap “toy”; high-res PNG useless; slow  
+**Status:** DISC 2026-07-11 — **`mob-fr-engine-bench-harness` APPLIED 2026-07-13** · **`mob-fr-sidecar-primary-poc` APPLIED 2026-07-13** (ONNX `fr-sidecar-fast`). Operator FAIL context: enroll/crop/snap “toy”; high-res PNG useless; slow  
 **Trigger:** “Nothing works · looks lousy · we should start porting soon · DeepFace not even near good”  
 **Search:** DeepFace bad, enroll quality, crop, slow FR, port engine, ONNX, SeetaFace, primary backup  
 **Related:** `MOB-DISC-FR-ENGINE-PRIMARY-BACKUP.md`, `MOB-DISC-FR-ENGINE-SLOW-LOW-MATCH.md`, `MOB-DISC-FR-SNAPSHOT-RAIL-THRESHOLD.md`, `MOB-DISC-FR-HALF-FACE-SNAP-LEDGER.md`

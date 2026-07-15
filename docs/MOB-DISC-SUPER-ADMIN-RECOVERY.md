@@ -1,6 +1,6 @@
 # MOB DISC — super admin lockout recovery (enterprise)
 
-**Status:** PARKED — design only. **Not built yet.**  
+**Status:** PARKED **build** — plain plan recorded 2026-07-12 as `mob-admin-unlock-disc` → see `MOB-DISC-ADMIN-UNLOCK-PLAIN.md`. **Not built yet.**  
 **Search:** `forgot password`, `TOTP recovery`, `lockout`, `email`, `break-glass`
 
 ---

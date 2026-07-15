@@ -1,0 +1,36 @@
+# mob-wvp-zlm-lab-bringup — WVP-Pro lab (GB28181 scale track)
+#
+# Image: Docker Hub 648540858/wvp_pro (all-in-one WVP + bundled ZLM).
+# Aliyun sip_proxy/wvp-pro pull is dead — do not use.
+#
+# This is the WVP+ZLM pair for GB cameras. Fleet BWC wall still uses me8-zlm
+# (docker/zlm.compose.yml) on SIP 5060 — untouched.
+#
+# Start:  .\START-WVP-LAB.bat
+# Stop:   .\STOP-WVP-LAB.bat
+
+services:
+
+  wvp:
+    image: 648540858/wvp_pro:latest
+    container_name: me8-wvp
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Singapore
+      # LAN IP cameras use to reach this PC (from .env HOST via START-WVP-LAB.ps1)
+      WVP_IP: ${WVP_HOST_IP:-192.168.1.38}
+    ports:
+      - "18080:18080"           # WVP web UI
+      - "5061:5060/udp"         # GB28181 SIP on host 5061 (Fleet PTT keeps 5060)
+      - "5061:5060/tcp"
+      - "18088:80"              # bundled ZLM HTTP-FLV (host 18088 — avoid clash with me8-zlm :8080)
+      # mob-wvp-play-host-port-80 — lab only: WVP play URLs hardcode :80; map host 80 so browser can load.
+      # Stop WVP to free :80. Does not touch Fleet / BWC pack. Prefer advertise-18088 later if :80 banned.
+      - "80:80"
+      - "19355:1935"            # bundled ZLM RTMP (avoid clash with me8-zlm :19350)
+    # RTP receive range — GB media; keep modest for lab
+      - "30000-30100:30000-30100/udp"
+      - "30000-30100:30000-30100/tcp"
+    # mob-wvp-bundled-zlm-persist — host copy of /opt/media/config.ini (Track B ZLM, not Fleet me8-zlm)
+    volumes:
+      - ./zlm-bundled/config.ini:/opt/media/config.ini:ro

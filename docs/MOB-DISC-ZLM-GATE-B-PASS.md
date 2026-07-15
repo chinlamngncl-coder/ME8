@@ -48,7 +48,10 @@
 - `server.js` routes behind `FM_LAB_ZLM=1` only
 - `docker/zlm.compose.yml` + config — **builder lab bench**, not operator ship path
 
-**Not started:** Gate C (adapter wire), Gate D (wall player), internal FLV proxy (off 8080).
+**Gate C (2026-07-14):** `lib/liveMediaAdapter.js` — auto ZLM side relay when pool is live.  
+**Gate C checkpoint:** **PASS** (operator 2026-07-14).  
+**Gate D wall-ZLM:** failed wipe → rolled back → **`mob-zlm-wall-safe-no-wipe`** (JSMpeg first; soft ZLM overlay one-cam only; Open All skips ZLM).  
+**Not started:** Open All on ZLM, customer pack binary.
 
 ---
 
@@ -56,9 +59,9 @@
 
 | Gate | What |
 |------|------|
-| **C** | `liveMediaAdapter` + broker in start-video; dashboard still JSMpeg |
-| **D** | Wall/pin use playback descriptor — checkpoint ritual |
-| **Ship** | ZLM binary inside customer pack; no Docker for operator |
+| **C** | **PASS** — adapter + side relay |
+| **D** | **SAFE try APPLIED** — soft overlay one-cam; Open All = JSMpeg |
+| **Ship** | **APPLIED wiring** — `mvp-zlm-in-pack` (place Windows MediaServer.exe; no Docker for customer) |
 
 **Git:** Gate B genre ready to batch-commit when you say `MOB-APPLY lab-git-push-zlm` (or equivalent).
 

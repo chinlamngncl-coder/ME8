@@ -18,7 +18,7 @@ const tmpOut = path.join(appRoot, '.ship-run-build.tmp.js');
 const cmd = [
   'npx --yes esbuild',
   JSON.stringify(entry),
-  '--bundle --platform=node --target=node20 --packages=external',
+  '--bundle --platform=node --target=node22 --packages=external',
   '--outfile=' + JSON.stringify(tmpOut),
   '--log-level=warning',
 ].join(' ');

@@ -1,63 +1,91 @@
-# wvp-GB28181-pro lab stack — ME8 tender track (Gate C).
-# Handles GB28181 camera registration at scale; feeds media into existing ZLM.
+# mob-wvp-zlm-modern-split — modern ZLM + WVP 2.7.3 (split)
 #
-# Start:  docker compose -p me8-wvp -f docker/wvp/docker-compose.wvp.yml up -d
-# Stop:   docker compose -p me8-wvp -f docker/wvp/docker-compose.wvp.yml down
-# Logs:   docker compose -p me8-wvp -f docker/wvp/docker-compose.wvp.yml logs -f wvp
+# Images:
+#   zlmediakit/zlmediakit:master  — current ZLM
+#   gemcjz/wvp-pro:latest         — WVP 2.7.3 (Java only; external ZLM)
+#   postgres:15 + redis:7
 #
-# Requires: ZLM already running  (docker compose -p me8-zlm -f docker/zlm.compose.yml up -d)
+# Fossil all-in-one (2021): docker-compose.wvp-fossil.yml (648540858/wvp_pro)
+#
+# Fleet BWC wall still uses me8-zlm (docker/zlm.compose.yml) + SIP 5060 — untouched.
+#
+# Start:  .\START-WVP-LAB.bat
+# Stop:   .\STOP-WVP-LAB.bat
 
 services:
 
+  wvp-redis:
+    image: redis:7-alpine
+    container_name: me8-wvp-redis
+    restart: unless-stopped
+    command: redis-server --requirepass root
+    environment:
+      TZ: Asia/Singapore
+
+  wvp-db:
+    image: postgres:15-alpine
+    container_name: me8-wvp-db
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Singapore
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root123
+      POSTGRES_DB: wvp2
+    volumes:
+      # Official wvp-GB28181-pro 2.7.3 PostgreSQL schema + admin/admin (md5)
+      - ./mysql-init/01-init-wvp2-pg.sql:/docker-entrypoint-initdb.d/01-init-wvp2.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d wvp2"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+  wvp-zlm:
+    image: zlmediakit/zlmediakit:master
+    container_name: me8-wvp-zlm
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Singapore
+    volumes:
+      - ./zlm-modern/config.ini:/opt/media/conf/config.ini
+    ports:
+      # Lab play URLs use :80 (same strategy as fossil stack)
+      - "80:80"
+      - "18088:80"
+      - "19355:1935"
+      - "10000:10000"
+      - "10000:10000/udp"
+      - "30000-30100:30000-30100/udp"
+      - "30000-30100:30000-30100/tcp"
+
   wvp:
-    image: registry.cn-hangzhou.aliyuncs.com/sip_proxy/wvp-pro:latest
+    image: gemcjz/wvp-pro:latest
     container_name: me8-wvp
     restart: unless-stopped
     depends_on:
-      - wvp-mysql
-      - wvp-redis
-    ports:
-      - "18080:18080"       # wvp web UI + REST API
-      - "5061:5061/udp"     # GB28181 SIP (5061 avoids conflict with existing sipServer on 5060)
-      - "5061:5061/tcp"
+      wvp-db:
+        condition: service_healthy
+      wvp-redis:
+        condition: service_started
+      wvp-zlm:
+        condition: service_started
     environment:
       TZ: Asia/Singapore
-      WVP_SIP_IP: ${WVP_HOST_IP:-127.0.0.1}
-      WVP_SIP_DOMAIN: ${WVP_SIP_DOMAIN:-me8.local}
-      WVP_DB_PASSWORD: ${WVP_DB_PASSWORD:-wvp_lab_pass}
-      WVP_ZLM_SECRET: ${WVP_ZLM_SECRET:-035c73f7-bb6b-4889-a715-d9eb2d1925cc}
+      # Cameras register to this LAN IP (from START-WVP-LAB.ps1 → .env HOST)
+      WVP_HOST: ${WVP_HOST_IP:-192.168.1.38}
+      WVP_PORT: "5060"
+      WVP_DOMAIN: "4401020049"
+      WVP_ID: "44010200492000000001"
+      WVP_PWD: "admin123"
+      ZLM_HOST: me8-wvp-zlm
+      ZLM_PORT: "80"
+      REDIS_HOST: me8-wvp-redis
+      REDIS_PORT: "6379"
+      REDIS_PWD: root
     volumes:
-      - ./wvp-config/application.yml:/app/config/application.yml:ro
-    networks:
-      - me8-zlm_default
-      - wvp-internal
-
-  wvp-mysql:
-    image: mysql:8.0
-    container_name: me8-wvp-mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${WVP_DB_ROOT_PASSWORD:-wvp_root_pass}
-      MYSQL_DATABASE: wvp
-      MYSQL_USER: wvp
-      MYSQL_PASSWORD: ${WVP_DB_PASSWORD:-wvp_lab_pass}
-    volumes:
-      - wvp-mysql-data:/var/lib/mysql
-    networks:
-      - wvp-internal
-
-  wvp-redis:
-    image: valkey/valkey:7-alpine
-    container_name: me8-wvp-redis
-    restart: unless-stopped
-    networks:
-      - wvp-internal
-
-networks:
-  me8-zlm_default:
-    external: true       # ZLM's existing network — wvp reaches me8-zlm by name
-  wvp-internal:
-    driver: bridge       # private network for wvp + mysql + redis only
-
-volumes:
-  wvp-mysql-data:
+      - ./wvp-config/application-modern.yml:/opt/wvp/config/application.yml:ro
+    ports:
+      - "18080:18080"
+      - "5061:5060/udp"
+      - "5061:5060/tcp"

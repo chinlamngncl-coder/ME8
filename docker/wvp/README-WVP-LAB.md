@@ -1,86 +1,74 @@
-# wvp-GB28181-pro — Lab Setup
+# WVP + ZLM lab — modern split
 
-Handles GB28181 camera registration at scale. Feeds video into the existing ZLM container.  
-This is the **tender track** stack — lab only until Gate C is approved.
+**MOB:** `mob-wvp-zlm-modern-split`  
+**Track:** Tender / GB28181 scale (not the 8-BWC Fleet wall)
 
----
+| Role | Image |
+|------|--------|
+| WVP 2.7.3 | `gemcjz/wvp-pro:latest` |
+| ZLM (current) | `zlmediakit/zlmediakit:master` |
+| Postgres / Redis | `postgres:15-alpine` / `redis:7-alpine` |
 
-## Before you start
+Fleet wall / PTT SIP **5060** are **not** changed. WVP SIP on host = **5061**.
 
-ZLM must already be running:
-
-```powershell
-docker compose -p me8-zlm -f docker/zlm.compose.yml up -d
-```
-
----
-
-## Start wvp stack
-
-```powershell
-cd "C:\Users\user\Desktop\Enterprise Mobility\ME8"
-docker compose -p me8-wvp -f docker/wvp/docker-compose.wvp.yml up -d
-```
-
-First start takes ~2 minutes — MySQL is initialising. Check with:
-
-```powershell
-docker compose -p me8-wvp -f docker/wvp/docker-compose.wvp.yml logs -f wvp
-```
-
-Look for: `Started WvpProApplication`
+Fossil all-in-one (2021 Hub `648540858/wvp_pro`) kept as `docker-compose.wvp-fossil.yml` for emergency rollback only.
 
 ---
 
-## wvp web UI
+## One-click start
 
-Open: `http://localhost:18080`  
-Login: `admin` / `admin123`
+1. Start **Docker Desktop** (wait until ready).  
+2. Double-click **`START-WVP-LAB.bat`** in the ME8 folder.
 
 ---
 
-## Point a BWC camera at wvp
+## Proof
 
-On the camera, set the SIP server to:
+1. Open **http://192.168.1.38:18080** (or `http://127.0.0.1:18080`)  
+2. Login **admin** / **admin** (try **admin123** if needed)  
+3. Point GB28181 cameras at:
 
 | Field | Value |
-|---|---|
-| SIP Server IP | Your PC's LAN IP |
-| SIP Port | `5061` |
-| SIP Domain | `me8.local` (or whatever `WVP_SIP_DOMAIN` is set to) |
-| SIP Password | `gb28181` (or `WVP_SIP_PASSWORD` value) |
+|--------|--------|
+| SIP server IP | Dashboard LAN IP (e.g. `192.168.1.38`) |
+| SIP port | **5061** |
+| Domain | `4401020049` |
+| Platform ID | `44010200492000000001` |
+| Password | `admin123` |
 
-The camera should appear in the wvp web UI under **Devices** within 30 seconds.
+4. Cams may need a short re-register after stack recreate.  
+5. Play: dashboard **Lab · WVP two tiles**, or WVP UI.
+
+---
+
+## Ports (lab)
+
+| Host | Use |
+|------|-----|
+| 18080 | WVP web UI |
+| 5061 | GB28181 SIP (WVP) |
+| 80 / 18088 | Modern ZLM HTTP-FLV (Track B play) |
+| 8080 | Separate **me8-zlm** for BWC / Fleet lab |
+| 5060 | Fleet PTT / BWC SIP — unchanged |
+
+---
+
+## Config files
+
+| Host path | Role |
+|-----------|------|
+| `docker/wvp/zlm-modern/config.ini` | Modern ZLM (`mediaServerId=me8-zlm-modern`) |
+| `docker/wvp/wvp-config/application-modern.yml` | WVP → mysql/redis/ZLM wiring |
+| `docker/wvp/zlm-bundled/config.ini` | Fossil only (unused by modern compose) |
 
 ---
 
 ## Stop
 
-```powershell
-docker compose -p me8-wvp -f docker/wvp/docker-compose.wvp.yml down
-```
-
-Data is preserved in the `wvp-mysql-data` Docker volume.  
-To wipe and start fresh: add `--volumes` to the down command.
+`STOP-WVP-LAB.bat` — stops mysql + redis + me8-wvp-zlm + me8-wvp. Fleet `me8-zlm` left running.
 
 ---
 
-## Environment overrides (optional, lab only)
+## Note
 
-Set these in your `.env` before starting:
-
-| Variable | Default | What it does |
-|---|---|---|
-| `WVP_HOST_IP` | `127.0.0.1` | Your PC's LAN IP — cameras need this to register |
-| `WVP_SIP_DOMAIN` | `me8.local` | SIP domain cameras register under |
-| `WVP_SIP_PASSWORD` | `gb28181` | SIP password cameras use |
-| `WVP_DB_PASSWORD` | `wvp_lab_pass` | MySQL user password (lab only) |
-| `WVP_ZLM_SECRET` | ZLM default | Must match `secret=` in `docker/zlm-config/config.ini` |
-
----
-
-## Notes
-
-- SIP port is **5061** (not 5060) to avoid conflict with the existing PTT SIP stack.
-- wvp and ZLM communicate over the `me8-zlm_default` Docker network — no extra firewall rules needed between them.
-- `sipServer.js` and `pttServer.js` are not touched — PTT keeps working normally.
+Do **not** tune 2021 fossil knobs as the scale answer. Google / modern ZLM keys belong in `zlm-modern/config.ini` only.

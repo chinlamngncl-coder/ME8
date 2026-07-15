@@ -1,0 +1,60 @@
+# mob-wvp-zlm-modern-split — WVP 2.7.3 (gemcjz) → modern ZLM
+# Mounted at /opt/wvp/config/application.yml
+# SIP host 5061 → container 5060. Fleet PTT SIP 5060 untouched.
+# Camera platform defaults match lab cams: domain 4401020049 / id …0001 / pwd admin123
+
+spring:
+    servlet:
+        multipart:
+            max-file-size: 10MB
+            max-request-size: 100MB
+    cache:
+        type: redis
+    redis:
+        host: ${REDIS_HOST:me8-wvp-redis}
+        port: ${REDIS_PORT:6379}
+        database: ${REDIS_DB:6}
+        password: ${REDIS_PWD:root}
+        timeout: 10000
+    datasource:
+        type: com.zaxxer.hikari.HikariDataSource
+        # Official 2.7.3 schema is PostgreSQL dialect — use postgres in compose
+        driver-class-name: org.postgresql.Driver
+        url: jdbc:postgresql://me8-wvp-db:5432/wvp2
+        username: root
+        password: root123
+
+server:
+    port: 18080
+
+sip:
+    # Docker: LAN IP for SIP/hooks + 0.0.0.0 for listen (issue #818 pattern)
+    ip: ${WVP_HOST:192.168.1.38},0.0.0.0
+    # Listen inside container; host maps 5061→5060
+    port: ${WVP_PORT:5060}
+    domain: ${WVP_DOMAIN:4401020049}
+    id: ${WVP_ID:44010200492000000001}
+    password: ${WVP_PWD:admin123}
+
+media:
+    # Must match ZLM general.mediaServerId
+    id: me8-zlm-modern
+    # Docker DNS name for WVP→ZLM API
+    ip: ${ZLM_HOST:me8-wvp-zlm}
+    http-port: ${ZLM_PORT:80}
+    secret: me8WvpZlmModern20260714Kx9m
+    # ZLM→WVP hook callback (must be reachable from me8-wvp-zlm container)
+    hook-ip: me8-wvp
+    rtp:
+        enable: true
+        # Keep modest for Windows Docker port publish (lab)
+        port-range: 30000,30100
+        send-port-range: 30000,30100
+    record-assist-port: 0
+    # Advertise LAN IP to cameras / browsers (START-WVP-LAB sets WVP_HOST)
+    sdp-ip: ${WVP_HOST:192.168.1.38}
+    stream-ip: ${WVP_HOST:192.168.1.38}
+
+user-settings:
+    record-push-live: false
+    auto-apply-play: true

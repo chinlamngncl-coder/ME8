@@ -197,6 +197,27 @@
         else delete popupOpenCamIds[String(camId)];
     }
 
+    /** Zoom/spiderfy clustered patrol pin so popup + focus can reach it (FR map focus). */
+    function revealMarker(marker, callback) {
+        if (!marker) {
+            if (callback) callback();
+            return;
+        }
+        if (!clusterEnabled || !clusterGroup) {
+            if (callback) callback();
+            return;
+        }
+        try {
+            if (typeof clusterGroup.zoomToShowLayer === 'function') {
+                clusterGroup.zoomToShowLayer(marker, function () {
+                    if (callback) callback();
+                });
+                return;
+            }
+        } catch (_) { /* ignore */ }
+        if (callback) callback();
+    }
+
     global.MapPinLayer = {
         init: init,
         attachMarker: attachMarker,
@@ -206,6 +227,7 @@
         flushDeferredGps: flushDeferredGps,
         setSelectedCamIds: setSelectedCamIds,
         setPopupOpenCamId: setPopupOpenCamId,
+        revealMarker: revealMarker,
         isClusterEnabled: function () { return clusterEnabled; },
         isViewportCullEnabled: function () { return viewportCullEnabled; },
     };

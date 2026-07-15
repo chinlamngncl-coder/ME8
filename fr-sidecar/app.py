@@ -491,7 +491,10 @@ def _run_verify(path1: str, path2: str, model_name: str) -> dict[str, Any]:
 def health() -> dict[str, Any]:
     return {
         "ok": True,
+        "ready": True,
         "service": "fr-sidecar",
+        "engine": "deepface",
+        "fallback": "deepface",
         "defaultModel": DEFAULT_MODEL,
         "allowedModels": list(ALLOWED_MODELS),
         "detector": DETECTOR,
