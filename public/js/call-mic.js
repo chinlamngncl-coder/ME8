@@ -1,6 +1,6 @@
 /**
- * Operator mic for live Call / Fleet ☎ — PCMA to BWC via call-audio.
- * Hold-to-talk only (mob-call-mic-hold): frees PTT TCP for BWC → HQ when not holding.
+ * Operator mic for SIP voice intercom (Fleet ☎) — PCMA to BWC via call-audio.
+ * Phone path: echo cancellation on (PTT hold-to-talk stays in ptt-mic.js).
  */
 (function (global) {
     const FRAME_SAMPLES = 160;
@@ -9,17 +9,6 @@
     let mic = null;
     let activeCamId = null;
     let socketRef = null;
-    let talking = false;
-    let holdUi = null;
-    let keysBound = false;
-
-    function tr(key, fallback) {
-        if (typeof I18n !== 'undefined' && I18n.t) {
-            const v = I18n.t(key);
-            if (v && v !== key) return v;
-        }
-        return fallback || key;
-    }
 
     function linearToAlaw(pcm) {
         const MASK = 0xD5;
@@ -143,120 +132,10 @@
         return { start: start, stop: stop, isRunning: function () { return running; } };
     }
 
-    function syncHoldUi() {
-        if (!holdUi) return;
-        const btn = holdUi.querySelector('.call-mic-hold-btn');
-        const hint = holdUi.querySelector('.call-mic-hold-hint');
-        if (btn) {
-            btn.classList.toggle('is-talking', talking);
-            btn.setAttribute('aria-pressed', talking ? 'true' : 'false');
-            btn.textContent = talking
-                ? tr('call.holdTalking', 'Talking… release to listen')
-                : tr('call.holdToTalk', 'Hold to talk');
-        }
-        if (hint) {
-            hint.textContent = talking
-                ? tr('call.holdChannelBusy', 'Channel open to BWC — release for field PTT')
-                : tr('call.holdChannelFree', 'Mic off — field can PTT to HQ · Space or hold button');
-        }
-    }
-
-    function setTalking(on) {
-        if (!activeCamId) return;
-        talking = !!on;
-        syncHoldUi();
-    }
-
-    function ensureHoldUi() {
-        if (holdUi) return holdUi;
-        if (!document.getElementById('call-mic-hold-style')) {
-            const style = document.createElement('style');
-            style.id = 'call-mic-hold-style';
-            style.textContent =
-                '#call-mic-hold{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);' +
-                'z-index:12000;display:flex;flex-direction:column;align-items:center;gap:8px;' +
-                'pointer-events:none;font-family:Segoe UI,system-ui,sans-serif}' +
-                '#call-mic-hold .call-mic-hold-btn{pointer-events:auto;min-width:220px;padding:14px 22px;' +
-                'border:0;border-radius:10px;background:#1a5f9e;color:#fff;font-size:15px;font-weight:600;' +
-                'cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.35);user-select:none;-webkit-user-select:none;' +
-                'touch-action:none}' +
-                '#call-mic-hold .call-mic-hold-btn.is-talking{background:#c0392b}' +
-                '#call-mic-hold .call-mic-hold-hint{pointer-events:none;color:#dce8f5;font-size:12px;' +
-                'text-shadow:0 1px 3px rgba(0,0,0,.8);max-width:360px;text-align:center}';
-            document.head.appendChild(style);
-        }
-        holdUi = document.createElement('div');
-        holdUi.id = 'call-mic-hold';
-        holdUi.hidden = true;
-        holdUi.innerHTML =
-            '<button type="button" class="call-mic-hold-btn" aria-pressed="false"></button>' +
-            '<div class="call-mic-hold-hint"></div>';
-        document.body.appendChild(holdUi);
-        const btn = holdUi.querySelector('.call-mic-hold-btn');
-        function down(ev) {
-            if (ev) {
-                ev.preventDefault();
-                ev.stopPropagation();
-            }
-            setTalking(true);
-        }
-        function up(ev) {
-            if (ev) {
-                ev.preventDefault();
-                ev.stopPropagation();
-            }
-            setTalking(false);
-        }
-        btn.addEventListener('pointerdown', down);
-        btn.addEventListener('pointerup', up);
-        btn.addEventListener('pointercancel', up);
-        btn.addEventListener('pointerleave', function () {
-            if (talking) setTalking(false);
-        });
-        btn.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
-        return holdUi;
-    }
-
-    function showHoldUi() {
-        const el = ensureHoldUi();
-        el.hidden = false;
-        syncHoldUi();
-    }
-
-    function hideHoldUi() {
-        talking = false;
-        if (holdUi) holdUi.hidden = true;
-    }
-
-    function onKeyDown(ev) {
-        if (!activeCamId) return;
-        if (ev.code !== 'Space' && ev.key !== ' ') return;
-        const t = ev.target;
-        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-        if (ev.repeat) return;
-        ev.preventDefault();
-        setTalking(true);
-    }
-
-    function onKeyUp(ev) {
-        if (!activeCamId) return;
-        if (ev.code !== 'Space' && ev.key !== ' ') return;
-        ev.preventDefault();
-        setTalking(false);
-    }
-
-    function bindKeys() {
-        if (keysBound) return;
-        keysBound = true;
-        window.addEventListener('keydown', onKeyDown, true);
-        window.addEventListener('keyup', onKeyUp, true);
-        window.addEventListener('blur', function () { setTalking(false); });
-    }
-
     function ensureMic() {
         if (!mic) {
             mic = createCallMic(function (alawFrame) {
-                if (!socketRef || !activeCamId || !talking) return;
+                if (!socketRef || !activeCamId) return;
                 socketRef.emit('call-audio', { camId: activeCamId }, alawFrame.buffer);
             });
         }
@@ -270,22 +149,12 @@
     function start(camId) {
         if (!camId || !socketRef) return;
         activeCamId = camId;
-        talking = false;
-        bindKeys();
-        showHoldUi();
         const m = ensureMic();
-        if (m) {
-            m.start().catch(function () {
-                activeCamId = null;
-                hideHoldUi();
-            });
-        }
+        if (m) m.start().catch(function () { activeCamId = null; });
     }
 
     function stop() {
         activeCamId = null;
-        talking = false;
-        hideHoldUi();
         if (mic) mic.stop();
     }
 
@@ -294,6 +163,5 @@
         start: start,
         stop: stop,
         isActive: function () { return !!activeCamId; },
-        isTalking: function () { return !!talking; },
     };
 })(window);

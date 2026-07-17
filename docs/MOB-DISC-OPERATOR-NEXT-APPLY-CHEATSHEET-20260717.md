@@ -36,11 +36,24 @@ No long menus. No “pick a path.” Agent owns the sequence.
 
 ## RIGHT NOW
 
-After step **1** push succeeds → **NEXT = step 2:**
+Soft Open storm restored. **Functions still dead** — cams on **:5060→WVP**, Fleet on **:5062**.
+
+**NEXT (Path B — paper ready):**
+
+1. Read `docs/MOB-DISC-BWC-REKEY-FLEET-SIP-5062-20260717.md`  
+2. When ready to type **Chin only** to port **5062**, say:
 
 ```text
-MOB-APPLY safety-commit-keep-ops-wvp-infra
+go Chin
 ```
+
+or
+
+```text
+MOB-APPLY bwc-rekey-chin-5062-operator
+```
+
+(You type the cam; agent checks log after you say Chin saved.)
 
 ---
 

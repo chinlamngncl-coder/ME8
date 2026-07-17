@@ -7861,7 +7861,7 @@
     <script src="/js/bwc-devices.js"></script>
     <script src="/js/video-config.js?v=20260630-no-poll-hint"></script>
     <script src="/js/ptt-mic.js"></script>
-    <script src="/js/call-mic.js?v=20260625-voice-call-audio"></script>
+    <script src="/js/call-mic.js?v=20260717-call-mic-always-on"></script>
     <script src="/js/ptt-rx.js?v=20260629-live-toast"></script>
     <script src="/js/audit-trail-hub.js?v=20260630-audit-preset-ux"></script>
     <script src="/js/license-features.js?v=20260707-license-gate"></script>
@@ -7883,7 +7883,7 @@
     <script src="/js/missed-activity.js?v=20260712-alerts-copy"></script>
     <script src="/js/evidence-manager.js?v=20260713-ops-map-resize"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260717-panel-play-pin"></script>
+    <script src="/js/video-wall.js?v=20260718-pin-dock-no-top-jam"></script>
     <script src="/js/video-matrix.js?v=20260629-live-cap-8"></script>
     <script src="/js/fleet-ui.js?v=20260706-eight-cap-align"></script>
     <script src="/js/map-popout-sync.js?v=20260612-mirror"></script>
@@ -10240,8 +10240,30 @@
                     var pad = 12;
                     var tl = this._map.containerPointToLayerPoint([pad, pad]);
                     var br = this._map.containerPointToLayerPoint([mapSize.x - w - pad, mapSize.y - h - pad]);
+                    var rawY = y;
                     x = Math.max(tl.x, Math.min(x, br.x));
                     y = Math.max(tl.y, Math.min(y, br.y));
+                    /* Classic single-pin: tall live popup must not glue under Fit pins / top chrome.
+                       If vertical clamp pinned us to the top edge, dock below the marker instead. */
+                    if (!clusterFan
+                        && (dock === 'right' || dock === 'left' || dock === 'top' || dock === 'diag-left' || dock === 'diag-right')
+                        && rawY < tl.y
+                        && y <= tl.y + 0.5) {
+                        dock = 'bottom';
+                        this._pinDockSide = 'bottom';
+                        if (el) {
+                            el.classList.remove(
+                                'map-pin-popup-right', 'map-pin-popup-left', 'map-pin-popup-top', 'map-pin-popup-bottom',
+                                'map-pin-popup-diag-left', 'map-pin-popup-diag-right'
+                            );
+                            el.classList.add('map-pin-popup-bottom');
+                            el.classList.add('map-pin-popup-dock');
+                        }
+                        x = pt.x - w * 0.5;
+                        y = pt.y + gap + PIN_DOT_HALF - 8 + yStagger;
+                        x = Math.max(tl.x, Math.min(x, br.x));
+                        y = Math.max(tl.y, Math.min(y, br.y));
+                    }
                 }
                 if (dragOff) {
                     x += dragOff.x;

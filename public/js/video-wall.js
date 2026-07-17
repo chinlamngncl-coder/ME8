@@ -2074,6 +2074,10 @@
         if (streamingCamId === camId) {
             streamingCamId = streamingCams.values().next().value || null;
         }
+        /* Clear HQ viewer refs without treating as operator Stop (keep Stopped by BWC chrome). */
+        if (socket) {
+            socket.emit('stop-video', { camId: camId, surface: OPS_VIEWER_SURFACE });
+        }
         updateMapPinStopButton(camId);
         if (typeof global.minimizeMapPinVideo === 'function') {
             global.minimizeMapPinVideo(camId);
@@ -2579,8 +2583,18 @@
         if (slotEl) slotEl.classList.add('selected');
     }
 
-    function ensureInvite(camId, force) {
+    /** True when HQ may resume after Stopped by BWC (Play / SOS / Open All) — never auto. */
+    function allowBwcStoppedLiveResume(opts) {
+        opts = opts || {};
+        return !!(opts.userPlay || opts.sosLive || opts.alarm || opts.openAll || opts.allowBwcStoppedResume);
+    }
+
+    function ensureInvite(camId, force, opts) {
         if (!socket || !camId) return false;
+        camId = String(camId).trim();
+        if (bwcStoppedCams.has(camId) && !allowBwcStoppedLiveResume(opts)) {
+            return false;
+        }
         if (!force && isStreamInvited(camId)) return false;
         if (!force && streamingCams.size >= MAX_LIVE_STREAMS && !isStreamInvited(camId)) {
             console.warn('[VideoWall] Max ' + MAX_LIVE_STREAMS + ' live streams');
@@ -2594,14 +2608,18 @@
     }
 
     /** Wall or server stream already up — attach JSMpeg only, no backend INVITE. */
-    function requestStreamForCam(camId, force) {
+    function requestStreamForCam(camId, force, opts) {
         if (!camId) return false;
+        camId = String(camId).trim();
+        if (bwcStoppedCams.has(camId) && !allowBwcStoppedLiveResume(opts)) {
+            return false;
+        }
         if (!canStreamCam(camId) && !force) return false;
         if (!force && isCameraLive(camId)) {
             noteExternalStream(camId);
             return false;
         }
-        return ensureInvite(camId, force);
+        return ensureInvite(camId, force, opts);
     }
 
     /** Soft ZLM overlays by wall slot — JSMpeg stays; overlay removed on fail/stop. */
@@ -3032,8 +3050,12 @@
 
     function ensureMapPopupShowsWallStream(camId, isAlarm) {
         if (!camId) return;
+        if (bwcStoppedCams.has(camId) && !isAlarm) {
+            updateMapPinStopButton(camId);
+            return;
+        }
         if (!mapPinHostForCam(camId) && !getMapPopupVideoHost()) return;
-        requestStreamForCam(camId);
+        requestStreamForCam(camId, false, isAlarm ? { alarm: true, sosLive: true } : {});
         activeCamId = camId;
         syncWallPanelForCam(camId, !!isAlarm);
         syncMapPopupPlayer(camId);
@@ -3064,7 +3086,11 @@
             updateMapPinStopButton(camId);
             return false;
         }
-        clearBwcDeviceStoppedForCam(camId);
+        /* Do not clear Stopped by BWC here — that reopened live / auto call-back. */
+        if (bwcStoppedCams.has(camId)) {
+            updateMapPinStopButton(camId);
+            return false;
+        }
         if (!host) host = mapPopupVideoHostForCam(camId);
         if (!host) return false;
         const hostCam = host.getAttribute('data-cam-id');
@@ -3467,7 +3493,12 @@
         const slotEl = slots[slotIndex];
         if (!slotEl || !camId) return;
         camId = String(camId).trim();
+        opts = opts || {};
         clearVideoSignalLostForCam(camId);
+        if (bwcStoppedCams.has(camId) && !allowBwcStoppedLiveResume(opts)
+            && !(opts.alarm || opts.forceInvite || opts.userPlay || opts.openAll || opts.sosLive)) {
+            return;
+        }
         clearBwcDeviceStoppedForCam(camId);
         ensureActivePlayersRegistry();
         const wallReg = getRegisteredActivePlayer(camId, 'wall');
@@ -3517,7 +3548,9 @@
             opts.keepAlarm = true;
         }
 
-        if (!opts || !opts.skipInvite) ensureInvite(camId, !!(opts && (opts.forceInvite || opts.alarm)));
+        if (!opts || !opts.skipInvite) {
+            ensureInvite(camId, !!(opts && (opts.forceInvite || opts.alarm)), opts);
+        }
         if (opts && opts.alarm && (opts.forceInvite || opts.skipInvite)) {
             pendingWallSlots[slotIndex] = camId;
             opts.wallSlotReserved = true;
@@ -3735,6 +3768,10 @@
     function focusMapPinQuiet(camId) {
         if (!camId) return;
         activeCamId = camId;
+        /* Pin Stop sticky must clear when wall/panel wants pin live again. */
+        if (typeof global.clearPinVideoUserStop === 'function') {
+            global.clearPinVideoUserStop(camId);
+        }
         if (typeof global.clearMapPinPopupSuppression === 'function') {
             global.clearMapPinPopupSuppression(camId);
         }
@@ -3758,11 +3795,10 @@
         if (typeof global.bringPinPopupToFront === 'function') {
             global.bringPinPopupToFront(camId);
         }
-        playMapPinVideoIfPopupOpen(camId, 0, { forceLive: true });
+        playMapPinVideoIfPopupOpen(camId, 0, { forceLive: true, userPlay: true });
+        /* One dock pass — triple delayed docks caused pin jump / top thrash. */
         if (typeof global.assignColocatedPinPopupDocks === 'function') {
             global.assignColocatedPinPopupDocks();
-            setTimeout(global.assignColocatedPinPopupDocks, 250);
-            setTimeout(global.assignColocatedPinPopupDocks, 600);
         }
     }
 
@@ -3802,10 +3838,14 @@
             setSlotMeta(slotEl, null, tr('video.setIdInConfig'));
             return;
         }
+        if (typeof global.clearPinVideoUserStop === 'function') {
+            global.clearPinVideoUserStop(camId);
+        }
         clearPttRxLingerForCamIds([camId], true);
         assignCamToSlot(camId, findSlotIndex(slotEl), {
             alarm: slotEl.classList.contains('alarm'),
             forceInvite: true,
+            userPlay: true,
         });
         if (global.PttRx && PttRx.refreshBanner) PttRx.refreshBanner();
         focusMapPinQuiet(camId);
@@ -3990,7 +4030,7 @@
         const ids = (camIds || []).map(function (id) { return String(id || '').trim(); }).filter(Boolean).slice(0, MAX_LIVE_STREAMS);
         if (!ids.length) return;
         prepareOpenAllLive(ids);
-        const liveOpts = { forceLive: true };
+        const liveOpts = { forceLive: true, openAll: true };
         const built = buildOpenAllAssignments(ids);
         const assignmentPairs = built.pairs.slice();
         openAllReservedIds = ids.slice();
@@ -4050,7 +4090,13 @@
     function playOnMapPopup(camId, element, forcedWallSlot, opts) {
         if (!camId || !element) return;
         opts = opts || {};
-        clearBwcDeviceStoppedForCam(camId);
+        if (bwcStoppedCams.has(camId) && !allowBwcStoppedLiveResume(opts)) {
+            updateMapPinStopButton(camId);
+            return;
+        }
+        if (allowBwcStoppedLiveResume(opts) || !bwcStoppedCams.has(camId)) {
+            clearBwcDeviceStoppedForCam(camId);
+        }
         if (opts.forceLive) clearPttRxLingerForCamIds([camId], true);
         const wallAlarm = !!element.closest('[data-sos-popup="1"]');
         const pinIsAlarm = wallAlarm || isAlarmCamId(camId);
@@ -4122,6 +4168,10 @@
     function playMapPinVideoIfPopupOpen(camId, attempt, opts) {
         if (!camId) return;
         opts = opts || {};
+        if (bwcStoppedCams.has(camId) && !allowBwcStoppedLiveResume(opts)) {
+            updateMapPinStopButton(camId);
+            return;
+        }
         if (pinStoppedByUser(camId)) {
             updateMapPinStopButton(camId);
             return;
@@ -4135,7 +4185,7 @@
             return;
         }
         if (opts.forceLive && isStreamInvited(camId) && !isCameraLive(camId)) {
-            requestStreamForCam(camId, true);
+            requestStreamForCam(camId, true, opts);
         }
         if (typeof global.expandMapPinVideo === 'function') {
             global.expandMapPinVideo(camId);
@@ -4294,6 +4344,10 @@
                 if (!camId || !host) return;
                 e.preventDefault();
                 e.stopPropagation();
+                /* Clear before play — capture runs before dashboard-boot bubble clear (1-click Live). */
+                if (typeof global.clearPinVideoUserStop === 'function') {
+                    global.clearPinVideoUserStop(camId);
+                }
                 playOnMapPopup(camId, host, null, { forceLive: true, userPlay: true });
                 return;
             }
@@ -4303,6 +4357,9 @@
             if (!camId) return;
             e.preventDefault();
             e.stopPropagation();
+            if (typeof global.clearPinVideoUserStop === 'function') {
+                global.clearPinVideoUserStop(camId);
+            }
             playOnMapPopup(camId, box, null, { forceLive: true, userPlay: true });
         }, true);
     }
@@ -4729,6 +4786,10 @@
             }
             if (reason === 'device_bye') {
                 markBwcStoppedOverlay(camId);
+                return;
+            }
+            /* stop-video after device BYE (clear watching) — keep Stopped by BWC chrome */
+            if (bwcStoppedCams.has(camId)) {
                 return;
             }
             teardownWallPin(camId, 'operator');
