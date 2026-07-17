@@ -20,10 +20,14 @@
     let catalogPage = 1;
     let catalogStatus = 'active';
     const CATALOG_PAGE_SIZE = 50;
+    let rxPage = 1;
+    const RX_PAGE_SIZE = 50;
     let docksCache = [];
     let selectedDockId = null;
     const panelLoadedAt = Object.create(null);
     let panelLoadedDetailId = null;
+    /* mob-evidence-save-meta-dirty-hint-v1 — snapshot at detail open */
+    let detailMetaBaseline = null;
 
     function staleMs() {
         return (global.TabLifecycle && TabLifecycle.STALE_MS) || 60000;
@@ -147,9 +151,12 @@
         if (navStorage) navStorage.hidden = dashboardRole !== 'super_admin';
         const navDocks = document.getElementById('ev-nav-docks');
         if (navDocks) navDocks.hidden = !perms.dockAdmin && dashboardRole !== 'super_admin';
+        const navRx = document.getElementById('ev-nav-redacted-exports');
+        if (navRx) navRx.hidden = !perms.export && !perms.superAdmin;
         if (dashboardRole !== 'super_admin' && currentPanel === 'settings') showPanel('overview');
         else if (currentPanel === 'approvals') showPanel('catalog', { focusExportQueue: true });
         else if (!perms.dockAdmin && dashboardRole !== 'super_admin' && currentPanel === 'docks') showPanel('overview');
+        else if (!perms.export && !perms.superAdmin && currentPanel === 'redacted-exports') showPanel('overview');
         refreshSecureExportFlag();
         if (document.getElementById('app-view-evidence') && !document.getElementById('app-view-evidence').hidden) {
             refreshCurrentPanel();
@@ -375,13 +382,22 @@
         if (opts && opts.focusExportQueue) catalogFocusExportQueue = true;
         currentPanel = name;
         const evPanel = document.getElementById('evidence-panel');
-        if (evPanel) evPanel.classList.toggle('ev-detail-active', name === 'detail');
+        if (evPanel) {
+            evPanel.classList.toggle('ev-detail-active', name === 'detail');
+            evPanel.classList.toggle('ev-redact-active', name === 'redact');
+        }
         document.querySelectorAll('.evidence-hub-panel').forEach(function (p) {
             p.hidden = p.id !== 'ev-panel-' + name;
         });
         document.querySelectorAll('.evidence-hub-nav-btn').forEach(function (btn) {
+            /* redact has no nav chip — clear active like detail */
             btn.classList.toggle('active', btn.dataset.panel === name);
         });
+        if (name === 'redact') {
+            document.querySelectorAll('.evidence-hub-nav-btn').forEach(function (btn) {
+                btn.classList.remove('active');
+            });
+        }
         if (opts && opts.skipRefresh) return;
         refreshCurrentPanel(!!(opts && opts.force));
     }
@@ -397,6 +413,9 @@
         } else if (currentPanel === 'catalog') {
             if (panelWarm('catalog', force)) return;
             loadCatalog(force);
+        } else if (currentPanel === 'redacted-exports') {
+            if (panelWarm('redacted-exports', force)) return;
+            loadRedactedExports(force);
         } else if (currentPanel === 'settings') {
             if (panelWarm('settings', force)) return;
             if (global.EvidenceStorageUi && EvidenceStorageUi.refresh) EvidenceStorageUi.refresh();
@@ -417,6 +436,8 @@
         } else if (currentPanel === 'detail' && currentDetailId) {
             if (panelWarm('detail', force)) return;
             loadDetail(currentDetailId, force);
+        } else if (currentPanel === 'redact') {
+            markPanelLoaded('redact');
         }
     }
 
@@ -772,6 +793,92 @@
         }).join('') + '</div>';
     }
 
+    function rxStatusLabel(status) {
+        if (status === 'finalized') return tr('evidenceHub.redactFinalized');
+        if (status === 'draft') return tr('evidenceHub.redactDraft');
+        return tr('evidenceHub.redactPendingNote');
+    }
+
+    async function loadRedactedExports(force) {
+        const tbody = document.getElementById('ev-rx-tbody');
+        const meta = document.getElementById('ev-rx-meta');
+        const pager = document.getElementById('ev-rx-pager');
+        const pageLabel = document.getElementById('ev-rx-page-label');
+        if (!tbody) return;
+        if (!perms.export && !perms.superAdmin) {
+            tbody.innerHTML = '<tr><td colspan="7" class="hint">' + esc(tr('evidenceHub.noViewPerm')) + '</td></tr>';
+            return;
+        }
+        if (!panelWarm('redacted-exports', force)) {
+            tbody.innerHTML = '<tr><td colspan="7" class="hint">' + esc(tr('evidenceHub.loading')) + '</td></tr>';
+        }
+        const qEl = document.getElementById('ev-rx-search');
+        const periodEl = document.getElementById('ev-rx-period');
+        const statusEl = document.getElementById('ev-rx-status');
+        const tagEl = document.getElementById('ev-rx-tag');
+        const qs = new URLSearchParams();
+        qs.set('page', String(rxPage));
+        qs.set('pageSize', String(RX_PAGE_SIZE));
+        qs.set('status', (statusEl && statusEl.value) || 'finalized');
+        if (periodEl && periodEl.value) qs.set('period', periodEl.value);
+        if (qEl && qEl.value.trim()) qs.set('q', qEl.value.trim());
+        if (tagEl && tagEl.value.trim()) qs.set('tag', tagEl.value.trim());
+        try {
+            const res = await fetch('/api/evidence/exports?' + qs.toString(), { credentials: 'same-origin' });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throwCatalogErr(data);
+            const rows = data.exports || [];
+            const total = data.total != null ? data.total : rows.length;
+            const pageCount = data.pageCount != null ? data.pageCount : 1;
+            if (data.page) rxPage = data.page;
+            if (meta) meta.textContent = tr('evidenceHub.redactedExportsMeta', { total: total });
+            if (pager) pager.hidden = pageCount <= 1;
+            if (pageLabel) {
+                pageLabel.textContent = tr('evidenceHub.redactedExportsPageLabel', {
+                    page: rxPage,
+                    pages: Math.max(1, pageCount),
+                    total: total,
+                });
+            }
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="hint">' + esc(tr('evidenceHub.redactedExportsEmpty')) + '</td></tr>';
+            } else {
+                tbody.innerHTML = rows.map(function (e) {
+                    const st = e.status || (e.meta && e.meta.status) || 'pending';
+                    const canDl = perms.export && st === 'finalized';
+                    const dl = canDl
+                        ? '<a class="btn btn-action btn-sm" href="/api/evidence/export-stream/'
+                            + encodeURIComponent(e.exportId) + '">' + esc(tr('evidenceHub.download')) + '</a>'
+                        : '';
+                    const open = e.evidenceFileId
+                        ? '<button type="button" class="btn btn-ghost btn-sm ev-rx-open" data-file-id="'
+                            + esc(e.evidenceFileId) + '">' + esc(tr('evidenceHub.redactedExportsOpenSource')) + '</button>'
+                        : '';
+                    const officer = e.sourceOfficer || '—';
+                    const device = e.sourceDeviceId ? (' · ' + e.sourceDeviceId) : '';
+                    const tags = (e.sourceTags && e.sourceTags.length)
+                        ? '<br><span class="hint">' + esc(e.sourceTags.join(', ')) + '</span>'
+                        : '';
+                    return '<tr>'
+                        + '<td><span class="hint">[' + esc(tr('evidenceHub.redactType')) + ']</span> '
+                        + esc(e.fileName || '—') + '</td>'
+                        + '<td>' + esc(fmtBytes(e.byteSize)) + '</td>'
+                        + '<td>' + esc(rxStatusLabel(st)) + '</td>'
+                        + '<td>' + esc(e.sourceFileName || '—') + tags + '</td>'
+                        + '<td>' + esc(officer) + esc(device) + '</td>'
+                        + '<td class="mono">' + esc(fmtTime(e.whenAt || e.createdAt)) + '</td>'
+                        + '<td class="ev-rx-actions">' + dl + (dl && open ? ' ' : '') + open + '</td>'
+                        + '</tr>';
+                }).join('');
+            }
+            markPanelLoaded('redacted-exports');
+        } catch (err) {
+            tbody.innerHTML = '<tr><td colspan="7" class="hint">'
+                + esc(catalogMsg(err.opPayload || err.catalogPayload, err, 'evidenceHub.redactedExportsLoadFail'))
+                + '</td></tr>';
+        }
+    }
+
     async function loadCatalog(force) {
         const tbody = document.getElementById('evidence-tbody');
         const meta = document.getElementById('evidence-meta');
@@ -1017,7 +1124,10 @@
                 '<div class="ev-detail-head">'
                 + '<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-back">← ' + tr('evidenceHub.backCatalog') + '</button>'
                 + '<h3>' + esc(f.fileName) + '</h3>'
-                + '<code>' + esc(f.id) + '</code></div>'
+                + '<div class="ev-detail-id-row">'
+                + '<span class="ev-detail-id-label">' + esc(tr('evidenceHub.fileId')) + '</span>'
+                + '<code>' + esc(f.id) + '</code>'
+                + '</div></div>'
                 + '<div class="ev-detail-grid">'
                 + '<div class="ev-detail-video">' + previewBlock + trimBar + '</div>'
                 + '<div class="ev-detail-side">'
@@ -1028,34 +1138,47 @@
                 + ' <span class="ev-crypto-chip ' + esc(d.cryptoStatus || 'missing') + '">' + esc(cryptoStatusLabel(d.cryptoStatus)) + '</span>'
                 + (d.archived ? (' <span class="ev-crypto-chip missing">' + esc(tr('evidenceHub.archivedBadge')) + '</span>') : '')
                 + '</dd></dl>'
-                + (perms.edit ? (
-                    '<label class="full"><span>' + tr('evidenceHub.notes') + '</span>'
-                    + '<textarea id="ev-detail-notes" rows="3">' + esc(m.notes || '') + '</textarea></label>'
-                    + '<label class="full"><span>' + tr('evidenceHub.tags') + ' <span class="hint">' + tr('evidenceHub.tagsExample') + '</span></span>'
-                    + '<input type="text" id="ev-detail-tags" class="login-input" value="' + esc((m.tags || []).join(', ')) + '" autocomplete="off" spellcheck="false" placeholder="' + esc(tr('evidenceHub.tagsPlaceholder')) + '"></label>'
-                    + '<label class="full"><span>' + tr('evidenceHub.linkSos') + '</span>'
-                    + '<select id="ev-detail-sos">' + sosOpts + '</select></label>'
-                    + '<label class="full"><span>' + tr('evidenceHub.attachPhoto') + '</span>'
-                    + '<input type="file" id="ev-detail-photo" accept="image/*"></label>'
-                    + '<button type="button" class="btn btn-action btn-sm" id="ev-detail-save-meta">' + tr('evidenceHub.saveMeta') + '</button>'
-                    + '<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-add-case">' + tr('caseFiles.addToCase') + '</button>'
-                    + (d.archived
-                        ? ('<button type="button" class="btn btn-action btn-sm" id="ev-detail-restore">' + tr('evidenceHub.restore') + '</button>')
-                        : ('<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-archive">' + tr('evidenceHub.archive') + '</button>'))
-                ) : (m.tags && m.tags.length ? ('<div class="full"><span class="hint">' + tr('evidenceHub.tags') + '</span>' + renderTagChips(m.tags) + '</div>') : ''))
+                /* mob-evidence-redact-action-top-v1 — Redact with top actions, not after custody */
+                + (function () {
+                    const redactTop = perms.superAdmin
+                        ? ('<button type="button" class="btn btn-action btn-sm" id="ev-detail-redact">' + tr('evidenceHub.openRedact') + '</button>')
+                        : '';
+                    if (perms.edit) {
+                        return '<label class="full"><span>' + tr('evidenceHub.notes') + '</span>'
+                            + '<textarea id="ev-detail-notes" rows="3">' + esc(m.notes || '') + '</textarea></label>'
+                            + '<label class="full"><span>' + tr('evidenceHub.tags') + ' <span class="hint">' + tr('evidenceHub.tagsExample') + '</span></span>'
+                            + '<input type="text" id="ev-detail-tags" class="login-input" value="' + esc((m.tags || []).join(', ')) + '" autocomplete="off" spellcheck="false" placeholder="' + esc(tr('evidenceHub.tagsPlaceholder')) + '"></label>'
+                            + '<label class="full"><span>' + tr('evidenceHub.linkSos') + '</span>'
+                            + '<select id="ev-detail-sos">' + sosOpts + '</select></label>'
+                            + '<label class="full"><span>' + tr('evidenceHub.attachPhoto') + '</span>'
+                            + '<input type="file" id="ev-detail-photo" accept="image/*"></label>'
+                            + '<div class="ev-detail-side-actions">'
+                            + redactTop
+                            + '<button type="button" class="btn btn-action btn-sm" id="ev-detail-save-meta">' + tr('evidenceHub.saveMeta') + '</button>'
+                            + '<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-add-case">' + tr('caseFiles.addToCase') + '</button>'
+                            + (d.archived
+                                ? ('<button type="button" class="btn btn-action btn-sm" id="ev-detail-restore">' + tr('evidenceHub.restore') + '</button>')
+                                : ('<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-archive">' + tr('evidenceHub.archive') + '</button>'))
+                            + '</div>'
+                            + '<p class="hint ev-detail-save-hint" id="ev-detail-save-hint" hidden aria-live="polite"></p>';
+                    }
+                    if (redactTop) {
+                        return '<div class="ev-detail-side-actions">' + redactTop + '</div>'
+                            + (m.tags && m.tags.length
+                                ? ('<div class="full"><span class="hint">' + tr('evidenceHub.tags') + '</span>' + renderTagChips(m.tags) + '</div>')
+                                : '');
+                    }
+                    return (m.tags && m.tags.length
+                        ? ('<div class="full"><span class="hint">' + tr('evidenceHub.tags') + '</span>' + renderTagChips(m.tags) + '</div>')
+                        : '');
+                }())
                 + renderAttachments(d.attachments)
                 + renderExports(d.exports)
                 + renderCustodyLog(d.custodyLog, d.storageAvailable === false, !!d.custodyUnavailable)
-                + (perms.superAdmin ? (
+                /* mob-evidence-detail-hide-original-download-v1 — no bottom original Download (use library / Prior exports). */
+                + (perms.download && secureExportEnabled && !perms.superAdmin ? (
                     '<div class="ev-export-actions">'
-                    + '<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-redact">' + tr('evidenceHub.openRedact') + '</button>'
-                    + '</div>'
-                ) : '')
-                + (perms.download ? (
-                    '<div class="ev-export-actions">'
-                    + (perms.superAdmin || !secureExportEnabled
-                        ? '<button type="button" class="btn btn-action btn-sm" id="ev-detail-download">' + tr('evidenceHub.download') + '</button>'
-                        : '<button type="button" class="btn btn-action btn-sm" id="ev-detail-secure">' + tr('evidenceHub.requestSecure') + '</button>')
+                    + '<button type="button" class="btn btn-action btn-sm" id="ev-detail-secure">' + tr('evidenceHub.requestSecure') + '</button>'
                     + '</div>'
                 ) : '')
                 + '</div></div>';
@@ -1064,6 +1187,7 @@
                 if (sel) sel.value = m.sosIncidentId;
             }
             bindDetailActions(fileId, f, d.previewUrl, d.storageAvailable !== false);
+            captureDetailMetaBaseline();
             markPanelLoaded('detail', fileId);
         } catch (err) {
             wrap.innerHTML = '<p class="hint">' + esc(tr('evidenceHub.detailLoadFailed')) + '</p>';
@@ -1103,7 +1227,7 @@
 
     function renderExports(list) {
         if (!list || !list.length) return '';
-        return '<h4>' + tr('evidenceHub.priorExports') + '</h4><ul class="ev-attach-list">' + list.map(function (e) {
+        return '<h4 id="ev-prior-exports">' + tr('evidenceHub.priorExports') + '</h4><ul class="ev-attach-list">' + list.map(function (e) {
             const isRedact = e.exportType === 'redact';
             const meta = e.meta || {};
             let status = '';
@@ -1188,33 +1312,55 @@
     }
 
     function ensureRedactDialog() {
-        let dlg = document.getElementById('ev-redact-dialog');
-        if (dlg) {
-            // mob-evidence-redact-modal-layout: rebuild if an old session cached
-            // the pre-footer dialog (Save/Cancel buried under long region lists).
-            if (!dlg.querySelector('.ev-redact-footer')) {
-                dlg.remove();
-                dlg = null;
-            }
+        const legacy = document.getElementById('ev-redact-dialog');
+        if (legacy) legacy.remove();
+        let panel = document.getElementById('ev-panel-redact');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'ev-panel-redact';
+            panel.className = 'evidence-hub-panel';
+            panel.hidden = true;
+            const hub = document.getElementById('evidence-panel');
+            if (hub) hub.appendChild(panel);
+            else document.body.appendChild(panel);
         }
-        if (dlg) return dlg;
-        dlg = document.createElement('div');
-        dlg.id = 'ev-redact-dialog';
-        dlg.hidden = true;
-        dlg.innerHTML =
-            '<div class="ev-redact-dialog-inner" role="dialog" aria-modal="true">'
+        let shell = document.getElementById('ev-redact-shell');
+        if (shell && shell.getAttribute('data-redact-shell') === 'inline-v1'
+            && shell.querySelector('#ev-redact-mark-panel')
+            && shell.querySelector('#ev-redact-note-panel')
+            && shell.querySelector('#ev-redact-mark-footer')
+            && shell.querySelector('#ev-redact-save-progress')
+            && shell.querySelector('#ev-redact-draft-details')
+            && shell.querySelector('#ev-redact-back')) {
+            const mark = shell.querySelector('#ev-redact-mark-panel');
+            const note = shell.querySelector('#ev-redact-note-panel');
+            if (!(mark && note && mark.contains(note))) return shell;
+        }
+        if (shell) shell.innerHTML = '';
+        else {
+            shell = document.createElement('div');
+            shell.id = 'ev-redact-shell';
+            shell.className = 'ev-redact-shell';
+            panel.appendChild(shell);
+        }
+        shell.setAttribute('data-redact-shell', 'inline-v1');
+        shell.setAttribute('data-redact-handoff', 'v1');
+        shell.innerHTML =
+            '<div class="ev-redact-dialog-inner" role="region" aria-label="' + esc(tr('evidenceHub.redactTitle')) + '">'
             + '<div id="ev-redact-mark-panel">'
             + '<div class="ev-redact-head">'
+            + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-back">' + esc(tr('evidenceHub.redactBack')) + '</button>'
+            + '<div class="ev-redact-head-text">'
             + '<h4 id="ev-redact-title"></h4>'
             + '<p class="hint" id="ev-redact-hint"></p>'
-            + '</div>'
+            + '</div></div>'
             + '<div class="ev-redact-workspace">'
             + '<div class="ev-redact-main">'
             + '<div class="ev-redact-stage" id="ev-redact-stage">'
             + '<div class="ev-redact-stage-inner">'
             + '<video id="ev-redact-video" playsinline></video>'
             + '<canvas id="ev-redact-canvas"></canvas>'
-            + '</div></div>'
+            + '</div></div></div>'
             + '<div class="ev-redact-rail">'
             + '<div class="ev-redact-toolbar">'
             + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-pause"></button>'
@@ -1225,16 +1371,30 @@
             + '<option value="whole"></option><option value="from"></option><option value="window"></option>'
             + '</select></label>'
             + '</div>'
+            + '<div class="ev-redact-draft-details" id="ev-redact-draft-details">'
+            + '<p class="hint" id="ev-redact-draft-hint"></p>'
+            + '<label class="full"><span id="ev-redact-draft-lbl-reason"></span>'
+            + '<select id="ev-redact-draft-reason">'
+            + '<option value="face"></option><option value="child"></option><option value="bystander"></option>'
+            + '<option value="plate"></option><option value="other"></option>'
+            + '</select></label>'
+            + '<label class="full"><span id="ev-redact-draft-lbl-visible"></span>'
+            + '<input type="text" id="ev-redact-draft-visible" maxlength="500"></label>'
+            + '<label class="full"><span id="ev-redact-draft-lbl-incident"></span>'
+            + '<textarea id="ev-redact-draft-incident" rows="2" maxlength="2000"></textarea></label>'
+            + '</div>'
             + '<div class="ev-redact-regions-wrap">'
             + '<ul class="ev-redact-regions" id="ev-redact-region-list"></ul>'
             + '</div>'
             + '</div></div></div>'
-            + '<div class="ev-redact-footer">'
+            + '<div class="ev-redact-footer ev-redact-footer-sticky" id="ev-redact-mark-footer">'
+            + '<p class="hint ev-redact-save-progress" id="ev-redact-save-progress" hidden></p>'
             + '<div class="ev-redact-actions">'
             + '<button type="button" class="btn btn-action btn-sm" id="ev-redact-save"></button>'
             + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-cancel">' + esc(tr('common.cancel')) + '</button>'
-            + '</div></div></div>'
+            + '</div></div>'
             + '<div id="ev-redact-note-panel" hidden>'
+            + '<p class="hint ev-redact-note-ready" id="ev-redact-note-ready" hidden></p>'
             + '<h4 id="ev-redact-note-title"></h4>'
             + '<p class="hint" id="ev-redact-note-hint"></p>'
             + '<div class="ev-redact-note-scroll">'
@@ -1249,17 +1409,33 @@
             + '<label class="full"><span id="ev-redact-lbl-incident"></span>'
             + '<textarea id="ev-redact-incident" rows="3" maxlength="2000"></textarea></label>'
             + '</div></div>'
-            + '<div class="ev-dock-dialog-actions">'
+            + '<div class="ev-dock-dialog-actions ev-redact-note-actions-sticky">'
             + '<button type="button" class="btn btn-action btn-sm" id="ev-redact-save-note"></button>'
             + '<button type="button" class="btn btn-action btn-sm" id="ev-redact-finalize"></button>'
             + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-note-close">' + esc(tr('common.close')) + '</button>'
             + '</div></div>'
             + '</div>';
-        document.body.appendChild(dlg);
-        dlg.addEventListener('click', function (e) {
-            if (e.target === dlg) closeRedactDialog();
-        });
-        return dlg;
+        return shell;
+    }
+
+    /** Mark + Save footer vs note/Finalize — siblings (handoff-v1). */
+    function showRedactMarkPhase() {
+        const mark = document.getElementById('ev-redact-mark-panel');
+        const footer = document.getElementById('ev-redact-mark-footer');
+        const note = document.getElementById('ev-redact-note-panel');
+        if (mark) mark.hidden = false;
+        if (footer) footer.hidden = false;
+        if (note) note.hidden = true;
+        redactState.saveSucceeded = false;
+    }
+
+    function showRedactNotePhase() {
+        const mark = document.getElementById('ev-redact-mark-panel');
+        const footer = document.getElementById('ev-redact-mark-footer');
+        const note = document.getElementById('ev-redact-note-panel');
+        if (mark) mark.hidden = true;
+        if (footer) footer.hidden = true;
+        if (note) note.hidden = false;
     }
 
     const redactState = {
@@ -1270,12 +1446,62 @@
         startX: 0,
         startY: 0,
         scale: 1,
+        faceFollow: false,
+        autoRegionCount: 0,
+        saving: false,
+        saveSucceeded: false,
     };
 
-    function closeRedactDialog() {
-        const dlg = document.getElementById('ev-redact-dialog');
-        if (!dlg) return;
-        dlg.hidden = true;
+    /** Client soft cap — under server face-follow exec timeout (~15m). */
+    const REDACT_SAVE_CLIENT_TIMEOUT_MS = 12 * 60 * 1000;
+    let redactSaveCtl = null;
+    let redactSaveTimer = null;
+
+    function stopRedactSaveProgressUi() {
+        if (redactSaveTimer) {
+            clearInterval(redactSaveTimer);
+            redactSaveTimer = null;
+        }
+        const prog = document.getElementById('ev-redact-save-progress');
+        if (prog) {
+            prog.hidden = true;
+            prog.textContent = '';
+            prog.classList.remove('ev-redact-save-progress-error');
+            prog.classList.remove('ev-redact-save-hint');
+        }
+    }
+
+    /** Calm inline hint next to Save (no alert pop) — mob-evidence-save-meta-dirty-hint-v1 */
+    function showRedactSaveHint(msg, asError) {
+        const prog = document.getElementById('ev-redact-save-progress');
+        if (!prog) return;
+        prog.hidden = false;
+        prog.classList.toggle('ev-redact-save-progress-error', !!asError);
+        prog.classList.toggle('ev-redact-save-hint', !asError);
+        prog.textContent = msg || '';
+    }
+
+    function abortRedactSaveInFlight() {
+        if (redactSaveCtl) {
+            try { redactSaveCtl.abort(); } catch (_) { /* ignore */ }
+            redactSaveCtl = null;
+        }
+        stopRedactSaveProgressUi();
+        redactState.saving = false;
+    }
+
+    function fmtRedactElapsed(sec) {
+        const s = Math.max(0, Math.floor(sec));
+        const m = Math.floor(s / 60);
+        const r = s % 60;
+        if (m <= 0) return r + 's';
+        return m + 'm ' + r + 's';
+    }
+
+    function closeRedactDialog(opts) {
+        opts = opts || {};
+        abortRedactSaveInFlight();
+        const returnId = redactState.fileId;
         const vid = document.getElementById('ev-redact-video');
         if (vid) {
             vid.pause();
@@ -1285,6 +1511,25 @@
         redactState.fileId = null;
         redactState.exportId = null;
         redactState.regions = [];
+        redactState.faceFollow = false;
+        redactState.autoRegionCount = 0;
+        redactState.saveSucceeded = false;
+        showRedactMarkPhase();
+        if (opts.skipReturn) return;
+        if (returnId) {
+            loadDetail(returnId, !!opts.force);
+        } else {
+            showPanel('catalog');
+        }
+    }
+
+    function scrollToPriorExports() {
+        const el = document.getElementById('ev-prior-exports');
+        if (el && el.scrollIntoView) {
+            try { el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_) {
+                try { el.scrollIntoView(true); } catch (__) { /* ignore */ }
+            }
+        }
     }
 
     function syncRedactCanvas() {
@@ -1312,6 +1557,13 @@
         });
     }
 
+    function isAutoPreviewRegion(r, i) {
+        if (!r) return false;
+        if (r.source === 'face-follow-preview') return true;
+        /* Fallback if source stripped: first autoRegionCount rows after Auto. */
+        return !!(redactState.faceFollow && i < (redactState.autoRegionCount || 0));
+    }
+
     function renderRedactRegionList() {
         const list = document.getElementById('ev-redact-region-list');
         if (!list) return;
@@ -1319,18 +1571,26 @@
             list.innerHTML = '<li class="hint">' + esc(tr('evidenceHub.redactNoRegions')) + '</li>';
             return;
         }
+        /* mob-evidence-redact-auto-preview-slim-v1 — Auto rows: tag + delete only. */
         list.innerHTML = redactState.regions.map(function (r, i) {
-            return '<li class="ev-redact-region-row">'
-                + '<span class="ev-redact-region-tag">' + esc(tr('evidenceHub.redactRegionTag', {
-                    n: i + 1, w: r.w, h: r.h,
-                })) + '</span>'
-                + '<label class="ev-redact-time">' + esc(tr('evidenceHub.redactStart'))
-                + ' <input type="number" min="0" step="0.1" class="ev-redact-t0" data-idx="' + i + '" value="' + r.t0.toFixed(1) + '"></label>'
-                + '<label class="ev-redact-time">' + esc(tr('evidenceHub.redactEnd'))
-                + ' <input type="number" min="0" step="0.1" class="ev-redact-t1" data-idx="' + i + '" value="' + r.t1.toFixed(1) + '"></label>'
-                + '<button type="button" class="btn btn-ghost btn-sm ev-redact-whole" data-idx="' + i + '">' + esc(tr('evidenceHub.redactWholeClip')) + '</button>'
-                + '<button type="button" class="btn btn-ghost btn-sm ev-redact-del" data-idx="' + i + '" aria-label="' + esc(tr('common.delete')) + '">✕</button>'
+            const auto = isAutoPreviewRegion(r, i);
+            let html = '<li class="ev-redact-region-row' + (auto ? ' ev-redact-region-auto' : '') + '">'
+                + '<span class="ev-redact-region-tag">' + esc(tr(
+                    auto ? 'evidenceHub.redactAutoPreviewTag' : 'evidenceHub.redactRegionTag',
+                    auto
+                        ? { n: i + 1, t: (Number(r.t0) || 0).toFixed(1) }
+                        : { n: i + 1, w: r.w, h: r.h }
+                )) + '</span>';
+            if (!auto) {
+                html += '<label class="ev-redact-time">' + esc(tr('evidenceHub.redactStart'))
+                    + ' <input type="number" min="0" step="0.1" class="ev-redact-t0" data-idx="' + i + '" value="' + r.t0.toFixed(1) + '"></label>'
+                    + '<label class="ev-redact-time">' + esc(tr('evidenceHub.redactEnd'))
+                    + ' <input type="number" min="0" step="0.1" class="ev-redact-t1" data-idx="' + i + '" value="' + r.t1.toFixed(1) + '"></label>'
+                    + '<button type="button" class="btn btn-ghost btn-sm ev-redact-whole" data-idx="' + i + '">' + esc(tr('evidenceHub.redactWholeClip')) + '</button>';
+            }
+            html += '<button type="button" class="btn btn-ghost btn-sm ev-redact-del" data-idx="' + i + '" aria-label="' + esc(tr('common.delete')) + '">✕</button>'
                 + '</li>';
+            return html;
         }).join('');
         bindRedactRegionRowHandlers();
     }
@@ -1380,26 +1640,21 @@
         list.querySelectorAll('.ev-redact-del').forEach(function (btn) {
             btn.onclick = function () {
                 const i = Number(btn.getAttribute('data-idx'));
+                const removed = redactState.regions[i];
+                const wasAuto = isAutoPreviewRegion(removed, i);
                 redactState.regions.splice(i, 1);
+                if (wasAuto && redactState.autoRegionCount > 0) {
+                    redactState.autoRegionCount -= 1;
+                }
+                if (!redactState.autoRegionCount) redactState.faceFollow = false;
                 redrawRedactRegions();
                 renderRedactRegionList();
             };
         });
     }
 
-    function fillRedactNoteLabels() {
-        const set = function (id, key) {
-            const el = document.getElementById(id);
-            if (el) el.textContent = tr(key);
-        };
-        set('ev-redact-note-title', 'evidenceHub.redactNoteTitle');
-        set('ev-redact-note-hint', 'evidenceHub.redactNoteHint');
-        set('ev-redact-lbl-reason', 'evidenceHub.redactReason');
-        set('ev-redact-lbl-visible', 'evidenceHub.redactVisible');
-        set('ev-redact-lbl-incident', 'evidenceHub.redactIncident');
-        set('ev-redact-save-note', 'evidenceHub.redactSaveNote');
-        set('ev-redact-finalize', 'evidenceHub.redactFinalize');
-        const reason = document.getElementById('ev-redact-reason');
+    function fillReasonOptions(selId) {
+        const reason = document.getElementById(selId);
         if (reason && reason.options.length >= 5) {
             reason.options[0].text = tr('evidenceHub.redactReasonFace');
             reason.options[1].text = tr('evidenceHub.redactReasonChild');
@@ -1407,10 +1662,54 @@
             reason.options[3].text = tr('evidenceHub.redactReasonPlate');
             reason.options[4].text = tr('evidenceHub.redactReasonOther');
         }
+    }
+
+    function fillRedactNoteLabels() {
+        const set = function (id, key) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = tr(key);
+        };
+        /* mob-evidence-redact-details-before-or-with-save-v1 — draft on mark panel */
+        set('ev-redact-draft-hint', 'evidenceHub.redactDraftHint');
+        set('ev-redact-draft-lbl-reason', 'evidenceHub.redactReason');
+        set('ev-redact-draft-lbl-visible', 'evidenceHub.redactVisible');
+        set('ev-redact-draft-lbl-incident', 'evidenceHub.redactIncident');
+        fillReasonOptions('ev-redact-draft-reason');
+        const dVis = document.getElementById('ev-redact-draft-visible');
+        if (dVis) dVis.placeholder = tr('evidenceHub.redactVisiblePh');
+        const dInc = document.getElementById('ev-redact-draft-incident');
+        if (dInc) dInc.placeholder = tr('evidenceHub.redactIncidentPh');
+
+        set('ev-redact-note-title', 'evidenceHub.redactNoteTitle');
+        set('ev-redact-note-hint', 'evidenceHub.redactNoteHint');
+        set('ev-redact-note-ready', 'evidenceHub.redactSaveReady');
+        set('ev-redact-lbl-reason', 'evidenceHub.redactReason');
+        set('ev-redact-lbl-visible', 'evidenceHub.redactVisible');
+        set('ev-redact-lbl-incident', 'evidenceHub.redactIncident');
+        set('ev-redact-save-note', 'evidenceHub.redactSaveNote');
+        set('ev-redact-finalize', 'evidenceHub.redactFinalize');
+        fillReasonOptions('ev-redact-reason');
         const vis = document.getElementById('ev-redact-visible');
         if (vis) vis.placeholder = tr('evidenceHub.redactVisiblePh');
         const inc = document.getElementById('ev-redact-incident');
         if (inc) inc.placeholder = tr('evidenceHub.redactIncidentPh');
+    }
+
+    function readRedactDraftDetails() {
+        return {
+            redactionReason: (document.getElementById('ev-redact-draft-reason') || {}).value || 'face',
+            visibleDescription: String((document.getElementById('ev-redact-draft-visible') || {}).value || '').trim(),
+            incidentNote: String((document.getElementById('ev-redact-draft-incident') || {}).value || '').trim(),
+        };
+    }
+
+    function resetRedactDraftDetails() {
+        const reason = document.getElementById('ev-redact-draft-reason');
+        const vis = document.getElementById('ev-redact-draft-visible');
+        const inc = document.getElementById('ev-redact-draft-incident');
+        if (reason) reason.value = 'face';
+        if (vis) vis.value = '';
+        if (inc) inc.value = '';
     }
 
     function bindRedactMarkHandlers(fileId) {
@@ -1428,10 +1727,33 @@
         };
         if (undoBtn) undoBtn.onclick = function () {
             redactState.regions.pop();
+            if (redactState.autoRegionCount > redactState.regions.length) {
+                redactState.autoRegionCount = redactState.regions.length;
+            }
+            if (!redactState.autoRegionCount) redactState.faceFollow = false;
             redrawRedactRegions();
             renderRedactRegionList();
         };
-        if (cancelBtn) cancelBtn.onclick = closeRedactDialog;
+        if (cancelBtn) {
+            cancelBtn.onclick = function () {
+                if (redactState.saving) {
+                    abortRedactSaveInFlight();
+                    const save = document.getElementById('ev-redact-save');
+                    if (save) {
+                        save.disabled = false;
+                        save.textContent = tr('evidenceHub.redactSave');
+                    }
+                    const prog = document.getElementById('ev-redact-save-progress');
+                    if (prog) {
+                        prog.hidden = false;
+                        prog.classList.add('ev-redact-save-progress-error');
+                        prog.textContent = tr('evidenceHub.redactSaveCancelled');
+                    }
+                    return;
+                }
+                closeRedactDialog();
+            };
+        }
 
         const autofaceBtn = document.getElementById('ev-redact-autoface');
         const hintEl = document.getElementById('ev-redact-hint');
@@ -1448,13 +1770,21 @@
                 .then(function (res) {
                     if (!res.ok || !res.data.ok) throwCatalogErr(res.data);
                     const added = res.data.regions || [];
-                    added.forEach(function (rg) { redactState.regions.push(rg); });
+                    // Replace prior auto preview; keep any manual regions drawn after previous auto count.
+                    const manual = redactState.regions.slice(redactState.autoRegionCount || 0);
+                    redactState.regions = added.concat(manual);
+                    redactState.autoRegionCount = added.length;
+                    redactState.faceFollow = !!(res.data.faceFollow || (res.data.meta && res.data.meta.faceFollow));
                     redrawRedactRegions();
                     renderRedactRegionList();
                     if (hintEl) {
-                        hintEl.textContent = added.length
-                            ? tr('evidenceHub.redactAutoFaceDone', { n: added.length })
-                            : tr('evidenceHub.redactAutoFaceNone');
+                        if (added.length) {
+                            hintEl.textContent = redactState.faceFollow
+                                ? tr('evidenceHub.redactAutoFaceFollowDone', { n: added.length })
+                                : tr('evidenceHub.redactAutoFaceDone', { n: added.length });
+                        } else {
+                            hintEl.textContent = tr('evidenceHub.redactAutoFaceNone');
+                        }
                     }
                 })
                 .catch(function (err) {
@@ -1493,7 +1823,8 @@
                 if (!redactState.drawing) return;
                 const canvasEl = document.getElementById('ev-redact-canvas');
                 const vidEl = document.getElementById('ev-redact-video');
-                if (!canvasEl || !vidEl || document.getElementById('ev-redact-dialog').hidden) return;
+                const redactPanel = document.getElementById('ev-panel-redact');
+                if (!canvasEl || !vidEl || !redactPanel || redactPanel.hidden) return;
                 redactState.drawing = false;
                 const rect = canvasEl.getBoundingClientRect();
                 const x = (e.clientX - rect.left) / redactState.scale;
@@ -1532,30 +1863,129 @@
         }
 
         if (saveBtn) saveBtn.onclick = function () {
-            if (!redactState.regions.length) {
-                alert(tr('evidenceHub.redactNoRegions'));
+            /* mob-evidence-redact-save-progress-v1 — elapsed + cancel/timeout, no forever freeze */
+            if (redactState.saving) return;
+            const faceFollow = !!redactState.faceFollow;
+            const manualRegions = faceFollow
+                ? redactState.regions.slice(redactState.autoRegionCount || 0)
+                : redactState.regions.slice();
+            if (!faceFollow && !manualRegions.length) {
+                showRedactSaveHint(tr('evidenceHub.redactNoRegions'), false);
                 return;
             }
+            if (faceFollow && !manualRegions.length && !(redactState.autoRegionCount > 0)) {
+                showRedactSaveHint(tr('evidenceHub.redactNoRegions'), false);
+                return;
+            }
+            const draftCheck = readRedactDraftDetails();
+            if (!String(draftCheck.redactionReason || '').trim()) {
+                showRedactSaveHint(tr('evidenceHub.redactNeedReason'), false);
+                return;
+            }
+            abortRedactSaveInFlight();
+            const ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+            redactSaveCtl = ctl;
+            redactState.saving = true;
+            const startedAt = Date.now();
+            const prog = document.getElementById('ev-redact-save-progress');
+            function paintProgress() {
+                const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+                const base = faceFollow
+                    ? tr('evidenceHub.redactFaceFollowSaving')
+                    : tr('evidenceHub.redactSaving');
+                saveBtn.textContent = base;
+                if (prog) {
+                    prog.hidden = false;
+                    prog.classList.remove('ev-redact-save-progress-error');
+                    prog.classList.remove('ev-redact-save-hint');
+                    prog.textContent = tr('evidenceHub.redactSaveProgress', {
+                        t: fmtRedactElapsed(elapsed),
+                    });
+                }
+            }
             saveBtn.disabled = true;
-            saveBtn.textContent = tr('evidenceHub.redactSaving');
-            fetch('/api/evidence/detail/' + encodeURIComponent(fileId) + '/redact', {
+            paintProgress();
+            redactSaveTimer = setInterval(paintProgress, 1000);
+            const draft = draftCheck;
+            const body = faceFollow
+                ? {
+                    faceFollow: true,
+                    regions: manualRegions,
+                    redactionReason: draft.redactionReason,
+                    visibleDescription: draft.visibleDescription,
+                    incidentNote: draft.incidentNote,
+                }
+                : {
+                    regions: manualRegions,
+                    redactionReason: draft.redactionReason,
+                    visibleDescription: draft.visibleDescription,
+                    incidentNote: draft.incidentNote,
+                };
+            let timedOut = false;
+            const timeoutId = setTimeout(function () {
+                timedOut = true;
+                if (ctl) {
+                    try { ctl.abort(); } catch (_) { /* ignore */ }
+                }
+            }, REDACT_SAVE_CLIENT_TIMEOUT_MS);
+            const fetchOpts = {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ regions: redactState.regions }),
-            }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                body: JSON.stringify(body),
+            };
+            if (ctl) fetchOpts.signal = ctl.signal;
+            fetch('/api/evidence/detail/' + encodeURIComponent(fileId) + '/redact', fetchOpts)
+                .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
                 .then(function (res) {
                     if (!res.ok || !res.data.ok) throwCatalogErr(res.data);
-                    document.getElementById('ev-redact-mark-panel').hidden = true;
-                    openRedactNoteDialog(res.data.export.exportId, fileId, null);
+                    const exportId = res.data.export && res.data.export.exportId;
+                    if (!exportId) {
+                        const err = new Error(tr('evidenceHub.redactSaveNoExport'));
+                        err.catalogPayload = { error: tr('evidenceHub.redactSaveNoExport') };
+                        throw err;
+                    }
+                    stopRedactSaveProgressUi();
+                    redactState.saving = false;
+                    redactState.saveSucceeded = true;
+                    redactSaveCtl = null;
+                    const savedMeta = (res.data.export && res.data.export.meta) || readRedactDraftDetails();
+                    openRedactNoteDialog(exportId, fileId, savedMeta);
                     loadDetail(fileId, true);
                 })
                 .catch(function (err) {
-                    alert(catalogMsg(err.opPayload || err.catalogPayload, err));
+                    redactState.saveSucceeded = false;
+                    showRedactMarkPhase();
+                    const aborted = !!(err && (err.name === 'AbortError' || err.code === 20));
+                    if (prog) {
+                        prog.hidden = false;
+                        prog.classList.remove('ev-redact-save-hint');
+                        prog.classList.add('ev-redact-save-progress-error');
+                        if (timedOut) {
+                            prog.textContent = tr('evidenceHub.redactSaveTimeout');
+                        } else if (aborted) {
+                            prog.textContent = tr('evidenceHub.redactSaveCancelled');
+                        } else {
+                            prog.textContent = catalogMsg(err.opPayload || err.catalogPayload, err);
+                        }
+                    }
+                    if (!aborted && !timedOut) {
+                        alert(catalogMsg(err.opPayload || err.catalogPayload, err));
+                    }
                 })
                 .finally(function () {
-                    saveBtn.disabled = false;
-                    saveBtn.textContent = tr('evidenceHub.redactSave');
+                    clearTimeout(timeoutId);
+                    if (redactSaveTimer) {
+                        clearInterval(redactSaveTimer);
+                        redactSaveTimer = null;
+                    }
+                    redactState.saving = false;
+                    redactSaveCtl = null;
+                    /* After success: stay on Finalize screen — do not re-arm Save (double-burn loop). */
+                    if (!redactState.saveSucceeded) {
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = tr('evidenceHub.redactSave');
+                    }
                 });
         };
     }
@@ -1565,13 +1995,15 @@
         fillRedactNoteLabels();
         redactState.exportId = exportId;
         redactState.fileId = fileId;
-        const dlg = document.getElementById('ev-redact-dialog');
-        const markPanel = document.getElementById('ev-redact-mark-panel');
-        const notePanel = document.getElementById('ev-redact-note-panel');
-        if (markPanel) markPanel.hidden = true;
-        if (notePanel) notePanel.hidden = false;
-        dlg.hidden = false;
+        redactState.saveSucceeded = true;
+        showRedactNotePhase();
+        showPanel('redact', { skipRefresh: true });
         meta = meta || {};
+        const ready = document.getElementById('ev-redact-note-ready');
+        if (ready) {
+            ready.hidden = false;
+            ready.textContent = tr('evidenceHub.redactSaveReady');
+        }
         const reason = document.getElementById('ev-redact-reason');
         const vis = document.getElementById('ev-redact-visible');
         const inc = document.getElementById('ev-redact-incident');
@@ -1585,7 +2017,18 @@
         const closeBtn = document.getElementById('ev-redact-note-close');
         if (saveNote) saveNote.onclick = function () { saveRedactNote(exportId, fileId); };
         if (fin) fin.onclick = function () { finalizeRedactNote(exportId, fileId); };
-        if (closeBtn) closeBtn.onclick = closeRedactDialog;
+        if (closeBtn) {
+            closeBtn.onclick = function () {
+                closeRedactDialog({ skipReturn: true });
+                if (fileId) {
+                    loadDetail(fileId, true).then(function () { scrollToPriorExports(); }).catch(function () {
+                        scrollToPriorExports();
+                    });
+                } else {
+                    showPanel('catalog');
+                }
+            };
+        }
     }
 
     async function saveRedactNote(exportId, fileId) {
@@ -1621,8 +2064,15 @@
             alert(catalogMsg(data));
             return;
         }
-        closeRedactDialog();
-        if (fileId) loadDetail(fileId, true);
+        closeRedactDialog({ skipReturn: true });
+        if (fileId) {
+            try {
+                await loadDetail(fileId, true);
+            } catch (_) { /* ignore */ }
+            scrollToPriorExports();
+        } else {
+            showPanel('catalog');
+        }
     }
 
     // mob-evidence-redact-autoface-refresh: wait for /api/license-features before
@@ -1662,18 +2112,31 @@
         if (!perms.superAdmin) return;
         ensureRedactDialog();
         fillRedactNoteLabels();
+        resetRedactDraftDetails();
         redactState.fileId = fileId;
         redactState.regions = [];
-        const dlg = document.getElementById('ev-redact-dialog');
-        const markPanel = document.getElementById('ev-redact-mark-panel');
-        const notePanel = document.getElementById('ev-redact-note-panel');
-        if (markPanel) markPanel.hidden = false;
-        if (notePanel) notePanel.hidden = true;
+        redactState.faceFollow = false;
+        redactState.autoRegionCount = 0;
+        showRedactMarkPhase();
+        const ready = document.getElementById('ev-redact-note-ready');
+        if (ready) { ready.hidden = true; ready.textContent = ''; }
         document.getElementById('ev-redact-title').textContent = tr('evidenceHub.redactTitle');
         document.getElementById('ev-redact-hint').textContent = tr('evidenceHub.redactHint');
+        const backBtn = document.getElementById('ev-redact-back');
+        if (backBtn) {
+            backBtn.textContent = tr('evidenceHub.redactBack');
+            backBtn.onclick = function () {
+                if (redactState.saving) return;
+                closeRedactDialog();
+            };
+        }
         document.getElementById('ev-redact-pause').textContent = tr('evidenceHub.redactPause');
         document.getElementById('ev-redact-undo').textContent = tr('evidenceHub.redactUndo');
-        document.getElementById('ev-redact-save').textContent = tr('evidenceHub.redactSave');
+        const saveBtnOpen = document.getElementById('ev-redact-save');
+        if (saveBtnOpen) {
+            saveBtnOpen.disabled = false;
+            saveBtnOpen.textContent = tr('evidenceHub.redactSave');
+        }
         syncRedactAutofaceBtn();
         const spanLbl = document.getElementById('ev-redact-span-lbl');
         if (spanLbl) spanLbl.textContent = tr('evidenceHub.redactSpanLabel');
@@ -1691,7 +2154,8 @@
         }
         renderRedactRegionList();
         bindRedactMarkHandlers(fileId);
-        dlg.hidden = false;
+        showPanel('redact', { skipRefresh: true });
+        markPanelLoaded('redact');
     }
 
     function exportStatusLabel(status) {
@@ -1786,7 +2250,63 @@
         }
     }
 
+    function normalizeDetailTagsStr(s) {
+        return String(s || '').split(',').map(function (t) { return t.trim(); }).filter(Boolean).join(', ');
+    }
+
+    function readDetailMetaSnapshot() {
+        const notes = document.getElementById('ev-detail-notes');
+        const tagsEl = document.getElementById('ev-detail-tags');
+        const sos = document.getElementById('ev-detail-sos');
+        const ts = document.getElementById('ev-trim-start');
+        const te = document.getElementById('ev-trim-end');
+        const photo = document.getElementById('ev-detail-photo');
+        return {
+            notes: notes ? String(notes.value || '') : '',
+            tags: normalizeDetailTagsStr(tagsEl ? tagsEl.value : ''),
+            sosIncidentId: sos && sos.value ? String(sos.value) : '',
+            trimStartSec: ts && String(ts.value).trim() !== '' ? String(Number(ts.value)) : '',
+            trimEndSec: te && String(te.value).trim() !== '' ? String(Number(te.value)) : '',
+            photoPending: !!(photo && photo.files && photo.files.length),
+        };
+    }
+
+    function setDetailSaveHint(msg) {
+        const el = document.getElementById('ev-detail-save-hint');
+        if (!el) return;
+        if (!msg) {
+            el.hidden = true;
+            el.textContent = '';
+            return;
+        }
+        el.hidden = false;
+        el.textContent = msg;
+    }
+
+    function captureDetailMetaBaseline() {
+        const snap = readDetailMetaSnapshot();
+        snap.photoPending = false;
+        detailMetaBaseline = snap;
+        setDetailSaveHint('');
+    }
+
+    function isDetailMetaDirty() {
+        if (!detailMetaBaseline) return true;
+        const cur = readDetailMetaSnapshot();
+        return cur.notes !== detailMetaBaseline.notes
+            || cur.tags !== detailMetaBaseline.tags
+            || cur.sosIncidentId !== detailMetaBaseline.sosIncidentId
+            || cur.trimStartSec !== detailMetaBaseline.trimStartSec
+            || cur.trimEndSec !== detailMetaBaseline.trimEndSec
+            || cur.photoPending;
+    }
+
     async function saveDetailMeta(fileId) {
+        if (!isDetailMetaDirty()) {
+            setDetailSaveHint(tr('evidenceHub.saveMetaNoChanges'));
+            return;
+        }
+        setDetailSaveHint('');
         const notes = document.getElementById('ev-detail-notes');
         const tagsEl = document.getElementById('ev-detail-tags');
         const sos = document.getElementById('ev-detail-sos');
@@ -1805,7 +2325,8 @@
         });
         const data = await res.json();
         if (!res.ok || !data.ok) { alert(catalogMsg(data)); return; }
-        alert(tr('evidenceHub.saved'));
+        captureDetailMetaBaseline();
+        setDetailSaveHint(tr('evidenceHub.saved'));
     }
 
     async function archiveEvidence(fileId) {
@@ -2085,6 +2606,73 @@
             nextBtn.addEventListener('click', function () {
                 catalogPage += 1;
                 loadCatalog(true);
+            });
+        }
+        /* mob-evidence-redacted-exports-browser-v1 */
+        const rxTbody = document.getElementById('ev-rx-tbody');
+        if (rxTbody && !rxTbody._evRxBound) {
+            rxTbody._evRxBound = true;
+            rxTbody.addEventListener('click', function (e) {
+                const open = e.target.closest('.ev-rx-open');
+                if (open) loadDetail(open.getAttribute('data-file-id'));
+            });
+        }
+        const rxRefresh = document.getElementById('ev-rx-refresh');
+        if (rxRefresh && !rxRefresh._evRxBound) {
+            rxRefresh._evRxBound = true;
+            rxRefresh.addEventListener('click', function () { loadRedactedExports(true); });
+        }
+        function runRxFilter() {
+            rxPage = 1;
+            if (currentPanel === 'redacted-exports') loadRedactedExports(true);
+        }
+        const rxSearch = document.getElementById('ev-rx-search');
+        if (rxSearch && !rxSearch._evRxBound) {
+            rxSearch._evRxBound = true;
+            let rxTimer = null;
+            rxSearch.addEventListener('input', function () {
+                if (rxTimer) clearTimeout(rxTimer);
+                rxTimer = setTimeout(runRxFilter, 280);
+            });
+            rxSearch.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (rxTimer) clearTimeout(rxTimer);
+                    runRxFilter();
+                }
+            });
+        }
+        ['ev-rx-period', 'ev-rx-status'].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el && !el._evRxBound) {
+                el._evRxBound = true;
+                el.addEventListener('change', runRxFilter);
+            }
+        });
+        const rxTag = document.getElementById('ev-rx-tag');
+        if (rxTag && !rxTag._evRxBound) {
+            rxTag._evRxBound = true;
+            let tagTimer = null;
+            rxTag.addEventListener('input', function () {
+                if (tagTimer) clearTimeout(tagTimer);
+                tagTimer = setTimeout(runRxFilter, 280);
+            });
+        }
+        const rxPrev = document.getElementById('ev-rx-prev');
+        if (rxPrev && !rxPrev._evRxBound) {
+            rxPrev._evRxBound = true;
+            rxPrev.addEventListener('click', function () {
+                if (rxPage <= 1) return;
+                rxPage -= 1;
+                loadRedactedExports(true);
+            });
+        }
+        const rxNext = document.getElementById('ev-rx-next');
+        if (rxNext && !rxNext._evRxBound) {
+            rxNext._evRxBound = true;
+            rxNext.addEventListener('click', function () {
+                rxPage += 1;
+                loadRedactedExports(true);
             });
         }
         if (!global._evidenceHubI18nBound) {

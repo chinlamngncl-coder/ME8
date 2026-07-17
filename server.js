@@ -37,6 +37,8 @@ const fixedCamRegistry = require('./lib/fixedCamRegistry');
 const evidenceCrypto   = require('./lib/evidenceCrypto');
 const multer = require('multer');
 const log = require('./lib/fleetLog');
+const wvpRegisterMirror = require('./lib/wvpRegisterMirror');
+const wvpFleetPresence = require('./lib/wvpFleetPresence');
 
 process.on('uncaughtException', (err) => {
     // mob-sec-epipe-log-guard: stdout/stderr broken pipes can throw while logging.
@@ -3562,10 +3564,11 @@ app.post('/api/platform/smtp/test', dashboardAuth.requireSuperAdmin, async (req,
     }
 });
 
-// --- ZLM lab + pack (mvp-zlm-in-pack): FLV proxy / test routes when lab OR pack flags on ---
+// --- ZLM lab + pack + WVP soft-after (mob-wvp-zlm-google-stack-v1): FLV proxy when any flag on ---
 if (process.env.FM_LAB_ZLM === '1'
     || process.env.FM_ZLM_PACK === '1'
-    || process.env.FM_ZLM_SPAWN === '1') {
+    || process.env.FM_ZLM_SPAWN === '1'
+    || process.env.FM_LAB_WVP === '1') {
     const livePlaybackBroker = require('./lib/livePlaybackBroker');
     const zlmLabRelay = require('./lib/zlmLabRelay');
     const zlmProcess = require('./lib/zlmProcess');
@@ -3575,7 +3578,8 @@ if (process.env.FM_LAB_ZLM === '1'
     function labZlmOnly(req, res, next) {
         if (process.env.FM_LAB_ZLM !== '1'
             && process.env.FM_ZLM_PACK !== '1'
-            && process.env.FM_ZLM_SPAWN !== '1') {
+            && process.env.FM_ZLM_SPAWN !== '1'
+            && process.env.FM_LAB_WVP !== '1') {
             return res.status(404).json(opErr('ZLM lab/pack routes disabled'));
         }
         return next();
@@ -3682,6 +3686,103 @@ if (process.env.FM_LAB_ZLM === '1'
     app.get('/api/lab/wvp/status', dashboardAuth.requireDashboardAuth, labWvpOnly, async (req, res) => {
         try {
             res.json({ ok: true, health: await wvpLab.health() });
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
+    /* mob-wvp-startplay-stack-fix-v1 — ZLM secret/id + WVP online count (no play start). */
+    app.get('/api/lab/wvp/stack-selfcheck', dashboardAuth.requireDashboardAuth, labWvpOnly, async (req, res) => {
+        try {
+            const report = await wvpLab.stackSelfcheck();
+            res.json({ ok: true, stack: report });
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
+    /* mob-wvp-startplay-fail-decode-v1 — media + device host + decoded startPlay error */
+    app.get('/api/lab/wvp/diagnose-startplay', dashboardAuth.requireDashboardAuth, labWvpOnly, async (req, res) => {
+        try {
+            const deviceId = String((req.query && req.query.deviceId) || '').trim();
+            const channelId = String((req.query && req.query.channelId) || deviceId).trim();
+            if (!deviceId) {
+                return res.status(400).json({ ok: false, error: 'deviceId required' });
+            }
+            const report = await wvpLab.diagnoseStartPlay(deviceId, channelId);
+            res.json({ ok: true, diagnose: report });
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
+    /* mob-wvp-stale-docker-host-clear-reregister-v1 */
+    app.post('/api/lab/wvp/clear-stale-docker-hosts', dashboardAuth.requireDashboardAuth, labWvpOnly, async (req, res) => {
+        try {
+            const dryRun = !!(req.body && req.body.dryRun) || String((req.query && req.query.dryRun) || '') === '1';
+            const report = await wvpLab.clearStaleDockerHostDevices({ dryRun });
+            res.json({ ok: !!report.ok, clear: report });
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
+    /* mob-wvp-sip-lan-source-ip-v1 — patch WVP 172.x hostAddress from Fleet/proxy LAN map */
+    app.post('/api/lab/wvp/sync-lan-hosts', dashboardAuth.requireDashboardAuth, labWvpOnly, async (req, res) => {
+        try {
+            const deviceId = (req.body && req.body.deviceId) || (req.query && req.query.deviceId) || '';
+            const report = await wvpLab.syncLanSourceIps({
+                deviceId: deviceId || undefined,
+                reason: 'lab_api',
+            });
+            res.json({ ok: !!report.ok, sync: report });
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
+    /* mob-wvp-invite-rtp-answer-v1 — mirror + proxy invite route + TCP-PASSIVE + wait online */
+    app.post('/api/lab/wvp/prepare-invite-rtp', dashboardAuth.requireDashboardAuth, labWvpOnly, async (req, res) => {
+        try {
+            const deviceId = String((req.body && req.body.deviceId) || (req.query && req.query.deviceId) || '').trim();
+            if (!deviceId) {
+                return res.status(400).json({ ok: false, error: 'deviceId required' });
+            }
+            const report = await wvpLab.ensureInviteRtpReady(deviceId, {
+                waitMs: parseInt((req.body && req.body.waitMs) || (req.query && req.query.waitMs) || '8000', 10) || 8000,
+            });
+            res.json({ ok: !!report.ok, prepare: report });
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
+    /* mob-wvp-fleet-register-mirror-v1 — REGISTER into WVP using Fleet Contact LAN (no BWC port change) */
+    app.post('/api/lab/wvp/mirror-register', dashboardAuth.requireDashboardAuth, labWvpOnly, async (req, res) => {
+        try {
+            const deviceId = (req.body && req.body.deviceId) || (req.query && req.query.deviceId) || '';
+            if (deviceId) {
+                const contact = lastContactUriByCam[String(deviceId)] || (req.body && req.body.contact) || '';
+                const report = await wvpRegisterMirror.registerDeviceOnce(String(deviceId), contact);
+                res.json({ ok: !!report.ok, mirror: report });
+                return;
+            }
+            const report = await wvpRegisterMirror.mirrorAllFromContactCache();
+            res.json({ ok: !!report.ok, mirror: report });
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
+    app.get('/api/lab/wvp/wait-lan-register', dashboardAuth.requireDashboardAuth, labWvpOnly, async (req, res) => {
+        try {
+            const deviceId = String((req.query && req.query.deviceId) || '').trim();
+            if (!deviceId) {
+                return res.status(400).json({ ok: false, error: 'deviceId required' });
+            }
+            const timeoutMs = parseInt(String((req.query && req.query.timeoutMs) || '90000'), 10) || 90000;
+            const report = await wvpLab.waitForLanRegister(deviceId, { timeoutMs });
+            res.json({ ok: !!report.ok, wait: report });
         } catch (err) {
             res.status(500).json(opErr(err));
         }
@@ -3824,6 +3925,67 @@ if (process.env.FM_LAB_ZLM === '1'
     });
 })();
 
+function shouldSkipFleetInviteForWvpSoftOpen(payload) {
+    /* mob-softopen-single-invite-path-v1 — Soft Open = WVP only; no Fleet SIP INVITE collision */
+    if (String(process.env.FM_LAB_WVP || '').trim() !== '1') return false;
+    if (String(process.env.FM_SOFTOPEN_WVP_ONLY || '1').trim() === '0') return false;
+    if (payload && payload.forceFleetInvite) return false;
+    if (payload && payload.sosServerPull) return false;
+    const surface = String((payload && payload.surface) || '').trim();
+    if (surface === 'analytics-fr' || surface === 'conference'
+        || surface === 'command-wall' || surface.indexOf('command') === 0) {
+        return false;
+    }
+    return true;
+}
+
+function startFfmpegFallbackForLiveAdapter(camId, reason) {
+    const id = String(camId || '').trim();
+    if (!id) return { ok: false, status: 'camId_required' };
+    if (shouldSkipFleetInviteForWvpSoftOpen({ surface: 'adapter-fallback', adapterFallback: true })) {
+        log.media.info('live adapter ffmpeg fallback blocked', {
+            camId: id,
+            reason,
+            status: 'wvp_softopen_only',
+        });
+        return { ok: false, status: 'wvp_softopen_only' };
+    }
+    if (liveStreamPool.isStreamingForCam(id)) {
+        return { ok: true, status: 'already_live', alreadyLive: true };
+    }
+    if (liveStreamPool.isInviteInFlight(id)) {
+        return { ok: true, status: 'invite_in_flight', inFlight: true };
+    }
+    const contact = getContactUriForCam(id);
+    if (!contact) {
+        log.media.warn('live adapter ffmpeg fallback blocked', { camId: id, reason, status: 'no_camera_contact' });
+        return { ok: false, status: 'no_camera_contact' };
+    }
+    if (conferenceModule.isBwcIngressActive(id)) {
+        log.media.warn('live adapter ffmpeg fallback blocked', { camId: id, reason, status: 'vc_bwc_ingress_active' });
+        return { ok: false, status: 'vc_bwc_ingress_active' };
+    }
+    if (liveStreamPool.countActive() >= DASHBOARD_MAX_LIVE && !liveStreamPool.isDashboardWatchingCam(id)) {
+        log.media.warn('live adapter ffmpeg fallback blocked', {
+            camId: id,
+            reason,
+            status: 'max_live',
+            max: DASHBOARD_MAX_LIVE,
+        });
+        return { ok: false, status: 'max_live' };
+    }
+    log.media.info('live adapter ffmpeg fallback start', { camId: id, reason });
+    startMediaFromDashboard({
+        camId: id,
+        mode: 'video',
+        surface: 'adapter-fallback',
+        adapterFallback: true,
+        fallbackReason: reason,
+        forceFleetInvite: true,
+    }, null);
+    return { ok: true, status: 'start_requested', started: true, reason };
+}
+
 /** Gate D — playback descriptor for dashboard wall (auth). Pins still use pool path. */
 app.get('/api/live/playback', dashboardAuth.requireDashboardAuth, async (req, res) => {
     try {
@@ -3837,8 +3999,13 @@ app.get('/api/live/playback', dashboardAuth.requireDashboardAuth, async (req, re
             publicHost: HOST,
             videoWsPort: VIDEO_WS_PORT,
             isStreamingForCam: (id) => liveStreamPool.isStreamingForCam(id),
+            isInviteInFlight: (id) => liveStreamPool.isInviteInFlight(id),
+            startFfmpegFallback: (id, reason) => startFfmpegFallbackForLiveAdapter(id, reason),
             relay: zlmLabRelay,
             zlm: zlmProcess,
+            /* mob-wvp-wall-zlm-before-ffmpeg-invite-v1 */
+            noFfmpegStart: String((req.query && (req.query.noFfmpegStart || req.query.probe)) || '').trim() === '1'
+                || String((req.query && req.query.probe) || '').trim() === 'zlm',
         });
         res.json(desc);
     } catch (err) {
@@ -5368,15 +5535,48 @@ app.post('/api/evidence/detail/:fileId/trim-export', requireEvidenceExport, asyn
 
 app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin, express.json({ limit: '256kb' }), async (req, res) => {
     try {
-        const regions = req.body && req.body.regions;
+        const body = req.body || {};
+        const regions = body.regions;
+        const faceFollow = !!(body.faceFollow || body.mode === 'faceFollow' || body.mode === 'face-follow');
         auditLog.recordFromRequest(req, 'evidence.redact_start', {
             target: req.params.fileId,
-            detail: { regionCount: Array.isArray(regions) ? regions.length : 0 },
+            detail: {
+                regionCount: Array.isArray(regions) ? regions.length : 0,
+                mode: faceFollow ? 'face-follow' : 'static-regions',
+            },
         });
-        const out = await evidenceWorkflow.applyRedaction(req.params.fileId, regions, req.dashboardUser);
+        /* mob-evidence-redact-details-before-or-with-save-v1 — note fields with Save */
+        const draftNote = {
+            redactionReason: body.redactionReason,
+            visibleDescription: body.visibleDescription,
+            incidentNote: body.incidentNote,
+        };
+        let out;
+        if (faceFollow) {
+            if (!licenseFeatures.isFeatureEnabled('fr')) {
+                return res.status(403).json(opErr('Face detection module is not enabled on this license'));
+            }
+            out = await evidenceWorkflow.applyFaceFollowRedaction(req.params.fileId, req.dashboardUser, {
+                manualRegions: Array.isArray(regions) ? regions : [],
+                redactionReason: draftNote.redactionReason,
+                visibleDescription: draftNote.visibleDescription,
+                incidentNote: draftNote.incidentNote,
+            });
+        } else {
+            out = await evidenceWorkflow.applyRedaction(
+                req.params.fileId,
+                regions,
+                req.dashboardUser,
+                draftNote
+            );
+        }
         auditLog.recordFromRequest(req, 'evidence.redact_save', {
             target: req.params.fileId,
-            detail: { exportId: out.exportId, regionCount: out.regionCount },
+            detail: {
+                exportId: out.exportId,
+                regionCount: out.regionCount,
+                mode: out.mode || (faceFollow ? 'face-follow' : 'static-regions'),
+            },
         });
         res.json({ ok: true, export: out });
     } catch (err) {
@@ -5384,10 +5584,8 @@ app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin,
     }
 });
 
-// mob-evidence-redact-autoface: run the OpenCV+YuNet sidecar over the source
-// video and return suggested blur regions for the operator to review in the
-// existing redact editor. Detection only — it never burns in blur (that stays
-// the manual "Save redacted copy" path). Super-admin + analyticsFace ("fr") gated.
+// mob-evidence-redact-seeta-detect-v1: Seeta detect timeline (tight preview).
+// Burn on Save = per-frame Seeta + ROI blur. YuNet only if FM_REDACT_FACE_ENGINE=yunet.
 app.post('/api/evidence/detail/:fileId/redact/autoface', dashboardAuth.requireSuperAdmin, express.json({ limit: '16kb' }), async (req, res) => {
     try {
         if (!licenseFeatures.isFeatureEnabled('fr')) {
@@ -5402,22 +5600,34 @@ app.post('/api/evidence/detail/:fileId/redact/autoface', dashboardAuth.requireSu
         const detectOpts = {
             maxSeconds: Number(body.maxSeconds) > 0 ? Number(body.maxSeconds) : 0,
             stride: Number(body.stride) > 0 ? Number(body.stride) : 3,
-            score: Number(body.score) > 0 ? Number(body.score) : 0.6,
+            score: Number(body.score) > 0 ? Number(body.score) : 0.72,
             timeout: 300000,
         };
         const timeline = await faceTrackSidecar.detect(inputPath, detectOpts);
         if (!timeline || !timeline.ok) {
-            return res.status(422).json(opErr((timeline && timeline.error) || 'Face detection failed'));
+            const hint = timeline && timeline.hint ? (' — ' + timeline.hint) : '';
+            return res.status(422).json(opErr(((timeline && timeline.error) || 'Face detection failed') + hint));
         }
-        const regions = faceRedactRegions.buildRegionsFromTimeline(timeline, {
-            pad: Number(body.pad) >= 0 ? Number(body.pad) : 0.25,
+        /* mob-evidence-redact-auto-preview-slim-v1 — few review boxes, not 90+. */
+        const regions = faceRedactRegions.buildTightSampleRegions(timeline, {
+            pad: Number(body.pad) >= 0 ? Number(body.pad) : 0.10,
+            maxRegions: Number(body.maxRegions) > 0 ? Number(body.maxRegions) : 10,
         });
+        const engine = timeline.engine || faceTrackSidecar.redactFaceEngine();
         auditLog.recordFromRequest(req, 'evidence.redact_autoface', {
             target: req.params.fileId,
-            detail: { regions: regions.length, sampled: timeline.sampled || 0 },
+            detail: {
+                regions: regions.length,
+                sampled: timeline.sampled || 0,
+                preview: 'tight-sample',
+                faceFollow: true,
+                engine: engine,
+                detector: timeline.detector || null,
+            },
         });
         res.json({
             ok: true,
+            faceFollow: true,
             regions: regions,
             meta: {
                 width: timeline.width,
@@ -5425,6 +5635,10 @@ app.post('/api/evidence/detail/:fileId/redact/autoface', dashboardAuth.requireSu
                 sampled: timeline.sampled || 0,
                 stride: timeline.stride || detectOpts.stride,
                 regionCount: regions.length,
+                preview: 'tight-sample',
+                faceFollow: true,
+                engine: engine,
+                detector: timeline.detector || null,
             },
         });
     } catch (err) {
@@ -5459,10 +5673,7 @@ app.post('/api/evidence/redact/:exportId/finalize', dashboardAuth.requireSuperAd
     }
 });
 
-// Face-track detection scaffold — diagnostics only. Reports whether the
-// optional detection sidecar (OpenCV + YuNet) is installed. Detection itself
-// stays gated behind the analyticsFace ("fr") entitlement and is not wired
-// into any redaction UI yet.
+// Face-track selfcheck — Seeta default (mob-evidence-redact-seeta-detect-v1).
 app.get('/api/evidence/redact/track-selfcheck', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         const report = await faceTrackSidecar.selfCheck();
@@ -6424,6 +6635,35 @@ app.post('/api/analytics/fr/offline-video/cancel', dashboardAuth.requireDashboar
     }
     const out = frOfflineVideo.cancelJob();
     res.json(out);
+});
+
+/* mob-evidence-redacted-exports-browser-v1 — search/list finalized redacts (registry). */
+app.get('/api/evidence/exports', requireEvidenceExport, (req, res) => {
+    try {
+        const q = req.query || {};
+        const result = evidenceWorkflow.listRedactedExports({
+            status: q.status,
+            q: q.q,
+            tag: q.tag,
+            period: q.period,
+            from: q.from,
+            to: q.to,
+            page: q.page,
+            pageSize: q.pageSize || q.limit,
+        });
+        res.json({
+            ok: true,
+            exports: result.exports,
+            total: result.total,
+            page: result.page,
+            pageSize: result.pageSize,
+            pageCount: result.pageCount,
+            status: result.status,
+        });
+    } catch (err) {
+        log.web.warn('evidence exports list failed', { message: err.message });
+        res.status(500).json(opErr(err));
+    }
 });
 
 app.get('/api/evidence/export-stream/:exportId', requireEvidenceExport, (req, res) => {
@@ -8356,6 +8596,24 @@ function startMediaFromDashboard(payload, requestSocket) {
     const inviteMode = mode;
     const sosServerPull = !!(payload && payload.sosServerPull);
 
+    /* mob-softopen-single-invite-path-v1 — Soft Open must not emit Fleet SIP INVITE */
+    if (inviteMode === 'video' && shouldSkipFleetInviteForWvpSoftOpen(payload)) {
+        log.media.info('invite skipped', {
+            reason: 'wvp_softopen_only',
+            camId,
+            surface: (payload && payload.surface) || null,
+        });
+        const surface = liveViewers.normalizeSurface(parsed.surface || (payload && payload.surface));
+        if (requestSocket && requestSocket.connected) {
+            requestSocket.emit('video-stream-ready', {
+                camId,
+                surface,
+                wvpSoftOpenOnly: true,
+            });
+        }
+        return;
+    }
+
     if (inviteMode === 'video' && conferenceModule.isBwcIngressActive(camId)) {
         log.media.info('invite skipped', { reason: 'vc_bwc_ingress_active', camId });
         const surface = liveViewers.normalizeSurface(parsed.surface || (payload && payload.surface));
@@ -8985,6 +9243,51 @@ function replayOnlineDeviceStateToSocket(socket) {
 /** Coalesce rapid stop-video for the same cam (command wall + ops wall fighting). */
 const stopVideoInProgress = new Set();
 
+/**
+ * mob-wvp-softopen-stop-bridge-v1
+ * Soft Open is WVP-only — Fleet liveStreamPool stop does not send SIP BYE.
+ * Dashboard stop must call WVP /api/play/stop so the cam leaves live.
+ */
+function stopWvpSoftOpenBridge(camId) {
+    const id = String(camId || '').trim();
+    if (!id) return Promise.resolve({ skipped: true, reason: 'no_cam' });
+    if (String(process.env.FM_LAB_WVP || '').trim() !== '1') {
+        return Promise.resolve({ skipped: true, reason: 'lab_wvp_off' });
+    }
+    let wvp;
+    try {
+        wvp = require('./lib/wvpLabClient');
+    } catch (err) {
+        return Promise.resolve({ skipped: true, reason: 'wvp_module' });
+    }
+    if (!wvp.isEnabled || !wvp.isEnabled()) {
+        return Promise.resolve({ skipped: true, reason: 'wvp_disabled' });
+    }
+    const softOnly = String(process.env.FM_SOFTOPEN_WVP_ONLY || '1').trim() !== '0';
+    const tracked = typeof wvp.hasActivePlay === 'function' && wvp.hasActivePlay(id);
+    if (!softOnly && !tracked) {
+        return Promise.resolve({ skipped: true, reason: 'no_wvp_play' });
+    }
+    log.media.info('wvp softopen stop bridge', { camId: id, tracked: !!tracked, softOnly });
+    return Promise.resolve()
+        .then(() => wvp.stopPlay(id, id))
+        .then((r) => {
+            log.media.info('wvp softopen stop bridge done', {
+                camId: id,
+                ok: !!(r && r.ok),
+                msg: (r && r.msg) || null,
+            });
+            return r || { ok: true };
+        })
+        .catch((err) => {
+            log.media.warn('wvp softopen stop bridge fail', {
+                camId: id,
+                message: err && err.message ? String(err.message).slice(0, 160) : 'stop_failed',
+            });
+            return { ok: false, error: err && err.message };
+        });
+}
+
 /** Stop BWC/SIP stream only when no dashboard socket still holds a viewer ref (VMS pattern). */
 /** Stop BWC/SIP stream only when no dashboard socket still holds a viewer ref (VMS pattern). */
 function releaseCamStreamWhenUnwatched(camId, opts) {
@@ -9025,7 +9328,10 @@ function releaseCamStreamWhenUnwatched(camId, opts) {
     if (mediaSession.isVoiceCallActiveForCam(camId)) {
         mediaSession.endVoiceCallOnly(sip, () => emitBwcCallState(camId, false, null));
     }
-    return liveStreamPool.stopStreamForCam(sip, camId).then(() => {
+    return Promise.all([
+        liveStreamPool.stopStreamForCam(sip, camId),
+        stopWvpSoftOpenBridge(camId),
+    ]).then(() => {
         sosInviteQueue.onStreamStopped(camId);
         io.emit('video-stream-stopped', { camId, reason: 'operator_stop' });
         return true;
@@ -10481,6 +10787,16 @@ sip.start({ address: BIND_HOST, port: SIP_PORT }, (request, remote) => {
                 msgWs: !!((activeCameraSockets.get(camId) || {}).readyState === WebSocket.OPEN),
             });
 
+            /* mob-wvp-fleet-register-mirror-v1 — PARKED (FM_WVP_MIRROR_REGISTER=0). Real GB → WVP :5060. */
+            try {
+                wvpRegisterMirror.scheduleFromFleetRegister(camId, cameraContactUri);
+            } catch (mirrorErr) {
+                log.media.warn('wvp register mirror schedule', {
+                    camId,
+                    message: mirrorErr && mirrorErr.message ? String(mirrorErr.message).slice(0, 120) : 'fail',
+                });
+            }
+
         } else {
 
             log.sip.warn('register incomplete', { camId });
@@ -10825,6 +11141,34 @@ const ports = mediaSession.getPorts();
     });
     setInterval(pollGpsForOnlineDevices, GPS_POLL_MS);
     setInterval(pollBwcActivityForOnlineDevices, BWC_ACTIVITY_SWEEP_MS);
+
+    /* mob-fleet-presence-from-wvp-v1 — one-row BWC on WVP :5060 → Axiom fleet online */
+    try {
+        const wvpLabPresence = require('./lib/wvpLabClient');
+        wvpFleetPresence.start({
+            wvpLab: wvpLabPresence,
+            fleetRegistry: fleetRegistry,
+            isBwcCameraId: isBwcCameraId,
+            onBecameOnline: function (camId) {
+                offlineMapPinSession.delete(String(camId));
+                ensureBwcEntryForDevice(camId);
+                if (siteDb.isReady()) {
+                    siteDb.touchRuntime(camId, { online: true, lastSeen: Date.now() });
+                }
+                deviceOnline = fleetRegistry.hasOnline();
+                if (!connectedCameraId || !(fleetRegistry.ensure(connectedCameraId) || {}).online) {
+                    connectedCameraId = camId;
+                }
+                log.sip.info('device online from wvp presence', { camId });
+                pushFleetRoster(camId, '66', true);
+            },
+            emitRoster: function () {
+                emitFleetRoster({ force: true });
+            },
+        });
+    } catch (err) {
+        log.media.warn('wvp fleet presence start failed', { message: err && err.message });
+    }
 
     log.sip.info('sip listening', { publicHost: HOST, bind: BIND_HOST, port: SIP_PORT });
 

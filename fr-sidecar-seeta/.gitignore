@@ -1,0 +1,6 @@
+vendor/sf6.0_models.zip
+vendor/sf6_models_extract/
+vendor/seetaFace6Python/seetaface/model/*.csta
+.venv/
+__pycache__/
+*.pyc

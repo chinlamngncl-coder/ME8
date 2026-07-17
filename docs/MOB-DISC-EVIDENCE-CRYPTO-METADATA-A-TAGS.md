@@ -53,7 +53,7 @@
 
 - Detail status row (and optional catalog badge):  
   - **Encrypted (AES-256)** if `evidenceCrypto.isEncryptedFile(path)`  
-  - **Plaintext (legacy)** if file on disk without MEV1 header  
+  - **Not encrypted** if file on disk without MEV1 header (UI: never say “legacy”)  
   - **Unavailable** if storage missing (same as today)  
 - Exposed on `GET /api/evidence/detail/:fileId` as e.g. `cryptoStatus: 'encrypted' | 'plaintext' | 'missing'`  
 - **Read-only** — no “Encrypt now” button in A (that would be slice B / ops MOB).

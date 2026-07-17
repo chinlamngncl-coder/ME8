@@ -1,0 +1,20 @@
+# Ubitron FR primary sidecar (POC) — InsightFace ONNX buffalo_sc
+#
+# Lab enable (DeepFace stays default until cutover):
+#   FM_FR_ENGINE=onnx
+#   FM_FR_SIDECAR_FAST_PORT=8766
+#
+# Install into this folder's venv:
+#   py -3 -m venv .venv
+#   .\.venv\Scripts\pip install -r requirements.txt
+#
+# Run (or let Fleet spawn when AUTO=1 and FM_FR_ENGINE=onnx):
+#   .\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8766
+
+fastapi>=0.110,<1
+uvicorn[standard]>=0.27,<1
+python-multipart>=0.0.9
+numpy>=1.24,<2
+opencv-python-headless>=4.9,<4.11
+onnxruntime>=1.16,<2
+insightface>=0.7,<1

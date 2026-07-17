@@ -13,6 +13,14 @@ redaction-track/__pycache__/
 fr-sidecar/.venv/
 fr-sidecar/__pycache__/
 fr-sidecar/*.pyc
+fr-sidecar-fast/.venv/
+fr-sidecar-fast/__pycache__/
+fr-sidecar-fast/*.pyc
+fr-sidecar-seeta/.venv/
+fr-sidecar-seeta/__pycache__/
+fr-sidecar-seeta/*.pyc
+**/__pycache__/
+*.pyc
 storage/
 
 # FR engine bench images + CSV (mob-fr-engine-bench-harness) — keep README / .gitkeep

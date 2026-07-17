@@ -1,0 +1,6 @@
+# Ubitron FR SeetaFace6 lab sidecar
+fastapi>=0.110,<1
+uvicorn[standard]>=0.27,<1
+python-multipart>=0.0.9
+numpy>=1.24,<2
+opencv-python-headless>=4.9,<4.11
