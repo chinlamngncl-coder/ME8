@@ -1,0 +1,19 @@
+# mvp-zlm-in-pack — loopback ports for Windows pack (match typical ME8 .env lab)
+# HTTP API/FLV on 8080, RTMP on 19350 (avoids LiveKit 1935 clash on same PC)
+
+[api]
+apiDebug=0
+secret=CHANGE_ME_MATCH_FM_ZLM_SECRET
+
+[http]
+port=8080
+allow_cross_domains=1
+
+[rtmp]
+port=19350
+
+[rtsp]
+port=8554
+
+[rtp_proxy]
+port=10000

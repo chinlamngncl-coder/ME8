@@ -34,10 +34,10 @@ if (Test-ServiceRunning) {
         Write-Host "  BLOCKED: Windows service $serviceName is still running."
         Write-Host "  Lab Start and the service cannot share the same ports."
         Write-Host ""
-        Write-Host "  Do this (Administrator PowerShell):"
+        Write-Host "  Do this in an Administrator PowerShell:"
         Write-Host "    net stop $serviceName"
-        Write-Host "  Or: Desktop KILL-FLEET-ADMIN.bat (Run as administrator)"
-        Write-Host "  Then run RESTART-FLEET.bat again."
+        Write-Host "  Or: Desktop KILL-FLEET-ADMIN.bat - Run as administrator"
+        Write-Host "  Better: RESTART-FLEET.bat now prefers service restart when UbitronC2 exists."
         Write-Host ""
         exit 1
     }
@@ -64,11 +64,13 @@ Start-Sleep -Seconds 2
 
 # 3) Refuse start if anything still holds ports (elevated zombie, etc.)
 $left = Get-ListenPids
+if (-not $left) { $left = @{} }
 if ($left.Count -gt 0 -or (Test-ServiceRunning)) {
     Write-Host ""
     Write-Host "  BLOCKED: Ports still in use — will NOT start a broken server."
     if (Test-ServiceRunning) {
         Write-Host "  Service $serviceName is still RUNNING."
+        Write-Host "  Use RESTART-FLEET.bat — it prefers service restart when installed."
     }
     foreach ($entry in $left.GetEnumerator()) {
         Write-Host "  Still listening: port $($entry.Value) PID $($entry.Key)"
@@ -76,9 +78,8 @@ if ($left.Count -gt 0 -or (Test-ServiceRunning)) {
     Write-Host ""
     Write-Host "  Do this:"
     Write-Host "  1. Close other Mobility / Test 2 windows"
-    Write-Host "  2. Admin:  net stop $serviceName"
-    Write-Host "  3. Or run Desktop KILL-FLEET-ADMIN.bat as Administrator"
-    Write-Host "  4. Run RESTART-FLEET.bat again"
+    Write-Host "  2. Run RESTART-FLEET.bat again and click Yes on UAC if asked"
+    Write-Host "  3. Or Desktop KILL-FLEET-ADMIN.bat - Run as administrator"
     Write-Host ""
     exit 1
 }
