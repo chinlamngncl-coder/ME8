@@ -4,6 +4,14 @@
 **APPLY:** `MOB-APPLY lab-git-push-classic-pass-baseline-wrappers`  
 **Prior disc:** `MOB-DISC-CLASSIC-PASS-WRAPPERS-MANIFEST-GITHUB-20260718.md`
 
+## Result
+
+| Field | Value |
+|-------|--------|
+| Commit | **`dd874f3`** |
+| Push | `origin/main` |
+| `.env` on git | **No** |
+
 ## Mandate
 
 Push **safe** classic-PASS restore tooling to GitHub — wrappers, MANIFEST, HASHES, BASELINE doc.  
