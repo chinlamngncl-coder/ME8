@@ -34,11 +34,14 @@ const bwcDevices = require('./lib/bwcDevices');
 const facePlateIngest = require('./lib/facePlateIngest');
 const ftpIngest       = require('./lib/ftpIngest');
 const fixedCamRegistry = require('./lib/fixedCamRegistry');
+const fixedCamOnvif = require('./lib/fixedCamOnvif');
 const evidenceCrypto   = require('./lib/evidenceCrypto');
 const multer = require('multer');
 const log = require('./lib/fleetLog');
 const wvpRegisterMirror = require('./lib/wvpRegisterMirror');
 const wvpFleetPresence = require('./lib/wvpFleetPresence');
+const dashboardConnectWarm = require('./lib/dashboardConnectWarm');
+const wvpSipLanMap = require('./lib/wvpSipLanMap');
 
 process.on('uncaughtException', (err) => {
     // mob-sec-epipe-log-guard: stdout/stderr broken pipes can throw while logging.
@@ -1686,6 +1689,51 @@ app.post('/api/bwc-companion/sos-trigger', requireBwcCompanionToken, handleBwcCo
 app.post('/api/bwc-companion/button-event', requireBwcCompanionToken, handleBwcCompanionButtonEvent);
 app.post('/api/bwc-companion/telemetry', requireBwcCompanionToken, handleBwcCompanionTelemetry);
 
+/* MOB-APPLY-BACKEND-ACL-TRANSLATOR-V1 — WVP/proxy → classic sockets; BEFORE JWT; no public/ edits */
+(function mountWvpAclEventBus() {
+    try {
+        const wvpEventBus = require('./lib/wvpEventBus');
+        const aclTranslator = require('./lib/wvpFleetAclTranslator');
+        app.use('/api/lab/wvp', wvpEventBus.createRouter({
+            opErr,
+            raiseDeviceAlarm: function (opts) { return deviceAlarm.raiseDeviceAlarm(opts); },
+            emitPttRxState: emitPttRxState,
+            touchDeviceOnline: touchDeviceOnline,
+            getLastGps: function (camId) { return lastGpsByCam[camId] || null; },
+            emitHeartbeat: function (camId) {
+                touchDeviceOnline(camId);
+                emitToDashboardSockets('heartbeat', { cameraId: camId }, camId);
+            },
+            emitGpsUpdate: function (camId, lat, lon) {
+                lastGpsByCam[camId] = { lat: lat, lon: lon, at: Date.now() };
+                emitToDashboardSockets('gps-update', { cameraId: camId, lat: lat, lon: lon }, camId);
+            },
+            emitDeviceStatusFromAcl: function (norm) {
+                const camId = norm.cameraId;
+                if (norm.battery) {
+                    mergeBatteryTelemetry(camId, norm.battery, 'wvp-acl');
+                }
+                const rec = fleetRegistry.ensure(camId);
+                const prev = (rec && rec.telemetry) || {};
+                const payload = aclTranslator.toClassicDeviceStatus(norm, prev);
+                fleetRegistry.updateTelemetry(camId, payload);
+                emitToDashboardSockets('device-status', payload, camId);
+                return payload;
+            },
+        }));
+        log.media.info('wvp acl event bus mounted', {
+            mount: '/api/lab/wvp/events',
+            legacy: ['/api/lab/wvp/device-alarm', '/api/lab/wvp/device-status'],
+            path: 'backend-acl-translator-v1',
+            note: 'frontend frozen — classic socket names only',
+        });
+    } catch (err) {
+        log.media.warn('wvp acl event bus mount failed', {
+            message: err && err.message ? err.message : String(err),
+        });
+    }
+})();
+
 app.use(dashboardAuth.requireDashboardAuth);
 
 app.get('/api/gis/geocode', async (req, res) => {
@@ -2113,9 +2161,9 @@ function ensureBwcEntriesForWallChannels(channels) {
 
 function defaultVideoChannels() {
     return {
-        channels: Array.from({ length: 6 }, (_, slot) => ({
+        channels: Array.from({ length: 10 }, (_, slot) => ({
             slot,
-            sourceMode: slot >= 4 ? 'overflow' : 'none',
+            sourceMode: 'none',
             operatorName: '',
             deviceId: '',
             mapGroup: '',
@@ -3568,7 +3616,8 @@ app.post('/api/platform/smtp/test', dashboardAuth.requireSuperAdmin, async (req,
 if (process.env.FM_LAB_ZLM === '1'
     || process.env.FM_ZLM_PACK === '1'
     || process.env.FM_ZLM_SPAWN === '1'
-    || process.env.FM_LAB_WVP === '1') {
+    || process.env.FM_LAB_WVP === '1'
+    || process.env.FM_WVP_VIDEO_HANDOFF === '1') {
     const livePlaybackBroker = require('./lib/livePlaybackBroker');
     const zlmLabRelay = require('./lib/zlmLabRelay');
     const zlmProcess = require('./lib/zlmProcess');
@@ -3579,7 +3628,8 @@ if (process.env.FM_LAB_ZLM === '1'
         if (process.env.FM_LAB_ZLM !== '1'
             && process.env.FM_ZLM_PACK !== '1'
             && process.env.FM_ZLM_SPAWN !== '1'
-            && process.env.FM_LAB_WVP !== '1') {
+            && process.env.FM_LAB_WVP !== '1'
+            && process.env.FM_WVP_VIDEO_HANDOFF !== '1') {
             return res.status(404).json(opErr('ZLM lab/pack routes disabled'));
         }
         return next();
@@ -3673,7 +3723,8 @@ if (process.env.FM_LAB_ZLM === '1'
 
 /** mob-track-b1-one-tile-wvp-play — one Fleet lab tile plays WVP/ZLM (not wall / not pool FFmpeg). */
 (function registerWvpLabRoutes() {
-    if (String(process.env.FM_LAB_WVP || '').trim() !== '1') return;
+    if (String(process.env.FM_LAB_WVP || '').trim() !== '1'
+        && String(process.env.FM_WVP_VIDEO_HANDOFF || '').trim() !== '1') return;
     const wvpLab = require('./lib/wvpLabClient');
 
     function labWvpOnly(req, res, next) {
@@ -3840,6 +3891,27 @@ if (process.env.FM_LAB_ZLM === '1'
         }
     });
 
+    /* MOB-APPLY-FLV-STREAM-TOKEN-AUTH-V1 — session or labWvp token (mpegts-safe) */
+    app.get('/api/lab/wvp/flv-stream', labWvpOnly, (req, res, next) => {
+        try {
+            const handoff = require('./lib/wvpVideoHandoff');
+            handoff.requireFlvStreamAccess(req, res, next);
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    }, (req, res) => {
+        try {
+            const handoff = require('./lib/wvpVideoHandoff');
+            const camId = String((req.query && req.query.camId) || '').trim();
+            if (!camId) {
+                return res.status(400).json(opErr('camId required'));
+            }
+            handoff.proxyFlvStream(req, res, camId);
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
     log.media.info('wvp lab routes enabled', {
         testPage: '/test-wvp-tile.html',
         base: (wvpLab.cfg() && wvpLab.cfg().base) || null,
@@ -3926,6 +3998,11 @@ if (process.env.FM_LAB_ZLM === '1'
 })();
 
 function shouldSkipFleetInviteForWvpSoftOpen(payload) {
+    /* MOB-APPLY-BACKEND-VIDEO-WVP-HANDOFF-V1 — skip Fleet SIP Play; video via WVP/ZLM */
+    if (String(process.env.FM_WVP_VIDEO_HANDOFF || '').trim() === '1') {
+        if (payload && payload.forceFleetInvite) return false;
+        return true;
+    }
     /* mob-softopen-single-invite-path-v1 — Soft Open = WVP only; no Fleet SIP INVITE collision */
     if (String(process.env.FM_LAB_WVP || '').trim() !== '1') return false;
     if (String(process.env.FM_SOFTOPEN_WVP_ONLY || '1').trim() === '0') return false;
@@ -5175,9 +5252,67 @@ app.get('/api/fixed-cams/public', (req, res) => {
             id: c.id, name: c.name, lat: c.lat, lng: c.lng,
             zone: c.zone, streamSource: c.streamSource,
             ptzEnabled: c.ptzEnabled, enabled: c.enabled,
+            playable: c.streamSource === 'onvif'
+                ? !!(c.onvif && String(c.onvif.host || '').trim())
+                : !!String(c.rtspUrl || '').trim(),
         }));
         res.json({ ok: true, cams });
     } catch (err) { res.status(500).json(opErr(err)); }
+});
+
+function fixedCamStreamKey(id) {
+    return 'fixed:' + String(id || '').trim();
+}
+
+async function fixedCamResolvedRtspUrl(cam) {
+    if (cam && cam.streamSource === 'onvif') {
+        try {
+            const discovered = await fixedCamOnvif.resolveStreamUri(cam);
+            return discovered.uri;
+        } catch (err) {
+            if (!String(cam.rtspUrl || '').trim()) throw err;
+            log.media.warn('fixed camera ONVIF stream discovery fallback', {
+                cameraId: cam.id,
+                message: err.message,
+            });
+        }
+    }
+    const raw = String(cam && cam.rtspUrl || '').trim();
+    if (!raw) throw new Error('Registered fixed camera has no RTSP stream URL');
+    if (!cam.onvif || (!cam.onvif.user && !cam.onvif.password)) return raw;
+    const parsed = new URL(raw);
+    if (!parsed.username && cam.onvif.user) parsed.username = cam.onvif.user;
+    if (!parsed.password && cam.onvif.password) parsed.password = cam.onvif.password;
+    return parsed.toString();
+}
+
+app.post('/api/fixed-cams/:id/wall/start', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    try {
+        const cam = fixedCamRegistry.getById(req.params.id);
+        if (!cam || !cam.enabled) return res.status(404).json(opErr('Enabled fixed camera not found'));
+        if (cam.streamSource !== 'onvif' && cam.streamSource !== 'rtsp') {
+            return res.status(400).json(opErr('Fixed camera has no playable stream source'));
+        }
+        const streamId = fixedCamStreamKey(cam.id);
+        const rtspUrl = await fixedCamResolvedRtspUrl(cam);
+        liveStreamPool.startRtspStreamForCam(streamId, rtspUrl, BASE_DIR, {
+            rtspTransport: cam.onvif && cam.onvif.rtspTransport,
+        });
+        res.json({ ok: true, streamId, name: cam.name, source: cam.streamSource });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.post('/api/fixed-cams/:id/wall/stop', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    try {
+        const streamId = fixedCamStreamKey(req.params.id);
+        await liveStreamPool.stopStreamForCam(sip, streamId);
+        io.emit('video-stream-stopped', { camId: streamId, reason: 'operator_stop' });
+        res.json({ ok: true, streamId });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
 });
 
 app.post('/api/fixed-cams', dashboardAuth.requireSuperAdmin, (req, res) => {
@@ -5192,6 +5327,7 @@ app.put('/api/fixed-cams/:id', dashboardAuth.requireSuperAdmin, (req, res) => {
     try {
         const cam = fixedCamRegistry.update(req.params.id, req.body || {});
         if (!cam) return res.status(404).json({ ok: false, error: 'Camera not found.' });
+        fixedCamOnvif.clearCamera(cam.id);
         log.web.info('fixed-cam updated', { id: cam.id, name: cam.name });
         res.json({ ok: true, cam });
     } catch (err) { res.status(400).json(opErr(err)); }
@@ -5201,6 +5337,7 @@ app.delete('/api/fixed-cams/:id', dashboardAuth.requireSuperAdmin, (req, res) =>
     try {
         const ok = fixedCamRegistry.remove(req.params.id);
         if (!ok) return res.status(404).json({ ok: false, error: 'Camera not found.' });
+        fixedCamOnvif.clearCamera(req.params.id);
         log.web.info('fixed-cam deleted', { id: req.params.id });
         res.json({ ok: true });
     } catch (err) { res.status(400).json(opErr(err)); }
@@ -7417,6 +7554,17 @@ app.post('/api/video-channels', (req, res) => {
             protocol,
         };
     });
+    const fixedOwners = new Map();
+    for (const channel of channels) {
+        if (channel.sourceMode !== 'fixed' || !channel.deviceId) continue;
+        if (fixedOwners.has(channel.deviceId)) {
+            return res.status(400).json({
+                ok: false,
+                error: `Camera ${channel.deviceId} is already assigned to Panel ${fixedOwners.get(channel.deviceId) + 1}`,
+            });
+        }
+        fixedOwners.set(channel.deviceId, channel.slot);
+    }
     try {
         fs.mkdirSync(STORAGE_DIR, { recursive: true });
         fs.writeFileSync(VIDEO_CHANNELS_PATH, JSON.stringify({ channels }, null, 2), 'utf8');
@@ -7478,8 +7626,21 @@ function recordCamIp(camId, contactUri) {
     if (camId && ip) camIdByIp[ip] = camId;
 }
 
+function seedCamIdByIpFromWvpMap() {
+    wvpSipLanMap.eachRegisterPeerIp().forEach((row) => {
+        const camId = row && row.camId ? String(row.camId).trim() : '';
+        const ip = row && row.ip ? String(row.ip).trim() : '';
+        if (camId && ip && isBwcCameraId(camId)) camIdByIp[ip] = camId;
+    });
+}
+
 function resolvePttCamId(peerIp, pttUser) {
     const ip = String(peerIp || '').replace(/^::ffff:/, '');
+    const wvpCamId = wvpSipLanMap.resolveGbIdByPeerIp(ip);
+    if (wvpCamId && isBwcCameraId(wvpCamId)) {
+        camIdByIp[ip] = wvpCamId;
+        return wvpCamId;
+    }
     if (ip && camIdByIp[ip] && isBwcCameraId(camIdByIp[ip])) return camIdByIp[ip];
     const user = String(pttUser || '').trim();
     if (/^3402\d{16,}$/.test(user)) return user;
@@ -7675,6 +7836,12 @@ function contactUriFromSipRemote(camId, remote) {
 }
 
 loadContactCache();
+seedCamIdByIpFromWvpMap();
+wvpSipLanMap.setOnRegisterPeer((camId, ip) => {
+    const id = String(camId || '').trim();
+    const peerIp = String(ip || '').trim();
+    if (id && peerIp && isBwcCameraId(id)) camIdByIp[peerIp] = id;
+});
 if (!cameraContactUri) {
     const cachedIds = Object.keys(lastContactUriByCam);
     if (cachedIds.length === 1 && lastContactUriByCam[cachedIds[0]]) {
@@ -7844,6 +8011,11 @@ let dashboardSelectedCamId = null;
 function getContactUriForCam(camId) {
     const id = camId || connectedCameraId;
     if (!id) return cameraContactUri || null;
+    try {
+        const fleetPttContact = require('./lib/fleetPttContact');
+        const resolved = fleetPttContact.resolveContactUri(id, lastContactUriByCam);
+        if (resolved && resolved.uri) return resolved.uri;
+    } catch (_) { /* ignore */ }
     if (lastContactUriByCam[id]) return lastContactUriByCam[id];
     if (connectedCameraId === id && cameraContactUri) return cameraContactUri;
     return null;
@@ -8583,6 +8755,58 @@ function startMediaFromDashboard(payload, requestSocket) {
 
     }
 
+    const transport = 'udp';
+    const inviteMode = mode;
+    const sosServerPull = !!(payload && payload.sosServerPull);
+
+    /* MOB-APPLY-BACKEND-VIDEO-WVP-HANDOFF-V1 — no Fleet contact required; WVP owns Play */
+    if (inviteMode === 'video' && shouldSkipFleetInviteForWvpSoftOpen(payload)) {
+        log.media.info('invite skipped', {
+            reason: 'wvp_video_handoff',
+            camId,
+            surface: (payload && payload.surface) || null,
+            path: 'backend-video-handoff-stable-v1',
+        });
+        const surface = liveViewers.normalizeSurface(parsed.surface || (payload && payload.surface));
+        const handoff = require('./lib/wvpVideoHandoff');
+        handoff.ensurePlay(camId, { publicHost: HOST }).then(function (out) {
+            if (requestSocket && requestSocket.connected) {
+                if (out && out.ok) {
+                    schedulePttGroupRefreshForCam(camId, 'wvp-video-handoff');
+                    requestSocket.emit('video-stream-ready', {
+                        camId,
+                        surface,
+                        wvpVideoHandoff: true,
+                        flvUrl: out.flvUrl || null,
+                        reused: !!out.reused,
+                    });
+                } else {
+                    liveViewers.removeView(requestSocket.id, camId, surface);
+                    requestSocket.emit('video-stream-error', {
+                        camId,
+                        error: (out && out.reason) || 'WVP video start failed',
+                    });
+                }
+            } else if (out && out.ok) {
+                liveViewers.notifyStreamReady(io, camId);
+            }
+        }).catch(function (err) {
+            log.media.warn('wvp video handoff async fail', {
+                camId,
+                message: err && err.message ? err.message : String(err),
+                path: 'backend-video-handoff-stable-v1',
+            });
+            if (requestSocket && requestSocket.connected) {
+                liveViewers.removeView(requestSocket.id, camId, surface);
+                requestSocket.emit('video-stream-error', {
+                    camId,
+                    error: err && err.message ? err.message : 'WVP video failed',
+                });
+            }
+        });
+        return;
+    }
+
     const contact = getContactUriForCam(camId);
     if (!contact) {
 
@@ -8592,27 +8816,7 @@ function startMediaFromDashboard(payload, requestSocket) {
 
     }
 
-    const transport = 'udp';
-    const inviteMode = mode;
-    const sosServerPull = !!(payload && payload.sosServerPull);
-
-    /* mob-softopen-single-invite-path-v1 — Soft Open must not emit Fleet SIP INVITE */
-    if (inviteMode === 'video' && shouldSkipFleetInviteForWvpSoftOpen(payload)) {
-        log.media.info('invite skipped', {
-            reason: 'wvp_softopen_only',
-            camId,
-            surface: (payload && payload.surface) || null,
-        });
-        const surface = liveViewers.normalizeSurface(parsed.surface || (payload && payload.surface));
-        if (requestSocket && requestSocket.connected) {
-            requestSocket.emit('video-stream-ready', {
-                camId,
-                surface,
-                wvpSoftOpenOnly: true,
-            });
-        }
-        return;
-    }
+    /* legacy soft-open skip kept behind shouldSkip above when handoff off */
 
     if (inviteMode === 'video' && conferenceModule.isBwcIngressActive(camId)) {
         log.media.info('invite skipped', { reason: 'vc_bwc_ingress_active', camId });
@@ -9027,41 +9231,39 @@ function launchOutboundTalkCall(camId, socket) {
     });
     tel.logPhase(camId, 'pre-invite', profile.id);
     tel.requestStatus(camId, 'pre-invite', profile.id);
-    releaseLiveBeforeVoicePhone(camId, function () {
-        mediaSession.startOutboundTalkCall(sip, {
-            camId,
-            cameraContactUri: contact,
-            realm: REALM,
-            serverId: SERVER_ID,
-            host: HOST,
-            sipPort: SIP_PORT,
-            intercomProfile: profile.id,
-            intercomInvite: profile.invite,
-            onConnected: (id) => {
-                tel.logPhase(id, 'invite-200', profile.id);
-                tel.requestStatus(id, 'post-200', profile.id);
-                if (profile.stopRecordOnConnect) {
-                    deviceControl.sendDeviceControl(sip, {
-                        cameraContactUri: contact,
-                        deviceId: id,
-                        realm: REALM,
-                        serverId: SERVER_ID,
-                        recordCmd: 'StopRecord',
-                        log,
-                    });
-                }
-                emitBwcCallState(id, true, null, { via: 'outbound-intercom', profile: profile.id });
-                auditLog.record('voice.call', Object.assign(
-                    { target: id, mode: 'outbound-intercom', profile: profile.id },
-                    auditVoiceCallActor(socket),
-                ));
-            },
-            onFailed: (msg) => {
-                pttVoiceCallCamId = null;
-                tel.logPhase(camId, 'invite-failed', profile.id, { message: msg || null });
-                emitBwcCallState(camId, false, msg || 'Outbound intercom call failed');
-            },
-        });
+    mediaSession.startOutboundTalkCall(sip, {
+        camId,
+        cameraContactUri: contact,
+        realm: REALM,
+        serverId: SERVER_ID,
+        host: HOST,
+        sipPort: SIP_PORT,
+        intercomProfile: profile.id,
+        intercomInvite: profile.invite,
+        onConnected: (id) => {
+            tel.logPhase(id, 'invite-200', profile.id);
+            tel.requestStatus(id, 'post-200', profile.id);
+            if (profile.stopRecordOnConnect) {
+                deviceControl.sendDeviceControl(sip, {
+                    cameraContactUri: contact,
+                    deviceId: id,
+                    realm: REALM,
+                    serverId: SERVER_ID,
+                    recordCmd: 'StopRecord',
+                    log,
+                });
+            }
+            emitBwcCallState(id, true, null, { via: 'outbound-intercom', profile: profile.id });
+            auditLog.record('voice.call', Object.assign(
+                { target: id, mode: 'outbound-intercom', profile: profile.id },
+                auditVoiceCallActor(socket),
+            ));
+        },
+        onFailed: (msg) => {
+            pttVoiceCallCamId = null;
+            tel.logPhase(camId, 'invite-failed', profile.id, { message: msg || null });
+            emitBwcCallState(camId, false, msg || 'Outbound intercom call failed');
+        },
     });
 }
 
@@ -9118,62 +9320,39 @@ function startBwcVoiceCall(payload, socket) {
         });
         return;
     }
-    if (audioOnly) {
-        const contact = getContactUriForCam(camId);
-        if (!contact) {
-            emitBwcCallState(camId, false, 'BWC not registered');
-            return;
-        }
-        if (pttVoiceCallCamId && pttVoiceCallCamId !== camId) {
-            const prev = pttVoiceCallCamId;
-            pttVoiceCallCamId = null;
-            voiceBroadcastPending = null;
-            clearVoiceInviteWatch();
-            emitBwcCallState(prev, false, null);
-        }
-        const voicePath = bwcVoiceProfile.resolveFleetVoicePath(camId, buildVoiceProfileDeps());
-        log.media.info('voice call path', { camId, voicePath });
-        const launchVoice = () => {
-            if (voicePath === 'outbound-intercom') {
-                launchOutboundTalkCall(camId, socket);
-            } else {
-                launchFleetVoiceBroadcast(camId, socket);
-            }
-        };
-        if (mediaSession.isVoiceCallActiveForCam(camId)) {
-            mediaSession.endVoiceCallOnly(sip, launchVoice);
-            return;
-        }
-        launchVoice();
-        return;
-    }
-    if (!dashboardVideo.isStreamingForCam(camId)) {
-        emitBwcCallState(camId, false, 'Start live video before calling');
-        return;
-    }
-    if (!PTT_ENABLED) {
-        emitBwcCallState(camId, false, 'PTT not enabled on server');
-        return;
-    }
-    if (!pttServer.isDevicePttOnline(camId)) {
-        emitBwcCallState(camId, false, 'BWC not on PTT channel — wait after live start');
-        return;
-    }
     if (pttVoiceCallCamId && pttVoiceCallCamId !== camId) {
         const prev = pttVoiceCallCamId;
         pttVoiceCallCamId = null;
+        voiceBroadcastPending = null;
+        clearVoiceInviteWatch();
         emitBwcCallState(prev, false, null);
     }
-    log.media.info('voice call via ptt', { camId, preserveVideo: true });
-    pttVoiceCallCamId = camId;
-    auditLog.record('voice.call', Object.assign({ target: camId }, auditVoiceCallActor(socket)));
-    emitBwcCallState(camId, true, null);
+    log.media.info('voice call path', {
+        camId,
+        voicePath: 'outbound-intercom',
+        pureVoice: true,
+        audioOnly,
+    });
+    launchOutboundTalkCall(camId, socket);
 }
 
 
 
 /** socket.id → camIds[] for group PTT fan-out after SOS ack */
 const pttTalkTargetsBySocket = new Map();
+/** socket.id → group PTT tx proof counters (diagnostic only). */
+const pttGroupTxProofBySocket = new Map();
+
+/** MOB-APPLY-PTT-HOLD-SKIP-GROUP-REFRESH-DURING-TALK-V1 */
+function isCamIdInActivePttTalk(camId) {
+    const id = String(camId || '').trim();
+    if (!id) return false;
+    for (const targets of pttTalkTargetsBySocket.values()) {
+        if (!Array.isArray(targets) || !targets.length) continue;
+        if (targets.some((t) => String(t).trim() === id)) return true;
+    }
+    return false;
+}
 /** Active operator→BWC call mic (PTT TX only — no second SIP INVITE). */
 let pttVoiceCallCamId = null;
 
@@ -9251,6 +9430,15 @@ const stopVideoInProgress = new Set();
 function stopWvpSoftOpenBridge(camId) {
     const id = String(camId || '').trim();
     if (!id) return Promise.resolve({ skipped: true, reason: 'no_cam' });
+    /* MOB-APPLY-BACKEND-VIDEO-WVP-HANDOFF-V1 */
+    try {
+        const handoff = require('./lib/wvpVideoHandoff');
+        if (handoff.isHandoffEnabled && handoff.isHandoffEnabled()) {
+            return handoff.stopPlay(id).then(function (r) {
+                return r || { ok: true };
+            });
+        }
+    } catch (_) { /* fall through */ }
     if (String(process.env.FM_LAB_WVP || '').trim() !== '1') {
         return Promise.resolve({ skipped: true, reason: 'lab_wvp_off' });
     }
@@ -9367,6 +9555,8 @@ io.on('connection', (socket) => {
         dispatchScope: dispatchScopePayloadForSession(session),
         frLabUi: isFrLabUiEnabled(),
         labWvp: String(process.env.FM_LAB_WVP || '').trim() === '1',
+        /* PIN-CLICK-STARTS-WALL-THEN-MIRROR — client suppresses pin JSMpeg; pin-first starts wall FLV. */
+        wvpVideoHandoff: String(process.env.FM_WVP_VIDEO_HANDOFF || '').trim() === '1',
         displayMonitor3: getDisplayMonitor3Profile(),
         siteTime: {
             timezone: siteTime.getTimezone(),
@@ -9384,7 +9574,35 @@ io.on('connection', (socket) => {
 
     replayOnlineDeviceStateToSocket(socket);
 
-
+    dashboardConnectWarm.scheduleOnConnect(socket, {
+        wvpLab: require('./lib/wvpLabClient'),
+        fleetRegistry: fleetRegistry,
+        isBwcCameraId: isBwcCameraId,
+        onCamOnline: function (camId) {
+            offlineMapPinSession.delete(String(camId));
+            ensureBwcEntryForDevice(camId);
+            if (siteDb.isReady()) {
+                siteDb.touchRuntime(camId, { online: true, lastSeen: Date.now() });
+            }
+            deviceOnline = fleetRegistry.hasOnline();
+            if (!connectedCameraId || !(fleetRegistry.ensure(connectedCameraId) || {}).online) {
+                connectedCameraId = camId;
+            }
+            log.sip.info('device online from dashboard warm', { camId });
+        },
+        burstGpsStatus: function (camId, delayMs) {
+            setTimeout(function () {
+                if (loginReplayBlockedBySos()) return;
+                maybeQueryGpsForDevice(camId, { force: true });
+                queryDeviceStatus(camId, { force: true });
+            }, delayMs);
+        },
+        replayToSocket: replayOnlineDeviceStateToSocket,
+        emitRoster: function () {
+            emitFleetRoster({ force: true });
+        },
+        log: log,
+    });
 
     socket.on('pin-open', (data) => {
         const camId = data && data.cameraId ? String(data.cameraId).trim() : null;
@@ -9693,9 +9911,14 @@ io.on('connection', (socket) => {
         const camId = parsed.camId;
         const mode = parsed.mode || 'video';
         const surface = liveViewers.normalizeSurface(parsed.surface || (payload && payload.surface));
-        if (camId && mode === 'video') startFastStatusPolling(camId, 'start-video');
+        const wvpHandoffStart = !!(camId && mode === 'video'
+            && shouldSkipFleetInviteForWvpSoftOpen(payload));
         if (camId && mode === 'video') {
             const beforeSurfaces = liveViewers.socketSurfacesForCam(socket.id, camId);
+            const alreadyOwned = surface === 'command-wall' ? beforeSurfaces.commandWall
+                : (surface === 'analytics-fr' ? beforeSurfaces.analyticsFr
+                    : (surface === 'matrix-popout' ? beforeSurfaces.matrixPopout
+                        : (surface === 'live-popout' ? beforeSurfaces.livePopout : beforeSurfaces.ops)));
             const viewers = liveViewers.addView(socket.id, camId, surface);
             const afterSurfaces = liveViewers.socketSurfacesForCam(socket.id, camId);
             if ((!beforeSurfaces.ops || !beforeSurfaces.commandWall)
@@ -9704,6 +9927,17 @@ io.on('connection', (socket) => {
                 socket.emit('live-duplicate-surface-hint', { camId: String(camId) });
             }
             log.media.trace('start-video viewer ref', { camId, socketId: socket.id, surface, viewers });
+            if (alreadyOwned && wvpHandoffStart) {
+                log.media.info('wvp duplicate start-video suppressed', {
+                    camId,
+                    socketId: socket.id,
+                    surface,
+                    reason: 'viewer_surface_already_owned',
+                    path: 'pin-wvp-single-start-lock-v1',
+                });
+                return;
+            }
+            if (!wvpHandoffStart) startFastStatusPolling(camId, 'start-video');
         }
         startMediaFromDashboard(payload, socket);
     });
@@ -9729,16 +9963,22 @@ io.on('connection', (socket) => {
 
         if (camId) {
             const surface = liveViewers.normalizeSurface(parsed.surface || (payload && payload.surface));
+            const stopReason = String((payload && payload.reason) || 'unspecified').trim() || 'unspecified';
+            const clientReason = String((payload && payload.clientReason) || 'unspecified').trim() || 'unspecified';
             const remaining = liveViewers.removeView(socket.id, camId, surface);
             const refs = liveViewers.refBreakdownForCam(camId);
             log.media.info('stop-video from dashboard', {
                 camId,
                 surface,
+                reason: stopReason,
+                clientReason,
                 socketId: socket.id,
                 remainingViewers: remaining,
                 remainingOps: refs.ops,
                 remainingCommandWall: refs.commandWall,
                 remainingAnalyticsFr: refs.analyticsFr,
+                remainingMatrixPopout: refs.matrixPopout,
+                remainingLivePopout: refs.livePopout,
                 remainingConference: refs.conferenceRefs,
                 countForCam: refs.countForCam,
                 socketsWithRefs: refs.socketsWithRefs,
@@ -9935,6 +10175,7 @@ io.on('connection', (socket) => {
             return;
         }
         pttTalkTargetsBySocket.set(socket.id, online);
+        pttGroupTxProofBySocket.set(socket.id, { seq: 0 });
         log.ptt.info('operator talk start', { camIds: online, group: online.length > 1 });
         online.forEach((id) => queryDeviceStatus(id, { force: false }));
         emitPttTalkState(socket, online[0], true, null);
@@ -9948,9 +10189,35 @@ io.on('connection', (socket) => {
         const camIds = targets && targets.length
             ? targets
             : [meta.camId || connectedCameraId].filter(Boolean);
+        const proofState = camIds.length > 1
+            ? (pttGroupTxProofBySocket.get(socket.id) || { seq: 0 })
+            : null;
+        if (proofState) {
+            proofState.seq += 1;
+            pttGroupTxProofBySocket.set(socket.id, proofState);
+        }
         camIds.forEach((camId) => {
             const loud = amplifyAlaw(buf, 1.5);
-            if (!pttServer.sendPttAudioToDevice(camId, loud)) {
+            const ok = pttServer.sendPttAudioToDevice(camId, loud);
+            if (proofState && (proofState.seq === 1 || (proofState.seq % 25) === 0 || !ok)) {
+                const sess = pttServer.getDeviceSessionProof(camId);
+                log.ptt.info('group ptt tx proof', {
+                    path: 'group-ptt-per-target-tx-proof-v1',
+                    socketId: socket.id,
+                    seq: proofState.seq,
+                    camId,
+                    groupSize: camIds.length,
+                    ok,
+                    bytes: loud.length,
+                    peer: sess && sess.peer ? sess.peer : null,
+                    txIndex: sess && Number.isFinite(sess.txIndex) ? sess.txIndex : null,
+                    downlinkAudioCmd: sess && Number.isFinite(sess.downlinkAudioCmd) ? sess.downlinkAudioCmd : null,
+                    loginUser: sess && sess.loginUser ? sess.loginUser : null,
+                    loggedIn: sess ? !!sess.loggedIn : false,
+                    destroyed: sess ? !!sess.destroyed : true,
+                });
+            }
+            if (!ok) {
                 log.ptt.warn('talk frame dropped', { camId, bytes: loud.length });
             }
         });
@@ -9960,6 +10227,7 @@ io.on('connection', (socket) => {
         const parsed = parseStartMediaPayload(payload);
         const targets = pttTalkTargetsBySocket.get(socket.id) || [];
         pttTalkTargetsBySocket.delete(socket.id);
+        pttGroupTxProofBySocket.delete(socket.id);
         const camId = parsed.camId || (targets[0] || connectedCameraId);
         if (camId) log.ptt.info('operator talk stop', { camId, groupSize: targets.length });
         emitPttTalkState(socket, camId || null, false, null);
@@ -9975,14 +10243,18 @@ io.on('connection', (socket) => {
             return;
         }
         if (!getContactUriForCam(camId)) {
-            log.ptt.warn('fleet ptt wake skipped', { camId, reason: 'no_contact' });
-            return;
+            const wvpPttGroupRelay = require('./lib/wvpPttGroupRelay');
+            if (!wvpPttGroupRelay.shouldRelayForCam(camId)) {
+                log.ptt.warn('fleet ptt wake skipped', { camId, reason: 'no_contact' });
+                return;
+            }
         }
         pushPttGroupForCamera(camId, '66');
         queryDeviceStatus(camId, { force: true });
         log.ptt.info('operator fleet ptt wake', {
             camId,
             user: session && session.username ? session.username : null,
+            path: 'fleet-ptt-contact-wvp-homed-v1',
         });
     });
 
@@ -9993,6 +10265,7 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         pttTalkTargetsBySocket.delete(socket.id);
+        pttGroupTxProofBySocket.delete(socket.id);
         try { frLivePoller.clearWatch(socket.id); } catch (_) { /* ignore */ }
         const toStop = liveViewers.releaseSocket(socket.id);
         if (!toStop.length) return;
@@ -10672,14 +10945,17 @@ function pushMsgServerHints(camId) {
 }
 
 let msgLinkTimer = null;
-function pushPttGroupForCamera(camId, snid) {
-    const contact = getContactUriForCam(camId);
-    if (!PTT_ENABLED || !contact || !camId) return;
+
+/** MOB-APPLY-PTT-GROUP-CONFIG-DEDUPE-V1 — at most one group push per cam per window. */
+const PTT_GROUP_PUSH_MIN_MS = 2000;
+const pttGroupPushLastAt = new Map();
+
+function pushPttGroupForCameraNow(camId, snid) {
+    if (!PTT_ENABLED || !camId) return;
     syncFleetDeviceMeta();
     const fleet = fleetRoster.getFleetRoster(camId);
-    pttServer.pushPttGroupToDevice(sip, {
-        cameraContactUri: contact,
-        camId,
+    const groupOpts = {
+        camId: camId,
         realm: REALM,
         serverId: SERVER_ID,
         host: HOST,
@@ -10688,21 +10964,107 @@ function pushPttGroupForCamera(camId, snid) {
         status: PTT_GROUP_STATUS,
         snid: snid || '66',
         devices: fleetRoster.fleetToPttDevices(fleet),
-        log,
-    });
+        log: log,
+    };
+    const wvpPttGroupRelay = require('./lib/wvpPttGroupRelay');
+    if (wvpPttGroupRelay.shouldRelayForCam(camId)) {
+        wvpPttGroupRelay.pushPttGroup(groupOpts).then(function (out) {
+            if (out && out.ok) {
+                log.ptt.info('group config sent', {
+                    camId: camId,
+                    gtid: PTT_GTID,
+                    host: HOST,
+                    port: PTT_PORT,
+                    status: PTT_GROUP_STATUS,
+                    path: 'fleet-ptt-contact-wvp-homed-v1',
+                    peer: out.peer,
+                    via: out.via,
+                });
+            } else {
+                log.ptt.warn('wvp ptt group relay fail', {
+                    camId: camId,
+                    reason: out && out.reason ? out.reason : 'relay_fail',
+                    path: 'fleet-ptt-contact-wvp-homed-v1',
+                });
+            }
+        }).catch(function (err) {
+            log.ptt.warn('wvp ptt group relay err', {
+                camId: camId,
+                message: err && err.message ? err.message : String(err),
+                path: 'fleet-ptt-contact-wvp-homed-v1',
+            });
+        });
+        return;
+    }
+    const contact = getContactUriForCam(camId);
+    if (!contact) return;
+    pttServer.pushPttGroupToDevice(sip, Object.assign({ cameraContactUri: contact }, groupOpts));
+}
+
+function pushPttGroupForCamera(camId, snid) {
+    if (!PTT_ENABLED || !camId) return;
+    const id = String(camId).trim();
+    const now = Date.now();
+    const lastAt = pttGroupPushLastAt.get(id) || 0;
+    if (now - lastAt < PTT_GROUP_PUSH_MIN_MS) {
+        log.ptt.info('group config coalesced', {
+            camId: id,
+            path: 'ptt-group-config-dedupe-v1',
+            minMs: PTT_GROUP_PUSH_MIN_MS,
+            sinceLastMs: now - lastAt,
+        });
+        return;
+    }
+    pttGroupPushLastAt.set(id, now);
+    pushPttGroupForCameraNow(id, snid);
 }
 
 /** BWC often drops PTT TCP when live video INVITE starts — re-push group so 29201 reconnects. */
+const pttGroupRefreshByCam = new Map();
+
 function schedulePttGroupRefreshForCam(camId, reason) {
     if (!PTT_ENABLED || !camId) return;
     const id = String(camId).trim();
+    if (isCamIdInActivePttTalk(id)) {
+        log.ptt.info('group refresh skipped during talk', {
+            camId: id,
+            reason: reason || 'live',
+            path: 'ptt-hold-skip-group-refresh-during-talk-v1',
+        });
+        return;
+    }
+    if (pttGroupRefreshByCam.has(id)) {
+        const cur = pttGroupRefreshByCam.get(id);
+        if (cur) cur.reason = reason || cur.reason || 'live';
+        log.ptt.info('group refresh coalesced', {
+            camId: id,
+            reason: reason || 'live',
+            path: 'ptt-group-config-dedupe-v1',
+        });
+        return;
+    }
+    const state = { reason: reason || 'live', timers: [] };
     [2000, 8000].forEach((delayMs) => {
-        setTimeout(() => {
-            if (!getContactUriForCam(id)) return;
+        const timer = setTimeout(() => {
+            if (isCamIdInActivePttTalk(id)) {
+                log.ptt.info('group refresh skipped during talk', {
+                    camId: id,
+                    delayMs,
+                    reason: state.reason,
+                    path: 'ptt-hold-skip-group-refresh-during-talk-v1',
+                });
+                if (delayMs === 8000) pttGroupRefreshByCam.delete(id);
+                return;
+            }
+            const wvpPttGroupRelay = require('./lib/wvpPttGroupRelay');
+            if (!getContactUriForCam(id) && !wvpPttGroupRelay.shouldRelayForCam(id)) return;
             pushPttGroupForCamera(id, '66');
-            log.ptt.info('group refresh scheduled', { camId: id, delayMs, reason: reason || 'live' });
+            log.ptt.info('group refresh scheduled', { camId: id, delayMs, reason: state.reason });
+            if (delayMs === 8000) pttGroupRefreshByCam.delete(id);
         }, delayMs);
+        state.timers.push(timer);
     });
+    pttGroupRefreshByCam.set(id, state);
 }
 
 function restoreAlwaysOnPttGroups() {
@@ -10712,7 +11074,8 @@ function restoreAlwaysOnPttGroups() {
     fleetRegistry.getDashboardFleet().forEach((d) => {
         const camId = d && d.id ? String(d.id).trim() : '';
         if (!camId || !d.online || pushed.has(camId) || !isBwcCameraId(camId)) return;
-        if (!getContactUriForCam(camId)) return;
+        const wvpPttGroupRelay = require('./lib/wvpPttGroupRelay');
+        if (!getContactUriForCam(camId) && !wvpPttGroupRelay.shouldRelayForCam(camId)) return;
         pushPttGroupForCamera(camId, '66');
         pushed.add(camId);
     });

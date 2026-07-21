@@ -18,6 +18,7 @@ process.chdir(ROOT);
 
 const lanMap = require('../lib/wvpSipLanMap');
 const wvp = require('../lib/wvpLabClient');
+const http = require('http');
 
 const LISTEN_PORT = parseInt(process.env.WVP_SIP_PROXY_LISTEN || '5060', 10) || 5060;
 const TARGET = String(process.env.WVP_SIP_PROXY_TARGET || '127.0.0.1:15061').trim();
@@ -48,6 +49,89 @@ const OUTBOUND_METHODS = {
 function log(...args) {
     const line = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
     console.log(new Date().toISOString() + ' [wvp-sip-lan-proxy] ' + line);
+}
+
+/**
+ * MOB-APPLY-BACKEND-ACL-TRANSLATOR-V1 — publish GB MESSAGE to Fleet ACL bus (classic sockets).
+ * Does not change listen port (still 5060 → WVP). Fire-and-forget HTTP POST.
+ */
+function publishEventToFleet(payload) {
+    if (String(process.env.FM_WVP_ACL_PUBLISH || '1').trim() === '0') return;
+    const base = String(process.env.FM_WVP_EVENT_BUS_URL || 'http://127.0.0.1:3988/api/lab/wvp/events').trim();
+    let u;
+    try {
+        u = new URL(base);
+    } catch (_) {
+        return;
+    }
+    const body = Buffer.from(JSON.stringify(payload || {}), 'utf8');
+    const req = http.request({
+        hostname: u.hostname,
+        port: u.port || (u.protocol === 'https:' ? 443 : 80),
+        path: u.pathname + (u.search || ''),
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': body.length,
+        },
+        timeout: 2000,
+    }, (res) => {
+        res.resume();
+        if (res.statusCode && res.statusCode >= 400) {
+            log('acl publish http', res.statusCode, payload && payload.type);
+        }
+    });
+    req.on('error', (err) => {
+        log('acl publish err', err && err.message ? err.message : String(err));
+    });
+    req.on('timeout', () => { try { req.destroy(); } catch (_) { /* ignore */ } });
+    req.write(body);
+    req.end();
+}
+
+function maybePublishMessageAcl(parsed, msgBuf) {
+    if (!parsed || !parsed.isReq || parsed.method !== 'MESSAGE') return;
+    const text = parsed.text || (msgBuf && msgBuf.toString('utf8')) || '';
+    const bodyStart = text.search(/\r?\n\r?\n/);
+    const xml = bodyStart >= 0 ? text.slice(bodyStart).replace(/^\r?\n\r?\n/, '') : '';
+    const cmdM = xml.match(/<CmdType>([^<]+)<\/CmdType>/i);
+    const cmd = cmdM ? String(cmdM[1]).trim() : '';
+    const did = parsed.fromUser || parsed.toUser || null;
+    if (!did) return;
+    const cmdL = cmd.toLowerCase();
+    if (cmdL === 'alarm') {
+        publishEventToFleet({
+            type: 'alarm',
+            cameraId: did,
+            deviceId: did,
+            xml,
+            source: 'wvp_sip_proxy',
+            cmdType: cmd,
+        });
+        log('acl publish alarm', did);
+        return;
+    }
+    if (cmdL === 'devstatus' || cmdL === 'devicestatus') {
+        publishEventToFleet({
+            type: 'device-status',
+            cameraId: did,
+            deviceId: did,
+            xml,
+            source: 'wvp_sip_proxy',
+            cmdType: cmd,
+        });
+        log('acl publish device-status', did);
+        return;
+    }
+    if (cmdL === 'keepalive') {
+        publishEventToFleet({
+            type: 'keepalive',
+            cameraId: did,
+            deviceId: did,
+            source: 'wvp_sip_proxy',
+            cmdType: cmd,
+        });
+    }
 }
 
 function parseSipBasics(buf) {
@@ -232,6 +316,15 @@ function startUdp() {
                 contact: parsed.contactUri || null,
                 inviteTarget: peerIp + ':' + rinfo.port,
             });
+            /* MOB-APPLY-BACKEND-ACL-TRANSLATOR-V1 — presence to classic heartbeat path */
+            if (parsed.fromUser) {
+                publishEventToFleet({
+                    type: 'register',
+                    cameraId: parsed.fromUser,
+                    deviceId: parsed.fromUser,
+                    source: 'wvp_sip_proxy',
+                });
+            }
             scheduleSyncSoon();
             sock.send(msg, TARGET_PORT, TARGET_HOST, (err) => {
                 if (err) log('udp forward err', err.message);
@@ -296,6 +389,10 @@ function startUdp() {
                 at: Date.now(),
             });
         }
+        /* MOB-APPLY-BACKEND-ACL-TRANSLATOR-V1 — MESSAGE Alarm/DevStatus → Fleet ACL (5060 unchanged) */
+        if (parsed.isReq && parsed.method === 'MESSAGE') {
+            maybePublishMessageAcl(parsed, msg);
+        }
         /* mob-proxy-invite-reply-trace-v1 — prove 200 OK returns to WVP :15061 */
         if (!parsed.isReq && parsed.statusCode === 200) {
             const did = deviceIdForOutbound(parsed) || parsed.toUser || parsed.fromUser;
@@ -351,7 +448,18 @@ function startTcp() {
                         deviceId: parsed.fromUser,
                         peer: peerIp + ':' + peerPort,
                     });
+                    if (parsed.fromUser) {
+                        publishEventToFleet({
+                            type: 'register',
+                            cameraId: parsed.fromUser,
+                            deviceId: parsed.fromUser,
+                            source: 'wvp_sip_proxy',
+                        });
+                    }
                     scheduleSyncSoon();
+                }
+                if (parsed.isReq && parsed.method === 'MESSAGE') {
+                    maybePublishMessageAcl(parsed, buf);
                 }
             }
             if (!upstream.destroyed) upstream.write(chunk);

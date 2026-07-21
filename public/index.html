@@ -370,6 +370,7 @@
         .ax-fr-tile.is-sos-alarm { border-color: #dc2626; }
         #ax-fr-watch-stop:not(:disabled) { border-color: #b91c1c; color: #fca5a5; }
         .ax-fr-tile-canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+        .ax-fr-tile video.me8-zlm-primary { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; z-index: 1; }
         .ax-fr-watch {
             flex: 0 0 auto;
             display: flex; flex-direction: column; overflow: hidden;
@@ -1703,6 +1704,7 @@
         #app-view-command-wall .cw-cell-actions { display: flex; gap: 3px; flex-shrink: 0; }
         #app-view-command-wall .cw-cell-stage { flex: 1; min-height: 0; position: relative; background: #000; }
         #app-view-command-wall .cw-cell-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; z-index: 1; }
+        #app-view-command-wall .cw-cell-stage video.me8-zlm-primary { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; z-index: 1; }
         #app-view-command-wall .cw-cell-empty { position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 11px; font-weight: 600; text-align: center; pointer-events: none; }
         #app-view-command-wall .cw-cell-empty[hidden] { display: none !important; }
         #app-view-command-wall .cw-cell-drop-hint { position: absolute; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #475569; pointer-events: none; }
@@ -3099,8 +3101,58 @@
             width: 272px; flex-shrink: 0; display: flex; flex-direction: column; gap: 3px;
             padding: 4px 4px 5px; background: var(--bg); border-left: 1px solid var(--border);
             overflow: hidden; position: relative;
+            transition: width 0.2s ease, padding 0.2s ease, opacity 0.15s ease;
         }
-        #video-wall-slots { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
+        #video-wall-gutter {
+            flex-shrink: 0; width: 10px; position: relative;
+            background: var(--bg); border-left: 1px solid var(--border);
+            display: flex; align-items: stretch; justify-content: center;
+        }
+        #video-wall-collapse-toggle {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            z-index: 3; width: 22px; height: 32px; padding: 0;
+            border: 1px solid #475569; border-radius: 6px;
+            background: #1e293b; color: #94a3b8; cursor: pointer;
+            font-size: 11px; line-height: 1; flex-shrink: 0;
+        }
+        #video-wall-collapse-toggle:hover { background: #334155; color: #e2e8f0; }
+        #center-stage.video-wall-collapsed #video-wall {
+            width: 0; min-width: 0; padding: 0; overflow: hidden; opacity: 0;
+            pointer-events: none; border: none;
+        }
+        #center-stage.video-wall-collapsed #video-wall-gutter { width: 14px; }
+        #video-wall-bank-tabs {
+            flex-shrink: 0; display: flex; align-items: center; gap: 4px;
+            padding: 1px 2px 2px; min-width: 0;
+        }
+        #video-wall-bank-current {
+            flex: 1; min-width: 0; font-size: 9px; font-weight: 700; color: #94a3b8;
+            letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        #video-wall-bank-next {
+            flex-shrink: 0; margin: 0; padding: 3px 7px; font-size: 9px; font-weight: 600;
+            border-radius: 5px; border: 1px solid #475569; background: #1e293b; color: #cbd5e1;
+            cursor: pointer; white-space: nowrap; line-height: 1.2;
+        }
+        #video-wall-bank-next:hover { background: #334155; color: #f1f5f9; border-color: #64748b; }
+        #video-wall .video-slot.is-bank-hidden {
+            position: absolute !important; left: -10000px !important; top: 0 !important;
+            width: 260px !important; height: 140px !important; opacity: 0 !important;
+            pointer-events: none !important; flex: none !important; z-index: -1 !important;
+            overflow: hidden !important; margin: 0 !important;
+        }
+        #video-wall-slots {
+            flex: 1; min-height: 0; display: flex; flex-direction: column;
+            gap: 3px; overflow: hidden; justify-content: flex-start;
+        }
+        #video-wall[data-bank="a"] #video-wall-slots > .video-slot:not(.is-bank-hidden) {
+            flex: 0 0 calc((100% - 12px) / 5);
+            max-height: calc((100% - 12px) / 5);
+        }
+        #video-wall[data-bank="b"] #video-wall-slots > .video-slot:not(.is-bank-hidden) {
+            flex: 0 0 calc((100% - 12px) / 5);
+            max-height: calc((100% - 12px) / 5);
+        }
         #video-matrix-backdrop {
             position: fixed; inset: 0; z-index: 10000; background: rgba(15, 23, 42, 0.94);
             display: flex; align-items: center; justify-content: center; padding: 10px;
@@ -3149,6 +3201,9 @@
         .video-slot-actions .video-slot-call[hidden] { display: none !important; }
         .video-slot-actions .video-slot-call.active { color: #fca5a5; background: #7f1d1d; border-color: #ef4444; }
         .video-slot-actions .video-slot-call:disabled { opacity: 0.35; cursor: default; }
+        .video-slot.video-slot-fixed-camera .video-slot-audio,
+        .video-slot.video-slot-fixed-camera .video-slot-call,
+        .video-slot.video-slot-fixed-camera .video-slot-ptt { display: none !important; }
         .video-slot-actions .video-slot-ptt { color: #94a3b8; font-size: 11px; min-width: 28px; padding: 2px 5px; user-select: none; touch-action: none; }
         .video-slot-actions .video-slot-ptt[hidden] { display: none !important; }
         .video-slot-actions .video-slot-ptt.active { color: #fde047; background: #713f12; border-color: #eab308; }
@@ -3179,6 +3234,22 @@
         .video-config-row-title { font-size: 10px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; }
         .video-config-row label { display: block; font-size: 9px; color: #64748b; margin-bottom: 6px; }
         .video-config-row input, .video-config-row select { width: 100%; margin-top: 3px; padding: 5px 6px; font-size: 11px; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #f8fafc; box-sizing: border-box; }
+        .video-camera-search-picker { position: relative; }
+        .video-camera-search-results {
+            position: absolute; left: 0; right: 0; top: calc(100% + 3px); z-index: 30;
+            max-height: 190px; overflow-y: auto; background: #0f172a;
+            border: 1px solid #475569; border-radius: 6px; box-shadow: 0 8px 22px rgba(0,0,0,0.5);
+        }
+        .video-camera-search-results[hidden] { display: none !important; }
+        .video-camera-search-result {
+            display: block; width: 100%; padding: 7px 8px; border: 0; border-bottom: 1px solid #1e293b;
+            background: transparent; color: #e2e8f0; text-align: left; font-size: 10px; cursor: pointer;
+        }
+        .video-camera-search-result:last-child { border-bottom: 0; }
+        .video-camera-search-result:hover,
+        .video-camera-search-result:focus { background: #1e293b; color: #93c5fd; outline: none; }
+        .video-camera-search-result:disabled { color: #64748b; cursor: not-allowed; background: transparent; }
+        .video-camera-search-empty { padding: 8px; color: #64748b; font-size: 10px; }
         .video-config-row textarea { width: 100%; margin-top: 3px; padding: 5px 6px; font-size: 10px; font-family: ui-monospace, Consolas, monospace; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #f8fafc; box-sizing: border-box; resize: vertical; min-height: 72px; }
         .video-config-actions { flex-shrink: 0; display: flex; gap: 8px; margin-top: 8px; }
         .video-config-actions button { flex: 1; padding: 8px; font-size: 11px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; }
@@ -3202,11 +3273,11 @@
         #ss-device-summary { margin: 0 0 8px; font-size: 11px; color: #94a3b8; line-height: 1.45; }
         #video-config-save { background: #2563eb; color: #fff; border-color: #1d4ed8; }
         #video-config-cancel { background: #334155; color: #e2e8f0; }
-        .video-slot { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+        .video-slot { flex: 0 0 auto; min-height: 0; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
         .video-slot-caption { flex-shrink: 0; padding: 0 1px; min-width: 0; }
         .video-slot-label { display: block; color: #cbd5e1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; font-size: 9px; line-height: 1.2; }
         .video-slot-box {
-            flex: 1; min-height: 46px; display: flex; flex-direction: column;
+            flex: 1 1 auto; width: 100%; max-width: 100%; min-height: 0; display: flex; flex-direction: column;
             border: 2px solid #334155; border-radius: 5px; background: #000; overflow: hidden;
             transition: border-color 0.2s, box-shadow 0.2s;
         }
@@ -3242,8 +3313,14 @@
         .video-slot-actions .video-slot-stop:disabled { opacity: 0.35; cursor: not-allowed; color: #64748b; }
         .video-slot-actions .video-slot-popout { font-size: 8px; min-width: auto; padding: 1px 4px; letter-spacing: -0.02em; }
         .video-slot-actions .video-slot-ptt { font-size: 8px; min-width: 22px; padding: 1px 3px; }
-        .video-slot-stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; background: #000; }
-        .video-slot-stage .video-canvas { width: 100%; height: 100%; display: block; background: #000; position: relative; z-index: 1; }
+        .video-slot-stage {
+            flex: 1 1 auto; width: 100%; min-height: 0; max-width: 100%; margin: 0;
+            position: relative; display: flex; align-items: center; justify-content: center;
+            background: #000; overflow: hidden; aspect-ratio: auto;
+        }
+        .video-slot-stage .video-canvas { width: 100% !important; height: 100% !important; max-width: 100%; display: block; background: #000; position: relative; z-index: 1; object-fit: contain; }
+        #video-wall .video-slot-stage video.me8-zlm-primary,
+        #video-wall .video-slot-stage video.me8-zlm-soft-overlay { object-fit: cover !important; }
         .video-slot-empty { color: #475569; font-size: 10px; text-align: center; padding: 8px; }
         .video-slot-has-live .video-slot-streaming-label,
         .media-box.map-pin-video.map-pin-has-live .map-pin-streaming-label {
@@ -4178,9 +4255,9 @@
         .leaflet-tile-loaded { transition: opacity 0.12s ease-out; }
         .map-popup {
             text-align: center; color: #e2e8f0; font-family: inherit;
-            min-width: min(300px, calc(100vw - 24px));
-            max-width: min(300px, calc(100vw - 24px));
-            width: min(300px, calc(100vw - 24px));
+            min-width: min(120px, calc(100vw - 24px));
+            max-width: min(260px, calc(100vw - 24px));
+            width: min(260px, calc(100vw - 24px));
             box-sizing: border-box;
             background: transparent;
         }
@@ -4199,19 +4276,23 @@
         }
         .video-slot-empty.video-slot-offline { color: #94a3b8; font-weight: 600; font-size: 11px; }
         .map-popup-head {
-            margin: 0 0 6px; line-height: 1.25;
-            display: flex; align-items: flex-start; gap: 6px;
+            margin: 0 0 4px; line-height: 1.15;
+            display: flex; align-items: center; gap: 4px;
         }
         .map-popup-head-text { flex: 1 1 auto; min-width: 0; text-align: center; }
-        .map-popup-title { font-size: 13px; font-weight: 700; margin: 0; color: #f8fafc; letter-spacing: 0.01em; }
-        .map-popup-name {
-            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-            overflow: hidden; word-break: break-word;
+        .map-popup-title {
+            display: flex; align-items: baseline; justify-content: center; gap: 3px;
+            min-width: 0; font-size: 12px; font-weight: 700; margin: 0;
+            color: #f8fafc; letter-spacing: 0.01em; white-space: nowrap;
         }
-        .map-popup-meta { margin: 3px 0 0; font-size: 9px; line-height: 1.3; color: #94a3b8; }
+        .map-popup-name {
+            display: inline-block; min-width: 0; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap;
+        }
+        .map-popup-meta { margin: 0; font-size: 8px; line-height: 1.15; color: #94a3b8; white-space: nowrap; }
         .map-popup-id-inline { font-size: 9px; font-weight: 500; color: #94a3b8; font-family: ui-monospace, Consolas, monospace; }
         .map-pin-minimize {
-            flex: 0 0 auto; width: 26px; height: 26px; padding: 0; margin-top: 1px;
+            flex: 0 0 auto; width: 28px; height: 28px; padding: 0; margin-top: 0;
             border-radius: 6px; border: 1px solid #475569; background: #334155; color: #e2e8f0;
             font-size: 16px; line-height: 1; font-weight: 700; cursor: pointer;
             touch-action: manipulation;
@@ -4246,7 +4327,7 @@
         .leaflet-popup.map-pin-popup-diag-right .map-pin-minimize {
             position: absolute;
             top: 0;
-            right: 34px;
+            right: 36px;
             margin-top: 0;
         }
         .leaflet-popup.map-pin-popup-right .leaflet-popup-close-button,
@@ -4258,8 +4339,8 @@
         .leaflet-popup.map-pin-popup-diag-right .leaflet-popup-close-button {
             top: 8px !important;
             right: 8px !important;
-            width: 26px !important;
-            height: 26px !important;
+            width: 28px !important;
+            height: 28px !important;
             padding: 0 !important;
             margin: 0 !important;
             border-radius: 6px !important;
@@ -4267,7 +4348,7 @@
             background: #334155 !important;
             color: #e2e8f0 !important;
             font-size: 17px !important;
-            line-height: 24px !important;
+            line-height: 26px !important;
             text-align: center !important;
             box-sizing: border-box !important;
         }
@@ -4311,23 +4392,23 @@
         html.map-viewport-narrow .map-popup-telemetry { display: none !important; }
         .leaflet-popup.map-popup-compact .media-box.map-pin-video,
         .map-popup-compact .media-box.map-pin-video,
-        html.map-viewport-narrow .media-box.map-pin-video { height: 96px; min-height: 96px; }
+        html.map-viewport-narrow .media-box.map-pin-video { height: 120px; min-height: 120px; }
         .leaflet-popup.map-popup-compact .map-pin-video-placeholder,
         html.map-viewport-narrow .map-pin-video-placeholder { min-height: 72px; font-size: 11px; }
-        /* mob-pin-popup-crowded-8: ≥3 open pins — narrower panel + compact video */
+        /* Slim-8 density: 5–6 compact, 7–8 heavy; width stays 260px. */
         .leaflet-popup.map-popup-crowded .leaflet-popup-content {
-            max-width: min(280px, calc(100vw - 24px)) !important;
+            max-width: min(260px, calc(100vw - 24px)) !important;
         }
         .leaflet-popup.map-popup-crowded-heavy .leaflet-popup-content {
             max-width: min(260px, calc(100vw - 24px)) !important;
         }
         .leaflet-popup.map-popup-crowded-heavy .media-box.map-pin-video,
         .map-popup.map-popup-crowded-heavy .media-box.map-pin-video {
-            height: 80px; min-height: 80px;
+            height: 110px; min-height: 110px;
         }
         .leaflet-popup.map-popup-crowded-heavy .map-pin-video-placeholder,
         .map-popup.map-popup-crowded-heavy .map-pin-video-placeholder {
-            min-height: 60px; font-size: 10px;
+            min-height: 82px; font-size: 10px;
         }
         .leaflet-popup.map-popup-crowded-heavy .map-pin-play,
         .leaflet-popup.map-popup-crowded-heavy .map-pin-stop,
@@ -4339,19 +4420,21 @@
         .map-popup.map-popup-crowded-heavy .map-pin-call,
         .map-popup.map-popup-crowded-heavy .map-pin-voice,
         .map-popup.map-popup-crowded-heavy .map-pin-ptt {
-            min-height: 30px; padding: 5px 8px; font-size: 10px;
+            min-height: 28px; padding: 4px 7px; font-size: 10px;
         }
+        html.map-viewport-narrow .map-popup { min-width: 120px; }
+        html.map-viewport-narrow .media-box.map-pin-video { min-height: 120px; }
         html.map-viewport-narrow .map-popup-name { -webkit-line-clamp: 1; }
         html.map-viewport-narrow .map-popup-meta { font-size: 8px; }
         html.map-viewport-narrow .map-popup-tel-grid { grid-template-columns: 1fr; }
         .map-pin-video-bar {
             display: flex; gap: 5px; justify-content: stretch; align-items: stretch;
-            padding: 8px 0 2px; margin-top: 2px;
+            padding: 5px 0 1px; margin-top: 1px;
         }
         .map-pin-video-bar[hidden] { display: none !important; }
         .map-pin-play, .map-pin-stop, .map-pin-call, .map-pin-voice, .map-pin-ptt {
-            flex: 1; min-height: 34px; padding: 7px 10px;
-            font-size: 11px; font-family: inherit; line-height: 1.25;
+            flex: 1; min-height: 28px; padding: 4px 8px;
+            font-size: 10px; font-family: inherit; line-height: 1.2;
             border-radius: 10px; cursor: pointer; font-weight: 600;
             letter-spacing: 0.02em; border: 1px solid rgba(71, 85, 105, 0.65);
             background: linear-gradient(180deg, rgba(51, 65, 85, 0.55) 0%, rgba(15, 23, 42, 0.98) 100%);
@@ -4490,14 +4573,24 @@
             line-height: 1; cursor: pointer;
         }
         .map-pin-stack-reset:hover { background: #334155; border-color: #64748b; }
-        .map-pin-popup-stackable .map-popup-head { cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none; }
-        .map-pin-popup-stackable .map-popup-head * { user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
-        .map-pin-popup-stackable .map-popup-head:active { cursor: grabbing; }
-        .map-pin-popup-stackable.map-pin-popup-drag-locked .map-popup-head { cursor: default; }
-        .map-pin-popup-stackable.map-pin-popup-drag-locked .map-popup-head:active { cursor: default; }
+        .pin-drag-handle { cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none; }
+        .pin-drag-handle * { user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
+        .pin-drag-handle:active { cursor: grabbing; }
+        .map-pin-popup-stackable.map-pin-popup-drag-locked .pin-drag-handle { cursor: default; }
+        .map-pin-popup-stackable.map-pin-popup-drag-locked .pin-drag-handle:active { cursor: default; }
         .map-pin-popup-stackable.map-pin-popup-drag-focus .map-popup-head { cursor: grab; }
         .map-pin-popup-stackable.map-pin-popup-drag-focus .map-popup-head:active { cursor: grabbing; }
         .map-pin-popup-stackable .map-pin-minimize { touch-action: manipulation; cursor: pointer; }
+        .map-pin-popup-stackable .leaflet-popup-content-wrapper { cursor: grab; touch-action: none; }
+        .map-pin-popup-stackable .leaflet-popup-content-wrapper:active { cursor: grabbing; }
+        .map-pin-popup-stackable.map-pin-popup-drag-locked .leaflet-popup-content-wrapper,
+        .map-pin-popup-stackable.map-pin-popup-drag-locked .leaflet-popup-content-wrapper:active { cursor: default; }
+        .map-pin-popup-stackable.map-pin-popup-drag-focus .leaflet-popup-content-wrapper { cursor: grab; }
+        .map-pin-popup-stackable button,
+        .map-pin-popup-stackable input,
+        .map-pin-popup-stackable select,
+        .map-pin-popup-stackable textarea,
+        .map-pin-popup-stackable a { cursor: pointer; touch-action: manipulation; }
         body.map-pin-popup-dragging { user-select: none !important; -webkit-user-select: none !important; cursor: grabbing !important; }
         body.map-pin-popup-dragging .map-pin-popup-stackable { cursor: grabbing !important; }
         .map-pin-popup-overlap .leaflet-popup-content-wrapper {
@@ -4513,17 +4606,17 @@
             color: #94a3b8; font-weight: 600; font-size: 11px; cursor: default;
         }
         .map-popup-telemetry {
-            margin-top: 6px; padding-top: 5px; border-top: 1px solid #334155;
-            text-align: left; font-size: 9px;
+            margin-top: 3px; padding-top: 3px; border-top: 1px solid #334155;
+            text-align: left; font-size: 8px;
         }
         .map-popup-tel-title {
-            margin: 0 0 3px; font-size: 8px; font-weight: 600; text-transform: uppercase;
+            margin: 0 0 2px; font-size: 7px; font-weight: 600; text-transform: uppercase;
             letter-spacing: 0.05em; color: #94a3b8;
         }
-        .map-popup-tel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; }
-        .map-popup-tel-row { display: flex; justify-content: space-between; gap: 4px; line-height: 1.2; }
+        .map-popup-tel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 6px; }
+        .map-popup-tel-row { display: flex; justify-content: space-between; gap: 3px; line-height: 1.1; }
         .map-popup-tel-row span:first-child { color: #64748b; flex-shrink: 0; }
-        .map-popup-tel-row span:last-child { color: #cbd5e1; font-weight: 500; text-align: right; word-break: break-word; font-size: 8px; }
+        .map-popup-tel-row span:last-child { color: #cbd5e1; font-weight: 500; text-align: right; word-break: break-word; font-size: 7px; }
         .map-popup-tel-row .pin-tel-ok { color: #86efac; }
         .map-popup-tel-row .pin-tel-rec { color: #fca5a5; }
         .map-popup-tel-row .pin-tel-muted { color: #94a3b8; }
@@ -5387,6 +5480,7 @@
         html.map-popout-mode #app-top-nav { display: none !important; }
         html.map-popout-mode #sidebar,
         html.map-popout-mode #layout-gutter,
+        html.map-popout-mode #video-wall-gutter,
         html.map-popout-mode #video-wall { display: none !important; }
         html.map-popout-mode #app-view-ops,
         html.map-popout-mode #main-container,
@@ -5986,12 +6080,20 @@
                     <div id="kill-switch-approve-list"></div>
                 </div>
             </div>
-            <aside id="video-wall" data-i18n-aria="video.title" aria-label="Live video channels">
+            <div id="video-wall-gutter" aria-label="Video panel drawer">
+                <button type="button" id="video-wall-collapse-toggle" aria-expanded="true"
+                    aria-controls="video-wall" title="Hide video panels">▶</button>
+            </div>
+            <aside id="video-wall" data-bank="a" data-i18n-aria="video.title" aria-label="Live video channels">
+                <div id="video-wall-bank-tabs">
+                    <span id="video-wall-bank-current">Panels 1–5</span>
+                    <button type="button" id="video-wall-bank-next">Next Panels 6–10</button>
+                </div>
                 <div id="video-wall-slots">                </div>
                 <div id="video-config-backdrop" hidden>
                     <div id="video-config-panel">
                         <h4 data-i18n="video.wall.title">Video wall panels</h4>
-                        <p class="config-hint" data-i18n="video.wall.hint">Six live panels. Register all BWCs in Server Config → BWCs. Here choose a fixed camera or a rotation (map group, all online, or paste a device ID list).</p>
+                        <p class="config-hint">Ten live panels in two banks (1–5 and 6–10). Panels 9–10 are searchable manual camera panels. Register all BWCs in Server Config → BWCs.</p>
                         <div class="video-config-csv-row">
                             <button type="button" id="video-config-template" data-i18n="video.wall.downloadTemplate">Download wall template (CSV)</button>
                             <button type="button" id="video-config-import" data-i18n="video.wall.importCsv">Import wall CSV</button>
@@ -7837,7 +7939,7 @@
     <!-- mob-me8-restore-8wc-v2-ops: v2 inline ops boot + ME8 enterprise glue; VC via vc-lazy -->
     <script src="/vendor/jsmpeg.min.js"></script>
     <script src="/vendor/mpegts.min.js"></script>
-    <script src="/js/live-player-factory.js?v=20260717-kill-reopen-storm"></script>
+    <script src="/js/live-player-factory.js?v=20260720-flv-wall-lifecycle-parity-v1"></script>
     <script src="/js/i18n.js?v=20260702-restore-8wc-v2"></script>
     <script src="/js/session-bus.js?v=20260702-settings-session-sync"></script>
     <script src="/js/mobility-map-gis.js?v=20260709-place-search"></script>
@@ -7859,13 +7961,13 @@
     <script src="/js/lab-security.js?v=20260708-identity-copy"></script>
     <script src="/js/cloud-deployment.js?v=20260609-cloud"></script>
     <script src="/js/bwc-devices.js"></script>
-    <script src="/js/video-config.js?v=20260630-no-poll-hint"></script>
+    <script src="/js/video-config.js?v=20260721-panel9-10-source-modes-search-v1"></script>
     <script src="/js/ptt-mic.js"></script>
     <script src="/js/call-mic.js?v=20260717-call-mic-always-on"></script>
     <script src="/js/ptt-rx.js?v=20260629-live-toast"></script>
     <script src="/js/audit-trail-hub.js?v=20260630-audit-preset-ux"></script>
     <script src="/js/license-features.js?v=20260707-license-gate"></script>
-    <script src="/js/fr-live-watch.js?v=20260715-threshold-admin"></script>
+    <script src="/js/fr-live-watch.js?v=20260720-fr-flv-handoff-v1"></script>
     <script src="/js/fr-offline-video.js?v=20260715-threshold-admin"></script>
     <script src="/js/fr-enroll-cropper.js?v=20260710-fr-cropper"></script>
     <script src="/js/fr-alarm.js?v=20260713-rail-scored-only"></script>
@@ -7883,8 +7985,8 @@
     <script src="/js/missed-activity.js?v=20260712-alerts-copy"></script>
     <script src="/js/evidence-manager.js?v=20260713-ops-map-resize"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260718-pin-dock-no-top-jam"></script>
-    <script src="/js/video-matrix.js?v=20260629-live-cap-8"></script>
+    <script src="/js/video-wall.js?v=20260721-pin-spread-reproject-v1"></script>
+    <script src="/js/video-matrix.js?v=20260721-ops10-v1"></script>
     <script src="/js/fleet-ui.js?v=20260706-eight-cap-align"></script>
     <script src="/js/map-popout-sync.js?v=20260612-mirror"></script>
     <script src="/js/voice-alerts.js?v=20260630-geofence-voice"></script>
@@ -7894,7 +7996,7 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/cw-display-room.js?v=20260712-launch-all-profile"></script>
     <script src="/js/live-surface-hint.js?v=20260709-duplicate-surface-warn"></script>
-    <script src="/js/command-wall.js?v=20260709-popout-grid"></script>
+    <script src="/js/command-wall.js?v=20260720-matrix-flv-handoff-v1"></script>
     <script src="/js/ops-cw-awareness.js?v=20260622-ops-cw-awareness"></script>
     <script src="/js/command-centre.js?v=20260709-live-viewer-telemetry"></script>
     <script>
@@ -8016,13 +8118,22 @@
         var pinPopupDockIdx = {};
         /** Manual drag offset (px) on pin popups — cleared on popup close or reset layout. */
         var pinPopupDragOffset = {};
+        /** Measured overlap rescue offset; kept separate so operator drag always wins. */
+        var pinPopupAutoOffset = {};
         /** True after operator drags a popup (distinct from auto-fan offsets). */
         var pinPopupUserMoved = {};
         var pinPopupDragSession = false;
-        /** Stacked cluster: only this camId header may be dragged (set via HUD chip). */
+        /** Stacked cluster focus used by the HUD to bring one popup to front. */
         var stackDragFocusCamId = null;
         var mapPanActive = false;
         var pinDockLayoutBusy = false;
+        var pinDockDebounceTimer = null;
+        var pinDockPendingCaller = 'initial';
+        var pinOverlapRescueTimer = null;
+        var pinSpreadReprojectTimer = null;
+        var smartPinTrackingTimer = null;
+        var smartPinTrackingLastRun = 0;
+        var SMART_PIN_TRACKING_INTERVAL_MS = 3000;
         /** Colocated cluster → which cam shows the single map popup (shift ‹ › up to 8). */
         var pinClusterActiveCam = {};
         var popoutMirrorSelectedCamId = null;
@@ -8455,19 +8566,14 @@
             if (typeof FleetDisplay !== 'undefined' && FleetDisplay.hasConfiguredName(camId)) {
                 idHtml = '<span class="map-popup-id-inline">' + escapePinText(FleetDisplay.shortTechnicalId(camId)) + '</span>';
             }
-            var metaHtml = '';
-            if (idHtml || badgeText) {
-                metaHtml = '<p class="map-popup-meta">' + idHtml +
-                    (idHtml && badgeText ? ' ' : '') +
-                    '<span class="map-popup-badge-inline ' + badgeClass + '">' + escapePinText(badgeText) + '</span></p>';
-            }
-            return '<div class="map-popup-head">' +
+            return '<div class="map-popup-head pin-drag-handle">' +
                 '<div class="map-popup-head-text">' +
                 (document.documentElement.classList.contains('map-popout-mode')
                     ? '<p class="map-popup-mirror-note">' + escapePinText(dashboardTr('map.popoutMirrorHint')) + '</p>' : '') +
                 '<p class="map-popup-title" title="' + escapePinText(name) + '">' +
-                '<span class="map-popup-name">' + escapePinText(name) + '</span></p>' +
-                metaHtml +
+                '<span class="map-popup-name">' + escapePinText(name) + '</span>' +
+                (idHtml ? '<span class="map-popup-meta">· ' + idHtml + '</span>' : '') +
+                '<span class="map-popup-badge-inline ' + badgeClass + '">· ' + escapePinText(badgeText) + '</span></p>' +
                 '</div>' +
                 '<button type="button" class="map-pin-minimize" data-cam-id="' + escapePinText(camId) + '" title="' +
                 escapePinText(dashboardTr('map.pin.minimize')) + '" aria-label="' + escapePinText(dashboardTr('map.pin.minimize')) + '">−</button>' +
@@ -8502,7 +8608,7 @@
         syncMapViewportNarrowClass();
         window.addEventListener('resize', function () {
             syncMapViewportNarrowClass();
-            if (getOpenPinCamIds().length) assignColocatedPinPopupDocks();
+            if (getOpenPinCamIds().length) assignColocatedPinPopupDocks('window-resize');
         });
 
         function mapOfflinePopupHtml(camId, alarmKind) {
@@ -9345,7 +9451,7 @@
                     }
                 });
                 refreshAllDeviceMarkerStyles();
-                assignColocatedPinPopupDocks();
+                assignColocatedPinPopupDocks('map-mirror-apply');
             } finally {
                 window.mapPopoutMirrorApplying = false;
             }
@@ -9450,7 +9556,12 @@
             cluster.forEach(function (camId, i) {
                 var m = deviceMarkers[camId];
                 if (!m) return;
-                m.setLatLng([cLat, cLon]);
+                m._isSpreading = true;
+                try {
+                    m.setLatLng([cLat, cLon]);
+                } finally {
+                    m._isSpreading = false;
+                }
                 if (m.setZIndexOffset) {
                     m.setZIndexOffset(normalizeCamId(camId) === normalizeCamId(active) ? 1400 : (1200 + i));
                 }
@@ -9572,6 +9683,7 @@
         }
 
         function spreadStableColocatedMarkers() {
+            if (pinDockLayoutBusy || window.__me8PinBatchOpening) return;
             var spreadIds = Object.create(null);
             var processed = Object.create(null);
             clusterAllPinCamIdsByGps().forEach(function (gpsCluster) {
@@ -9594,7 +9706,12 @@
                     var dx = Math.sin(rad) * distPx;
                     var dy = -Math.cos(rad) * distPx;
                     var pt = L.point(centerPt.x + dx, centerPt.y + dy);
-                    mk.setLatLng(map.layerPointToLatLng(pt));
+                    mk._isSpreading = true;
+                    try {
+                        mk.setLatLng(map.layerPointToLatLng(pt));
+                    } finally {
+                        mk._isSpreading = false;
+                    }
                     if (mk.setZIndexOffset) mk.setZIndexOffset(1200 + plan.dockIdx);
                     spreadIds[normalizeCamId(plan.camId)] = true;
                 });
@@ -9602,8 +9719,27 @@
             Object.keys(deviceMarkers).forEach(function (camId) {
                 if (spreadIds[normalizeCamId(camId)]) return;
                 var mk = deviceMarkers[camId];
-                if (mk && mk._gpsLatLng) mk.setLatLng(mk._gpsLatLng);
+                if (mk && mk._gpsLatLng) {
+                    mk._isSpreading = true;
+                    try {
+                        mk.setLatLng(mk._gpsLatLng);
+                    } finally {
+                        mk._isSpreading = false;
+                    }
+                }
             });
+        }
+
+        function schedulePinSpreadReproject() {
+            if (pinSpreadReprojectTimer) clearTimeout(pinSpreadReprojectTimer);
+            pinSpreadReprojectTimer = setTimeout(function () {
+                pinSpreadReprojectTimer = null;
+                if (pinDockLayoutBusy || window.__me8PinBatchOpening) {
+                    schedulePinSpreadReproject();
+                    return;
+                }
+                spreadStableColocatedMarkers();
+            }, 80);
         }
 
         function bringPinPopupToFront(camId) {
@@ -9616,7 +9752,6 @@
             var el = popup && popup.getElement && popup.getElement();
             if (el) el.style.zIndex = '960';
             if (popup && popup._updatePosition) popup._updatePosition();
-            if (stackedClusterContaining(camId)) setStackDragFocusCamId(camId);
         }
         window.bringPinPopupToFront = bringPinPopupToFront;
 
@@ -9799,24 +9934,7 @@
                 var center = clusterCenterLatLng(cluster);
                 return center ? { center: center, size: cluster.length } : null;
             }
-            var mapCluster = colocatedMapClusterForCam(camId);
-            if (mapCluster.length >= 2) {
-                var mapCenter = clusterCenterLatLng(mapCluster);
-                return mapCenter ? { center: mapCenter, size: mapCluster.length } : null;
-            }
             return null;
-        }
-
-        function attachPinPopupDockForCam(marker, camId) {
-            camId = normalizeCamId(camId || camIdForMarker(marker));
-            if (!marker || !camId) return;
-            attachPinPopupDockLayout(
-                marker,
-                pinPopupDockSide[camId] || 'right',
-                pinPopupDockRing[camId] || 0,
-                pinPopupDockIdx[camId] || 0,
-                clusterMetaForOpenCam(camId)
-            );
         }
 
         function removeClusterShiftBars(openIds) {
@@ -9862,38 +9980,71 @@
             /* Toolbar moved to #map-pin-stack-hud — always visible above overlapping popups. */
         }
 
-        /**
-         * Pixel fan is only a last resort for 3+ stacked panels.
-         * For exactly 2 cams, dock left/right beside the pins — gold early-return (no pair rescue).
-         * Restored from me8-firmware-gold-20260706 (mob-map-pin-restore-firmware-gold-slice).
-         */
+        /** Measured local overlap rescue for any active cluster from 2 through 8 pins. */
         function autoFanStackedPopups(cluster) {
             if (!cluster || cluster.length < 2) return;
-            if (cluster.length === 2) return;
-            var hasUserDrag = cluster.some(function (camId) {
-                return !!pinPopupUserMoved[normalizeCamId(camId)];
-            });
-            if (hasUserDrag) return;
-            repositionAllOpenPinPopupsMeasured();
-            if (!clusterPopupsOverlap(cluster)) return;
-            var fanDist = 340;
-            var yStep = 36;
-            cluster.forEach(function (camId, idx) {
-                camId = normalizeCamId(camId);
-                if (cluster.length === 2) {
-                    pinPopupDragOffset[camId] = {
-                        x: idx === 0 ? -fanDist : fanDist,
-                        y: idx === 0 ? -yStep : yStep,
-                    };
-                } else {
-                    var bear = [315, 45, 225, 135, 270, 90][idx % 6];
-                    var rad = bear * Math.PI / 180;
-                    pinPopupDragOffset[camId] = {
-                        x: Math.round(Math.sin(rad) * fanDist),
-                        y: Math.round(-Math.cos(rad) * fanDist * 0.38),
-                    };
+            var entries = cluster.map(function (camId, idx) {
+                var id = normalizeCamId(camId);
+                var el = popupLeafletElForCam(id);
+                if (!el) return null;
+                var r = el.getBoundingClientRect();
+                var auto = pinPopupAutoOffset[id] || { x: 0, y: 0 };
+                return {
+                    id: id,
+                    idx: idx,
+                    locked: !!pinPopupUserMoved[id],
+                    auto: { x: auto.x || 0, y: Math.max(0, auto.y || 0) },
+                    rect: { left: r.left, right: r.right, top: r.top, bottom: r.bottom },
+                };
+            }).filter(Boolean);
+            if (entries.length < 2) return;
+            function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+            function shift(entry, dx, dy) {
+                if (entry.locked) return;
+                var nextX = clamp(entry.auto.x + dx, -260, 260);
+                var nextY = clamp(entry.auto.y + Math.max(0, dy), 0, 72);
+                var actualX = nextX - entry.auto.x;
+                var actualY = nextY - entry.auto.y;
+                entry.auto.x = nextX;
+                entry.auto.y = nextY;
+                entry.rect.left += actualX;
+                entry.rect.right += actualX;
+                entry.rect.top += actualY;
+                entry.rect.bottom += actualY;
+                pinPopupAutoOffset[entry.id] = { x: nextX, y: nextY };
+            }
+            for (var pass = 0; pass < 4; pass++) {
+                var changed = false;
+                for (var i = 0; i < entries.length; i++) {
+                    for (var j = i + 1; j < entries.length; j++) {
+                        var a = entries[i];
+                        var b = entries[j];
+                        var overlapX = Math.min(a.rect.right, b.rect.right) - Math.max(a.rect.left, b.rect.left);
+                        var overlapY = Math.min(a.rect.bottom, b.rect.bottom) - Math.max(a.rect.top, b.rect.top);
+                        if (overlapX <= 0 || overlapY <= 0 || (a.locked && b.locked)) continue;
+                        var requiredX = Math.ceil(overlapX + 16);
+                        var aCenter = (a.rect.left + a.rect.right) * 0.5;
+                        var bCenter = (b.rect.left + b.rect.right) * 0.5;
+                        var aLeft = aCenter < bCenter || (aCenter === bCenter && a.idx < b.idx);
+                        if (!a.locked && !b.locked) {
+                            var half = Math.ceil(requiredX * 0.5);
+                            shift(a, aLeft ? -half : half, 0);
+                            shift(b, aLeft ? half : -half, 0);
+                        } else if (!a.locked) {
+                            shift(a, aLeft ? -requiredX : requiredX, 0);
+                        } else {
+                            shift(b, aLeft ? requiredX : -requiredX, 0);
+                        }
+                        overlapX = Math.min(a.rect.right, b.rect.right) - Math.max(a.rect.left, b.rect.left);
+                        overlapY = Math.min(a.rect.bottom, b.rect.bottom) - Math.max(a.rect.top, b.rect.top);
+                        if (overlapX > 0 && overlapY > 0) {
+                            shift(b.locked ? a : b, 0, Math.min(overlapY + 12, 36));
+                        }
+                        changed = true;
+                    }
                 }
-            });
+                if (!changed) break;
+            }
         }
 
         function updateMapPinStackHud(open, clusters) {
@@ -9921,8 +10072,8 @@
                 return normalizeCamId(id) === focusNorm;
             });
             if (!focusInCluster) {
-                stackDragFocusCamId = normalizeCamId(stackedCluster[0]);
-                focusNorm = stackDragFocusCamId;
+                stackDragFocusCamId = null;
+                focusNorm = null;
             }
             hud.hidden = false;
             hud.setAttribute('data-cluster', clusterId);
@@ -9930,7 +10081,7 @@
             if (label) {
                 var stackHint = dashboardTr('map.pinStackSelectDrag');
                 if (!stackHint || stackHint === 'map.pinStackSelectDrag') {
-                    stackHint = 'Select chip, then drag that header';
+                    stackHint = 'Select a name, then drag only that popup';
                 }
                 label.textContent = overlapping
                     ? ('Overlapping (' + stackedCluster.length + ') — ' + stackHint)
@@ -9949,46 +10100,139 @@
             }
         }
 
+        function pinPopupPointerPoint(ev) {
+            var point = (ev.touches && ev.touches[0])
+                || (ev.changedTouches && ev.changedTouches[0])
+                || ev;
+            return { x: point.clientX, y: point.clientY };
+        }
+
         function beginPinPopupDrag(ev, camId, popup, el) {
             if (!camId || !popup || !el) return;
-            pinPopupDragSession = true;
-            pinPopupUserMoved[camId] = true;
-            var startX = ev.clientX;
-            var startY = ev.clientY;
-            var base = pinPopupDragOffset[camId] || { x: 0, y: 0 };
-            el.classList.add('map-pin-popup-user-moved');
+            var startPoint = pinPopupPointerPoint(ev);
+            var startX = startPoint.x;
+            var startY = startPoint.y;
+            var manualBase = pinPopupDragOffset[camId] || { x: 0, y: 0 };
+            var autoBase = pinPopupAutoOffset[camId] || { x: 0, y: 0 };
+            var base = { x: manualBase.x + autoBase.x, y: manualBase.y + autoBase.y };
+            var dragging = false;
+            var pointerId = ev.pointerId;
+            var mapWasDraggable = !!(map && map.dragging && map.dragging.enabled && map.dragging.enabled());
             bringPinPopupToFront(camId);
-            document.body.classList.add('map-pin-popup-dragging');
             function blockSelect(blockEv) { blockEv.preventDefault(); }
-            document.addEventListener('selectstart', blockSelect);
-            document.addEventListener('dragstart', blockSelect);
             function onMove(moveEv) {
+                if (pointerId != null && moveEv.pointerId !== pointerId) return;
+                var movePoint = pinPopupPointerPoint(moveEv);
+                var dx = movePoint.x - startX;
+                var dy = movePoint.y - startY;
+                if (!dragging && Math.sqrt(dx * dx + dy * dy) < 6) return;
+                if (!dragging) {
+                    dragging = true;
+                    delete pinPopupAutoOffset[camId];
+                    pinPopupDragSession = true;
+                    pinPopupUserMoved[camId] = true;
+                    el.classList.add('map-pin-popup-user-moved');
+                    document.body.classList.add('map-pin-popup-dragging');
+                    document.addEventListener('selectstart', blockSelect);
+                    document.addEventListener('dragstart', blockSelect);
+                }
                 if (moveEv.cancelable) moveEv.preventDefault();
                 pinPopupDragOffset[camId] = {
-                    x: base.x + (moveEv.clientX - startX),
-                    y: base.y + (moveEv.clientY - startY),
+                    x: base.x + dx,
+                    y: base.y + dy,
                 };
                 if (popup._updatePosition) popup._updatePosition();
             }
-            function onUp() {
+            function onUp(upEv) {
+                if (pointerId != null && upEv.pointerId !== pointerId) return;
                 pinPopupDragSession = false;
                 document.body.classList.remove('map-pin-popup-dragging');
                 document.removeEventListener('selectstart', blockSelect);
                 document.removeEventListener('dragstart', blockSelect);
-                document.removeEventListener('mousemove', onMove);
-                document.removeEventListener('mouseup', onUp);
-                document.removeEventListener('touchmove', onMove);
-                document.removeEventListener('touchend', onUp);
-                document.removeEventListener('touchcancel', onUp);
-                if (map && map.dragging) map.dragging.enable();
+                document.removeEventListener('pointermove', onMove);
+                document.removeEventListener('pointerup', onUp);
+                document.removeEventListener('pointercancel', onUp);
+                if (el.releasePointerCapture && pointerId != null) {
+                    try { el.releasePointerCapture(pointerId); } catch (_) { /* pointer already released */ }
+                }
+                if (mapWasDraggable && map && map.dragging) map.dragging.enable();
+                if (dragging) window._suppressPinPopupClickUntil = Date.now() + 250;
             }
-            if (map && map.dragging) map.dragging.disable();
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
-            document.addEventListener('touchmove', onMove, { passive: false });
-            document.addEventListener('touchend', onUp);
-            document.addEventListener('touchcancel', onUp);
+            if (mapWasDraggable) map.dragging.disable();
+            if (el.setPointerCapture && pointerId != null) {
+                try { el.setPointerCapture(pointerId); } catch (_) { /* capture is best-effort */ }
+            }
+            document.addEventListener('pointermove', onMove, { passive: false });
+            document.addEventListener('pointerup', onUp);
+            document.addEventListener('pointercancel', onUp);
         }
+
+        function prepareDraggablePinPopup(popup) {
+            var el = popup && popup.getElement && popup.getElement();
+            if (!el) return;
+            var handle = el.querySelector('.pin-drag-handle');
+            if (!handle) return;
+            if (L && L.DomEvent) {
+                L.DomEvent.disableClickPropagation(handle.querySelector('.map-popup-head-text') || handle);
+                L.DomEvent.disableScrollPropagation(el);
+            }
+        }
+
+        function scheduleActivePinSetZoomOut() {
+            scheduleSmartPinTracking();
+        }
+
+        function activeOpenPinTrackingPoints() {
+            var points = [];
+            getOpenPinCamIds().forEach(function (camId) {
+                var id = normalizeCamId(camId);
+                var marker = deviceMarkers[id] || deviceMarkers[camId];
+                var root = mapPopupRootForCam(id);
+                if (!marker || !root || root.classList.contains('pin-popup-minimized')
+                    || !root.querySelector('.map-pin-video')) return;
+                var gps = markerGpsLatLng(marker);
+                if (gps && !isNaN(gps.lat) && !isNaN(gps.lng)) {
+                    points.push(L.latLng(gps.lat, gps.lng));
+                }
+            });
+            return points;
+        }
+
+        function runSmartPinTracking(force) {
+            if (smartPinTrackingTimer) {
+                clearTimeout(smartPinTrackingTimer);
+                smartPinTrackingTimer = null;
+            }
+            if (!map || window.mapPopoutMirrorActive || window.__me8PinBatchOpening || pinPopupDragSession) return false;
+            if (map._autoTrackingSuspended && !force) return false;
+            var points = activeOpenPinTrackingPoints();
+            if (points.length < 2) return false;
+            smartPinTrackingLastRun = Date.now();
+            map._autoTrackingInProgress = true;
+            try {
+                var bounds = L.latLngBounds(points);
+                map.flyToBounds(bounds, {
+                    padding: [150, 150],
+                    maxZoom: points.length === 1 ? Math.min(map.getZoom(), 18) : 18,
+                });
+            } finally {
+                map._autoTrackingInProgress = false;
+            }
+            return true;
+        }
+
+        function scheduleSmartPinTracking() {
+            if (!map || map._autoTrackingSuspended || window.__me8PinBatchOpening || smartPinTrackingTimer) return;
+            var elapsed = Date.now() - smartPinTrackingLastRun;
+            var delay = smartPinTrackingLastRun
+                ? Math.max(0, SMART_PIN_TRACKING_INTERVAL_MS - elapsed)
+                : SMART_PIN_TRACKING_INTERVAL_MS;
+            smartPinTrackingTimer = setTimeout(function () {
+                smartPinTrackingTimer = null;
+                runSmartPinTracking(false);
+            }, delay);
+        }
+        window.scheduleSmartPinTracking = scheduleSmartPinTracking;
 
         function initMapPinStackHudEvents() {
             if (window._mapPinStackHudInit) return;
@@ -10016,61 +10260,32 @@
                     }
                 }
             }, true);
-            document.addEventListener('mousedown', function (e) {
+            document.addEventListener('pointerdown', function (e) {
                 if (window.mapPopoutMirrorActive) return;
                 if (e.button !== 0) return;
-                if (e.target.closest('.map-pin-minimize')) return;
-                var head = e.target.closest('.map-pin-popup-stackable .map-popup-head');
-                if (!head || e.target.closest('#map-pin-stack-hud') || e.target.closest('.map-pin-stack-hud-reset')) return;
-                if (e.target.closest('.map-pin-minimize')) return;
-                var root = head.closest('.map-popup');
+                if (e.target.closest('button, input, select, textarea, a, [contenteditable="true"]')
+                    || e.target.closest('#map-pin-stack-hud')
+                    || e.target.closest('.map-pin-cluster-shift')) return;
+                var root = e.target.closest('.leaflet-popup-content .map-popup');
+                if (!root) return;
                 var camId = root && normalizeCamId(root.getAttribute('data-cam-id'));
                 if (!camId) return;
                 var m = deviceMarkers[camId];
                 if (!m || !m.isPopupOpen || !m.isPopupOpen()) return;
                 var popup = m.getPopup();
                 var el = popup && popup.getElement && popup.getElement();
-                if (!el || !el.classList.contains('map-pin-popup-stackable')) return;
-                if (!canDragStackedPinPopup(camId)) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (typeof showMapPinToast === 'function') {
-                        showMapPinToast('Select a device chip above, then drag that panel\'s header');
-                    }
-                    return;
-                }
-                e.preventDefault();
-                e.stopPropagation();
+                if (!el) return;
+                if (!canDragStackedPinPopup(camId)) return;
                 beginPinPopupDrag(e, camId, popup, el);
             }, true);
-            document.addEventListener('touchstart', function (e) {
-                if (window.mapPopoutMirrorActive) return;
-                if (e.target.closest('.map-pin-minimize')) return;
-                var touch = e.changedTouches && e.changedTouches[0];
-                if (!touch) return;
-                var head = e.target.closest('.map-pin-popup-stackable .map-popup-head');
-                if (!head || e.target.closest('#map-pin-stack-hud') || e.target.closest('.map-pin-stack-hud-reset')) return;
-                if (e.target.closest('.map-pin-minimize')) return;
-                var root = head.closest('.map-popup');
-                var camId = root && normalizeCamId(root.getAttribute('data-cam-id'));
-                if (!camId) return;
-                var m = deviceMarkers[camId];
-                if (!m || !m.isPopupOpen || !m.isPopupOpen()) return;
-                var popup = m.getPopup();
-                var el = popup && popup.getElement && popup.getElement();
-                if (!el || !el.classList.contains('map-pin-popup-stackable')) return;
-                if (!canDragStackedPinPopup(camId)) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (typeof showMapPinToast === 'function') {
-                        showMapPinToast('Select a device chip above, then drag that panel\'s header');
-                    }
-                    return;
-                }
+            document.addEventListener('click', function (e) {
+                if (!window._suppressPinPopupClickUntil
+                    || Date.now() >= window._suppressPinPopupClickUntil
+                    || !e.target.closest('.leaflet-popup-content .map-popup')) return;
+                window._suppressPinPopupClickUntil = 0;
                 e.preventDefault();
-                e.stopPropagation();
-                beginPinPopupDrag(touch, camId, popup, el);
-            }, { passive: false, capture: true });
+                e.stopImmediatePropagation();
+            }, true);
             document.addEventListener('click', function (e) {
                 var stopBtn = e.target.closest('.map-pin-stop');
                 if (stopBtn && stopBtn.closest('.leaflet-popup-content')) {
@@ -10100,12 +10315,13 @@
                 minBtn.textContent = minimized ? '+' : '−';
                 minBtn.title = dashboardTr(minimized ? 'map.pin.expand' : 'map.pin.minimize');
                 minBtn.setAttribute('aria-label', minBtn.title);
+                if (!minimized) scheduleActivePinSetZoomOut();
                 if (!minimized) {
                     clearPinVideoUserStop(camId);
                     if (typeof VideoWall !== 'undefined' && VideoWall.wallHasPlayerForCam && VideoWall.wallHasPlayerForCam(camId)) {
                         syncPinVideoFromWall(camId);
-                    } else if (typeof VideoWall !== 'undefined' && VideoWall.playMapPinVideoIfPopupOpen) {
-                        VideoWall.playMapPinVideoIfPopupOpen(camId, 0, { forceLive: true });
+                    } else if (typeof VideoWall !== 'undefined' && VideoWall.updateMapPinStopButton) {
+                        VideoWall.updateMapPinStopButton(camId);
                     }
                     setTimeout(function () {
                         var mk = deviceMarkers[camId];
@@ -10160,10 +10376,11 @@
             var ids = clusterId.split('|').filter(Boolean).map(function (id) { return normalizeCamId(id); });
             ids.forEach(function (id) {
                 delete pinPopupDragOffset[id];
+                delete pinPopupAutoOffset[id];
                 delete pinPopupUserMoved[id];
             });
-            if (ids.length) stackDragFocusCamId = ids[0];
-            assignColocatedPinPopupDocks();
+            stackDragFocusCamId = null;
+            assignColocatedPinPopupDocks('stack-reset');
         }
 
         function attachPinPopupDockLayout(marker, side, ring, dockIdx, clusterMeta) {
@@ -10175,6 +10392,7 @@
             popup._pinDockSide = side;
             popup._pinDockRing = ring;
             popup._pinDockIdx = dockIdx;
+            popup._me8MasterDockPositioner = true;
             if (clusterMeta && clusterMeta.center && clusterMeta.size >= 2) {
                 popup._pinClusterCenter = clusterMeta.center;
                 popup._pinClusterSize = clusterMeta.size;
@@ -10184,9 +10402,16 @@
             }
             popup._updatePosition = function () {
                 if (!this._map || !this._source) return;
+                if (this._isCalculatingLayout) return;
+                this._isCalculatingLayout = true;
+                try {
                 var dock = this._pinDockSide || 'right';
                 var el = this.getElement();
                 if (el) {
+                    el.style.bottom = 'auto';
+                    el.style.left = '0px';
+                    el.style.top = '0px';
+                    el.style.right = 'auto';
                     el.classList.remove(
                         'map-pin-popup-right', 'map-pin-popup-left', 'map-pin-popup-top', 'map-pin-popup-bottom',
                         'map-pin-popup-diag-left', 'map-pin-popup-diag-right', 'map-pin-popup-dock'
@@ -10205,6 +10430,7 @@
                     this._pinClusterSize = 0;
                 }
                 var clusterFan = (this._pinClusterSize || 0) >= 2;
+                var localCluster = clusterFan;
                 var pt = this._map.latLngToLayerPoint(this._source.getLatLng());
                 var w = el && el.offsetWidth >= 40 ? el.offsetWidth : 300;
                 var h = el && el.offsetHeight >= 40 ? el.offsetHeight : 280;
@@ -10233,52 +10459,115 @@
                     x = pt.x + gap;
                     y = pt.y - gap - h * 0.55 + yStagger;
                 }
-                var dragCamId = camIdForMarker(this._source);
-                var dragOff = dragCamId && pinPopupDragOffset[dragCamId];
                 var mapSize = this._map.getSize();
+                var bounds = null;
                 if (mapSize) {
                     var pad = 12;
                     var tl = this._map.containerPointToLayerPoint([pad, pad]);
                     var br = this._map.containerPointToLayerPoint([mapSize.x - w - pad, mapSize.y - h - pad]);
-                    var rawY = y;
-                    x = Math.max(tl.x, Math.min(x, br.x));
-                    y = Math.max(tl.y, Math.min(y, br.y));
-                    /* Classic single-pin: tall live popup must not glue under Fit pins / top chrome.
-                       If vertical clamp pinned us to the top edge, dock below the marker instead. */
-                    if (!clusterFan
-                        && (dock === 'right' || dock === 'left' || dock === 'top' || dock === 'diag-left' || dock === 'diag-right')
-                        && rawY < tl.y
-                        && y <= tl.y + 0.5) {
-                        dock = 'bottom';
-                        this._pinDockSide = 'bottom';
+                    bounds = { tl: tl, br: br };
+                    var dockPosition = function (candidateDock) {
+                        var candidate = { x: pt.x, y: pt.y };
+                        if (candidateDock === 'right') {
+                            candidate.x = pt.x + gap + PIN_LABEL_CLEAR;
+                            candidate.y = pt.y - h * 0.5 - 8 + yStagger;
+                        } else if (candidateDock === 'left') {
+                            candidate.x = pt.x - gap - w - PIN_LABEL_CLEAR;
+                            candidate.y = pt.y - h * 0.5 - 8 + yStagger;
+                        } else if (candidateDock === 'top') {
+                            candidate.x = pt.x - w * 0.5;
+                            candidate.y = pt.y - gap - h - 8 + yStagger;
+                        } else if (candidateDock === 'bottom') {
+                            candidate.x = pt.x - w * 0.5;
+                            candidate.y = pt.y + gap + PIN_DOT_HALF - 8 + yStagger;
+                        } else if (candidateDock === 'diag-left') {
+                            candidate.x = pt.x - gap - w;
+                            candidate.y = pt.y - gap - h * 0.55 + yStagger;
+                        } else if (candidateDock === 'diag-right') {
+                            candidate.x = pt.x + gap;
+                            candidate.y = pt.y - gap - h * 0.55 + yStagger;
+                        }
+                        return candidate;
+                    };
+                    var fitsViewport = function (candidate) {
+                        return candidate.x >= tl.x && candidate.x <= br.x
+                            && candidate.y >= tl.y && candidate.y <= br.y;
+                    };
+                    if (!localCluster && !fitsViewport({ x: x, y: y })) {
+                        var flipOrder = {
+                            right: ['left', 'bottom', 'top', 'diag-left', 'diag-right'],
+                            left: ['right', 'bottom', 'top', 'diag-right', 'diag-left'],
+                            top: ['bottom', 'right', 'left', 'diag-right', 'diag-left'],
+                            bottom: ['top', 'right', 'left', 'diag-right', 'diag-left'],
+                            'diag-left': ['diag-right', 'bottom', 'top', 'left', 'right'],
+                            'diag-right': ['diag-left', 'bottom', 'top', 'right', 'left']
+                        };
+                        var alternatives = flipOrder[dock] || ['bottom', 'top', 'right', 'left'];
+                        for (var altIdx = 0; altIdx < alternatives.length; altIdx += 1) {
+                            var altDock = alternatives[altIdx];
+                            var altPos = dockPosition(altDock);
+                            if (!fitsViewport(altPos)) continue;
+                            dock = altDock;
+                            this._pinDockSide = altDock;
+                            x = altPos.x;
+                            y = altPos.y;
+                            break;
+                        }
                         if (el) {
                             el.classList.remove(
                                 'map-pin-popup-right', 'map-pin-popup-left', 'map-pin-popup-top', 'map-pin-popup-bottom',
                                 'map-pin-popup-diag-left', 'map-pin-popup-diag-right'
                             );
-                            el.classList.add('map-pin-popup-bottom');
+                            el.classList.add('map-pin-popup-' + dock);
                             el.classList.add('map-pin-popup-dock');
                         }
-                        x = pt.x - w * 0.5;
-                        y = pt.y + gap + PIN_DOT_HALF - 8 + yStagger;
-                        x = Math.max(tl.x, Math.min(x, br.x));
-                        y = Math.max(tl.y, Math.min(y, br.y));
                     }
                 }
+                if (bounds && !localCluster && dock !== 'bottom' && y < bounds.tl.y) {
+                    var bottomPos = {
+                        x: pt.x - w * 0.5,
+                        y: pt.y + gap + PIN_DOT_HALF - 8 + yStagger,
+                    };
+                    dock = 'bottom';
+                    this._pinDockSide = 'bottom';
+                    x = bottomPos.x;
+                    y = bottomPos.y;
+                    if (el) {
+                        el.classList.remove(
+                            'map-pin-popup-right', 'map-pin-popup-left', 'map-pin-popup-top', 'map-pin-popup-bottom',
+                            'map-pin-popup-diag-left', 'map-pin-popup-diag-right'
+                        );
+                        el.classList.add('map-pin-popup-bottom', 'map-pin-popup-dock');
+                    }
+                }
+                var dragCamId = camIdForMarker(this._source);
+                var autoOff = dragCamId && pinPopupAutoOffset[dragCamId];
+                if (autoOff) {
+                    x += autoOff.x;
+                    y += Math.max(0, autoOff.y);
+                }
+                var dragOff = dragCamId && pinPopupDragOffset[dragCamId];
                 if (dragOff) {
                     x += dragOff.x;
                     y += dragOff.y;
                 }
+                if (bounds && !localCluster) {
+                    x = Math.max(bounds.tl.x, Math.min(x, bounds.br.x));
+                    y = Math.min(y, bounds.br.y);
+                }
                 L.DomUtil.setPosition(this._container, L.point(x, y));
+                } finally {
+                    this._isCalculatingLayout = false;
+                }
             };
         }
 
-        var PIN_POPUP_CROWDED_MIN = 3;
-        var PIN_POPUP_CROWDED_HEAVY_MIN = 6;
+        var PIN_POPUP_CROWDED_MIN = 5;
+        var PIN_POPUP_CROWDED_HEAVY_MIN = 7;
 
         function applyPinPopupDensity(open, clusters) {
             var crowded = open.length >= PIN_POPUP_CROWDED_MIN
-                || clusters.some(function (c) { return c.length >= 3; });
+                || clusters.some(function (c) { return c.length >= PIN_POPUP_CROWDED_MIN; });
             var heavy = open.length >= PIN_POPUP_CROWDED_HEAVY_MIN;
             open.forEach(function (camId) {
                 var m = deviceMarkers[camId];
@@ -10367,17 +10656,38 @@
             });
         }
 
-        function assignColocatedPinPopupDocks() {
+        function assignColocatedPinPopupDocks(caller) {
+            pinDockPendingCaller = caller || 'unspecified';
+            if (window.__me8PinBatchOpening) return;
+            var settleOpen = getOpenPinCamIds();
+            applyPinPopupDensity(settleOpen, clusterOpenPinCamIds(settleOpen));
+            if (pinDockDebounceTimer) clearTimeout(pinDockDebounceTimer);
+            pinDockDebounceTimer = setTimeout(function () {
+                pinDockDebounceTimer = null;
+                if (window.__me8PinBatchOpening) return;
+                if (pinPopupDragSession || mapPanActive) return;
+                spreadStableColocatedMarkers();
+                runColocatedPinPopupDockLayout(pinDockPendingCaller);
+            }, 150);
+        }
+
+        function runColocatedPinPopupDockLayout(caller) {
             pinDockLayoutBusy = true;
+            try {
             var open = getOpenPinCamIds();
-            open.forEach(function (camId) {
-                var nid = normalizeCamId(camId);
-                if (!pinPopupUserMoved[nid]) delete pinPopupDragOffset[nid];
-            });
             pinPopupDockSide = {};
             pinPopupDockRing = {};
             pinPopupDockIdx = {};
             var clusters = clusterOpenPinCamIds(open);
+            var clusteredOpen = Object.create(null);
+            clusters.forEach(function (cluster) {
+                if (cluster.length < 2) return;
+                cluster.forEach(function (camId) { clusteredOpen[normalizeCamId(camId)] = true; });
+            });
+            open.forEach(function (camId) {
+                var nid = normalizeCamId(camId);
+                if (!clusteredOpen[nid]) delete pinPopupAutoOffset[nid];
+            });
             removeClusterShiftBars(open);
             clusters.forEach(function (cluster) {
                 var center = clusterCenterLatLng(cluster);
@@ -10387,24 +10697,11 @@
                     pinPopupDockRing[plan.camId] = plan.ring;
                     pinPopupDockIdx[plan.camId] = plan.dockIdx;
                     attachPinPopupDockLayout(deviceMarkers[plan.camId], plan.side, plan.ring, plan.dockIdx, meta);
+                    var popup = deviceMarkers[plan.camId] && deviceMarkers[plan.camId].getPopup
+                        ? deviceMarkers[plan.camId].getPopup() : null;
+                    if (popup) popup._pinDockCaller = caller;
                 });
             });
-            open.forEach(function (camId) {
-                var mapCluster = colocatedMapClusterForCam(camId);
-                if (mapCluster.length < 2) return;
-                var plan = null;
-                assignClusterDockPlans(mapCluster).forEach(function (p) {
-                    if (normalizeCamId(p.camId) === normalizeCamId(camId)) plan = p;
-                });
-                if (!plan || !deviceMarkers[plan.camId]) return;
-                var mapCenter = clusterCenterLatLng(mapCluster);
-                var mapMeta = mapCenter ? { center: mapCenter, size: mapCluster.length } : null;
-                pinPopupDockSide[plan.camId] = plan.side;
-                pinPopupDockRing[plan.camId] = plan.ring;
-                pinPopupDockIdx[plan.camId] = plan.dockIdx;
-                attachPinPopupDockLayout(deviceMarkers[plan.camId], plan.side, plan.ring, plan.dockIdx, mapMeta);
-            });
-            spreadStableColocatedMarkers();
             refreshSpreadPinIcons(open);
             applyPinPopupDensity(open, clusters);
             repositionAllOpenPinPopupsMeasured();
@@ -10415,25 +10712,20 @@
                 VideoWall.syncWallSlotPinOpenBadges();
             }
             updateStackedPopupDragUi(open, clusters);
-            pinDockLayoutBusy = false;
+            if (pinOverlapRescueTimer) clearTimeout(pinOverlapRescueTimer);
+            pinOverlapRescueTimer = setTimeout(function () {
+                pinOverlapRescueTimer = null;
+                if (pinPopupDragSession || mapPanActive || window.__me8PinBatchOpening) return;
+                var settledOpen = getOpenPinCamIds();
+                updateStackedPopupDragUi(settledOpen, clusterOpenPinCamIds(settledOpen));
+            }, 900);
             purgeOrphanPinPopups();
             if (typeof MapPopoutSync !== 'undefined' && !window.mapPopoutMirrorActive && !window.mapPopoutMirrorApplying) {
                 MapPopoutSync.publishDebounced();
             }
-            setTimeout(function () {
-                spreadStableColocatedMarkers();
-                refreshSpreadPinIcons(open);
-                repositionAllOpenPinPopupsMeasured();
-                updateStackedPopupDragUi(open, clusters);
-                purgeOrphanPinPopups();
-            }, 150);
-            setTimeout(function () {
-                spreadStableColocatedMarkers();
-                refreshSpreadPinIcons(open);
-                repositionAllOpenPinPopupsMeasured();
-                updateStackedPopupDragUi(open, clusters);
-                purgeOrphanPinPopups();
-            }, 450);
+            } finally {
+                pinDockLayoutBusy = false;
+            }
         }
 
         function enforceMaxOpenPinPopups(preferredCamId) {
@@ -10448,18 +10740,7 @@
                     try { deviceMarkers[victim].closePopup(); } catch (_) { /* ignore */ }
                 }
             }
-            assignColocatedPinPopupDocks();
-        }
-
-        function attachPinPopupRightLayout(marker) {
-            attachPinPopupDockForCam(marker, camIdForMarker(marker));
-        }
-
-        function refreshPinPopupPosition(marker) {
-            if (!marker || !marker.isPopupOpen || !marker.isPopupOpen()) return;
-            attachPinPopupDockForCam(marker, camIdForMarker(marker));
-            var popup = marker.getPopup();
-            if (popup && popup._updatePosition) popup._updatePosition();
+            assignColocatedPinPopupDocks('max-open-enforced');
         }
 
         function repositionOpenPinPopupsLight() {
@@ -10472,7 +10753,7 @@
         }
 
         function refreshAllOpenPinPopups() {
-            assignColocatedPinPopupDocks();
+            assignColocatedPinPopupDocks('video-wall-refresh');
         }
         window.refreshOpenPinPopups = refreshAllOpenPinPopups;
 
@@ -10486,18 +10767,14 @@
         }
 
         function schedulePinPopupReposition() {
-            if (pinPopupDragSession || mapPanActive || pinDockLayoutBusy) return;
+            if (pinPopupDragSession || mapPanActive || pinDockLayoutBusy || window.__me8PinBatchOpening) return;
             if (getOpenPinCamIds().length === 0) return;
             if (pinPopupRepositionRaf) return;
             pinPopupRepositionRaf = requestAnimationFrame(function () {
                 pinPopupRepositionRaf = null;
+                if (window.__me8PinBatchOpening) return;
                 repositionOpenPinPopupsLight();
             });
-        }
-
-        function schedulePinPopupDockRefresh() {
-            if (pinPopupDragSession || mapPanActive) return;
-            assignColocatedPinPopupDocks();
         }
 
         document.addEventListener('click', function (e) {
@@ -10516,8 +10793,9 @@
                 var cid = camIdForMarker(e.popup._source);
                 if (cid) trackPinPopupOpen(cid);
                 enforceMaxOpenPinPopups(cid);
-                assignColocatedPinPopupDocks();
-                schedulePinPopupReposition();
+                assignColocatedPinPopupDocks('popup-open');
+                prepareDraggablePinPopup(e.popup);
+                scheduleSmartPinTracking();
                 if (cid && typeof socket !== 'undefined' && socket) {
                     socket.emit('pin-open', { cameraId: cid });
                 }
@@ -10534,6 +10812,7 @@
                 if (cid) {
                     var nid = normalizeCamId(cid);
                     delete pinPopupDragOffset[nid];
+                    delete pinPopupAutoOffset[nid];
                     delete pinPopupUserMoved[nid];
                     if (stackDragFocusCamId && normalizeCamId(stackDragFocusCamId) === nid) {
                         stackDragFocusCamId = null;
@@ -10553,23 +10832,51 @@
                 if (typeof MapPopoutSync !== 'undefined' && !window.mapPopoutMirrorActive) {
                     MapPopoutSync.publishDebounced();
                 }
-                setTimeout(function () {
-                    assignColocatedPinPopupDocks();
-                    repairOpenPinPopupVideos();
-                    purgeOrphanPinPopups();
-                }, 40);
+                assignColocatedPinPopupDocks('popup-close');
+                scheduleSmartPinTracking();
+                repairOpenPinPopupVideos();
+                purgeOrphanPinPopups();
+            }
+        });
+        map._autoTrackingSuspended = false;
+        function suspendSmartPinTrackingForHuman() {
+            if (map._autoTrackingInProgress) return;
+            map._autoTrackingSuspended = true;
+            if (smartPinTrackingTimer) {
+                clearTimeout(smartPinTrackingTimer);
+                smartPinTrackingTimer = null;
+            }
+        }
+        map.on('dragstart', function () {
+            mapPanActive = true;
+            suspendSmartPinTrackingForHuman();
+        });
+        var mapContainerEl = map.getContainer();
+        function noteHumanMapZoomIntent() {
+            map._humanZoomIntentUntil = Date.now() + 500;
+        }
+        mapContainerEl.addEventListener('wheel', noteHumanMapZoomIntent, { passive: true, capture: true });
+        mapContainerEl.addEventListener('dblclick', noteHumanMapZoomIntent, true);
+        mapContainerEl.addEventListener('pointerdown', function (e) {
+            if (e.target.closest('.leaflet-control-zoom-in, .leaflet-control-zoom-out')) {
+                noteHumanMapZoomIntent();
+            }
+        }, true);
+        map.on('zoomstart', function (e) {
+            mapPanActive = true;
+            if ((e && e.originalEvent) || Date.now() < (map._humanZoomIntentUntil || 0)) {
+                suspendSmartPinTrackingForHuman();
             }
         });
         map.on('movestart', function () { mapPanActive = true; });
-        map.on('zoomstart', function () { mapPanActive = true; });
         map.on('moveend', function () {
             mapPanActive = false;
-            schedulePinPopupReposition();
             if (sosIncidentActive) syncSosResponseCircleGeometry();
         });
         map.on('zoomend', function () {
             mapPanActive = false;
-            schedulePinPopupDockRefresh();
+            schedulePinSpreadReproject();
+            if (getOpenPinCamIds().length) assignColocatedPinPopupDocks('map-zoom-settled');
         });
         map.on('resize', schedulePinPopupReposition);
 
@@ -10723,14 +11030,18 @@
             if (m) {
                 var existingPopup = m.getPopup && m.getPopup();
                 if (existingPopup) {
+                    existingPopup.options.autoPan = false;
                     existingPopup.options.autoClose = false;
                     existingPopup.options.closeOnClick = false;
+                    if (!existingPopup._me8MasterDockPositioner) {
+                        attachPinPopupDockLayout(m, 'right', 0, 0, null);
+                    }
                 }
                 if (!m._pinPopupMoveHook) {
                     m._pinPopupMoveHook = true;
                     m.on('move', function () {
-                        if (mapPanActive || pinDockLayoutBusy) return;
-                        schedulePinPopupReposition();
+                        if (m._isSpreading || mapPanActive || pinDockLayoutBusy) return;
+                        assignColocatedPinPopupDocks('gps-update');
                     });
                 }
                 m._gpsLatLng = L.latLng(lat, lon);
@@ -10759,23 +11070,27 @@
                         }
                     }
                 }
-                if (!pinPopupShouldKeepVideo(camId, isSos) && m.isPopupOpen && m.isPopupOpen()) {
-                    schedulePinPopupDockRefresh();
-                }
                 if (m.isPopupOpen && m.isPopupOpen()) schedulePinPopupReposition();
             } else {
                 m = L.marker(latlng, { icon: buildPinIcon(meta, selected, frHitFocus) });
                 m._gpsLatLng = L.latLng(lat, lon);
                 m.bindPopup(html, {
                     maxWidth: 320,
-                    className: 'map-pin-popup-right',
+                    className: 'map-pin-popup-master',
                     autoPan: false,
                     autoClose: false,
-                    closeOnClick: false,
-                    offset: [0, 0],
+                    closeOnClick: false
                 });
-                attachPinPopupRightLayout(m);
+                attachPinPopupDockLayout(m, 'right', 0, 0, null);
+                if (m.getPopup()) m.getPopup()._pinDockCaller = 'pre-open-master';
                 m.on('click', function (e) {
+                    console.log('[PIN-TRACE] 1. Marker click received', camId);
+                    console.log('[PIN-TRACE] marker click', {
+                        camId: normalizeCamId(camId),
+                        popupOpen: !!(m.isPopupOpen && m.isPopupOpen()),
+                        mapPopoutMirrorActive: !!window.mapPopoutMirrorActive,
+                        geofenceDrawActive: !!geofenceDrawActive,
+                    });
                     if (window.mapPopoutMirrorActive) {
                         if (L && L.DomEvent && L.DomEvent.stopPropagation) L.DomEvent.stopPropagation(e);
                         return;
@@ -10786,26 +11101,21 @@
                     window.mapPinPopupFocusCamId = normalizeCamId(camId);
                     clearPinVideoUserStop(camId);
                     suppressPttChromeForLivePinOpen(camId);
-                    if (typeof expandMapPinVideo === 'function' && expandMapPinVideo(camId)) {
-                        setTimeout(function () {
-                            afterMarkerPopupReady(camId, isCamSosActive(camId));
-                        }, 80);
-                    }
+                    if (typeof expandMapPinVideo === 'function') expandMapPinVideo(camId);
                     if (m.bringToFront) m.bringToFront();
                     if (m.setZIndexOffset) m.setZIndexOffset(1200);
                     if (!m.isPopupOpen || !m.isPopupOpen()) m.openPopup();
-                    bringPinPopupToFront(camId);
+                    assignColocatedPinPopupDocks('single-pin-click');
+                    scheduleActivePinSetZoomOut();
+                    if (typeof VideoWall !== 'undefined' && VideoWall.playConfiguredPanelForPin) {
+                        VideoWall.playConfiguredPanelForPin(camId);
+                    }
                     if (typeof VideoWall !== 'undefined' && VideoWall.wallHasPlayerForCam && VideoWall.wallHasPlayerForCam(camId)) {
                         syncPinVideoFromWall(camId);
                     }
                     scheduleSyncOpenPinVideosFromWall(camId);
                     enforceMaxOpenPinPopups(camId);
-                    assignColocatedPinPopupDocks();
-                    schedulePinPopupReposition();
-                    setTimeout(function () {
-                        assignColocatedPinPopupDocks();
-                        afterMarkerPopupReady(camId, isCamSosActive(camId));
-                    }, 120);
+                    afterMarkerPopupReady(camId, isCamSosActive(camId));
                     if (typeof selectFleetDevice === 'function') {
                         var pinIds = (typeof FleetUi !== 'undefined' && FleetUi.getSelectedCamIds)
                             ? FleetUi.getSelectedCamIds().map(function (id) { return normalizeCamId(id); }) : [];
@@ -10825,6 +11135,7 @@
                     }
                     var nid = normalizeCamId(camId);
                     delete pinPopupDragOffset[nid];
+                    delete pinPopupAutoOffset[nid];
                     delete pinPopupUserMoved[nid];
                     if (stackDragFocusCamId && normalizeCamId(stackDragFocusCamId) === nid) {
                         stackDragFocusCamId = null;
@@ -10835,23 +11146,18 @@
                     if (typeof VideoWall !== 'undefined' && VideoWall.syncWallSlotPinOpenBadges) {
                         VideoWall.syncWallSlotPinOpenBadges();
                     }
-                    setTimeout(function () {
-                        assignColocatedPinPopupDocks();
-                        repairOpenPinPopupVideos();
-                        purgeOrphanPinPopups();
-                    }, 40);
                 });
                 m.on('popupopen', function () {
+                    console.log('[PIN-TRACE] popupopen', {
+                        camId: normalizeCamId(camId),
+                        popupOpen: !!(m.isPopupOpen && m.isPopupOpen()),
+                    });
                     trackPinPopupOpen(camId);
                     suppressPttChromeForLivePinOpen(camId);
                     if (typeof MapPinLayer !== 'undefined' && MapPinLayer.setPopupOpenCamId) {
                         MapPinLayer.setPopupOpenCamId(camId, true);
                     }
-                    assignColocatedPinPopupDocks();
-                    schedulePinPopupReposition();
                     setTimeout(function () {
-                        assignColocatedPinPopupDocks();
-                        schedulePinPopupReposition();
                         if (!window.mapPopoutMirrorActive) {
                             var streamLivePop = typeof VideoWall !== 'undefined' && VideoWall.isCameraLive && VideoWall.isCameraLive(camId);
                             var sosActivePop = window.isSosIncidentActive && window.isSosIncidentActive();
@@ -10861,12 +11167,8 @@
                                 } else if (typeof VideoWall !== 'undefined' && VideoWall.updateMapPinStopButton) {
                                     VideoWall.updateMapPinStopButton(camId);
                                 }
-                            } else if (typeof VideoWall !== 'undefined' && VideoWall.playMapPinVideoIfPopupOpen) {
-                                if (!shouldLazyPinLive(camId)) {
-                                    VideoWall.playMapPinVideoIfPopupOpen(camId, 0, { forceLive: true });
-                                } else if (VideoWall.updateMapPinStopButton) {
-                                    VideoWall.updateMapPinStopButton(camId);
-                                }
+                            } else if (typeof VideoWall !== 'undefined' && VideoWall.updateMapPinStopButton) {
+                                VideoWall.updateMapPinStopButton(camId);
                             }
                             repairOpenPinPopupVideos(getOpenPinCamIds());
                             if (typeof VideoWall !== 'undefined' && VideoWall.syncPinVoiceUi) {
@@ -10879,15 +11181,20 @@
                     }, 40);
                 });
                 m.on('move', function () {
-                    if (mapPanActive || pinDockLayoutBusy) return;
-                    schedulePinPopupReposition();
+                    if (m._isSpreading || mapPanActive || pinDockLayoutBusy) return;
+                    assignColocatedPinPopupDocks('gps-update');
                 });
                 deviceMarkers[camId] = m;
             }
             if (getOpenPinCamIds().length >= 2) {
                 spreadStableColocatedMarkers();
             } else if (m && m._gpsLatLng) {
-                m.setLatLng(m._gpsLatLng);
+                m._isSpreading = true;
+                try {
+                    m.setLatLng(m._gpsLatLng);
+                } finally {
+                    m._isSpreading = false;
+                }
             }
             if (selected || isSos) cameraMarker = m;
             if (typeof MapPinLayer !== 'undefined' && MapPinLayer.attachMarker) {
@@ -10897,18 +11204,19 @@
             }
             if ((openPopup || popupWasOpen) && !mapPinPopupSuppressed[camId]) {
                 enforceMaxOpenPinPopups(camId);
-                attachPinPopupDockForCam(m, camId);
+                assignColocatedPinPopupDocks('marker-open-request');
                 if (m.isPopupOpen && m.isPopupOpen()) {
-                    assignColocatedPinPopupDocks();
+                    schedulePinPopupReposition();
                 } else {
                     m.openPopup();
                     setTimeout(function () {
                         enforceMaxOpenPinPopups(camId);
-                        assignColocatedPinPopupDocks();
+                        assignColocatedPinPopupDocks('marker-open-settled');
                         afterMarkerPopupReady(camId, isSos);
                     }, 120);
                 }
             }
+            if (m && m.isPopupOpen && m.isPopupOpen()) scheduleSmartPinTracking();
         }
         window.upsertDeviceMarker = upsertDeviceMarker;
         var frSnapMapMarker = null;
@@ -11331,8 +11639,96 @@
 
         function fitMapToFleetPins() {
             if (!map || window.mapPopoutMirrorActive) return;
+            map._autoTrackingSuspended = false;
             var pinned = (typeof FleetUi !== 'undefined' && FleetUi.getSelectedCamIds)
                 ? FleetUi.getSelectedCamIds().map(function (id) { return normalizeCamId(id); }) : [];
+            var traceIds = pinned.length ? pinned.slice() : Object.keys(deviceMarkers).map(function (id) {
+                return normalizeCamId(id);
+            });
+            var traceRows = traceIds.map(function (camId) {
+                var marker = deviceMarkers[camId];
+                var raw = markerGpsLatLng(marker);
+                var shown = marker && marker.getLatLng ? marker.getLatLng() : null;
+                var cached = null;
+                (mapPositionsCache || []).some(function (entry) {
+                    if (!entry || normalizeCamId(entry.cameraId) !== camId) return false;
+                    cached = { lat: parseFloat(entry.lat), lng: parseFloat(entry.lon) };
+                    return true;
+                });
+                var spreadPx = null;
+                if (raw && shown) {
+                    var rawPx = map.latLngToContainerPoint(raw);
+                    var shownPx = map.latLngToContainerPoint(shown);
+                    spreadPx = Math.round(rawPx.distanceTo(shownPx) * 10) / 10;
+                }
+                return {
+                    cameraId: camId,
+                    rawLat: raw && raw.lat,
+                    rawLng: raw && raw.lng,
+                    displayedLat: shown && shown.lat,
+                    displayedLng: shown && shown.lng,
+                    cachedLat: cached && cached.lat,
+                    cachedLng: cached && cached.lng,
+                    displayOffsetPx: spreadPx,
+                    popupOpen: !!(marker && marker.isPopupOpen && marker.isPopupOpen()),
+                };
+            });
+            var traceDistances = [];
+            for (var ti = 0; ti < traceRows.length; ti++) {
+                for (var tj = ti + 1; tj < traceRows.length; tj++) {
+                    var ta = traceRows[ti];
+                    var tb = traceRows[tj];
+                    if (ta.rawLat == null || ta.rawLng == null || tb.rawLat == null || tb.rawLng == null) continue;
+                    traceDistances.push({
+                        from: ta.cameraId,
+                        to: tb.cameraId,
+                        rawDistanceMeters: Math.round(pinDistanceMeters(
+                            ta.rawLat, ta.rawLng, tb.rawLat, tb.rawLng
+                        )),
+                    });
+                }
+            }
+            console.log('[PIN-FIT-TRACE]', {
+                zoom: map.getZoom(),
+                selectedIds: pinned.slice(),
+                activePopupIds: getOpenPinCamIds().map(function (id) { return normalizeCamId(id); }),
+                positions: traceRows,
+                distances: traceDistances,
+            });
+            var maxTraceDistance = traceDistances.reduce(function (max, item) {
+                return Math.max(max, item.rawDistanceMeters || 0);
+            }, 0);
+            var maxDisplayOffset = traceRows.reduce(function (max, item) {
+                return Math.max(max, item.displayOffsetPx || 0);
+            }, 0);
+            var operatorFitMessage;
+            if (traceRows.length < 2 || traceDistances.length < 1) {
+                operatorFitMessage = 'Fit check: fewer than two selected BWC GPS positions are available.';
+            } else if (maxTraceDistance >= 1000) {
+                operatorFitMessage = 'Fit check: selected BWCs report '
+                    + (Math.round(maxTraceDistance / 100) / 10) + ' km apart. Fit is following those reported GPS positions.';
+            } else {
+                operatorFitMessage = 'Fit check: selected BWCs report ' + maxTraceDistance
+                    + ' m apart in GPS.';
+            }
+            if (maxDisplayOffset > 120) {
+                operatorFitMessage += ' A displayed marker was stale before Fit.';
+            }
+            window.__lastPinFitDiagnostic = {
+                time: new Date().toISOString(),
+                message: operatorFitMessage,
+                positions: traceRows,
+                distances: traceDistances,
+            };
+            showMapPinToast(operatorFitMessage);
+            if (console.table) {
+                console.table(traceRows);
+                console.table(traceDistances);
+            }
+            if (runSmartPinTracking(true)) {
+                schedulePinSpreadReproject();
+                return;
+            }
             var pts = [];
             Object.keys(deviceMarkers).forEach(function (camId) {
                 var nid = normalizeCamId(camId);
@@ -11352,11 +11748,17 @@
                 });
             }
             if (!pts.length) return;
-            if (pts.length === 1) {
-                map.setView(pts[0], Math.min(Math.max(map.getZoom(), 12), 15));
-            } else {
-                map.fitBounds(L.latLngBounds(pts), { padding: [48, 48], maxZoom: 15 });
+            map._autoTrackingInProgress = true;
+            try {
+                if (pts.length === 1) {
+                    map.setView(pts[0], Math.min(Math.max(map.getZoom(), 12), 15));
+                } else {
+                    map.fitBounds(L.latLngBounds(pts), { padding: [48, 48], maxZoom: 15 });
+                }
+            } finally {
+                map._autoTrackingInProgress = false;
             }
+            schedulePinSpreadReproject();
             schedulePinPopupReposition();
             setTimeout(schedulePinPopupReposition, 150);
         }
@@ -11408,9 +11810,6 @@
                     });
                     refreshAllDeviceMarkerStyles();
                     updateMapPinLegend();
-                    if (getOpenPinCamIds().length >= 1) {
-                        assignColocatedPinPopupDocks();
-                    }
                     var pinPopupOpen = Object.keys(deviceMarkers).some(function (id) {
                         var mk = deviceMarkers[id];
                         return mk && mk.isPopupOpen && mk.isPopupOpen();
@@ -11458,7 +11857,6 @@
 
         function afterMarkerPopupReady(camId, isSos) {
             fmMapResize();
-            assignColocatedPinPopupDocks();
             if (window.mapPopoutMirrorActive) {
                 schedulePinPopupReposition();
                 return;
@@ -11501,15 +11899,11 @@
                 } else if (typeof VideoWall !== 'undefined' && VideoWall.updateMapPinStopButton) {
                     VideoWall.updateMapPinStopButton(camId);
                 }
-            } else if (!offlinePopup && typeof VideoWall !== 'undefined' && VideoWall.playMapPinVideoIfPopupOpen) {
-                if (!shouldLazyPinLive(camId, { sosLive: !!isSos })) {
-                    VideoWall.playMapPinVideoIfPopupOpen(camId, 0, { forceLive: true, sosLive: !!isSos });
-                } else if (VideoWall.updateMapPinStopButton) {
-                    VideoWall.updateMapPinStopButton(camId);
-                }
+            } else if (!offlinePopup && typeof VideoWall !== 'undefined' && VideoWall.updateMapPinStopButton) {
+                VideoWall.updateMapPinStopButton(camId);
             }
             repairOpenPinPopupVideos(getOpenPinCamIds());
-            schedulePinPopupReposition();
+            assignColocatedPinPopupDocks('single-pin-ready');
         }
 
         function pinPopupHasVisibleVideo(camId) {
@@ -11618,7 +12012,7 @@
             if (VideoWall.syncMapPopupPlayer) {
                 VideoWall.syncMapPopupPlayer(camId);
             }
-            if (deviceMarkers[camId]) refreshPinPopupPosition(deviceMarkers[camId]);
+            if (deviceMarkers[camId]) assignColocatedPinPopupDocks('single-pin-video-sync');
             if (VideoWall.updateMapPinStopButton) VideoWall.updateMapPinStopButton(camId);
             var pinLive = VideoWall.mapPinHasLiveVideo && VideoWall.mapPinHasLiveVideo(camId);
             var pinMirror = VideoWall.mapPinMirrorActive && VideoWall.mapPinMirrorActive(camId);
@@ -11812,6 +12206,8 @@
         }
 
         function pinPopupShouldKeepVideo(camId, isSos) {
+            if (typeof VideoWall !== 'undefined' && VideoWall.wvpPinHasPendingOrActiveClaim
+                && VideoWall.wvpPinHasPendingOrActiveClaim(camId)) return true;
             if (!isCamOnlineOnFleet(camId) && !isSos && !getCamAlarmKind(camId)) return false;
             if (isSos && mapPopupHasLiveVideo(camId)) return true;
             if (mapPopupHasLiveVideo(camId)) return true;
@@ -11843,8 +12239,8 @@
             }
             if (popupOpen || openPopup) {
                 schedulePinPopupReposition();
-                setTimeout(schedulePinPopupReposition, 80);
-                setTimeout(schedulePinPopupReposition, 250);
+                setTimeout(schedulePinPopupReposition, 150);
+                setTimeout(schedulePinPopupReposition, 450);
             }
             if (openPopup && !popupOpen) {
                 setTimeout(function () { afterMarkerPopupReady(camId, isSos); }, 150);
@@ -11878,11 +12274,6 @@
                         { pttCommPin: !!opts.pttCommPin }
                     );
 
-                    if (window.deviceMarkers && window.deviceMarkers[data.cameraId]) {
-                        setTimeout(function () {
-                            assignColocatedPinPopupDocks();
-                        }, 80);
-                    }
                 })
                 .catch(function (err) {
                     if (typeof console !== 'undefined') console.warn('[Map] GPS sync failed:', err);
@@ -12087,6 +12478,7 @@
             if (!root || !root.classList.contains('pin-popup-minimized')) return false;
             clearPinVideoUserStop(camId);
             root.classList.remove('pin-popup-minimized');
+            scheduleActivePinSetZoomOut();
             preparePinVideoWallResync(camId);
             if (typeof VideoWall !== 'undefined' && VideoWall.syncMapPopupPlayer) {
                 VideoWall.syncMapPopupPlayer(camId);
@@ -12109,7 +12501,7 @@
             refreshSosStormBanner();
             renderSosAlarmStrip();
             refreshAllDeviceMarkerStyles();
-            assignColocatedPinPopupDocks();
+            assignColocatedPinPopupDocks('sos-focus');
             drawSosResponseCircleFromServer();
             schedulePinPopupReposition();
         }
@@ -12904,7 +13296,7 @@
             fetchMapPositionsForSos(function () {
                 drawSosResponseCircle();
                 schedulePinPopupReposition();
-                setTimeout(schedulePinPopupReposition, 200);
+                setTimeout(schedulePinPopupReposition, 450);
             });
         }
 
@@ -13004,8 +13396,8 @@
                 stashSosAckSnapshot(camId);
                 resyncPinVideoAfterSosAck(camId);
                 setTimeout(function () {
-                    assignColocatedPinPopupDocks();
-                }, 200);
+                    assignColocatedPinPopupDocks('sos-ack');
+                }, 450);
                 if (data.refresh || data.fromLiveBye) {
                     schedulePinPopupReposition();
                 }
@@ -14806,9 +15198,47 @@
                 setCollapsed(!main.classList.contains('sidebar-collapsed'));
             });
         })();
+
+        (function initVideoWallDrawer() {
+            var KEY = 'mobility-video-wall-collapsed';
+            var stage = document.getElementById('center-stage');
+            var btn = document.getElementById('video-wall-collapse-toggle');
+            if (!stage || !btn) return;
+
+            function syncToggle(collapsed) {
+                btn.textContent = collapsed ? '\u25C0' : '\u25B6';
+                btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                btn.title = collapsed ? 'Show video panels' : 'Hide video panels';
+                btn.setAttribute('aria-label', btn.title);
+            }
+
+            function resizeAfterDrawer() {
+                setTimeout(function () {
+                    try { if (map) fmMapResize(); } catch (_) { /* ignore */ }
+                    try { window.dispatchEvent(new Event('resize')); } catch (_) { /* ignore */ }
+                }, 220);
+            }
+
+            function setCollapsed(collapsed, persist) {
+                stage.classList.toggle('video-wall-collapsed', collapsed);
+                syncToggle(collapsed);
+                if (persist !== false) {
+                    try { localStorage.setItem(KEY, collapsed ? '1' : '0'); } catch (_) { /* ignore */ }
+                }
+                resizeAfterDrawer();
+            }
+
+            var startCollapsed = false;
+            try { startCollapsed = localStorage.getItem(KEY) === '1'; } catch (_) { /* ignore */ }
+            setCollapsed(startCollapsed, false);
+
+            btn.addEventListener('click', function () {
+                setCollapsed(!stage.classList.contains('video-wall-collapsed'));
+            });
+        })();
     </script>
     <script defer src="/js/vc-lazy.js?v=20260702-restore-8wc-v2"></script>
-    <script defer src="/js/fixed-cams-ui.js?v=20260707"></script>
+    <script defer src="/js/fixed-cams-ui.js?v=20260721-wall-rtsp-url-v1"></script>
 
 <!-- Fixed Cameras dialog — opens from Settings card, fully self-contained, no fleet-ui.js dependency -->
 <dialog id="fixed-cams-dlg" aria-labelledby="fc-dlg-title">

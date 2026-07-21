@@ -1,5 +1,5 @@
 /**
- * Video wall — which BWC plays on each of 6 panels (panels 5–6 poll overflow).
+ * Video wall — ten independently configurable panels.
  * Names and map groups live in bwc-devices.js (unlimited list).
  */
 (function (global) {
@@ -8,17 +8,25 @@
         return key;
     }
 
-    const SLOT_COUNT = 6;
-    /** Panels 5–6 (0-based slots 4–5) rotate through BWCs not fixed on panels 1–4. */
-    const POLL_SLOT_START = 4;
+    const SLOT_COUNT = 10;
     const CSV_HEADER = ['Panel', 'Mode', 'Device ID', 'Map group', 'Device list', 'Rotate sec'];
     let channels = defaultChannels();
+    let fixedCams = [];
     let open = false;
+
+    function isFixedCameraId(id) {
+        return String(id || '').indexOf('fixed:') === 0;
+    }
+
+    function fixedCameraBySourceId(id) {
+        const fixedId = String(id || '').replace(/^fixed:/, '');
+        return fixedCams.find(function (cam) { return String(cam.id) === fixedId; }) || null;
+    }
 
     function defaultChannels() {
         return Array.from({ length: SLOT_COUNT }, (_, slot) => ({
             slot,
-            sourceMode: slot >= POLL_SLOT_START ? 'overflow' : 'none',
+            sourceMode: 'none',
             operatorName: '',
             deviceId: '',
             mapGroup: '',
@@ -62,7 +70,7 @@
 
     function fixedWallDeviceIds(excludeSlot) {
         const ids = new Set();
-        for (let i = 0; i < POLL_SLOT_START; i += 1) {
+        for (let i = 0; i < SLOT_COUNT; i += 1) {
             if (i === excludeSlot) continue;
             const ch = getChannel(i);
             if (ch && ch.sourceMode === 'fixed' && ch.deviceId) ids.add(ch.deviceId);
@@ -79,8 +87,12 @@
     }
 
     function pollSlotOffset(slot, qLen) {
-        if (qLen <= 1 || slot < POLL_SLOT_START) return 0;
-        return (slot - POLL_SLOT_START) % qLen;
+        if (qLen <= 1) return 0;
+        const overflowSlots = channels.filter(function (ch) {
+            return ch && ch.sourceMode === 'overflow';
+        }).map(function (ch) { return ch.slot; });
+        const offset = overflowSlots.indexOf(slot);
+        return offset >= 0 ? offset % qLen : 0;
     }
 
     function deviceOnline(deviceId) {
@@ -171,6 +183,10 @@
         const n = slot + 1;
         const activeId = getActiveDeviceForSlot(slot) || (ch && ch.deviceId);
         let op = '';
+        if (isFixedCameraId(activeId)) {
+            const fixed = fixedCameraBySourceId(activeId);
+            if (fixed) op = fixed.name + ' · Fixed ' + String(fixed.streamSource || '').toUpperCase();
+        }
         if (activeId && global.BwcDevices && BwcDevices.findByDeviceId) {
             const rec = BwcDevices.findByDeviceId(activeId);
             if (rec && rec.operatorName) op = rec.operatorName;
@@ -201,7 +217,9 @@
             const label = slotEl.querySelector('.video-slot-label');
             if (label) label.textContent = slotLabel(slot);
             const cfgId = slotDeviceId(slot);
+            slotEl.classList.toggle('video-slot-fixed-camera', isFixedCameraId(cfgId));
             if (cfgId) slotEl.dataset.camId = cfgId;
+            else if (!slotEl.classList.contains('video-slot-has-live')) delete slotEl.dataset.camId;
         });
         if (global.fleetRegistryRefresh) {
             try { global.fleetRegistryRefresh(); } catch (_) { /* ignore */ }
@@ -210,14 +228,19 @@
 
     async function load() {
         try {
+            const fixedRes = await fetch('/api/fixed-cams/public');
+            const fixedData = await fixedRes.json();
+            fixedCams = fixedData && fixedData.ok && Array.isArray(fixedData.cams) ? fixedData.cams : [];
+        } catch (_) {
+            fixedCams = [];
+        }
+        try {
             const res = await fetch('/api/video-channels');
             const data = await res.json();
             if (data && Array.isArray(data.channels)) {
                 channels = defaultChannels().map(function (def, i) {
                     const row = data.channels.find(function (c) { return Number(c.slot) === i; }) || data.channels[i] || {};
-                    const merged = normalizeChannel(Object.assign({}, def, row), i);
-                    if (i >= POLL_SLOT_START && merged.sourceMode === 'none') merged.sourceMode = 'overflow';
-                    return merged;
+                    return normalizeChannel(Object.assign({}, def, row), i);
                 });
             }
         } catch (_) {
@@ -267,6 +290,13 @@
                 el.textContent = tr('video.wall.hintNoDevice');
                 return;
             }
+            const fixed = isFixedCameraId(id) ? fixedCameraBySourceId(id) : null;
+            if (fixed) {
+                el.textContent = fixed.name + (fixed.zone ? ' · ' + fixed.zone : '') +
+                    ' · Fixed ' + String(fixed.streamSource || '').toUpperCase() +
+                    (fixed.playable ? '' : ' · RTSP URL required');
+                return;
+            }
             const rec = global.BwcDevices && BwcDevices.findByDeviceId ? BwcDevices.findByDeviceId(id) : null;
             if (rec) {
                 let txt = rec.operatorName || id;
@@ -284,11 +314,160 @@
         });
     }
 
+    function cameraPickerLabel(device) {
+        if (!device) return '';
+        const id = String(device.deviceId || '').trim();
+        const parts = [];
+        parts.push(device.sourceKind === 'fixed'
+            ? 'Fixed · ' + String(device.streamSource || '').toUpperCase()
+            : 'BWC');
+        if (device.operatorName) parts.push(String(device.operatorName).trim());
+        if (device.mapGroup) parts.push(String(device.mapGroup).trim());
+        if (id) parts.push(id);
+        return parts.filter(Boolean).join(' — ');
+    }
+
+    function bindManualCameraSearch(picker, value, devices, selectedId, emptyMessage) {
+        const search = picker && picker.querySelector('[data-camera-search]');
+        const results = picker && picker.querySelector('.video-camera-search-results');
+        if (!search || !value || !results) return;
+        const rows = (devices || []).filter(function (device) {
+            return !!String(device.deviceId || '').trim();
+        });
+        const selected = rows.find(function (device) {
+            return String(device.deviceId || '').trim() === String(selectedId || '').trim();
+        });
+        if (selected) search.value = cameraPickerLabel(selected);
+        else if (selectedId) search.value = String(selectedId);
+
+        function closeResults() {
+            results.hidden = true;
+        }
+
+        function renderResults() {
+            const query = String(search.value || '').trim().toLowerCase();
+            const matches = rows.filter(function (device) {
+                const haystack = [
+                    device.deviceId,
+                    device.operatorName,
+                    device.mapGroup,
+                ].map(function (part) { return String(part || '').toLowerCase(); }).join(' ');
+                return !query || haystack.indexOf(query) >= 0;
+            }).slice(0, 50);
+            results.innerHTML = '';
+            if (!matches.length) {
+                const empty = document.createElement('div');
+                empty.className = 'video-camera-search-empty';
+                empty.textContent = emptyMessage || 'No registered cameras match';
+                results.appendChild(empty);
+            } else {
+                matches.forEach(function (device) {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'video-camera-search-result';
+                    button.textContent = cameraPickerLabel(device) + (device.playable === false ? ' · RTSP URL required' : '');
+                    button.disabled = device.playable === false;
+                    button.addEventListener('mousedown', function (event) {
+                        if (device.playable === false) return;
+                        event.preventDefault();
+                        value.value = String(device.deviceId || '').trim();
+                        search.value = cameraPickerLabel(device);
+                        closeResults();
+                        updatePanelHints();
+                    });
+                    results.appendChild(button);
+                });
+            }
+            results.hidden = false;
+        }
+
+        search.addEventListener('input', function () {
+            value.value = '';
+            renderResults();
+        });
+        search.addEventListener('focus', renderResults);
+        search.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') closeResults();
+            if (event.key === 'Enter') {
+                const first = results.querySelector('.video-camera-search-result');
+                if (first) {
+                    event.preventDefault();
+                    first.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                }
+            }
+        });
+        search.addEventListener('blur', function () {
+            setTimeout(closeResults, 120);
+        });
+    }
+
     function buildConfigRows(container) {
         container.innerHTML = '';
         const groups = listMapGroups();
         channels.forEach(function (ch, i) {
             const mode = ch.sourceMode || 'none';
+            const manualPanel = i >= 8;
+            const bwcChoices = (global.BwcDevices && BwcDevices.listDevices ? BwcDevices.listDevices() : []).map(function (device) {
+                return Object.assign({}, device, {
+                    sourceKind: 'bwc',
+                    playable: true,
+                });
+            });
+            const fixedChoices = [];
+            if (manualPanel) {
+                fixedCams.forEach(function (cam) {
+                    if (!cam || !cam.enabled || (cam.streamSource !== 'onvif' && cam.streamSource !== 'rtsp')) return;
+                    fixedChoices.push({
+                        deviceId: 'fixed:' + cam.id,
+                        operatorName: cam.name,
+                        mapGroup: cam.zone,
+                        sourceKind: 'fixed',
+                        streamSource: cam.streamSource,
+                        playable: !!cam.playable,
+                    });
+                });
+            }
+            const devices = bwcChoices.concat(fixedChoices);
+            const uiMode = manualPanel && mode === 'fixed'
+                ? (isFixedCameraId(ch.deviceId) ? 'fixed-camera' : 'bwc-fixed')
+                : mode;
+            let deviceOpts = '<option value="">' + esc(tr('video.wall.placeholder.deviceId')) + '</option>';
+            let configuredDeviceFound = false;
+            devices.forEach(function (device) {
+                const id = String(device.deviceId || '').trim();
+                if (!id) return;
+                const selected = id === ch.deviceId;
+                if (selected) configuredDeviceFound = true;
+                const label = (device.operatorName ? device.operatorName + ' — ' : '') + id;
+                deviceOpts += '<option value="' + esc(id) + '"' + (selected ? ' selected' : '') + '>' + esc(label) + '</option>';
+            });
+            if (ch.deviceId && !configuredDeviceFound) {
+                deviceOpts += '<option value="' + esc(ch.deviceId) + '" selected>' + esc(ch.deviceId) + '</option>';
+            }
+            const modeOptions = manualPanel
+                ? '<option value="none"' + (uiMode === 'none' ? ' selected' : '') + '>None</option>' +
+                    '<option value="bwc-fixed"' + (uiMode === 'bwc-fixed' ? ' selected' : '') + '>Registered BWC</option>' +
+                    '<option value="fixed-camera"' + (uiMode === 'fixed-camera' ? ' selected' : '') + '>Registered Fixed Camera — ONVIF/RTSP</option>'
+                : '<option value="none"' + (mode === 'none' ? ' selected' : '') + '>' + tr('video.wall.mode.none') + '</option>' +
+                    '<option value="fixed"' + (mode === 'fixed' ? ' selected' : '') + '>' + tr('video.wall.mode.fixed') + '</option>' +
+                    '<option value="group"' + (mode === 'group' ? ' selected' : '') + '>' + tr('video.wall.mode.group') + '</option>' +
+                    '<option value="all"' + (mode === 'all' ? ' selected' : '') + '>' + tr('video.wall.mode.all') + '</option>' +
+                    '<option value="list"' + (mode === 'list' ? ' selected' : '') + '>' + tr('video.wall.mode.list') + '</option>' +
+                    '<option value="overflow"' + (mode === 'overflow' ? ' selected' : '') + '>' + tr('video.wall.mode.overflow') + '</option>';
+            const deviceControl = '<select data-field="deviceId" data-slot="' + i + '">' + deviceOpts + '</select>';
+            const manualSourcePanels = manualPanel
+                ? '<input type="hidden" data-field="deviceId" data-slot="' + i + '" value="' + esc(ch.deviceId) + '">' +
+                    '<div data-mode-panel="bwc-fixed"' + (uiMode === 'bwc-fixed' ? '' : ' hidden') + '>' +
+                    '<label>Registered BWC search<div class="video-camera-search-picker" data-picker-kind="bwc">' +
+                    '<input type="search" data-camera-search autocomplete="off" placeholder="Search operator, BWC ID, or map group">' +
+                    '<div class="video-camera-search-results" hidden></div></div></label>' +
+                    '<p class="config-hint">Panel-only playback; this does not open its map pin.</p></div>' +
+                    '<div data-mode-panel="fixed-camera"' + (uiMode === 'fixed-camera' ? '' : ' hidden') + '>' +
+                    '<label>Registered fixed camera search<div class="video-camera-search-picker" data-picker-kind="fixed">' +
+                    '<input type="search" data-camera-search autocomplete="off" placeholder="Search camera name, ID, or zone">' +
+                    '<div class="video-camera-search-results" hidden></div></div></label>' +
+                    '<p class="config-hint">Enabled ONVIF/RTSP fixed cameras only.</p></div>'
+                : '';
             let groupOpts = '<option value="">' + tr('video.wall.pickGroup') + '</option>';
             groups.forEach(function (g) {
                 groupOpts += '<option value="' + esc(g) + '"' + (ch.mapGroup === g ? ' selected' : '') + '>' + esc(g) + '</option>';
@@ -296,19 +475,16 @@
             const row = document.createElement('div');
             row.className = 'video-config-row';
             row.innerHTML =
-                '<div class="video-config-row-title">' + tr('video.wall.panelRow', { n: i + 1 }) + '</div>' +
+                '<div class="video-config-row-title">' + tr('video.wall.panelRow', { n: i + 1 }) +
+                (manualPanel ? ' · Manual searchable camera' : '') + '</div>' +
                 '<label>' + tr('video.wall.sourceMode') +
                 '<select data-field="sourceMode" data-slot="' + i + '">' +
-                '<option value="none"' + (mode === 'none' ? ' selected' : '') + '>' + tr('video.wall.mode.none') + '</option>' +
-                '<option value="fixed"' + (mode === 'fixed' ? ' selected' : '') + '>' + tr('video.wall.mode.fixed') + '</option>' +
-                '<option value="group"' + (mode === 'group' ? ' selected' : '') + '>' + tr('video.wall.mode.group') + '</option>' +
-                '<option value="all"' + (mode === 'all' ? ' selected' : '') + '>' + tr('video.wall.mode.all') + '</option>' +
-                '<option value="list"' + (mode === 'list' ? ' selected' : '') + '>' + tr('video.wall.mode.list') + '</option>' +
-                '<option value="overflow"' + (mode === 'overflow' ? ' selected' : '') + '>' + tr('video.wall.mode.overflow') + '</option>' +
+                modeOptions +
                 '</select></label>' +
+                (manualPanel ? manualSourcePanels :
                 '<div data-mode-panel="fixed"' + (mode === 'fixed' ? '' : ' hidden') + '>' +
                 '<label>' + tr('video.wall.deviceId') +
-                '<input type="text" data-field="deviceId" data-slot="' + i + '" value="' + esc(ch.deviceId) + '" placeholder="' + esc(tr('video.wall.placeholder.deviceId')) + '"></label>' +
+                deviceControl + '</label>' +
                 '<p class="config-hint">' + tr('video.wall.fixedHint') + '</p></div>' +
                 '<div data-mode-panel="group"' + (mode === 'group' ? '' : ' hidden') + '>' +
                 '<label>' + tr('video.wall.mapGroupPick') +
@@ -324,11 +500,33 @@
                 '<div data-mode-panel="overflow"' + (mode === 'overflow' ? '' : ' hidden') + '>' +
                 '<p class="config-hint">' + tr('video.wall.overflowHint') + '</p></div>' +
                 '<label>' + tr('video.wall.rotateSec') +
-                '<input type="number" min="5" max="600" data-field="rotateSec" data-slot="' + i + '" value="' + esc(String(ch.rotateSec || 30)) + '"></label>' +
+                '<input type="number" min="5" max="600" data-field="rotateSec" data-slot="' + i + '" value="' + esc(String(ch.rotateSec || 30)) + '"></label>') +
                 '<p class="config-hint video-panel-hint" data-slot="' + i + '"></p>';
             container.appendChild(row);
+            if (manualPanel) {
+                const value = row.querySelector('[data-field="deviceId"]');
+                bindManualCameraSearch(
+                    row.querySelector('[data-picker-kind="bwc"]'),
+                    value,
+                    bwcChoices,
+                    isFixedCameraId(ch.deviceId) ? '' : ch.deviceId,
+                    'No registered BWCs match',
+                );
+                bindManualCameraSearch(
+                    row.querySelector('[data-picker-kind="fixed"]'),
+                    value,
+                    fixedChoices,
+                    isFixedCameraId(ch.deviceId) ? ch.deviceId : '',
+                    'No registered fixed cameras',
+                );
+            }
             const modeSel = row.querySelector('[data-field="sourceMode"]');
             modeSel.addEventListener('change', function () {
+                if (manualPanel) {
+                    const value = row.querySelector('[data-field="deviceId"]');
+                    if (value) value.value = '';
+                    row.querySelectorAll('[data-camera-search]').forEach(function (input) { input.value = ''; });
+                }
                 syncModePanels(row, modeSel.value);
                 updatePanelHints();
             });
@@ -346,13 +544,17 @@
 
     function readFormFromDom() {
         const next = defaultChannels();
+        const fixedOwners = new Map();
         for (let i = 0; i < SLOT_COUNT; i += 1) {
             const modeEl = document.querySelector('#video-config-rows select[data-field="sourceMode"][data-slot="' + i + '"]');
             const deviceEl = document.querySelector('#video-config-rows [data-field="deviceId"][data-slot="' + i + '"]');
             const groupEl = document.querySelector('#video-config-rows select[data-field="mapGroup"][data-slot="' + i + '"]');
             const listEl = document.querySelector('#video-config-rows textarea[data-field="deviceIds"][data-slot="' + i + '"]');
             const secEl = document.querySelector('#video-config-rows input[data-field="rotateSec"][data-slot="' + i + '"]');
-            const sourceMode = modeEl ? modeEl.value : 'none';
+            const selectedMode = modeEl ? modeEl.value : 'none';
+            const sourceMode = (selectedMode === 'bwc-fixed' || selectedMode === 'fixed-camera')
+                ? 'fixed'
+                : selectedMode;
             const deviceIds = listEl ? String(listEl.value || '').split(/[\r\n,;]+/).map(function (s) { return s.trim(); }).filter(Boolean) : [];
             next[i] = normalizeChannel({
                 sourceMode: sourceMode,
@@ -361,6 +563,27 @@
                 deviceIds: deviceIds,
                 rotateSec: secEl ? secEl.value : 30,
             }, i);
+            if ((selectedMode === 'bwc-fixed' || selectedMode === 'fixed-camera') && !next[i].deviceId) {
+                throw new Error('Choose a registered camera for Panel ' + (i + 1));
+            }
+            if (selectedMode === 'bwc-fixed' && isFixedCameraId(next[i].deviceId)) {
+                throw new Error('Choose a registered BWC for Panel ' + (i + 1));
+            }
+            if (selectedMode === 'fixed-camera' && !isFixedCameraId(next[i].deviceId)) {
+                throw new Error('Choose a registered fixed camera for Panel ' + (i + 1));
+            }
+            if (next[i].sourceMode === 'fixed' && next[i].deviceId) {
+                if (fixedOwners.has(next[i].deviceId)) {
+                    throw new Error('Camera ' + next[i].deviceId + ' is already assigned to Panel ' + (fixedOwners.get(next[i].deviceId) + 1));
+                }
+                fixedOwners.set(next[i].deviceId, i);
+            }
+            const fixed = isFixedCameraId(next[i].deviceId) ? fixedCameraBySourceId(next[i].deviceId) : null;
+            if (fixed) {
+                next[i].operatorName = fixed.name || '';
+                next[i].protocol = 'onvif';
+                continue;
+            }
             const rec = global.BwcDevices && BwcDevices.findByDeviceId && next[i].deviceId
                 ? BwcDevices.findByDeviceId(next[i].deviceId) : null;
             if (rec) {
@@ -585,5 +808,7 @@
         exportCsv,
         importCsvFile,
         updatePollUi,
+        isFixedCameraId,
+        fixedCameraBySourceId,
     };
 })(window);

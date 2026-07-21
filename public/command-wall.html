@@ -95,6 +95,7 @@
         .dr-group-meta { font-size: 9px; color: #64748b; }
         .cell-stage { flex: 1; min-height: 0; position: relative; background: #000; }
         .cell-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; z-index: 1; }
+        .cell-stage video.me8-zlm-primary { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; z-index: 1; }
         .cell-empty { position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 11px; font-weight: 600; text-align: center; pointer-events: none; }
         .cell-empty[hidden] { display: none !important; }
         .cell-drop-hint { position: absolute; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #475569; pointer-events: none; }
@@ -198,8 +199,11 @@
             <p class="dr-note" data-i18n="displayRoom.streamNote">One live stream per body-worn camera, shared by all operators. For control rooms: use different cameras on Operations and the video wall. The same camera on both is allowed but not recommended.</p>
         </div>
     </div>
+    <script src="/vendor/jsmpeg.min.js"></script>
+    <script src="/vendor/mpegts.min.js"></script>
+    <script src="/js/live-player-factory.js?v=20260720-flv-wall-lifecycle-parity-v1"></script>
     <script src="/js/live-surface-hint.js?v=20260709-duplicate-surface-warn"></script>
     <script src="/js/cw-display-room.js?v=20260712-launch-all-profile"></script>
-    <script src="/js/command-wall.js?v=20260709-popout-grid"></script>
+    <script src="/js/command-wall.js?v=20260720-matrix-flv-handoff-v1"></script>
 </body>
 </html>

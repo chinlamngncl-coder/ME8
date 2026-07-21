@@ -80,6 +80,9 @@
     const players = new Map();
     const connectingSlots = new Set();
     const streaming = new Set();
+    /** WVP handoff FLV URL per cam (MOB-APPLY-COMMAND-WALL-FLV-HANDOFF-V1). */
+    const wvpHandoffFlvByCam = new Map();
+    const wvpHandoffSlotInflight = new Map();
     const slotMuted = new Map();
     const slots = new Array(MAX_SLOTS).fill(null);
 
@@ -499,7 +502,7 @@
         syncCwAlarmUiForSlot(slot);
         if (deviceOnline(entry.camId)) {
             ensureCamStreamAlive(entry.camId);
-            if (!players.has(slot)) attachPlayer(slot);
+            if (!players.has(slot)) attachLivePlayerForSlot(slot);
         }
     }
 
@@ -1009,6 +1012,7 @@
 
     function destroyPlayer(slot) {
         connectingSlots.delete(slot);
+        wvpHandoffSlotInflight.delete(slot);
         const p = players.get(slot);
         if (p) {
             try { p.destroy(); } catch (_) { /* ignore */ }
@@ -1018,9 +1022,116 @@
         if (cell) {
             cell.classList.remove(c('cell-has-live'));
             const stage = cellQuery(cell, 'cell-stage');
-            if (stage) stage.querySelectorAll('canvas').forEach(function (cnv) { cnv.remove(); });
+            if (stage) {
+                stage.querySelectorAll('canvas, video.me8-zlm-primary').forEach(function (el) { el.remove(); });
+            }
         }
         stopPcmIfIdle();
+    }
+
+    function handoffPlayerAttaching(p) {
+        return !!(p && (p.wvpHandoffAttaching
+            || (typeof p.isHandoffAttaching === 'function' && p.isHandoffAttaching())));
+    }
+
+    function getWvpHandoffFlvUrl(camId) {
+        if (!camId) return null;
+        return wvpHandoffFlvByCam.get(normalizeCamId(camId)) || null;
+    }
+
+    function clearWvpHandoffFlv(camId) {
+        if (!camId) return;
+        wvpHandoffFlvByCam.delete(normalizeCamId(camId));
+    }
+
+    function attachWvpHandoffFlvToSlot(slot, camId, flvUrl) {
+        if (typeof slot !== 'number' || !camId || !flvUrl) return false;
+        camId = normalizeCamId(camId);
+        flvUrl = String(flvUrl);
+        if (!global.Me8LivePlayerFactory
+            || typeof global.Me8LivePlayerFactory.attachFlvPrimary !== 'function') {
+            return false;
+        }
+        const cell = getCell(slot);
+        if (!cell || !isSlotVisible(slot)) return false;
+        const stage = cellQuery(cell, 'cell-stage');
+        if (!stage) return false;
+        const inflight = wvpHandoffSlotInflight.get(slot);
+        if (inflight && inflight.camId === camId && inflight.flvUrl === flvUrl) {
+            return true;
+        }
+        const existing = players.get(slot);
+        if (existing && slotCamId(slot) === camId && handoffPlayerAttaching(existing)) {
+            return true;
+        }
+        if (existing && slotCamId(slot) === camId && cell.classList.contains(c('cell-has-live'))
+            && stage.querySelector('video.me8-zlm-primary')) {
+            return true;
+        }
+        destroyPlayer(slot);
+        const emptyEl = cellQuery(cell, 'cell-empty');
+        if (emptyEl) emptyEl.hidden = true;
+        connectingSlots.add(slot);
+        showConnecting(slot, true);
+        setCellStatus(slot, 'Connecting…', '');
+        wvpHandoffSlotInflight.set(slot, { camId: camId, flvUrl: flvUrl, at: Date.now() });
+        console.log('[me8-flv] cw attach once', { slot: slot, camId: camId, url: flvUrl });
+        const handle = global.Me8LivePlayerFactory.attachFlvPrimary(stage, flvUrl, {
+            proveMs: 300,
+            timeoutMs: 10000,
+            onProven: function () {
+                wvpHandoffSlotInflight.delete(slot);
+                if (normalizeCamId(slotCamId(slot)) !== camId) return;
+                connectingSlots.delete(slot);
+                cell.classList.add(c('cell-has-live'));
+                showConnecting(slot, false);
+                setCellStatus(slot, 'Live', 'live');
+                updateCellControls(slot);
+                clearPttForCwLive(camId);
+            },
+            onFail: function () {
+                wvpHandoffSlotInflight.delete(slot);
+                if (normalizeCamId(slotCamId(slot)) !== camId) return;
+                connectingSlots.delete(slot);
+                showConnecting(slot, false);
+                setCellStatus(slot, 'Error', '');
+                if (emptyEl) {
+                    emptyEl.hidden = false;
+                    emptyEl.textContent = tr('video.playerError');
+                }
+                updateCellControls(slot);
+            },
+        });
+        if (!handle) {
+            wvpHandoffSlotInflight.delete(slot);
+            connectingSlots.delete(slot);
+            console.log('[me8-flv] cw attach fail', { camId: camId, url: flvUrl, reason: 'attachFlvPrimary_null' });
+            return false;
+        }
+        players.set(slot, handle);
+        updateCellControls(slot);
+        return true;
+    }
+
+    function attachWvpHandoffFlvForCam(camId, flvUrl) {
+        if (!camId || !flvUrl) return;
+        camId = normalizeCamId(camId);
+        wvpHandoffFlvByCam.set(camId, String(flvUrl));
+        const slot = findSlotByCamId(camId);
+        if (slot >= 0 && slots[slot]) {
+            attachWvpHandoffFlvToSlot(slot, camId, flvUrl);
+        }
+    }
+
+    function attachLivePlayerForSlot(slot) {
+        const camId = slotCamId(slot);
+        if (!camId) return;
+        const flvUrl = getWvpHandoffFlvUrl(camId);
+        if (flvUrl) {
+            attachWvpHandoffFlvToSlot(slot, camId, flvUrl);
+            return;
+        }
+        attachPlayer(slot);
     }
 
     function normalizeCamId(camId) {
@@ -1339,7 +1450,7 @@
         updateOfflineOverlay(slot);
         renderRoster();
         if (autoStart !== false && deviceOnline(camId) && !players.has(slot)) {
-            if (streaming.has(camId)) attachPlayer(slot);
+            if (streaming.has(camId)) attachLivePlayerForSlot(slot);
             else startSlot(slot);
         }
         syncCwAlarmUiForSlot(slot);
@@ -1407,6 +1518,14 @@
         };
     }
 
+    function getMatrixSlotVideo(slotIndex) {
+        const cell = getCell(slotIndex);
+        if (!cell) return null;
+        const stage = cellQuery(cell, 'cell-stage');
+        if (!stage) return null;
+        return stage.querySelector('video.me8-zlm-primary');
+    }
+
     function getMatrixSlotCanvas(slotIndex) {
         const cell = getCell(slotIndex);
         if (!cell) return null;
@@ -1451,8 +1570,13 @@
         clearPttForCwLive(camId);
         if (socket && !streaming.has(camId)) {
             socket.emit('start-video', { camId: camId, mode: 'video', surface: CW_VIEWER_SURFACE });
+            connectingSlots.add(slot);
+            showConnecting(slot, true);
+            setCellStatus(slot, 'Connecting…', '');
+            updateCellControls(slot);
+            return;
         }
-        attachPlayer(slot);
+        attachLivePlayerForSlot(slot);
     }
 
     function stopSlot(slot, keepAssignment) {
@@ -1880,16 +2004,23 @@
         socket.on('video-stream-ready', function (data) {
             if (!data || !data.camId) return;
             if (data.surface && data.surface !== CW_VIEWER_SURFACE) return;
-            streaming.add(data.camId);
-            const slot = findSlotByCamId(data.camId);
+            const camId = normalizeCamId(data.camId);
+            streaming.add(camId);
+            if (data.wvpVideoHandoff && data.flvUrl) {
+                attachWvpHandoffFlvForCam(camId, data.flvUrl);
+                return;
+            }
+            const slot = findSlotByCamId(camId);
             if (slot >= 0 && !players.has(slot) && slots[slot]) {
                 attachPlayer(slot);
             }
         });
         socket.on('video-stream-stopped', function (data) {
             if (!data || !data.camId) return;
-            streaming.delete(data.camId);
-            const slot = findSlotByCamId(data.camId);
+            const camId = normalizeCamId(data.camId);
+            clearWvpHandoffFlv(camId);
+            streaming.delete(camId);
+            const slot = findSlotByCamId(camId);
             if (slot < 0) {
                 removeFromDeck(data.camId);
                 renderRoster();
@@ -2011,6 +2142,8 @@
         getMatrixSlotCount: getMatrixSlotCount,
         getMatrixSlotInfo: getMatrixSlotInfo,
         getMatrixSlotCanvas: getMatrixSlotCanvas,
+        getMatrixSlotVideo: getMatrixSlotVideo,
+        getHandoffFlvUrlForCam: getWvpHandoffFlvUrl,
         playMatrixSlot: playMatrixSlot,
         stopMatrixSlot: stopMatrixSlot,
         toggleMatrixSlotAudio: toggleMatrixSlotAudio,

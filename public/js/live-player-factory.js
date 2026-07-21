@@ -177,6 +177,160 @@
         };
     }
 
+    /**
+     * Primary FLV player — no JSMpeg underneath (MOB-APPLY-BACKEND-VIDEO-UI-FLV-ON-READY-V1).
+     */
+    function attachFlvPrimary(host, flvUrl, opts) {
+        opts = opts || {};
+        if (!host || !flvUrl) return null;
+        if (typeof mpegts === 'undefined' || !mpegts.isSupported()) {
+            console.log('[me8-flv] attach fail', { url: flvUrl, reason: 'mpegts_unsupported' });
+            return null;
+        }
+
+        var url = absolutizeUrl(flvUrl);
+        console.log('[me8-flv] attach start', { url: url });
+        var proveMs = typeof opts.proveMs === 'number' ? opts.proveMs : 300;
+        var onProven = opts.onProven;
+        var onFail = opts.onFail;
+        var onVideoFrame = opts.onVideoFrame;
+
+        var prevPos = host.style.position;
+        if (!prevPos || prevPos === 'static') host.style.position = 'relative';
+
+        var video = document.createElement('video');
+        video.className = 'me8-zlm-primary';
+        video.setAttribute('playsinline', 'playsinline');
+        video.setAttribute('muted', 'muted');
+        video.setAttribute('autoplay', 'autoplay');
+        video.muted = true;
+        video.autoplay = true;
+        video.style.cssText = [
+            'position:absolute',
+            'left:0',
+            'top:0',
+            'width:100%',
+            'height:100%',
+            'object-fit:contain',
+            'background:#000',
+            'opacity:0',
+            'z-index:1',
+        ].join(';');
+        host.appendChild(video);
+
+        /* MOB-APPLY-MPEGTS-AUDIO-DROP-AND-MUTED — PCMA in FLV crashes MSE; drop audio track. */
+        var player = mpegts.createPlayer({
+            type: 'flv',
+            isLive: true,
+            url: url,
+            hasAudio: false,
+            hasVideo: true,
+            withCredentials: true,
+        }, {
+            enableWorker: false,
+            lazyLoad: false,
+            liveBufferLatencyChasing: false,
+        });
+        player.attachMediaElement(video);
+
+        var settled = false;
+        var attaching = true;
+        var proveTimer = null;
+        var failTimer = null;
+        var lastFrameTime = 0;
+
+        function cleanup() {
+            if (proveTimer) {
+                clearTimeout(proveTimer);
+                proveTimer = null;
+            }
+            if (failTimer) {
+                clearTimeout(failTimer);
+                failTimer = null;
+            }
+            try { player.pause(); } catch (_) { /* ignore */ }
+            try { player.unload(); } catch (_) { /* ignore */ }
+            try { player.detachMediaElement(); } catch (_) { /* ignore */ }
+            try { player.destroy(); } catch (_) { /* ignore */ }
+            try {
+                if (video.parentNode) video.parentNode.removeChild(video);
+            } catch (_) { /* ignore */ }
+        }
+
+        function fail(reason) {
+            if (settled) return;
+            settled = true;
+            attaching = false;
+            cleanup();
+            console.log('[me8-flv] attach fail', { url: url, reason: reason || 'zlm_fail' });
+            if (typeof onFail === 'function') onFail(reason || 'zlm_fail');
+        }
+
+        function prove() {
+            if (settled) return;
+            settled = true;
+            attaching = false;
+            if (proveTimer) {
+                clearTimeout(proveTimer);
+                proveTimer = null;
+            }
+            if (failTimer) {
+                clearTimeout(failTimer);
+                failTimer = null;
+            }
+            video.style.opacity = '1';
+            console.log('[me8-flv] attach ok', { url: url });
+            if (typeof onProven === 'function') onProven();
+        }
+
+        function armProve() {
+            if (settled || proveTimer) return;
+            proveTimer = setTimeout(function () {
+                proveTimer = null;
+                if (settled) return;
+                if (video.readyState >= 2 && !video.paused) prove();
+                else fail('zlm_not_stable');
+            }, proveMs);
+        }
+
+        player.on(mpegts.Events.ERROR, function () {
+            fail('zlm_player_error');
+        });
+        video.addEventListener('playing', armProve);
+        video.addEventListener('timeupdate', function () {
+            if (!settled && video.currentTime > 0.05) armProve();
+            if (settled && typeof onVideoFrame === 'function') {
+                var t = video.currentTime;
+                if (t !== lastFrameTime) {
+                    lastFrameTime = t;
+                    onVideoFrame();
+                }
+            }
+        });
+
+        failTimer = setTimeout(function () {
+            fail('zlm_prove_timeout');
+        }, typeof opts.timeoutMs === 'number' ? opts.timeoutMs : 10000);
+
+        player.load();
+        var playP = player.play();
+        if (playP && typeof playP.catch === 'function') {
+            playP.catch(function () { fail('zlm_play_reject'); });
+        }
+
+        return {
+            engine: 'zlm',
+            video: video,
+            wvpHandoffAttaching: true,
+            isHandoffAttaching: function () { return attaching && !settled; },
+            destroy: function () {
+                settled = true;
+                attaching = false;
+                cleanup();
+            },
+        };
+    }
+
     function createJsmpegPlayer(desc, opts) {
         var canvas = opts && opts.canvas;
         var onVideoDecode = opts && opts.onVideoDecode;
@@ -201,6 +355,7 @@
         fetchDescriptor: fetchDescriptor,
         fetchDescriptorPreferZlm: fetchDescriptorPreferZlm,
         softAttachZlmOverlay: softAttachZlmOverlay,
+        attachFlvPrimary: attachFlvPrimary,
         createJsmpegPlayer: createJsmpegPlayer,
         absolutizeUrl: absolutizeUrl,
     };

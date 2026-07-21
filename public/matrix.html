@@ -69,9 +69,14 @@
         .matrix-cell-stage canvas {
             width: 100%; height: 100%; display: block; object-fit: contain; background: #000;
         }
+        .matrix-cell-stage video.me8-zlm-primary {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+            object-fit: contain; background: #000; z-index: 1;
+        }
         .matrix-cell-idle {
             position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
             padding: 12px; text-align: center; font-size: 12px; color: #64748b; pointer-events: none;
+            z-index: 2;
         }
         .matrix-cell-idle[hidden] { display: none !important; }
         #lost-opener {
@@ -80,6 +85,12 @@
         }
         #lost-opener.show { display: flex; }
     </style>
+    <script src="/js/operator-error-voice.js?v=20260702-op-voice-standalone"></script>
+    <script src="/js/operator-ui.js?v=20260702-op-voice-standalone"></script>
+    <script src="/vendor/jsmpeg.min.js"></script>
+    <script src="/vendor/mpegts.min.js"></script>
+    <script src="/js/live-player-factory.js?v=20260720-flv-wall-lifecycle-parity-v1"></script>
+    <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
     <div id="toolbar">
@@ -94,8 +105,6 @@
     <div id="stage"><div id="grid" class="matrix-grid"></div></div>
     <div id="lost-opener">Dashboard window closed.</div>
 
-    <script src="/js/operator-error-voice.js?v=20260702-op-voice-standalone"></script>
-    <script src="/js/operator-ui.js?v=20260702-op-voice-standalone"></script>
     <script>
         function tr(key, params) {
             try {
@@ -127,8 +136,11 @@
 
         var params = new URLSearchParams(window.location.search);
         var matrixSource = (params.get('source') || 'ops').trim().toLowerCase();
+        var SURFACE = 'matrix-popout';
         var maxSlots = parseInt(params.get('max') || '', 10);
         if (isNaN(maxSlots) || maxSlots < 1) maxSlots = matrixSource === 'cw' ? 32 : 6;
+        var dashPort = parseInt(params.get('port') || window.location.port || '3888', 10);
+        var videoWsPort = dashPort + 1;
         var slotIndices = (params.get('slots') || '')
             .split(',')
             .map(function (v) { return parseInt(v, 10); })
@@ -142,6 +154,8 @@
 
         var grid = document.getElementById('grid');
         var count = slotIndices.length;
+        var socket = null;
+        var rafId = null;
 
         function applyGridLayout(el, n) {
             if (n <= 6) {
@@ -158,13 +172,55 @@
         }
         applyGridLayout(grid, count);
 
-        var cells = slotIndices.map(function (slotIndex) {
-            var info = { slotIndex: slotIndex, panelNum: slotIndex + 1, camId: '', label: '', status: '' };
+        function openerAlive() {
+            try { return !!(window.opener && !window.opener.closed); } catch (_) { return false; }
+        }
+
+        function getMatrixInfo(slotIndex) {
             try {
-                if (window.opener && window.opener.VideoMatrix && window.opener.VideoMatrix.getSlotMatrixInfo) {
-                    info = window.opener.VideoMatrix.getSlotMatrixInfo(slotIndex);
+                if (window.opener.VideoMatrix && window.opener.VideoMatrix.getSlotMatrixInfo) {
+                    return window.opener.VideoMatrix.getSlotMatrixInfo(slotIndex);
                 }
             } catch (_) { /* ignore */ }
+            return null;
+        }
+
+        /** Accept own popout surface + parent wall surfaces (Close-safe must not drop ops ready). */
+        function surfaceAccepted(surface) {
+            if (!surface) return true;
+            var s = String(surface).trim().toLowerCase();
+            return s === SURFACE || s === 'ops' || s === 'command-wall'
+                || s === 'cw' || s === 'commandwall';
+        }
+
+        function getOpenerFlvUrl(slotIndex) {
+            try {
+                if (window.opener.VideoMatrix && typeof window.opener.VideoMatrix.getSlotFlvUrl === 'function') {
+                    var fromMatrix = window.opener.VideoMatrix.getSlotFlvUrl(slotIndex);
+                    if (fromMatrix) return fromMatrix;
+                }
+            } catch (_) { /* ignore */ }
+            try {
+                var info = getMatrixInfo(slotIndex);
+                var camId = info && info.camId ? String(info.camId) : '';
+                if (!camId) return null;
+                if (matrixSource === 'cw') {
+                    if (window.opener.CommandWall
+                        && typeof window.opener.CommandWall.getHandoffFlvUrlForCam === 'function') {
+                        return window.opener.CommandWall.getHandoffFlvUrlForCam(camId);
+                    }
+                } else if (window.opener.VideoWall
+                    && typeof window.opener.VideoWall.getHandoffFlvUrlForCam === 'function') {
+                    return window.opener.VideoWall.getHandoffFlvUrlForCam(camId);
+                }
+            } catch (_) { /* ignore */ }
+            return null;
+        }
+
+        var cells = slotIndices.map(function (slotIndex) {
+            var info = getMatrixInfo(slotIndex) || {
+                slotIndex: slotIndex, panelNum: slotIndex + 1, camId: '', label: '', status: '',
+            };
 
             var cell = document.createElement('div');
             cell.className = 'matrix-cell';
@@ -191,6 +247,7 @@
             grid.appendChild(cell);
             return {
                 slotIndex: slotIndex,
+                stage: cell.querySelector('.matrix-cell-stage'),
                 canvas: cell.querySelector('canvas'),
                 idle: cell.querySelector('.matrix-cell-idle'),
                 statusEl: cell.querySelector('.status'),
@@ -198,12 +255,217 @@
                 audioBtn: cell.querySelector('.matrix-cell-audio'),
                 playBtn: cell.querySelector('.matrix-cell-play'),
                 stopBtn: cell.querySelector('.matrix-cell-stop'),
+                player: null,
+                camId: info.camId || '',
+                attachedFlvUrl: null,
+                startRequested: false,
+                viewerRefHeld: false,
+                openerFlvFailed: null,
             };
         });
+
+        function wsVideoUrl(camId) {
+            return 'ws://' + window.location.hostname + ':' + videoWsPort + '/?camId=' + encodeURIComponent(camId);
+        }
+
+        function setCellIdle(cell, hidden) {
+            if (cell.idle) cell.idle.hidden = !!hidden;
+        }
+
+        function destroyCellPlayer(cell) {
+            if (cell.player) {
+                try { cell.player.destroy(); } catch (_) { /* ignore */ }
+                cell.player = null;
+            }
+            cell.attachedFlvUrl = null;
+            if (cell.stage) {
+                cell.stage.querySelectorAll('video.me8-zlm-primary').forEach(function (el) {
+                    try { el.remove(); } catch (_) { /* ignore */ }
+                });
+            }
+            if (cell.canvas) cell.canvas.style.display = '';
+            setCellIdle(cell, false);
+        }
+
+        function cellOnLive(cell) {
+            setCellIdle(cell, true);
+        }
+
+        function attachHandoffFlv(cell, flvUrl) {
+            if (!cell || !flvUrl || !cell.stage) return false;
+            flvUrl = String(flvUrl);
+            if (cell.player && cell.attachedFlvUrl === flvUrl) {
+                cellOnLive(cell);
+                return true;
+            }
+            if (!window.Me8LivePlayerFactory
+                || typeof Me8LivePlayerFactory.attachFlvPrimary !== 'function') {
+                return false;
+            }
+            destroyCellPlayer(cell);
+            if (cell.canvas) cell.canvas.style.display = 'none';
+            console.log('[me8-flv] matrix attach', { slot: cell.slotIndex, camId: cell.camId, url: flvUrl });
+            var handle = Me8LivePlayerFactory.attachFlvPrimary(cell.stage, flvUrl, {
+                proveMs: 300,
+                timeoutMs: 10000,
+                onProven: function () {
+                    cell.openerFlvFailed = null;
+                    cell.attachedFlvUrl = flvUrl;
+                    cellOnLive(cell);
+                },
+                onFail: function () {
+                    cell.openerFlvFailed = flvUrl;
+                    destroyCellPlayer(cell);
+                    /* Opener URL miss / dual-play fail → own start-video (popout surface). */
+                    if (socket && socket.connected && cell.camId && !cell.startRequested) {
+                        requestCellStart(cell);
+                    }
+                },
+            });
+            if (!handle) {
+                cell.openerFlvFailed = flvUrl;
+                if (socket && socket.connected && cell.camId && !cell.startRequested) {
+                    requestCellStart(cell);
+                }
+                return false;
+            }
+            cell.player = handle;
+            cell.attachedFlvUrl = flvUrl;
+            return true;
+        }
+
+        function attachClassicPlayer(cell, camId) {
+            if (!cell || !camId || typeof JSMpeg === 'undefined') return false;
+            destroyCellPlayer(cell);
+            if (cell.canvas) cell.canvas.style.display = '';
+            try {
+                cell.player = new JSMpeg.Player(wsVideoUrl(camId), {
+                    canvas: cell.canvas,
+                    audio: false,
+                    disableGl: true,
+                    onVideoDecode: function () { cellOnLive(cell); },
+                });
+                return true;
+            } catch (_) {
+                destroyCellPlayer(cell);
+                return false;
+            }
+        }
+
+        function releasePopoutRef(cell) {
+            if (cell.viewerRefHeld && socket && cell.camId) {
+                socket.emit('stop-video', { camId: cell.camId, surface: SURFACE });
+                cell.viewerRefHeld = false;
+            }
+        }
+
+        function requestCellStart(cell) {
+            if (!socket || !cell.camId) return;
+            cell.startRequested = true;
+            socket.emit('start-video', { camId: cell.camId, mode: 'video', surface: SURFACE });
+            cell.viewerRefHeld = true;
+        }
+
+        function stopCellLocal(cell, emitStop) {
+            destroyCellPlayer(cell);
+            cell.startRequested = false;
+            if (emitStop !== false) releasePopoutRef(cell);
+        }
+
+        function closePopoutCell(cell) {
+            destroyCellPlayer(cell);
+            cell.startRequested = false;
+            releasePopoutRef(cell);
+        }
+
+        function syncCellVideo(cell) {
+            if (!openerAlive()) return;
+            var info = getMatrixInfo(cell.slotIndex);
+            if (!info) return;
+            if (info.label && cell.camEl) cell.camEl.textContent = info.label;
+            if (info.status && cell.statusEl) cell.statusEl.textContent = info.status;
+            syncCellAudioBtn(cell, info);
+
+            var camId = info.camId || '';
+            if (camId !== cell.camId) {
+                stopCellLocal(cell, true);
+                cell.camId = camId;
+            }
+            if (!camId) {
+                stopCellLocal(cell, false);
+                return;
+            }
+
+            var flvUrl = getOpenerFlvUrl(cell.slotIndex);
+            if (flvUrl && flvUrl !== cell.openerFlvFailed) {
+                if (!cell.player || cell.attachedFlvUrl !== flvUrl) {
+                    attachHandoffFlv(cell, flvUrl);
+                } else {
+                    cellOnLive(cell);
+                }
+                return;
+            }
+
+            if (!info.hasLive && !cell.startRequested && !cell.player) {
+                return;
+            }
+
+            if (cell.player) {
+                if (info.hasLive || cell.attachedFlvUrl) cellOnLive(cell);
+                return;
+            }
+
+            if (socket && socket.connected && !cell.startRequested
+                && (info.hasLive || !!cell.camId || !!cell.openerFlvFailed)) {
+                requestCellStart(cell);
+            }
+        }
+
+        function findCellsByCamId(camId) {
+            if (!camId) return [];
+            return cells.filter(function (cell) { return String(cell.camId) === String(camId); });
+        }
+
+        function onVideoStreamReady(data) {
+            if (!data || !data.camId) return;
+            if (!surfaceAccepted(data.surface)) return;
+            var camId = String(data.camId);
+            findCellsByCamId(camId).forEach(function (cell) {
+                cell.camId = camId;
+                if (data.flvUrl) {
+                    cell.openerFlvFailed = null;
+                    attachHandoffFlv(cell, data.flvUrl);
+                    return;
+                }
+                var openerUrl = getOpenerFlvUrl(cell.slotIndex);
+                if (openerUrl && openerUrl !== cell.openerFlvFailed) {
+                    attachHandoffFlv(cell, openerUrl);
+                    return;
+                }
+                if (data.wvpVideoHandoff) {
+                    /* Ready without URL — wait for opener cache or retry start once. */
+                    if (!cell.startRequested) requestCellStart(cell);
+                    return;
+                }
+                if (!cell.player) attachClassicPlayer(cell, camId);
+            });
+        }
+
+        function onVideoStreamStopped(data) {
+            if (!data || !data.camId) return;
+            findCellsByCamId(String(data.camId)).forEach(function (cell) {
+                stopCellLocal(cell, false);
+            });
+        }
 
         function matrixPlaySlot(slotIndex) {
             try {
                 if (window.opener && window.opener.VideoMatrix && window.opener.VideoMatrix.playSlotByIndex) {
+                    var cell = cells.find(function (c) { return c.slotIndex === slotIndex; });
+                    if (cell) {
+                        cell.startRequested = false;
+                        requestCellStart(cell);
+                    }
                     return window.opener.VideoMatrix.playSlotByIndex(slotIndex);
                 }
             } catch (_) { /* ignore */ }
@@ -213,6 +475,8 @@
         function matrixStopSlot(slotIndex) {
             try {
                 if (window.opener && window.opener.VideoMatrix && window.opener.VideoMatrix.stopSlotByIndex) {
+                    var cell = cells.find(function (c) { return c.slotIndex === slotIndex; });
+                    if (cell) stopCellLocal(cell, true);
                     return window.opener.VideoMatrix.stopSlotByIndex(slotIndex);
                 }
             } catch (_) { /* ignore */ }
@@ -221,7 +485,7 @@
 
         function syncCellAudioBtn(cell, info) {
             if (!cell.audioBtn) return;
-            var live = !!(info && info.hasLive);
+            var live = !!(info && info.hasLive) || !!cell.player;
             var muted = !info || info.audioMuted !== false;
             cell.audioBtn.disabled = !live;
             cell.audioBtn.textContent = muted ? '🔇' : '🔊';
@@ -257,38 +521,6 @@
             });
         });
 
-        function openerAlive() {
-            try { return !!(window.opener && !window.opener.closed); } catch (_) { return false; }
-        }
-
-        function sourceCanvas(slotIndex) {
-            try {
-                if (window.opener && window.opener.VideoMatrix && window.opener.VideoMatrix.getSlotCanvas) {
-                    return window.opener.VideoMatrix.getSlotCanvas(slotIndex);
-                }
-            } catch (_) { /* ignore */ }
-            return null;
-        }
-
-        function getMatrixInfo(slotIndex) {
-            try {
-                if (window.opener.VideoMatrix && window.opener.VideoMatrix.getSlotMatrixInfo) {
-                    return window.opener.VideoMatrix.getSlotMatrixInfo(slotIndex);
-                }
-            } catch (_) { /* ignore */ }
-            return null;
-        }
-
-        function refreshMeta(cell) {
-            if (!openerAlive()) return;
-            var info = getMatrixInfo(cell.slotIndex);
-            if (!info) return;
-            if (info.label && cell.camEl) cell.camEl.textContent = info.label;
-            if (info.status && cell.statusEl) cell.statusEl.textContent = info.status;
-            syncCellAudioBtn(cell, info);
-        }
-
-        var rafId = null;
         function tick() {
             if (!openerAlive()) {
                 document.getElementById('lost-opener').classList.add('show');
@@ -296,28 +528,37 @@
                 document.getElementById('stage').style.visibility = 'hidden';
                 return;
             }
-            cells.forEach(function (cell) {
-                var src = sourceCanvas(cell.slotIndex);
-                var dst = cell.canvas;
-                if (src && src.width > 8 && src.height > 8) {
-                    if (dst.width !== src.width) dst.width = src.width;
-                    if (dst.height !== src.height) dst.height = src.height;
-                    var ctx = dst.getContext('2d');
-                    ctx.drawImage(src, 0, 0, dst.width, dst.height);
-                    cell.idle.hidden = true;
-                } else {
-                    cell.idle.hidden = false;
-                }
-                refreshMeta(cell);
-            });
+            cells.forEach(syncCellVideo);
             rafId = requestAnimationFrame(tick);
+        }
+
+        function bindSocket() {
+            socket = io();
+            socket.on('connect', function () {
+                cells.forEach(function (cell) {
+                    var info = getMatrixInfo(cell.slotIndex);
+                    if (info && info.camId) {
+                        cell.camId = info.camId;
+                        var flvUrl = getOpenerFlvUrl(cell.slotIndex);
+                        if (flvUrl) {
+                            attachHandoffFlv(cell, flvUrl);
+                        } else if (info.hasLive || info.camId) {
+                            requestCellStart(cell);
+                        }
+                    }
+                });
+            });
+            socket.on('video-stream-ready', onVideoStreamReady);
+            socket.on('video-stream-stopped', onVideoStreamStopped);
         }
 
         document.getElementById('btn-close').addEventListener('click', function () { window.close(); });
         window.addEventListener('beforeunload', function () {
             if (rafId) cancelAnimationFrame(rafId);
+            cells.forEach(function (cell) { closePopoutCell(cell); });
         });
 
+        bindSocket();
         tick();
     </script>
 </body>

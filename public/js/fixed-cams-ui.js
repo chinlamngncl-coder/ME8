@@ -100,7 +100,8 @@
             const el = document.getElementById(id);
             if (el) el.hidden = (src !== 'onvif');
         });
-        rtspRow.hidden = (src !== 'rtsp');
+        // ONVIF registration still needs the resolved RTSP media URI for wall playback.
+        rtspRow.hidden = (src === 'none');
     }
 
     function clearForm() {

@@ -13,13 +13,16 @@
         button:disabled { opacity: 0.35; cursor: default; }
         button.active { color: #4ade80; border-color: #22c55e; background: #14532d; }
         #btn-close { background: #2563eb; border-color: #1d4ed8; color: #fff; }
-        .stage { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; min-height: 0; }
+        .stage { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; min-height: 0; background: #000; }
         canvas { width: 100%; height: 100%; object-fit: contain; }
-        #status { position: absolute; color: #94a3b8; font-size: 13px; pointer-events: none; }
+        .stage video.me8-zlm-primary { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; z-index: 1; }
+        #status { position: absolute; color: #94a3b8; font-size: 13px; pointer-events: none; z-index: 2; }
     </style>
     <script src="/js/operator-error-voice.js?v=20260702-op-voice-standalone"></script>
     <script src="/js/operator-ui.js?v=20260702-op-voice-standalone"></script>
     <script src="/vendor/jsmpeg.min.js"></script>
+    <script src="/vendor/mpegts.min.js"></script>
+    <script src="/js/live-player-factory.js?v=20260720-flv-wall-lifecycle-parity-v1"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/ptt-mic.js"></script>
     <script src="/js/call-mic.js"></script>
@@ -35,12 +38,13 @@
             <button type="button" id="btn-close">Close</button>
         </div>
     </div>
-    <div class="stage">
+    <div class="stage" id="stage">
         <canvas id="canvas"></canvas>
         <div id="status">Connecting…</div>
     </div>
     <script>
         (function () {
+            var SURFACE = 'live-popout';
             var params = new URLSearchParams(window.location.search);
             var camId = params.get('camId') || '';
             var dashPort = parseInt(params.get('port') || window.location.port || '3888', 10);
@@ -55,7 +59,11 @@
             var voiceCallCamId = null;
             var voiceCallPending = false;
             var liveStarted = false;
+            var cachedFlvUrl = null;
+            var handoffInflight = false;
+            var viewerRefHeld = false;
 
+            var stage = document.getElementById('stage');
             var canvas = document.getElementById('canvas');
             var statusEl = document.getElementById('status');
             var titleEl = document.getElementById('camTitle');
@@ -130,25 +138,90 @@
                 callBtn.title = active ? 'End voice call' : 'Call BWC (when live)';
             }
 
-            function startPlayer() {
-                if (!camId) return;
+            function destroyPlayer() {
+                handoffInflight = false;
                 if (player) {
                     try { player.destroy(); } catch (_) { /* ignore */ }
                     player = null;
                 }
+                if (stage) {
+                    stage.querySelectorAll('video.me8-zlm-primary').forEach(function (el) {
+                        try { el.remove(); } catch (_) { /* ignore */ }
+                    });
+                }
+                if (canvas) canvas.style.display = '';
+                liveStarted = false;
+                syncCallUi();
+            }
+
+            function onLiveProven() {
+                setStatus('');
+                liveStarted = true;
+                ensurePcmAudio();
+                syncCallUi();
+            }
+
+            function attachHandoffFlv(flvUrl) {
+                if (!camId || !flvUrl || !stage) return false;
+                if (!window.Me8LivePlayerFactory
+                    || typeof Me8LivePlayerFactory.attachFlvPrimary !== 'function') {
+                    return false;
+                }
+                if (handoffInflight && cachedFlvUrl === flvUrl && player) return true;
+                destroyPlayer();
+                cachedFlvUrl = String(flvUrl);
                 setStatus('Connecting…');
+                if (canvas) canvas.style.display = 'none';
+                handoffInflight = true;
+                console.log('[me8-flv] live-popout attach once', { camId: camId, url: flvUrl });
+                var handle = Me8LivePlayerFactory.attachFlvPrimary(stage, flvUrl, {
+                    proveMs: 300,
+                    timeoutMs: 10000,
+                    onProven: function () {
+                        handoffInflight = false;
+                        onLiveProven();
+                    },
+                    onFail: function () {
+                        handoffInflight = false;
+                        destroyPlayer();
+                        if (socket && camId && !viewerRefHeld) {
+                            requestLiveStart();
+                            return;
+                        }
+                        setStatus((window.OperatorUI)
+                            ? OperatorUI.opMessage(null, null, 'video.playerError')
+                            : 'Player error');
+                    },
+                });
+                if (!handle) {
+                    handoffInflight = false;
+                    if (canvas) canvas.style.display = '';
+                    if (socket && camId && !viewerRefHeld) {
+                        requestLiveStart();
+                        return false;
+                    }
+                    return false;
+                }
+                player = handle;
+                syncCallUi();
+                return true;
+            }
+
+            function startClassicPlayer() {
+                if (!camId) return;
+                destroyPlayer();
+                setStatus('Connecting…');
+                if (canvas) canvas.style.display = '';
                 try {
                     player = new JSMpeg.Player(wsVideoUrl(), {
                         canvas: canvas,
                         audio: false,
                         disableGl: true,
                         onVideoDecode: function () {
-                            setStatus('');
-                            liveStarted = true;
-                            ensurePcmAudio();
-                            syncCallUi();
+                            onLiveProven();
                         },
                     });
+                    syncCallUi();
                 } catch (err) {
                     setStatus((window.OperatorUI)
                         ? OperatorUI.opMessage(err, null, 'errors.generic')
@@ -156,14 +229,92 @@
                 }
             }
 
-            function stopPlayer() {
-                if (player) {
-                    try { player.destroy(); } catch (_) { /* ignore */ }
-                    player = null;
+            function attachLivePlayer() {
+                if (cachedFlvUrl) {
+                    attachHandoffFlv(cachedFlvUrl);
+                    return;
                 }
-                liveStarted = false;
-                syncCallUi();
-                if (socket && camId) socket.emit('stop-video', { camId: camId });
+                startClassicPlayer();
+            }
+
+            function getOpenerFlvUrl() {
+                if (!camId) return null;
+                try {
+                    if (window.opener && window.opener.VideoWall
+                        && typeof window.opener.VideoWall.getHandoffFlvUrlForCam === 'function') {
+                        var u = window.opener.VideoWall.getHandoffFlvUrlForCam(camId);
+                        if (u) return u;
+                    }
+                } catch (_) { /* ignore */ }
+                try {
+                    if (window.opener && window.opener.CommandWall
+                        && typeof window.opener.CommandWall.getHandoffFlvUrlForCam === 'function') {
+                        return window.opener.CommandWall.getHandoffFlvUrlForCam(camId);
+                    }
+                } catch (_) { /* ignore */ }
+                return null;
+            }
+
+            function surfaceAccepted(surface) {
+                if (!surface) return true;
+                var s = String(surface).trim().toLowerCase();
+                return s === SURFACE || s === 'ops' || s === 'command-wall'
+                    || s === 'cw' || s === 'commandwall';
+            }
+
+            function releaseViewerRef() {
+                if (viewerRefHeld && socket && camId) {
+                    socket.emit('stop-video', { camId: camId, surface: SURFACE });
+                    viewerRefHeld = false;
+                }
+            }
+
+            function requestLiveStart() {
+                if (!socket || !camId) return;
+                setStatus('Connecting…');
+                socket.emit('start-video', { camId: camId, mode: 'video', surface: SURFACE });
+                viewerRefHeld = true;
+            }
+
+            function stopPlayer(emitStop) {
+                destroyPlayer();
+                cachedFlvUrl = null;
+                if (emitStop !== false) releaseViewerRef();
+            }
+
+            function closePopoutOnly() {
+                destroyPlayer();
+                cachedFlvUrl = null;
+                releaseViewerRef();
+            }
+
+            function onVideoStreamReady(data) {
+                if (!data || !data.camId || String(data.camId) !== String(camId)) return;
+                if (!surfaceAccepted(data.surface)) return;
+                if (data.flvUrl) {
+                    attachHandoffFlv(data.flvUrl);
+                    return;
+                }
+                var openerUrl = getOpenerFlvUrl();
+                if (openerUrl) {
+                    attachHandoffFlv(openerUrl);
+                    return;
+                }
+                if (data.wvpVideoHandoff) {
+                    if (!viewerRefHeld) requestLiveStart();
+                    return;
+                }
+                if (!player) attachLivePlayer();
+            }
+
+            function onVideoStreamError(data) {
+                if (!data || !data.camId || String(data.camId) !== String(camId)) return;
+                if (!surfaceAccepted(data.surface)) return;
+                destroyPlayer();
+                var msg = String((data && data.error) || (data && data.message) || 'Stream error');
+                setStatus((window.OperatorUI)
+                    ? OperatorUI.opMessage(null, data, 'errors.generic')
+                    : msg);
             }
 
             function toggleVoiceCall() {
@@ -201,16 +352,14 @@
             }
 
             document.getElementById('btn-play').onclick = function () {
-                if (socket && camId && !attachExisting) {
-                    socket.emit('start-video', { camId: camId, mode: 'video' });
-                }
-                startPlayer();
+                requestLiveStart();
             };
             document.getElementById('btn-stop').onclick = function () {
                 if (voiceCallCamId === camId && socket) {
                     socket.emit('end-bwc-call', { camId: camId });
                 }
                 stopPlayer();
+                setStatus('Stopped');
             };
             document.getElementById('btn-close').onclick = function () { window.close(); };
             muteBtn.onclick = function () {
@@ -229,16 +378,28 @@
             socket = io();
             if (window.CallMic) CallMic.bindSocket(socket);
             socket.on('bwc-call-state', onBwcCallState);
+            socket.on('video-stream-ready', onVideoStreamReady);
+            socket.on('video-stream-error', onVideoStreamError);
+            socket.on('video-stream-stopped', function (data) {
+                if (!data || !data.camId || String(data.camId) !== String(camId)) return;
+                cachedFlvUrl = null;
+                destroyPlayer();
+                setStatus('Stopped');
+            });
             socket.on('connect', function () {
-                if (!attachExisting) {
-                    socket.emit('start-video', { camId: camId, mode: 'video' });
-                } else if (camId) {
+                var flvUrl = getOpenerFlvUrl();
+                if (flvUrl) {
+                    attachHandoffFlv(flvUrl);
+                } else {
+                    requestLiveStart();
+                }
+                if (attachExisting && camId) {
                     socket.emit('audio-focus', { camId: camId });
                 }
-                startPlayer();
             });
             window.addEventListener('beforeunload', function () {
                 if (voiceCallCamId === camId && socket) socket.emit('end-bwc-call', { camId: camId });
+                closePopoutOnly();
             });
         })();
     </script>

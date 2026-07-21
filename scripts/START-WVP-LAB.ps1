@@ -1,4 +1,4 @@
-# mob-wvp-zlm-modern-split — start modern ZLM + WVP 2.7.3 (split stack).
+# mob-wvp-zlm-modern-split - start modern ZLM + WVP 2.7.3 (split stack).
 # Also ensures me8-zlm is up for the separate BWC / Fleet path.
 # Does NOT touch Fleet wall / sipServer / PTT.
 param(
@@ -97,7 +97,7 @@ Write-Host ("UI:     http://{0}:18080   (or http://127.0.0.1:18080)" -f $hostIp)
 Write-Host "Login:  admin / admin"
 Write-Host ("Camera SIP: {0}  port 5061  (Fleet PTT stays on 5060)" -f $hostIp)
 Write-Host "Platform: domain 4401020049  id 44010200492000000001  pwd admin123"
-Write-Host "Modern ZLM HTTP: http://127.0.0.1:80  (and :18088) — Track B play"
+Write-Host "Modern ZLM HTTP: http://127.0.0.1:80  (and :18088) - Track B play"
 Write-Host "BWC / Fleet ZLM stays on :8080 (me8-zlm) - separate"
 Write-Host "Stack: me8-wvp + me8-wvp-zlm + me8-wvp-db + me8-wvp-redis"
 Write-Host "Fossil rollback: docker compose -p me8-wvp -f docker\wvp\docker-compose.wvp-fossil.yml up -d"

@@ -20,6 +20,7 @@
     "multer": "^2.2.0",
     "node-llama-cpp": "^3.18.1",
     "nodemailer": "^9.0.3",
+    "onvif": "^0.8.1",
     "qrcode": "^1.5.4",
     "sip": "0.0.6",
     "socket.io": "^4.8.3",

@@ -1,7 +1,7 @@
 /**
  * Analytics Face — Live watch (6 tiles + ≤32 rotate).
  * Video only — face detect/match is a later MOB (server frame-grab).
- * Pattern mirrors command-wall socket + JSMpeg; surface: analytics-fr.
+ * Pattern mirrors command-wall socket + FLV handoff / JSMpeg fallback; surface: analytics-fr.
  */
 (function (global) {
     var SURFACE = 'analytics-fr';
@@ -14,6 +14,9 @@
     var pinned = Object.create(null); // camId -> true (hold on a slot)
     var slotCam = [null, null, null, null, null, null];
     var players = [null, null, null, null, null, null];
+    var streamingCams = Object.create(null);
+    var wvpHandoffFlvByCam = Object.create(null);
+    var wvpHandoffSlotInflight = Object.create(null);
     var focusedSlot = -1; // mob-fr-stop-video-selected — tile click target for Stop video
     var rotateTimer = null;
     var rotateCursor = 0;
@@ -383,7 +386,9 @@
                 setTileMeta(slot, camId, TILE_STATE.SIGNAL_LOST);
                 var sock = getSocket();
                 if (sock) sock.emit('start-video', { camId: camId, mode: 'video', surface: SURFACE });
-                attachPlayer(slot, camId);
+                if (streamingCams[camId] || getWvpHandoffFlvUrl(camId)) {
+                    attachLivePlayerForSlot(slot);
+                }
                 return;
             }
             setTileMeta(slot, camId, TILE_STATE.NO_SIGNAL);
@@ -523,7 +528,110 @@
         }
     }
 
+    function findSlotByCamId(camId) {
+        var id = normalizeFrCamId(camId);
+        if (!id) return -1;
+        for (var i = 0; i < LIVE_SLOTS; i++) {
+            if (normalizeFrCamId(slotCam[i]) === id) return i;
+        }
+        return -1;
+    }
+
+    function handoffPlayerAttaching(p) {
+        return !!(p && (p.wvpHandoffAttaching
+            || (typeof p.isHandoffAttaching === 'function' && p.isHandoffAttaching())));
+    }
+
+    function getWvpHandoffFlvUrl(camId) {
+        if (!camId) return null;
+        return wvpHandoffFlvByCam[normalizeFrCamId(camId)] || null;
+    }
+
+    function clearWvpHandoffFlv(camId) {
+        if (!camId) return;
+        delete wvpHandoffFlvByCam[normalizeFrCamId(camId)];
+    }
+
+    function attachWvpHandoffFlvToSlot(slot, camId, flvUrl) {
+        if (typeof slot !== 'number' || slot < 0 || slot >= LIVE_SLOTS || !camId || !flvUrl) return false;
+        camId = normalizeFrCamId(camId);
+        flvUrl = String(flvUrl);
+        if (!global.Me8LivePlayerFactory
+            || typeof global.Me8LivePlayerFactory.attachFlvPrimary !== 'function') {
+            return false;
+        }
+        var tile = tileEl(slot);
+        if (!tile || !watching) return false;
+        var inflight = wvpHandoffSlotInflight[slot];
+        if (inflight && inflight.camId === camId && inflight.flvUrl === flvUrl) {
+            return true;
+        }
+        var existing = players[slot];
+        if (existing && normalizeFrCamId(slotCam[slot]) === camId && handoffPlayerAttaching(existing)) {
+            return true;
+        }
+        if (existing && normalizeFrCamId(slotCam[slot]) === camId && tile.classList.contains('is-live')
+            && tile.querySelector('video.me8-zlm-primary')) {
+            return true;
+        }
+        destroyPlayer(slot);
+        setTileMeta(slot, camId, TILE_STATE.CONNECTING);
+        startSignalTimer(slot, camId);
+        wvpHandoffSlotInflight[slot] = { camId: camId, flvUrl: flvUrl, at: Date.now() };
+        console.log('[me8-flv] fr attach once', { slot: slot, camId: camId, url: flvUrl });
+        var handle = global.Me8LivePlayerFactory.attachFlvPrimary(tile, flvUrl, {
+            proveMs: 300,
+            timeoutMs: 10000,
+            onProven: function () {
+                delete wvpHandoffSlotInflight[slot];
+                if (normalizeFrCamId(slotCam[slot]) !== camId) return;
+                clearSignalTimer(slot);
+                clearSignalRetry(slot, camId);
+                setTileMeta(slot, camId, TILE_STATE.LIVE);
+            },
+            onFail: function () {
+                delete wvpHandoffSlotInflight[slot];
+                if (normalizeFrCamId(slotCam[slot]) !== camId) return;
+                clearSignalTimer(slot);
+                setTileMeta(slot, camId, TILE_STATE.PLAYER_ERROR);
+            },
+            onVideoFrame: function () {
+                clearSignalTimer(slot);
+                if (camId) clearSignalRetry(slot, camId);
+            },
+        });
+        if (!handle) {
+            delete wvpHandoffSlotInflight[slot];
+            console.log('[me8-flv] fr attach fail', { camId: camId, url: flvUrl, reason: 'attachFlvPrimary_null' });
+            return false;
+        }
+        players[slot] = handle;
+        return true;
+    }
+
+    function attachWvpHandoffFlvForCam(camId, flvUrl) {
+        if (!camId || !flvUrl) return;
+        camId = normalizeFrCamId(camId);
+        wvpHandoffFlvByCam[camId] = String(flvUrl);
+        var slot = findSlotByCamId(camId);
+        if (slot >= 0) {
+            attachWvpHandoffFlvToSlot(slot, camId, flvUrl);
+        }
+    }
+
+    function attachLivePlayerForSlot(slot) {
+        var camId = slotCam[slot];
+        if (!camId) return;
+        var flvUrl = getWvpHandoffFlvUrl(camId);
+        if (flvUrl) {
+            attachWvpHandoffFlvToSlot(slot, camId, flvUrl);
+            return;
+        }
+        attachPlayer(slot, camId);
+    }
+
     function destroyPlayer(slot) {
+        delete wvpHandoffSlotInflight[slot];
         var p = players[slot];
         if (p) {
             try { p.destroy(); } catch (_) { /* ignore */ }
@@ -531,10 +639,9 @@
         }
         var tile = tileEl(slot);
         if (tile) {
-            var canvases = tile.querySelectorAll('canvas');
-            for (var i = 0; i < canvases.length; i++) {
-                try { canvases[i].remove(); } catch (_) { /* ignore */ }
-            }
+            tile.querySelectorAll('canvas, video.me8-zlm-primary').forEach(function (el) {
+                try { el.remove(); } catch (_) { /* ignore */ }
+            });
             tile.classList.remove('is-live');
         }
     }
@@ -544,6 +651,10 @@
         clearSignalTimer(slot);
         if (camId) clearSignalRetry(slot, camId);
         destroyPlayer(slot);
+        if (camId) {
+            delete streamingCams[normalizeFrCamId(camId)];
+            clearWvpHandoffFlv(camId);
+        }
         if (emitStop !== false && camId) {
             var sock = getSocket();
             if (sock) sock.emit('stop-video', { camId: camId, surface: SURFACE });
@@ -624,7 +735,10 @@
         }
         var sock = getSocket();
         if (sock) sock.emit('start-video', { camId: camId, mode: 'video', surface: SURFACE });
-        attachPlayer(slot, camId);
+        startSignalTimer(slot, camId);
+        if (streamingCams[normalizeFrCamId(camId)] || getWvpHandoffFlvUrl(camId)) {
+            attachLivePlayerForSlot(slot);
+        }
         emitWatchSlots();
     }
 
@@ -1221,9 +1335,15 @@
             if (!data || !data.camId) return;
             if (data.surface && data.surface !== SURFACE) return;
             if (!watching) return;
-            var camId = String(data.camId);
-            for (var i = 0; i < LIVE_SLOTS; i++) {
-                if (slotCam[i] === camId && !players[i]) attachPlayer(i, camId);
+            var camId = normalizeFrCamId(data.camId);
+            streamingCams[camId] = true;
+            if (data.wvpVideoHandoff && data.flvUrl) {
+                attachWvpHandoffFlvForCam(camId, data.flvUrl);
+                return;
+            }
+            var slot = findSlotByCamId(camId);
+            if (slot >= 0 && !players[slot]) {
+                attachPlayer(slot, camId);
             }
         });
         sock.on('video-stream-error', function (data) {

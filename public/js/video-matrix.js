@@ -1,13 +1,13 @@
 /**
  * Video matrix pop-out — Operations wall (6) or Command Wall (up to 32).
- * Mirror-only: reads canvases from opener; play/stop/audio delegate back.
+ * Play/stop/audio delegate to opener; matrix window attaches own FLV/JSMpeg decode (V2).
  */
 (function (global) {
     'use strict';
 
     var matrixPopoutWin = null;
     var matrixSource = 'ops';
-    var OPS_SLOT_COUNT = 6;
+    var OPS_SLOT_COUNT = 10;
     var CW_SLOT_MAX = 32;
 
     function tr(key, params) {
@@ -59,6 +59,50 @@
         return camId;
     }
 
+    function getSlotLiveVideo(slotIndex) {
+        if (isCwSource()) {
+            if (global.CommandWall && typeof CommandWall.getMatrixSlotVideo === 'function') {
+                return CommandWall.getMatrixSlotVideo(slotIndex);
+            }
+            return null;
+        }
+        var el = opsSlotEl(slotIndex);
+        if (!el) return null;
+        var video = el.querySelector('.video-slot-stage video.me8-zlm-primary');
+        return video || null;
+    }
+
+    function getSlotMirrorSource(slotIndex) {
+        var canvas = getSlotCanvas(slotIndex);
+        if (canvas) return canvas;
+        return getSlotLiveVideo(slotIndex);
+    }
+
+    function flvUrlForCamId(camId) {
+        if (!camId) return null;
+        if (isCwSource()) {
+            if (global.CommandWall && typeof CommandWall.getHandoffFlvUrlForCam === 'function') {
+                return CommandWall.getHandoffFlvUrlForCam(camId);
+            }
+        } else if (global.VideoWall && typeof VideoWall.getHandoffFlvUrlForCam === 'function') {
+            return VideoWall.getHandoffFlvUrlForCam(camId);
+        }
+        return null;
+    }
+
+    function getSlotFlvUrl(slotIndex) {
+        var camId = '';
+        if (isCwSource()) {
+            if (global.CommandWall && typeof CommandWall.getMatrixSlotInfo === 'function') {
+                camId = CommandWall.getMatrixSlotInfo(slotIndex).camId || '';
+            }
+        } else {
+            var el = opsSlotEl(slotIndex);
+            camId = el ? (el.getAttribute('data-cam-id') || '') : '';
+        }
+        return flvUrlForCamId(camId);
+    }
+
     function getSlotMatrixInfo(slotIndex) {
         if (isCwSource()) {
             if (global.CommandWall && typeof CommandWall.getMatrixSlotInfo === 'function') {
@@ -91,7 +135,7 @@
             camId: camId,
             label: slotLabel(camId),
             status: statusEl ? statusEl.textContent : '',
-            hasLive: !!getSlotCanvas(slotIndex),
+            hasLive: !!(getSlotCanvas(slotIndex) || getSlotLiveVideo(slotIndex) || getSlotFlvUrl(slotIndex)),
             audioMuted: audioMuted,
         };
     }
@@ -245,6 +289,9 @@
     global.VideoMatrix = {
         getSlotMatrixInfo: getSlotMatrixInfo,
         getSlotCanvas: getSlotCanvas,
+        getSlotLiveVideo: getSlotLiveVideo,
+        getSlotMirrorSource: getSlotMirrorSource,
+        getSlotFlvUrl: getSlotFlvUrl,
         playSlotByIndex: playSlotByIndex,
         stopSlotByIndex: stopSlotByIndex,
         toggleSlotAudioByIndex: toggleSlotAudioByIndex,
