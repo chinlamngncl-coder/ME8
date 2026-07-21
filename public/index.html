@@ -1660,6 +1660,23 @@
         #app-view-command-wall .cw-roster-head h3 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; }
         #app-view-command-wall .cw-roster-search { width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #f1f5f9; font-size: 12px; }
         #app-view-command-wall .cw-roster-body { flex: 1; overflow-y: auto; padding: 8px 0; }
+        #app-view-command-wall .cw-ptz-panel { flex-shrink: 0; padding: 10px; border-top: 1px solid #334155; background: #0f172a; }
+        #app-view-command-wall .cw-ptz-title { color: #93c5fd; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; }
+        #app-view-command-wall .cw-ptz-camera { min-height: 30px; margin: 5px 0 8px; color: #e2e8f0; font-size: 11px; line-height: 1.35; }
+        #app-view-command-wall .cw-ptz-pad { display: grid; grid-template-columns: repeat(3, 34px); grid-template-areas: ". up ." "left home right" ". down ."; justify-content: center; gap: 4px; }
+        #app-view-command-wall .cw-ptz-pad [data-ptz="up"] { grid-area: up; }
+        #app-view-command-wall .cw-ptz-pad [data-ptz="left"] { grid-area: left; }
+        #app-view-command-wall .cw-ptz-pad [data-ptz="home"] { grid-area: home; }
+        #app-view-command-wall .cw-ptz-pad [data-ptz="right"] { grid-area: right; }
+        #app-view-command-wall .cw-ptz-pad [data-ptz="down"] { grid-area: down; }
+        #app-view-command-wall .cw-ptz-pad button,
+        #app-view-command-wall .cw-ptz-zoom button { border: 1px solid #475569; border-radius: 5px; background: #1e293b; color: #e2e8f0; cursor: pointer; touch-action: none; }
+        #app-view-command-wall .cw-ptz-pad button { width: 34px; height: 30px; }
+        #app-view-command-wall .cw-ptz-zoom { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 7px; }
+        #app-view-command-wall .cw-ptz-zoom button { height: 28px; font-size: 10px; }
+        #app-view-command-wall .cw-ptz-panel button:disabled { opacity: 0.35; cursor: not-allowed; }
+        #app-view-command-wall .cw-ptz-status { margin-top: 7px; min-height: 26px; color: #64748b; font-size: 9px; line-height: 1.35; }
+        #app-view-command-wall .cw-cell.cw-ptz-selected { border-color: #38bdf8; box-shadow: inset 0 0 0 1px #38bdf8; }
         #app-view-command-wall .cw-group-block { margin-bottom: 4px; }
         #app-view-command-wall .cw-group-title { display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 11px; font-weight: 700; color: #cbd5e1; }
         #app-view-command-wall .cw-group-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -1674,6 +1691,39 @@
         #app-view-command-wall .cw-device-chip .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
         #app-view-command-wall .cw-device-chip .id { font-size: 9px; color: #64748b; font-family: ui-monospace, Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
         #app-view-command-wall .cw-device-chip-inner { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .fixed-camera-map-pin { background: transparent; border: 0; }
+        .fixed-camera-map-pin > span { display: grid; place-items: center; width: 32px; height: 32px; border: 2px solid #67e8f9; border-radius: 50% 50% 50% 8px; background: #164e63; color: #ecfeff; box-shadow: 0 3px 10px rgba(0,0,0,.45); transform: rotate(-45deg); }
+        .fixed-camera-map-pin > span > b { transform: rotate(45deg); font-size: 15px; }
+        .fixed-camera-map-pin.icon-dome > span { background: #1e3a8a; border-color: #93c5fd; }
+        .fixed-camera-map-pin.icon-ptz > span { background: #581c87; border-color: #d8b4fe; }
+        .fixed-camera-map-pin.icon-traffic > span { background: #7c2d12; border-color: #fdba74; }
+        .fixed-camera-map-pin.icon-building > span { background: #334155; border-color: #cbd5e1; }
+        .fixed-camera-popup { width: 260px; color: #e2e8f0; }
+        .fixed-camera-popup-name { margin-bottom: 6px; font-size: 12px; font-weight: 800; }
+        .fixed-camera-popup-stage { position: relative; width: 260px; height: 146px; overflow: hidden; border-radius: 6px; background: #020617; }
+        .fixed-camera-popup-stage video { width: 100%; height: 100%; object-fit: cover; }
+        .fixed-camera-popup-status { position: absolute; inset: auto 6px 6px; padding: 3px 6px; border-radius: 4px; background: rgba(2,6,23,.78); color: #cbd5e1; font-size: 10px; }
+        .fixed-camera-popup-location-only { padding: 10px; border: 1px solid #334155; border-radius: 6px; background: #0f172a; color: #94a3b8; font-size: 10px; }
+        .leaflet-popup.fixed-camera-leaflet-popup.fixed-camera-popup-below .leaflet-popup-tip-container { display: none; }
+        .leaflet-popup.fixed-camera-leaflet-popup.fixed-camera-popup-below .leaflet-popup-content-wrapper { position: relative; }
+        .leaflet-popup.fixed-camera-leaflet-popup.fixed-camera-popup-below .leaflet-popup-content-wrapper::before {
+            content: ''; position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
+            border-width: 0 9px 9px; border-style: solid; border-color: transparent transparent #475569;
+        }
+        .leaflet-popup.fixed-camera-leaflet-popup.fixed-camera-popup-below .leaflet-popup-content-wrapper::after {
+            content: ''; position: absolute; top: -7px; left: 50%; transform: translateX(-50%);
+            border-width: 0 7px 7px; border-style: solid; border-color: transparent transparent #1e293b;
+        }
+        #map.fixed-camera-location-pick { cursor: crosshair !important; }
+        #fixed-camera-map-pick-bar {
+            position: fixed; top: 108px; left: 50%; transform: translateX(-50%); z-index: 20010;
+            display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+            border: 1px solid #38bdf8; border-radius: 8px; background: rgba(15,23,42,.96);
+            color: #e0f2fe; box-shadow: 0 8px 24px rgba(0,0,0,.45); font-size: 12px; font-weight: 600;
+        }
+        #fixed-camera-map-pick-bar[hidden] { display: none !important; }
+        #fixed-camera-map-pick-cancel { padding: 5px 10px; border: 1px solid #64748b; border-radius: 5px; background: #334155; color: #f8fafc; cursor: pointer; }
+        #map-pin-legend .leg-fixed-camera { width: 16px; text-align: center; color: #67e8f9; font-size: 14px; font-weight: 900; }
         #app-view-command-wall .cw-roster-empty { padding: 16px 12px; font-size: 11px; color: #64748b; }
         #app-view-command-wall #cw-wall-wrap { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
         #app-view-command-wall .cw-wall-bar {
@@ -3724,6 +3774,11 @@
             background: #14532d !important; color: #bbf7d0 !important; border-color: #22c55e !important;
             box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.45);
         }
+        .sos-call-btn { background: #172554 !important; color: #bfdbfe !important; border-color: #60a5fa !important; }
+        .sos-call-btn.active {
+            background: #7c2d12 !important; color: #ffedd5 !important; border-color: #fb923c !important;
+            box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.45);
+        }
         #sos-response-summary.sos-ptt-team-active { color: #fde68a; }
         #sos-ptt-team-toast {
             position: fixed; z-index: 100000;
@@ -5083,6 +5138,8 @@
         #fixed-cams-dlg label { display:block; font-size:10px; color:#64748b; margin-bottom:4px; }
         #fixed-cams-dlg input, #fixed-cams-dlg select { width:100%; padding:7px 9px; font-size:12px; border-radius:6px; border:1px solid #475569; background:#0f172a; color:#f8fafc; font-family:inherit; }
         #fixed-cams-dlg input:focus, #fixed-cams-dlg select:focus { outline:none; border-color:#3b82f6; }
+        #fixed-cams-dlg .fc-map-pick-btn { width:100%; padding:8px 10px; border:1px solid #0ea5e9; border-radius:6px; background:#0c4a6e; color:#e0f2fe; cursor:pointer; font-size:11px; font-weight:700; }
+        #fixed-cams-dlg .fc-map-pick-btn:hover { background:#075985; }
         #fixed-cams-dlg .fc-form-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
         #fixed-cams-dlg .fc-form-actions button { padding:7px 16px; font-size:12px; font-weight:500; border-radius:6px; cursor:pointer; }
         #fixed-cams-dlg .fc-form-actions .save { background:#2563eb; border:none; color:#fff; }
@@ -5885,6 +5942,7 @@
                 <span id="sos-banner-text"><span id="sos-banner-prefix" data-i18n="sos.banner.distress">OFFICER IN DISTRESS</span> · <span id="sos-cam"></span> · <span id="sos-time"></span></span>
                 <div class="sos-banner-actions">
                     <button id="sos-ptt-team-btn" class="dismiss-btn sos-ptt-btn" type="button" onclick="pushSosPttTeamNow()" data-i18n="sos.banner.pttTeam" data-i18n-title="sos.banner.pttTeamTitle" aria-pressed="false">PTT team</button>
+                    <button id="sos-group-call-btn" class="dismiss-btn sos-call-btn" type="button" onclick="toggleSosGroupCall()" aria-pressed="false">Call team</button>
                     <button class="dismiss-btn" type="button" onclick="openSosAcknowledge()" data-i18n="sos.acknowledge">Acknowledge</button>
                 </div>
             </div>
@@ -5982,6 +6040,10 @@
                 <div id="sos-ptt-team-sidebar" class="sos-ptt-team-sidebar" hidden>
                     <p id="sos-ptt-team-sidebar-summary" class="hint sos-ptt-team-sidebar-summary"></p>
                     <button type="button" class="btn btn-ghost btn-sm" id="sos-ptt-team-end" style="width:100%;">End response team</button>
+                </div>
+                <div id="sos-group-call-sidebar" class="sos-ptt-team-sidebar" hidden>
+                    <p id="sos-group-call-sidebar-summary" class="hint sos-ptt-team-sidebar-summary"></p>
+                    <button type="button" class="btn btn-ghost btn-sm" id="sos-group-call-end" style="width:100%;" onclick="toggleSosGroupCall()">End group call</button>
                 </div>
                 <p id="ptt-group-status" class="hint"></p>
             </div>
@@ -7963,7 +8025,7 @@
     <script src="/js/bwc-devices.js"></script>
     <script src="/js/video-config.js?v=20260721-panel9-10-source-modes-search-v1"></script>
     <script src="/js/ptt-mic.js"></script>
-    <script src="/js/call-mic.js?v=20260717-call-mic-always-on"></script>
+    <script src="/js/call-mic.js?v=20260721-sos-group-call-v1"></script>
     <script src="/js/ptt-rx.js?v=20260629-live-toast"></script>
     <script src="/js/audit-trail-hub.js?v=20260630-audit-preset-ux"></script>
     <script src="/js/license-features.js?v=20260707-license-gate"></script>
@@ -7985,7 +8047,7 @@
     <script src="/js/missed-activity.js?v=20260712-alerts-copy"></script>
     <script src="/js/evidence-manager.js?v=20260713-ops-map-resize"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260721-pin-spread-reproject-v1"></script>
+    <script src="/js/video-wall.js?v=20260721-sdk-audio-only-sip-call-v1"></script>
     <script src="/js/video-matrix.js?v=20260721-ops10-v1"></script>
     <script src="/js/fleet-ui.js?v=20260706-eight-cap-align"></script>
     <script src="/js/map-popout-sync.js?v=20260612-mirror"></script>
@@ -7996,7 +8058,7 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/cw-display-room.js?v=20260712-launch-all-profile"></script>
     <script src="/js/live-surface-hint.js?v=20260709-duplicate-surface-warn"></script>
-    <script src="/js/command-wall.js?v=20260720-matrix-flv-handoff-v1"></script>
+    <script src="/js/command-wall.js?v=20260721-fixed-camera-zlm-ptz-v1"></script>
     <script src="/js/ops-cw-awareness.js?v=20260622-ops-cw-awareness"></script>
     <script src="/js/command-centre.js?v=20260709-live-viewer-telemetry"></script>
     <script>
@@ -8014,6 +8076,259 @@
             zoomAnimation: true,
             markerZoomAnimation: false,
         }).setView(mapBoot.pos, mapBoot.zoom);
+
+        const fixedCameraMapMarkers = new Map();
+        const fixedCameraMapPlayers = new Map();
+        const fixedCameraOpenVideoOrder = [];
+        const MAX_FIXED_CAMERA_PIN_VIDEOS = 6;
+        const fixedCameraMapOwner = 'map:' + Math.random().toString(36).slice(2);
+
+        function fixedCameraMapEscape(text) {
+            return String(text == null ? '' : text)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function fixedCameraMapIcon(camera) {
+            const iconType = ['fixed', 'dome', 'ptz', 'traffic', 'building'].indexOf(camera && camera.mapIcon) >= 0
+                ? camera.mapIcon : 'fixed';
+            const glyphs = { fixed: '▣', dome: '◒', ptz: '✥', traffic: '◆', building: '▦' };
+            return L.divIcon({
+                className: 'fixed-camera-map-pin icon-' + iconType,
+                html: '<span><b>' + glyphs[iconType] + '</b></span>',
+                iconSize: [32, 32],
+                iconAnchor: [16, 30],
+                popupAnchor: [0, -28],
+            });
+        }
+
+        function fixedCameraPopupHtml(camera) {
+            if (!camera.playable) {
+                return '<div class="fixed-camera-popup">' +
+                    '<div class="fixed-camera-popup-name">' + fixedCameraMapEscape(camera.name || camera.id) + '</div>' +
+                    '<div class="fixed-camera-popup-location-only">Location only — no video configured</div>' +
+                    '</div>';
+            }
+            return '<div class="fixed-camera-popup">' +
+                '<div class="fixed-camera-popup-name">' + fixedCameraMapEscape(camera.name || camera.id) + '</div>' +
+                '<div class="fixed-camera-popup-stage"><div class="fixed-camera-popup-status">Ready</div></div>' +
+                '</div>';
+        }
+
+        function removeFixedCameraFromOpenOrder(cameraId) {
+            const index = fixedCameraOpenVideoOrder.indexOf(cameraId);
+            if (index >= 0) fixedCameraOpenVideoOrder.splice(index, 1);
+        }
+
+        function enforceFixedCameraVideoLimit(camera, marker) {
+            if (!camera || !camera.playable) return;
+            removeFixedCameraFromOpenOrder(camera.id);
+            fixedCameraOpenVideoOrder.push(camera.id);
+            while (fixedCameraOpenVideoOrder.length > MAX_FIXED_CAMERA_PIN_VIDEOS) {
+                const oldestId = fixedCameraOpenVideoOrder.shift();
+                const oldestMarker = fixedCameraMapMarkers.get(oldestId);
+                if (oldestMarker && oldestMarker !== marker && oldestMarker.isPopupOpen && oldestMarker.isPopupOpen()) {
+                    oldestMarker.closePopup();
+                } else {
+                    stopFixedCameraMapVideo(oldestId);
+                }
+            }
+        }
+
+        function prepareFixedCameraPopupPosition(marker) {
+            const popup = marker && marker.getPopup && marker.getPopup();
+            if (!popup) return;
+            if (!popup._fixedCameraPositionWrapped) {
+                const originalUpdatePosition = popup._updatePosition;
+                popup._updatePosition = function () {
+                    originalUpdatePosition.apply(this, arguments);
+                    const element = this.getElement && this.getElement();
+                    if (!element) return;
+                    const below = this._fixedCameraDock === 'below';
+                    element.classList.toggle('fixed-camera-popup-below', below);
+                    if (below) element.style.bottom = -(element.offsetHeight + 18) + 'px';
+                };
+                popup._fixedCameraPositionWrapped = true;
+            }
+            popup._fixedCameraDock = 'above';
+            popup._updatePosition();
+            requestAnimationFrame(function () {
+                const element = popup.getElement && popup.getElement();
+                if (!element || !marker.isPopupOpen || !marker.isPopupOpen()) return;
+                const markerPoint = map.latLngToContainerPoint(marker.getLatLng());
+                popup._fixedCameraDock = markerPoint.y < element.offsetHeight + 28 ? 'below' : 'above';
+                popup._updatePosition();
+            });
+        }
+
+        function stopFixedCameraMapVideo(cameraId) {
+            const entry = fixedCameraMapPlayers.get(cameraId);
+            if (entry && entry.player) {
+                try { entry.player.destroy(); } catch (_) { /* ignore */ }
+            }
+            fixedCameraMapPlayers.delete(cameraId);
+            fetch('/api/fixed-cams/' + encodeURIComponent(cameraId) + '/zlm/stop', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ owner: fixedCameraMapOwner }),
+            }).catch(function () { /* lease expires server-side */ });
+        }
+
+        function startFixedCameraMapVideo(camera, marker) {
+            if (!camera || !camera.playable || !marker || !marker.isPopupOpen()) return;
+            const popupNode = marker.getPopup() && marker.getPopup().getElement();
+            const stage = popupNode && popupNode.querySelector('.fixed-camera-popup-stage');
+            const status = popupNode && popupNode.querySelector('.fixed-camera-popup-status');
+            if (!stage || fixedCameraMapPlayers.has(camera.id)) return;
+            if (status) status.textContent = 'Connecting…';
+            fetch('/api/fixed-cams/' + encodeURIComponent(camera.id) + '/zlm/start', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ owner: fixedCameraMapOwner }),
+            }).then(function (response) {
+                return response.json().then(function (data) {
+                    if (!response.ok || !data.ok) throw new Error((data && data.error) || ('HTTP ' + response.status));
+                    if (!marker.isPopupOpen()) return;
+                    if (!window.Me8LivePlayerFactory || typeof window.Me8LivePlayerFactory.attachFlvPrimary !== 'function') {
+                        throw new Error('FLV player is unavailable');
+                    }
+                    const player = window.Me8LivePlayerFactory.attachFlvPrimary(stage, data.flvUrl, {
+                        proveMs: 300,
+                        timeoutMs: 10000,
+                        onProven: function () { if (status) status.textContent = 'Live'; },
+                        onFail: function () { if (status) status.textContent = 'Video unavailable'; },
+                    });
+                    if (!player) throw new Error('FLV player could not start');
+                    fixedCameraMapPlayers.set(camera.id, { player: player, marker: marker });
+                });
+            }).catch(function (error) {
+                if (status) status.textContent = error.message || 'Video unavailable';
+            });
+        }
+
+        function loadFixedCameraMapPins() {
+            fetch('/api/fixed-cams/public', { credentials: 'same-origin' })
+                .then(function (response) {
+                    if (!response.ok) throw new Error('fixed camera list failed');
+                    return response.json();
+                })
+                .then(function (payload) {
+                    const seen = Object.create(null);
+                    (payload.cams || []).forEach(function (camera) {
+                        const hasCoordinates = camera.lat != null && camera.lng != null
+                            && String(camera.lat).trim() !== '' && String(camera.lng).trim() !== '';
+                        const lat = Number(camera.lat);
+                        const lng = Number(camera.lng);
+                        if (!camera.id || !hasCoordinates
+                            || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+                        seen[camera.id] = true;
+                        let marker = fixedCameraMapMarkers.get(camera.id);
+                        if (marker) {
+                            const wasOpen = marker.isPopupOpen && marker.isPopupOpen();
+                            if (wasOpen && marker._fixedCamera) stopFixedCameraMapVideo(marker._fixedCamera.id);
+                            marker._fixedCamera = camera;
+                            marker.setLatLng([lat, lng]);
+                            marker.setIcon(fixedCameraMapIcon(camera));
+                            marker.setPopupContent(fixedCameraPopupHtml(camera));
+                            if (wasOpen) {
+                                setTimeout(function () { startFixedCameraMapVideo(marker._fixedCamera, marker); }, 0);
+                            }
+                            return;
+                        }
+                        marker = L.marker([lat, lng], { icon: fixedCameraMapIcon(camera), zIndexOffset: 300 });
+                        marker._fixedCamera = camera;
+                        marker.bindPopup(
+                            fixedCameraPopupHtml(camera),
+                            {
+                                maxWidth: 280,
+                                className: 'fixed-camera-leaflet-popup',
+                                autoPan: false,
+                                autoClose: false,
+                                closeOnClick: false,
+                            }
+                        );
+                        marker.on('popupopen', function () {
+                            prepareFixedCameraPopupPosition(marker);
+                            enforceFixedCameraVideoLimit(marker._fixedCamera, marker);
+                            startFixedCameraMapVideo(marker._fixedCamera, marker);
+                        });
+                        marker.on('popupclose', function () {
+                            if (marker._fixedCamera) {
+                                removeFixedCameraFromOpenOrder(marker._fixedCamera.id);
+                                stopFixedCameraMapVideo(marker._fixedCamera.id);
+                            }
+                        });
+                        marker.addTo(map);
+                        fixedCameraMapMarkers.set(camera.id, marker);
+                    });
+                    fixedCameraMapMarkers.forEach(function (marker, cameraId) {
+                        if (seen[cameraId]) return;
+                        stopFixedCameraMapVideo(cameraId);
+                        try { map.removeLayer(marker); } catch (_) { /* ignore */ }
+                        fixedCameraMapMarkers.delete(cameraId);
+                    });
+                    if (typeof updateMapPinLegend === 'function') updateMapPinLegend();
+                })
+                .catch(function () { /* fixed cameras are optional */ });
+        }
+
+        window.reloadFixedCameraMapPins = loadFixedCameraMapPins;
+
+        window.beginFixedCameraMapPick = function () {
+            if (window.fixedCameraMapPickActive) return Promise.resolve(null);
+            window.fixedCameraMapPickActive = true;
+            const mapNode = document.getElementById('map');
+            let bar = document.getElementById('fixed-camera-map-pick-bar');
+            if (!bar) {
+                bar = document.createElement('div');
+                bar.id = 'fixed-camera-map-pick-bar';
+                bar.innerHTML = '<span>Click the fixed camera location on the map.</span>' +
+                    '<button type="button" id="fixed-camera-map-pick-cancel">Cancel</button>';
+                document.body.appendChild(bar);
+            }
+            bar.hidden = false;
+            if (mapNode) mapNode.classList.add('fixed-camera-location-pick');
+            return new Promise(function (resolve) {
+                let finished = false;
+                function finish(result) {
+                    if (finished) return;
+                    finished = true;
+                    window.fixedCameraMapPickActive = false;
+                    map.off('click', onMapClick);
+                    document.removeEventListener('keydown', onKeyDown);
+                    const cancel = document.getElementById('fixed-camera-map-pick-cancel');
+                    if (cancel) cancel.removeEventListener('click', onCancel);
+                    if (mapNode) mapNode.classList.remove('fixed-camera-location-pick');
+                    bar.hidden = true;
+                    resolve(result);
+                }
+                function onMapClick(event) {
+                    finish({ lat: event.latlng.lat, lng: event.latlng.lng });
+                }
+                function onCancel() { finish(null); }
+                function onKeyDown(event) {
+                    if (event.key === 'Escape') finish(null);
+                }
+                map.on('click', onMapClick);
+                const cancel = document.getElementById('fixed-camera-map-pick-cancel');
+                if (cancel) cancel.addEventListener('click', onCancel);
+                document.addEventListener('keydown', onKeyDown);
+            });
+        };
+
+        setInterval(function () {
+            fixedCameraMapPlayers.forEach(function (_entry, cameraId) {
+                fetch('/api/fixed-cams/' + encodeURIComponent(cameraId) + '/zlm/start', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ owner: fixedCameraMapOwner }),
+                }).catch(function () { /* next heartbeat retries */ });
+            });
+        }, 30000);
+        loadFixedCameraMapPins();
         function fmMapResize() {
             try { map.invalidateSize(); } catch (_) { /* ignore */ }
         }
@@ -11597,11 +11912,15 @@
                     showMapGroupMembers(row.getAttribute('data-group-name'));
                 });
             });
+            if (fixedCameraMapMarkers.size > 0) {
+                rows += '<div class="leg-row"><span class="leg-fixed-camera">▣</span><span>Fixed camera</span></div>';
+            }
             rows += '<div class="leg-row"><span class="leg-dot" style="background:#FF3333;box-shadow:0 0 8px #FF3333"></span><span>' + dashboardTr('map.legend.sosAlarm') + '</span></div>';
             rows += '<div class="leg-row"><span class="leg-dot" style="background:#f97316;box-shadow:0 0 8px #f97316"></span><span>' + dashboardTr('map.legend.geofenceOut') + '</span></div>';
             rows += '<div class="leg-row"><span class="leg-dot" style="background:#94a3b8;box-shadow:none;opacity:0.9"></span><span>' + dashboardTr('map.legend.offlineLast') + '</span></div>';
             el.innerHTML = '<h5>' + dashboardTr('map.legend.groups') + '</h5>' + rows;
-            el.hidden = keys.length === 0 && Object.keys(deviceMarkers).length === 0;
+            el.hidden = keys.length === 0 && Object.keys(deviceMarkers).length === 0
+                && fixedCameraMapMarkers.size === 0;
         }
 
         function updateMapGpsPendingBanner(/* pending */) {
@@ -12392,6 +12711,7 @@
         var activeSosAlarms = {};
         var focusedSosCamId = null;
         var sosQueueSnapshot = { active: [], queued: [], pending: [], maxLive: 6 };
+        var sosGroupCallState = { active: false, phase: 'idle', participants: [] };
 
         function getSosAlarmCount() {
             return Object.keys(activeSosAlarms).length;
@@ -12809,6 +13129,96 @@
             });
         }
 
+        function sosGroupCallCamIds() {
+            var alarm = getFocusedSosAlarm() || pendingSosAck;
+            if (!alarm || !alarm.cameraId) return [];
+            var source = Array.isArray(global.activeSosPttTeam) && global.activeSosPttTeam.length
+                ? global.activeSosPttTeam.slice()
+                : [alarm.cameraId].concat(
+                    sosResponseNearby.filter(function (row) { return row && row.online !== false; })
+                        .map(function (row) { return row.cameraId; })
+                );
+            var seen = {};
+            return source.map(normalizeCamId).filter(function (id) {
+                if (!id || seen[id]) return false;
+                seen[id] = true;
+                return true;
+            }).slice(0, 8);
+        }
+
+        function syncSosGroupCallUi() {
+            var state = sosGroupCallState || { active: false, participants: [] };
+            var btn = document.getElementById('sos-group-call-btn');
+            var owns = !!(state.active && state.ownerSocketId && socket && state.ownerSocketId === socket.id);
+            var connected = Number(state.connected || 0);
+            var total = Number(state.total || (state.participants || []).length || 0);
+            if (btn) {
+                btn.classList.toggle('active', !!state.active);
+                btn.setAttribute('aria-pressed', state.active ? 'true' : 'false');
+                btn.disabled = !!(state.active && !owns);
+                if (!state.active) btn.textContent = 'CALL TEAM';
+                else if (owns) btn.textContent = connected > 0
+                    ? ('END CALL · ' + connected + '/' + total)
+                    : ('CALLING · 0/' + total);
+                else btn.textContent = 'GROUP CALL ON · ' + connected + '/' + total;
+            }
+            var sidebar = document.getElementById('sos-group-call-sidebar');
+            if (sidebar) {
+                sidebar.hidden = !state.active;
+                var summary = document.getElementById('sos-group-call-sidebar-summary');
+                if (summary) {
+                    summary.textContent = state.active
+                        ? ('SOS group call — ' + connected + ' of ' + total + ' connected'
+                            + (owns ? '. Your microphone is live.' : '. Controlled by another operator.'))
+                        : '';
+                }
+                var endBtn = document.getElementById('sos-group-call-end');
+                if (endBtn) endBtn.disabled = !owns;
+            }
+            if (window.CallMic) {
+                if (owns && state.active && !CallMic.isGroupActive()) CallMic.startGroup();
+                else if ((!state.active || !owns) && CallMic.isGroupActive()) CallMic.stopGroup();
+            }
+        }
+
+        function toggleSosGroupCall() {
+            if (sosGroupCallState && sosGroupCallState.active) {
+                if (sosGroupCallState.ownerSocketId !== socket.id) return;
+                socket.emit('sos-group-call-stop');
+                return;
+            }
+            var alarm = getFocusedSosAlarm() || pendingSosAck;
+            var camIds = sosGroupCallCamIds();
+            if (!alarm || !alarm.cameraId || !camIds.length) {
+                alert('No active SOS call team.');
+                return;
+            }
+            var btn = document.getElementById('sos-group-call-btn');
+            if (btn) btn.disabled = true;
+            if (window.CallMic) CallMic.startGroup();
+            showSosPttTeamToast('Calling ' + camIds.length + ' SOS team unit(s)…', 8000);
+            socket.emit('sos-group-call-start', {
+                alarmCamId: alarm.cameraId,
+                camIds: camIds,
+            });
+        }
+        window.toggleSosGroupCall = toggleSosGroupCall;
+
+        socket.on('sos-group-call-state', function (state) {
+            sosGroupCallState = state || { active: false, phase: 'idle', participants: [] };
+            syncSosGroupCallUi();
+        });
+        socket.on('sos-group-call-result', function (result) {
+            var btn = document.getElementById('sos-group-call-btn');
+            if (btn && !(sosGroupCallState && sosGroupCallState.active)) btn.disabled = false;
+            if (!result || !result.ok) {
+                var message = (result && result.error) || 'SOS group call failed.';
+                if (window.CallMic && CallMic.isGroupActive()) CallMic.stopGroup();
+                showSosPttTeamToast(message, 10000);
+                alert(message);
+            }
+        });
+
         function showSosPttTeamToast(message, ms) {
             var el = document.getElementById('sos-ptt-team-toast');
             if (!el) {
@@ -12825,6 +13235,10 @@
         }
 
         function endSosPttTeam() {
+            if (sosGroupCallState && sosGroupCallState.active
+                && sosGroupCallState.ownerSocketId === socket.id) {
+                socket.emit('sos-group-call-stop');
+            }
             global.activeSosPttTeam = null;
             if (global.VideoWall && VideoWall.restorePttAfterSosSessionClose) {
                 VideoWall.restorePttAfterSosSessionClose();
@@ -15238,7 +15652,7 @@
         })();
     </script>
     <script defer src="/js/vc-lazy.js?v=20260702-restore-8wc-v2"></script>
-    <script defer src="/js/fixed-cams-ui.js?v=20260721-wall-rtsp-url-v1"></script>
+    <script defer src="/js/fixed-cams-ui.js?v=20260721-map-picker-icon-legend-v1"></script>
 
 <!-- Fixed Cameras dialog — opens from Settings card, fully self-contained, no fleet-ui.js dependency -->
 <dialog id="fixed-cams-dlg" aria-labelledby="fc-dlg-title">
@@ -15261,6 +15675,7 @@
         <thead>
           <tr>
             <th>Name</th>
+            <th>Map icon</th>
             <th>Zone</th>
             <th>GPS coordinates</th>
             <th>Stream</th>
@@ -15269,7 +15684,7 @@
             <th style="width:120px"></th>
           </tr>
         </thead>
-        <tbody id="fc-tbody"><tr><td colspan="7" class="fc-empty">Loading…</td></tr></tbody>
+        <tbody id="fc-tbody"><tr><td colspan="8" class="fc-empty">Loading…</td></tr></tbody>
       </table>
     </div>
 
@@ -15280,6 +15695,18 @@
         <div class="full"><label>Camera name *<input id="fc-f-name" type="text" placeholder="e.g. Jalan Ampang Cam 1" autocomplete="off"></label></div>
         <div><label>Latitude * <input id="fc-f-lat" type="number" step="any" placeholder="3.1575"></label></div>
         <div><label>Longitude * <input id="fc-f-lng" type="number" step="any" placeholder="101.7115"></label></div>
+        <div class="full"><button type="button" id="fc-map-pick-btn" class="fc-map-pick-btn">⌖ Set location on map</button></div>
+        <div>
+          <label>Map icon
+            <select id="fc-f-map-icon">
+              <option value="fixed">▣ Fixed camera</option>
+              <option value="dome">◒ Dome camera</option>
+              <option value="ptz">✥ PTZ camera</option>
+              <option value="traffic">◆ Traffic camera</option>
+              <option value="building">▦ Building camera</option>
+            </select>
+          </label>
+        </div>
         <div><label>Zone / area <input id="fc-f-zone" type="text" placeholder="e.g. KL Central"></label></div>
         <div>
           <label>Stream source
@@ -15333,6 +15760,7 @@
           <tr><td>Lat</td><td>Yes</td><td>Latitude (e.g. 3.1575)</td></tr>
           <tr><td>Lng</td><td>Yes</td><td>Longitude (e.g. 101.7115)</td></tr>
           <tr><td>Zone</td><td>No</td><td>Area name (e.g. KL Central)</td></tr>
+          <tr><td>MapIcon</td><td>No</td><td>fixed, dome, ptz, traffic, or building</td></tr>
           <tr><td>StreamSource</td><td>No</td><td>onvif, rtsp, or leave blank</td></tr>
           <tr><td>OnvifHost</td><td>If ONVIF</td><td>Camera IP address</td></tr>
           <tr><td>OnvifPort</td><td>If ONVIF</td><td>Camera web port — usually 80</td></tr>

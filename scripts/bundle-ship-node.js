@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Bundle portable Node 22 + npm dependencies into a delivery pack appDir.
- * ME8 requires Node 22+ (built-in node:sqlite in siteDb.js). Match SaaS trial lane 22.18.0.
+ * ME8 requires Node 22+; runtime catalog access uses asynchronous pg.
  * Usage: node scripts/bundle-ship-node.js <appRoot> <appDir>
  */
 'use strict';

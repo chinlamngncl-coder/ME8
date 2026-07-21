@@ -90,6 +90,9 @@
     let pcmAudio = null;
     let audioFocusSlot = null;
     let fleetById = Object.create(null);
+    let fixedCameraById = Object.create(null);
+    let selectedPtzSlot = -1;
+    const fixedCameraOwner = 'command-wall:' + Math.random().toString(36).slice(2);
     let rosterFilter = '';
     let voiceCallCamId = null;
     let voiceCallPending = false;
@@ -184,6 +187,14 @@
     function deviceOnline(camId) {
         const d = fleetById[camId];
         return !!(d && d.online);
+    }
+
+    function isFixedCameraId(camId) {
+        return String(camId || '').indexOf('fixed:') === 0;
+    }
+
+    function fixedCameraId(camId) {
+        return isFixedCameraId(camId) ? String(camId).slice(6) : '';
     }
 
     function deviceName(camId) {
@@ -813,6 +824,11 @@
             bindCellDrop(cell, i);
             bindCellControls(cell, i);
             bindCellSpotlight(cell, i);
+            cell.addEventListener('click', function (event) {
+                if (event.target && event.target.closest('button')) return;
+                selectedPtzSlot = i;
+                syncPtzPanel();
+            });
         }
         applyWallLayout();
     }
@@ -859,6 +875,7 @@
         const playBtn = cell.querySelector('.btn-play');
         const stopBtn = cell.querySelector('.btn-stop');
         const audioBtn = cell.querySelector('.btn-audio');
+        const fixedCamera = isFixedCameraId(camId);
         const commMode = !!(camId && pttCommCamId && normalizeCamId(camId) === normalizeCamId(pttCommCamId));
         if (playBtn) playBtn.disabled = !camId || (busy && online);
         if (stopBtn) stopBtn.disabled = !camId || (!busy && !commMode);
@@ -868,17 +885,121 @@
             stopBtn.title = tr('video.stop');
         }
         if (audioBtn) {
-            audioBtn.disabled = !camId || !live || !online;
+            audioBtn.hidden = fixedCamera;
+            audioBtn.disabled = fixedCamera || !camId || !live || !online;
             const muted = isSlotMuted(slot);
             audioBtn.textContent = muted ? '🔇' : '🔊';
             audioBtn.title = muted ? 'Listen to this panel' : 'Mute this panel';
             audioBtn.classList.toggle('listening', !muted && live);
         }
         cell.classList.toggle('has-cam', !!camId);
+        cell.classList.toggle(c('ptz-selected'), selectedPtzSlot === slot);
         const overlay = cellQuery(cell, 'cell-offline-overlay');
         if (overlay) overlay.hidden = !(camId && !online);
         syncSpotlightUi();
         maybeExitSpotlightIfInvalid();
+        if (selectedPtzSlot === slot) syncPtzPanel();
+    }
+
+    function ensurePtzPanel() {
+        let panel = document.getElementById(c('ptz-panel'));
+        if (panel) return panel;
+        if (!document.getElementById('cw-ptz-runtime-style')) {
+            const style = document.createElement('style');
+            style.id = 'cw-ptz-runtime-style';
+            style.textContent =
+                '.' + c('ptz-panel') + '{flex-shrink:0;padding:10px;border-top:1px solid #334155;background:#0f172a}' +
+                '.' + c('ptz-title') + '{color:#93c5fd;font-size:10px;font-weight:800;letter-spacing:.08em}' +
+                '.' + c('ptz-camera') + '{min-height:30px;margin:5px 0 8px;color:#e2e8f0;font-size:11px;line-height:1.35}' +
+                '.' + c('ptz-pad') + '{display:grid;grid-template-columns:repeat(3,34px);grid-template-areas:". up ." "left home right" ". down .";justify-content:center;gap:4px}' +
+                '.' + c('ptz-pad') + ' [data-ptz=up]{grid-area:up}.' + c('ptz-pad') + ' [data-ptz=left]{grid-area:left}' +
+                '.' + c('ptz-pad') + ' [data-ptz=home]{grid-area:home}.' + c('ptz-pad') + ' [data-ptz=right]{grid-area:right}' +
+                '.' + c('ptz-pad') + ' [data-ptz=down]{grid-area:down}' +
+                '.' + c('ptz-pad') + ' button,.' + c('ptz-zoom') + ' button{border:1px solid #475569;border-radius:5px;background:#1e293b;color:#e2e8f0;cursor:pointer;touch-action:none}' +
+                '.' + c('ptz-pad') + ' button{width:34px;height:30px}.' + c('ptz-zoom') + '{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px}' +
+                '.' + c('ptz-zoom') + ' button{height:28px;font-size:10px}.' + c('ptz-panel') + ' button:disabled{opacity:.35;cursor:not-allowed}' +
+                '.' + c('ptz-status') + '{margin-top:7px;min-height:26px;color:#64748b;font-size:9px;line-height:1.35}' +
+                '.' + c('cell') + '.' + c('ptz-selected') + '{border-color:#38bdf8;box-shadow:inset 0 0 0 1px #38bdf8}';
+            document.head.appendChild(style);
+        }
+        const rosterBody = el('roster-body');
+        if (!rosterBody || !rosterBody.parentElement) return null;
+        panel = document.createElement('section');
+        panel.id = c('ptz-panel');
+        panel.className = c('ptz-panel');
+        panel.innerHTML =
+            '<div class="' + c('ptz-title') + '">ONVIF PTZ</div>' +
+            '<div class="' + c('ptz-camera') + '">Select a fixed camera panel</div>' +
+            '<div class="' + c('ptz-pad') + '">' +
+            '<button type="button" data-ptz="up" aria-label="Tilt up">▲</button>' +
+            '<button type="button" data-ptz="left" aria-label="Pan left">◀</button>' +
+            '<button type="button" data-ptz="home" aria-label="Home">●</button>' +
+            '<button type="button" data-ptz="right" aria-label="Pan right">▶</button>' +
+            '<button type="button" data-ptz="down" aria-label="Tilt down">▼</button>' +
+            '</div>' +
+            '<div class="' + c('ptz-zoom') + '">' +
+            '<button type="button" data-ptz="zoom-out">− Zoom</button>' +
+            '<button type="button" data-ptz="zoom-in">+ Zoom</button>' +
+            '</div>' +
+            '<div class="' + c('ptz-status') + '">PTZ is available for registered ONVIF PTZ cameras.</div>';
+        rosterBody.parentElement.appendChild(panel);
+        panel.querySelectorAll('[data-ptz]').forEach(function (button) {
+            const action = button.getAttribute('data-ptz');
+            if (action === 'home') {
+                button.addEventListener('click', function () { sendPtzCommand('home'); });
+                return;
+            }
+            button.addEventListener('pointerdown', function (event) {
+                event.preventDefault();
+                try { button.setPointerCapture(event.pointerId); } catch (_) { /* ignore */ }
+                sendPtzCommand(action);
+            });
+            ['pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave'].forEach(function (eventName) {
+                button.addEventListener(eventName, function () { sendPtzCommand('stop'); });
+            });
+        });
+        return panel;
+    }
+
+    function selectedPtzCamera() {
+        const camId = selectedPtzSlot >= 0 ? slotCamId(selectedPtzSlot) : null;
+        return isFixedCameraId(camId) ? fixedCameraById[fixedCameraId(camId)] : null;
+    }
+
+    function syncPtzPanel() {
+        const panel = ensurePtzPanel();
+        if (!panel) return;
+        const camera = selectedPtzCamera();
+        const enabled = !!(camera && camera.ptzEnabled && camera.streamSource === 'onvif');
+        const name = panel.querySelector('.' + c('ptz-camera'));
+        if (name) {
+            name.textContent = camera
+                ? ((camera.name || camera.id) + (enabled ? '' : ' — PTZ unavailable'))
+                : 'Select a fixed camera panel';
+        }
+        panel.querySelectorAll('[data-ptz]').forEach(function (button) {
+            button.disabled = !enabled;
+        });
+    }
+
+    function sendPtzCommand(action) {
+        const camera = selectedPtzCamera();
+        const panel = ensurePtzPanel();
+        const status = panel && panel.querySelector('.' + c('ptz-status'));
+        if (!camera || !camera.ptzEnabled || camera.streamSource !== 'onvif') return;
+        fetch('/api/fixed-cams/' + encodeURIComponent(camera.id) + '/ptz', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: action }),
+        }).then(function (response) {
+            if (!response.ok) return response.json().then(function (data) {
+                throw new Error((data && data.error) || ('HTTP ' + response.status));
+            });
+            if (status) status.textContent = action === 'stop' ? 'PTZ stopped' : ('PTZ: ' + action);
+        }).catch(function (error) {
+            if (status && action !== 'stop') status.textContent = 'PTZ failed: ' + error.message;
+        });
     }
 
     function showStageHint(slot, show) {
@@ -1442,6 +1563,7 @@
             ? (opts.homeSlot != null ? opts.homeSlot : slot)
             : (slots[slot] && slots[slot].homeSlot != null ? slots[slot].homeSlot : slot);
         slots[slot] = { camId: camId, name: name || deviceName(camId), pinned: pinned, homeSlot: homeSlot };
+        if (isFixedCameraId(camId)) selectedPtzSlot = slot;
         setCellName(slot, slots[slot].name);
         showStageHint(slot, false);
         showStageStopped(slot, false);
@@ -1454,6 +1576,42 @@
             else startSlot(slot);
         }
         syncCwAlarmUiForSlot(slot);
+        syncPtzPanel();
+    }
+
+    function startFixedCameraSlot(slot, camId) {
+        const cameraId = fixedCameraId(camId);
+        connectingSlots.add(slot);
+        showConnecting(slot, true);
+        setCellStatus(slot, 'Connecting…', '');
+        updateCellControls(slot);
+        return fetch('/api/fixed-cams/' + encodeURIComponent(cameraId) + '/zlm/start', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ owner: fixedCameraOwner }),
+        }).then(function (response) {
+            return response.json().then(function (data) {
+                if (!response.ok || !data.ok) throw new Error((data && data.error) || ('HTTP ' + response.status));
+                if (normalizeCamId(slotCamId(slot)) !== normalizeCamId(camId)) return;
+                streaming.add(camId);
+                wvpHandoffFlvByCam.set(camId, data.flvUrl);
+                if (!attachWvpHandoffFlvToSlot(slot, camId, data.flvUrl)) {
+                    throw new Error('FLV player is unavailable');
+                }
+            });
+        }).catch(function (error) {
+            connectingSlots.delete(slot);
+            showConnecting(slot, false);
+            setCellStatus(slot, 'Error', '');
+            const cell = getCell(slot);
+            const empty = cell && cellQuery(cell, 'cell-empty');
+            if (empty) {
+                empty.hidden = false;
+                empty.textContent = error.message || 'Fixed camera failed';
+            }
+            updateCellControls(slot);
+        });
     }
 
     function attachPlayer(slot) {
@@ -1567,6 +1725,10 @@
             return;
         }
         if (players.has(slot)) return;
+        if (isFixedCameraId(camId)) {
+            startFixedCameraSlot(slot, camId);
+            return;
+        }
         clearPttForCwLive(camId);
         if (socket && !streaming.has(camId)) {
             socket.emit('start-video', { camId: camId, mode: 'video', surface: CW_VIEWER_SURFACE });
@@ -1581,6 +1743,14 @@
 
     function stopSlot(slot, keepAssignment) {
         const camId = slotCamId(slot);
+        if (isFixedCameraId(camId)) {
+            fetch('/api/fixed-cams/' + encodeURIComponent(fixedCameraId(camId)) + '/zlm/stop', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ owner: fixedCameraOwner }),
+            }).catch(function () { /* server owner lease expires safely */ });
+        }
         if (camId && pttCommCamId && normalizeCamId(camId) === normalizeCamId(pttCommCamId)) {
             clearCwPttComm();
         }
@@ -1590,9 +1760,12 @@
         destroyPlayer(slot);
         showConnecting(slot, false);
         if (camId) removeFromDeck(camId);
-        if (camId && socket) {
+        if (camId && socket && !isFixedCameraId(camId)) {
             socket.emit('stop-video', { camId: camId, surface: CW_VIEWER_SURFACE });
             streaming.delete(camId);
+        } else if (camId && isFixedCameraId(camId)) {
+            streaming.delete(camId);
+            clearWvpHandoffFlv(camId);
         }
         const cell = getCell(slot);
         if (cell) {
@@ -1807,8 +1980,9 @@
 
     const rosterData = { groups: [], ungrouped: {} };
 
-    function buildRosterModel(fleet, groupsPayload, bwcDevices) {
+    function buildRosterModel(fleet, groupsPayload, bwcDevices, fixedCameras) {
         fleetById = Object.create(null);
+        fixedCameraById = Object.create(null);
         (fleet || []).forEach(function (d) {
             if (!d || !d.id) return;
             fleetById[d.id] = {
@@ -1829,6 +2003,18 @@
                 if (b.mapGroup) fleetById[id].mapGroup = b.mapGroup;
             }
         });
+        (fixedCameras || []).forEach(function (camera) {
+            if (!camera || !camera.id || !camera.playable) return;
+            const sourceId = 'fixed:' + camera.id;
+            fixedCameraById[camera.id] = camera;
+            fleetById[sourceId] = {
+                id: sourceId,
+                name: camera.name || camera.id,
+                online: true,
+                mapGroup: 'Fixed cameras',
+                fixedCamera: true,
+            };
+        });
         const inDispatch = Object.create(null);
         rosterData.groups = (groupsPayload || []).map(function (g) {
             return {
@@ -1845,7 +2031,7 @@
         Object.keys(fleetById).forEach(function (id) {
             if (inDispatch[id]) return;
             const d = fleetById[id];
-            const gname = d.mapGroup ? ('Map: ' + d.mapGroup) : 'Unassigned';
+            const gname = d.fixedCamera ? 'Fixed cameras' : (d.mapGroup ? ('Map: ' + d.mapGroup) : 'Unassigned');
             if (!rosterData.ungrouped[gname]) rosterData.ungrouped[gname] = [];
             rosterData.ungrouped[gname].push(d);
         });
@@ -1877,11 +2063,13 @@
             fetchJsonOk('/api/fleet'),
             fetchJsonOk('/api/dispatch-groups'),
             fetchJsonOk('/api/bwc-devices'),
+            fetchJsonOk('/api/fixed-cams/public'),
         ]).then(function (results) {
             const fleet = (results[0] && results[0].fleet) || [];
             const groups = (results[1] && results[1].groups) || [];
             const bwc = (results[2] && results[2].devices) || [];
-            buildRosterModel(fleet, groups, bwc);
+            const fixedCameras = (results[3] && results[3].cams) || [];
+            buildRosterModel(fleet, groups, bwc, fixedCameras);
             renderRoster();
             refreshAllOnlineState();
             maybeAutofillFromUrl();
@@ -1893,6 +2081,21 @@
             setRosterMessage('Failed to load roster: ' + (err && err.message ? err.message : 'unknown error'));
         });
     }
+
+    setInterval(function () {
+        const active = Object.create(null);
+        for (let slot = 0; slot < MAX_SLOTS; slot += 1) {
+            const camId = slotCamId(slot);
+            if (!isFixedCameraId(camId) || !players.has(slot) || active[camId]) continue;
+            active[camId] = true;
+            fetch('/api/fixed-cams/' + encodeURIComponent(fixedCameraId(camId)) + '/zlm/start', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ owner: fixedCameraOwner }),
+            }).catch(function () { /* next heartbeat retries */ });
+        }
+    }, 30000);
 
     function parseLaunchParams() {
         const q = new URLSearchParams(window.location.search);

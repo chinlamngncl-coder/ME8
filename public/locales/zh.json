@@ -1970,5 +1970,9 @@
   "settingsHub.strip.reason.ptt": "Push-to-talk",
   "settingsHub.strip.reason.pool": "Live video",
   "settingsHub.strip.degraded": "Not OK",
-  "settingsHub.strip.degradedShort": "Not OK — {reason}"
+  "settingsHub.strip.degradedShort": "Not OK — {reason}",
+  "evidenceHub.importForensic": "导入取证文件",
+  "evidenceHub.importChecking": "正在检查文件签名和完整性…",
+  "evidenceHub.importAccepted": "取证证据已准入并生成哈希。",
+  "evidenceHub.hashLegacyPending": "旧文件 — 扫描存储以计算"
 }

@@ -1,4 +1,4 @@
-# Ubitron ME8 — PH/KR one-shot delivery pack (Mobility Test 2).
+# Ubitron ME8 - PH/KR one-shot delivery pack (Mobility Test 2).
 # Ship desk only. Output: Desktop\Mobility Test 2 + zip. No secrets in customer pack.
 param(
     [string]$AppRoot = '',
@@ -108,7 +108,7 @@ if (Test-Path $OutRoot) {
     try {
         Remove-Item $OutRoot -Recurse -Force
     } catch {
-        Write-Host 'WARN: full OutRoot remove blocked — refreshing in place...' -ForegroundColor Yellow
+        Write-Host 'WARN: full OutRoot remove blocked - refreshing in place...' -ForegroundColor Yellow
         Get-ChildItem $OutRoot -Force -ErrorAction SilentlyContinue |
             Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -155,19 +155,20 @@ if (Test-Path $labWvpJs) { Remove-Item $labWvpJs -Force }
 
 Write-Step 'Stage docker, vendor, FR sidecar...'
 Copy-Tree (Join-Path $AppRoot 'docker') (Join-Path $appDir 'docker')
-# Lab-only docker trees — not for customer handoff
+Copy-Tree (Join-Path $AppRoot 'db\migrations') (Join-Path $appDir 'db\migrations')
+# Lab-only docker trees - not for customer handoff
 foreach ($labDocker in @('wvp', 'zlm-config')) {
     $p = Join-Path $appDir "docker\$labDocker"
     if (Test-Path $p) { Remove-Item $p -Recurse -Force }
 }
-foreach ($labFile in @('zlm.compose.yml', 'zlm-config.example.ini', 'docker-compose.enterprise.yml')) {
+foreach ($labFile in @('zlm.compose.yml', 'zlm-config.example.ini')) {
     $p = Join-Path $appDir "docker\$labFile"
     if (Test-Path $p) { Remove-Item $p -Force }
 }
 New-Item -ItemType Directory -Force -Path (Join-Path $appDir 'vendor\ffmpeg-lgpl') | Out-Null
 Copy-Item $ffmpegSrc (Join-Path $appDir 'vendor\ffmpeg-lgpl\ffmpeg.exe') -Force
 
-# mvp-zlm-in-pack — optional Windows MediaServer in customer pack (no Docker)
+# mvp-zlm-in-pack - optional Windows MediaServer in customer pack (no Docker)
 $zlmSrcExe = Join-Path $AppRoot 'vendor\zlmediakit\MediaServer.exe'
 if (Test-Path $zlmSrcExe) {
     $zlmDst = Join-Path $appDir 'vendor\zlmediakit'
@@ -183,7 +184,7 @@ if (Test-Path $zlmSrcExe) {
     Copy-Item (Join-Path $AppRoot 'vendor\zlmediakit\README.md') (Join-Path $zlmDst 'README.md') -Force -ErrorAction SilentlyContinue
     Write-Host "  included vendor\zlmediakit\MediaServer.exe"
 } else {
-    Write-Host "  skip ZLM pack binary (vendor\zlmediakit\MediaServer.exe missing — run INSTALL-ZLM-PACK.ps1)"
+    Write-Host "  skip ZLM pack binary (vendor\zlmediakit\MediaServer.exe missing - run INSTALL-ZLM-PACK.ps1)"
 }
 
 $frDst = Join-Path $appDir 'fr-sidecar'
@@ -195,6 +196,7 @@ foreach ($f in @('app.py', 'requirements.txt', 'INSTALL.ps1')) {
 New-Item -ItemType Directory -Force -Path (Join-Path $appDir 'scripts') | Out-Null
 Copy-Item (Join-Path $AppRoot 'scripts\START-LIVEKIT.ps1') (Join-Path $appDir 'scripts\START-LIVEKIT.ps1') -Force
 Copy-Item (Join-Path $AppRoot 'scripts\trial-ship\verify-install-ship.js') (Join-Path $appDir 'scripts\verify-install.js') -Force
+Copy-Item (Join-Path $AppRoot 'scripts\startup-preflight.js') (Join-Path $appDir 'scripts\startup-preflight.js') -Force
 Copy-Item (Join-Path $ShipDir 'package.ship.json') (Join-Path $appDir 'package.json') -Force
 foreach ($f in @('kill-fleet-ports.ps1', 'VIEW-LOG.bat', 'START-FR.bat', 'START-FACE-MATCHING.bat')) {
     $s = Join-Path $AppRoot $f
@@ -205,7 +207,7 @@ Copy-Item (Join-Path $ShipDir 'RESTART-FLEET.bat') (Join-Path $appDir 'RESTART-F
 New-Item -ItemType Directory -Force -Path (Join-Path $appDir 'keys') | Out-Null
 Copy-Item $PublicKeySrc (Join-Path $appDir 'keys\license-public.pem') -Force
 
-Write-Step 'Bundle server runtime (run.js) — no lib/ shipped...'
+Write-Step 'Bundle server runtime (run.js) - no lib/ shipped...'
 Set-Location $AppRoot
 node (Join-Path $AppRoot 'scripts\build-ship-runtime.js') $AppRoot (Join-Path $appDir 'run.js')
 if ($LASTEXITCODE -ne 0) { throw 'build-ship-runtime failed' }

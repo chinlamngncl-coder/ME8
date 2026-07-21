@@ -9,6 +9,9 @@
     let mic = null;
     let activeCamId = null;
     let socketRef = null;
+    const GROUP_CALL_ID = '__sos_group__';
+    let playbackCtx = null;
+    let playbackTime = 0;
 
     function linearToAlaw(pcm) {
         const MASK = 0xD5;
@@ -136,14 +139,60 @@
         if (!mic) {
             mic = createCallMic(function (alawFrame) {
                 if (!socketRef || !activeCamId) return;
-                socketRef.emit('call-audio', { camId: activeCamId }, alawFrame.buffer);
+                if (activeCamId === GROUP_CALL_ID) {
+                    socketRef.emit('sos-group-call-audio', { group: true }, alawFrame.buffer);
+                } else {
+                    socketRef.emit('call-audio', { camId: activeCamId }, alawFrame.buffer);
+                }
             });
         }
         return mic;
     }
 
+    function binaryBytes(value) {
+        if (!value) return null;
+        if (value instanceof ArrayBuffer) return new Uint8Array(value);
+        if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+        if (value.type === 'Buffer' && Array.isArray(value.data)) return new Uint8Array(value.data);
+        return null;
+    }
+
+    function ensurePlaybackContext() {
+        if (!playbackCtx) playbackCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (playbackCtx.state === 'suspended') playbackCtx.resume().catch(function () { /* ignore */ });
+        return playbackCtx;
+    }
+
+    function playGroupPcm(pcmValue) {
+        const bytes = binaryBytes(pcmValue);
+        if (!bytes || bytes.length < 2) return;
+        const sampleCount = Math.floor(bytes.length / 2);
+        ensurePlaybackContext();
+        const audio = playbackCtx.createBuffer(1, sampleCount, 8000);
+        const channel = audio.getChannelData(0);
+        for (let i = 0; i < sampleCount; i += 1) {
+            let sample = bytes[i * 2] | (bytes[(i * 2) + 1] << 8);
+            if (sample & 0x8000) sample -= 0x10000;
+            channel[i] = sample / 32768;
+        }
+        const now = playbackCtx.currentTime;
+        if (playbackTime < now || playbackTime > now + 0.35) playbackTime = now + 0.025;
+        const source = playbackCtx.createBufferSource();
+        source.buffer = audio;
+        source.connect(playbackCtx.destination);
+        source.start(playbackTime);
+        playbackTime += audio.duration;
+    }
+
     function bindSocket(socket) {
         socketRef = socket;
+        if (socket && !socket.__sosGroupCallAudioBound) {
+            socket.__sosGroupCallAudioBound = true;
+            socket.on('sos-group-call-audio', function (_meta, pcm) {
+                if (activeCamId !== GROUP_CALL_ID) return;
+                playGroupPcm(pcm);
+            });
+        }
     }
 
     function start(camId) {
@@ -151,6 +200,19 @@
         activeCamId = camId;
         const m = ensureMic();
         if (m) m.start().catch(function () { activeCamId = null; });
+    }
+
+    function startGroup() {
+        if (!socketRef) return;
+        activeCamId = GROUP_CALL_ID;
+        ensurePlaybackContext();
+        const m = ensureMic();
+        if (m) m.start().catch(function () { activeCamId = null; });
+    }
+
+    function stopGroup() {
+        if (activeCamId !== GROUP_CALL_ID) return;
+        stop();
     }
 
     function stop() {
@@ -161,7 +223,10 @@
     global.CallMic = {
         bindSocket: bindSocket,
         start: start,
+        startGroup: startGroup,
         stop: stop,
+        stopGroup: stopGroup,
         isActive: function () { return !!activeCamId; },
+        isGroupActive: function () { return activeCamId === GROUP_CALL_ID; },
     };
 })(window);

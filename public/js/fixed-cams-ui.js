@@ -19,6 +19,7 @@
     const formTitle  = document.getElementById('fc-form-title');
     const formSave   = document.getElementById('fc-form-save');
     const formCancel = document.getElementById('fc-form-cancel');
+    const mapPickBtn = document.getElementById('fc-map-pick-btn');
     const csvWrap    = document.getElementById('fc-csv');
     const csvPaste   = document.getElementById('fc-csv-paste');
     const csvImport  = document.getElementById('fc-csv-import-btn');
@@ -66,6 +67,17 @@
         return badge('None', 'none');                       // i18n: fixedCam.source.none
     }
 
+    function mapIconLabel(value) {
+        const icons = {
+            fixed: '▣ Fixed',
+            dome: '◒ Dome',
+            ptz: '✥ PTZ',
+            traffic: '◆ Traffic',
+            building: '▦ Building',
+        };
+        return icons[value] || icons.fixed;
+    }
+
     // ── Table render ──────────────────────────────────────────────────────────
     async function loadTable() {
         const data = await api('GET', '/api/fixed-cams');
@@ -75,12 +87,13 @@
             ? cams.length + ' camera' + (cams.length === 1 ? '' : 's') // i18n: fixedCam.count
             : '';
         if (!cams.length) {
-            tbody.innerHTML = '<tr><td colspan="7" class="fc-empty">No fixed cameras yet. Click "+ Add camera" or use Batch CSV import.</td></tr>'; // i18n: fixedCam.empty
+            tbody.innerHTML = '<tr><td colspan="8" class="fc-empty">No fixed cameras yet. Click "+ Add camera" or use Batch CSV import.</td></tr>'; // i18n: fixedCam.empty
             return;
         }
         tbody.innerHTML = cams.map(c => `
             <tr>
               <td><strong>${esc(c.name)}</strong>${c.notes ? '<br><span style="font-size:10px;color:#64748b">' + esc(c.notes) + '</span>' : ''}</td>
+              <td>${esc(mapIconLabel(c.mapIcon))}</td>
               <td>${esc(c.zone) || '—'}</td>
               <td class="fc-mono">${Number(c.lat).toFixed(6)},&thinsp;${Number(c.lng).toFixed(6)}</td>
               <td>${sourceBadge(c.streamSource)}</td>
@@ -113,6 +126,7 @@
         const path = document.getElementById('fc-f-opath'); if (path) path.value = '/onvif/device_service';
         const tp   = document.getElementById('fc-f-otp');   if (tp)   tp.value   = 'tcp';
         document.getElementById('fc-f-source').value  = 'none';
+        document.getElementById('fc-f-map-icon').value = 'fixed';
         document.getElementById('fc-f-ptz').value     = 'false';
         document.getElementById('fc-f-enabled').value = 'true';
         onSourceChange();
@@ -124,6 +138,7 @@
             lat:          parseFloat(document.getElementById('fc-f-lat').value),
             lng:          parseFloat(document.getElementById('fc-f-lng').value),
             zone:         document.getElementById('fc-f-zone').value.trim(),
+            mapIcon:      document.getElementById('fc-f-map-icon').value,
             streamSource: document.getElementById('fc-f-source').value,
             onvif: {
                 host:         document.getElementById('fc-f-ohost').value.trim(),
@@ -162,6 +177,7 @@
         document.getElementById('fc-f-lat').value     = cam.lat;
         document.getElementById('fc-f-lng').value     = cam.lng;
         document.getElementById('fc-f-zone').value    = cam.zone;
+        document.getElementById('fc-f-map-icon').value = cam.mapIcon || 'fixed';
         document.getElementById('fc-f-source').value  = cam.streamSource;
         document.getElementById('fc-f-ohost').value   = cam.onvif.host;
         document.getElementById('fc-f-oport').value   = cam.onvif.port;
@@ -183,13 +199,14 @@
         if (!r.ok) { showToast(r.error || 'Delete failed.', 'err'); return; } // i18n: fixedCam.err.delete
         showToast('Camera deleted.'); // i18n: fixedCam.toast.deleted
         loadTable();
+        if (window.reloadFixedCameraMapPins) window.reloadFixedCameraMapPins();
     };
 
     // ── CSV template download ─────────────────────────────────────────────────
     function downloadTemplate() {
-        const header = 'Name,Lat,Lng,Zone,StreamSource,OnvifHost,OnvifPort,OnvifUser,OnvifPassword,StreamUrl,PtzEnabled,Enabled,Notes';
-        const example1 = 'Jalan Ampang Cam 1,3.1575,101.7115,KL Central,onvif,192.168.1.50,80,admin,cam123,,true,true,';
-        const example2 = 'Building 3 Entrance,3.1465,101.7100,Bukit Bintang,rtsp,,,,,rtsp://192.168.1.51/stream1,false,true,';
+        const header = 'Name,Lat,Lng,Zone,MapIcon,StreamSource,OnvifHost,OnvifPort,OnvifUser,OnvifPassword,StreamUrl,PtzEnabled,Enabled,Notes';
+        const example1 = 'Jalan Ampang Cam 1,3.1575,101.7115,KL Central,ptz,onvif,192.168.1.50,80,admin,cam123,,true,true,';
+        const example2 = 'Building 3 Entrance,3.1465,101.7100,Bukit Bintang,building,rtsp,,,,,rtsp://192.168.1.51/stream1,false,true,';
         const csv  = [header, example1, example2].join('\r\n');
         const blob = new Blob([csv], { type: 'text/csv' });
         const url  = URL.createObjectURL(blob);
@@ -222,6 +239,26 @@
 
     formCancel.addEventListener('click', hideForm);
 
+    if (mapPickBtn) {
+        mapPickBtn.addEventListener('click', async () => {
+            if (typeof window.beginFixedCameraMapPick !== 'function') {
+                showToast('Map location picker is unavailable.', 'err');
+                return;
+            }
+            const activeNav = Array.from(document.querySelectorAll('nav button')).find(button => button.classList.contains('active'));
+            const opsBtn = document.getElementById('nav-tab-ops');
+            dlg.close();
+            if (opsBtn) opsBtn.click();
+            const position = await window.beginFixedCameraMapPick();
+            if (activeNav && activeNav !== opsBtn) activeNav.click();
+            dlg.showModal();
+            if (!position) return;
+            document.getElementById('fc-f-lat').value = Number(position.lat).toFixed(7);
+            document.getElementById('fc-f-lng').value = Number(position.lng).toFixed(7);
+            showToast('Camera location selected on map.');
+        });
+    }
+
     formSave.addEventListener('click', async () => {
         const payload = readForm();
         if (!payload.name)                      { showToast('Camera name is required.', 'err'); return; } // i18n: fixedCam.err.nameRequired
@@ -235,6 +272,7 @@
         showToast(editingId ? 'Camera updated.' : 'Camera added.'); // i18n: fixedCam.toast.updated / added
         hideForm();
         loadTable();
+        if (window.reloadFixedCameraMapPins) window.reloadFixedCameraMapPins();
     });
 
     csvBtn.addEventListener('click', () => {
@@ -254,6 +292,7 @@
         csvPaste.value = '';
         csvWrap.hidden = true;
         loadTable();
+        if (window.reloadFixedCameraMapPins) window.reloadFixedCameraMapPins();
     });
 
     csvCancel.addEventListener('click', () => { csvWrap.hidden = true; });

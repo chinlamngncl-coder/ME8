@@ -1573,12 +1573,7 @@
         if (!audioOnly && !live) return;
         voiceCallPending = true;
         syncAllCallUi();
-        const voicePath = fleetVoicePathForCam(camId);
-        if (voicePath === 'outbound-intercom') {
-            socket.emit('start-intercom', { camId: camId, mode: 'audio' });
-            return;
-        }
-        socket.emit('start-bwc-call', { camId: camId, audioOnly: audioOnly, voicePath: voicePath });
+        socket.emit('start-bwc-call', { camId: camId, audioOnly: audioOnly });
     }
 
     function onBwcCallRx(data) {

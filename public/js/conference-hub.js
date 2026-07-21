@@ -368,7 +368,7 @@
                     + tr('conference.denySpeak') + '</button></span>';
             });
             participantsForFloor().forEach(function (p) {
-                if (!p.identity || p.identity.indexOf('bwc-') === 0) return;
+                if (!p.identity || p.identity.indexOf('bwc-') === 0 || p.identity.indexOf('fixed-') === 0) return;
                 var allowed = (f.allowedSpeakers || []).indexOf(p.identity) >= 0 || isAlwaysAllowedIdentity(p.identity);
                 html += '<span class="vc-floor-user">' + esc(p.name);
                 if (allowed) {
@@ -468,6 +468,14 @@
         return [];
     }
 
+    function fixedCameraIngressListFor(room) {
+        return room && Array.isArray(room.fixedCameraIngressList) ? room.fixedCameraIngressList : [];
+    }
+
+    function cameraIngressCountFor(room) {
+        return bwcIngressListFor(room).length + fixedCameraIngressListFor(room).length;
+    }
+
     function maxBwcIngress() {
         return (status && status.maxBwcIngress) || 4;
     }
@@ -475,7 +483,9 @@
     function buildBwcShareHtml(compact) {
         const room = roomById(selectedRoomId);
         const list = bwcIngressListFor(room);
+        const fixedList = fixedCameraIngressListFor(room);
         const maxBwc = maxBwcIngress();
+        const cameraCount = cameraIngressCountFor(room);
         let html = '';
         if (list.length) {
             const wrapClass = compact ? 'vc-bwc-share' : 'vc-bwc-inline';
@@ -491,7 +501,20 @@
             });
             html += '</' + (compact ? 'div' : 'span') + '>';
         }
-        if ((perms.bwcShare || perms.host) && list.length < maxBwc) {
+        if (fixedList.length) {
+            const fixedWrapClass = compact ? 'vc-bwc-share' : 'vc-bwc-inline';
+            html += '<' + (compact ? 'div' : 'span') + ' class="' + fixedWrapClass + '">';
+            fixedList.forEach(function (camera) {
+                html += '<span class="vc-bwc-chip">Fixed · ' + esc(camera.displayName || camera.cameraId);
+                if (perms.bwcShare || perms.host) {
+                    html += ' <button type="button" class="btn btn-ghost btn-sm vc-fixed-remove-one" data-camera="'
+                        + esc(camera.cameraId) + '">' + tr('conference.bwcRemove') + '</button>';
+                }
+                html += '</span> ';
+            });
+            html += '</' + (compact ? 'div' : 'span') + '>';
+        }
+        if ((perms.bwcShare || perms.host) && cameraCount < maxBwc) {
             if (compact) {
                 const onlineBwc = countOnlineBwcs();
                 html += '<div class="vc-bwc-compact">';
@@ -500,12 +523,16 @@
                     + esc(tr(onlineBwc ? 'conference.bwcOnlineOne' : 'conference.bwcNoOnline', { count: onlineBwc })) + '</span>';
                 html += '<select id="vc-bwc-select"><option value="">—</option></select>';
                 html += '<button type="button" class="btn btn-ghost btn-sm" id="vc-bwc-add-btn">' + tr('conference.bwcAddBtn') + '</button>';
+                html += '<select id="vc-fixed-camera-select"><option value="">— Fixed camera —</option></select>';
+                html += '<button type="button" class="btn btn-ghost btn-sm" id="vc-fixed-camera-add-btn">Add fixed camera</button>';
                 html += '</div>';
             } else {
                 html += '<select id="vc-bwc-select" class="vc-bwc-inline-select"><option value="">— BWC —</option></select>';
                 html += '<button type="button" class="btn btn-ghost btn-sm" id="vc-bwc-add-btn">' + tr('conference.bwcAddBtn') + '</button>';
+                html += '<select id="vc-fixed-camera-select" class="vc-bwc-inline-select"><option value="">— Fixed camera —</option></select>';
+                html += '<button type="button" class="btn btn-ghost btn-sm" id="vc-fixed-camera-add-btn">Add fixed camera</button>';
             }
-        } else if (list.length >= maxBwc) {
+        } else if (cameraCount >= maxBwc) {
             html += '<span class="hint vc-bwc-max">' + esc(tr('conference.bwcMaxReached', { max: maxBwc })) + '</span>';
         }
         return html;
@@ -592,6 +619,7 @@
         el.innerHTML = html;
         bindLiveControlHandlers();
         populateBwcSelect();
+        populateFixedCameraSelect();
         syncLiveIdle();
         syncStageToolbar();
     }
@@ -611,6 +639,23 @@
         sel.innerHTML = html;
     }
 
+    function populateFixedCameraSelect() {
+        const sel = document.getElementById('vc-fixed-camera-select');
+        if (!sel || !lobby) return;
+        const room = roomById(selectedRoomId);
+        const active = new Set(fixedCameraIngressListFor(room).map(function (camera) {
+            return camera.cameraId;
+        }));
+        let html = '<option value="">— Fixed camera —</option>';
+        (lobby.fixedCameras || []).forEach(function (camera) {
+            if (!camera.playable || active.has(camera.cameraId)) return;
+            const suffix = camera.zone ? (' · ' + camera.zone) : '';
+            html += '<option value="' + esc(camera.cameraId) + '">'
+                + esc(camera.name || camera.cameraId) + esc(suffix) + '</option>';
+        });
+        sel.innerHTML = html;
+    }
+
     function bindLiveControlHandlers() {
         const map = {
             'vc-enter-room': enterRoom,
@@ -619,6 +664,7 @@
             'vc-rec-stop': stopRecording,
             'vc-mute-all': muteAllParticipants,
             'vc-bwc-add-btn': addBwcIngress,
+            'vc-fixed-camera-add-btn': addFixedCameraIngress,
             'vc-mic-toggle': toggleLocalMic,
             'vc-request-speak': requestSpeak,
         };
@@ -629,6 +675,11 @@
         document.querySelectorAll('.vc-bwc-remove-one').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 removeBwcIngress(btn.getAttribute('data-cam')).catch(function (e) { alert(e.message); });
+            });
+        });
+        document.querySelectorAll('.vc-fixed-remove-one').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                removeFixedCameraIngress(btn.getAttribute('data-camera')).catch(function (e) { alert(e.message); });
             });
         });
         document.querySelectorAll('.vc-floor-allow').forEach(function (btn) {
@@ -652,6 +703,9 @@
         if (!participant) return '';
         if (participant.identity && String(participant.identity).indexOf('bwc-') === 0) {
             return participant.name || String(participant.identity).replace(/^bwc-/, 'BWC ');
+        }
+        if (participant.identity && String(participant.identity).indexOf('fixed-') === 0) {
+            return participant.name || String(participant.identity).replace(/^fixed-/, 'Fixed camera ');
         }
         return participant.name || participant.identity || '';
     }
@@ -923,6 +977,17 @@
                 } catch (_) { /* best-effort — still leave the room */ }
             }
         }
+        if (wasInRoom && !opts.keepBwc && fixedCameraIngressListFor(room).length && (perms.host || perms.bwcShare)) {
+            const fixedList = fixedCameraIngressListFor(room);
+            for (let i = 0; i < fixedList.length; i++) {
+                try {
+                    await api('/api/conference/room/' + encodeURIComponent(roomId)
+                        + '/fixed-camera-ingress?cameraId=' + encodeURIComponent(fixedList[i].cameraId), {
+                        method: 'DELETE',
+                    });
+                } catch (_) { /* best-effort — still leave the room */ }
+            }
+        }
         if (lkRoom) {
             const room = lkRoom;
             lkRoom = null;
@@ -992,7 +1057,45 @@
         await refreshPanel(true);
         const lay = layout();
         if (lay && lkRoom) {
-            const remaining = bwcIngressListFor(roomById(selectedRoomId)).length;
+            const remaining = cameraIngressCountFor(roomById(selectedRoomId));
+            if (remaining) {
+                lay.setShareExpected(true);
+                lay.autoLayout();
+            } else if (lay.resetShareToGrid) {
+                lay.resetShareToGrid();
+            }
+        }
+    }
+
+    async function addFixedCameraIngress() {
+        const sel = document.getElementById('vc-fixed-camera-select');
+        const cameraId = sel && sel.value;
+        if (!cameraId) throw new Error('Select a registered fixed camera');
+        const res = await api('/api/conference/room/' + encodeURIComponent(selectedRoomId)
+            + '/fixed-camera-ingress', {
+            method: 'POST',
+            body: { cameraId: cameraId },
+        });
+        if (!res.ok || !res.data.ok) {
+            throw new Error((res.data && res.data.error) || 'Fixed camera ingress failed');
+        }
+        await refreshPanel(true);
+        const lay = layout();
+        if (lay && lkRoom) {
+            lay.setShareExpected(true);
+            lay.autoLayout();
+        }
+    }
+
+    async function removeFixedCameraIngress(cameraId) {
+        let url = '/api/conference/room/' + encodeURIComponent(selectedRoomId) + '/fixed-camera-ingress';
+        if (cameraId) url += '?cameraId=' + encodeURIComponent(cameraId);
+        const res = await api(url, { method: 'DELETE' });
+        if (!res.ok || !res.data.ok) throw new Error((res.data && res.data.error) || 'Remove failed');
+        await refreshPanel(true);
+        const lay = layout();
+        if (lay && lkRoom) {
+            const remaining = cameraIngressCountFor(roomById(selectedRoomId));
             if (remaining) {
                 lay.setShareExpected(true);
                 lay.autoLayout();
@@ -1417,7 +1520,7 @@
                     renderRoomPicker();
                     if (lkRoom && payload && payload.roomId === selectedRoomId) {
                         const lay = layout();
-                        const remaining = bwcIngressListFor(roomById(selectedRoomId)).length;
+                        const remaining = cameraIngressCountFor(roomById(selectedRoomId));
                         if (lay) {
                             if (remaining) {
                                 lay.setShareExpected(true);
@@ -1437,6 +1540,23 @@
                         if (lay && lay.resetShareToGrid) lay.resetShareToGrid();
                         if (typeof tr === 'function') {
                             console.warn(tr('conference.layoutBwcFailed'));
+                        }
+                    }
+                }).catch(function () { /* ignore */ });
+            });
+            global.socket.on('conference-fixed-camera-ingress-stopped', function (payload) {
+                loadStatus().then(function () {
+                    renderLiveControls();
+                    renderRoomPicker();
+                    if (lkRoom && payload && payload.roomId === selectedRoomId) {
+                        const lay = layout();
+                        const remaining = cameraIngressCountFor(roomById(selectedRoomId));
+                        if (lay) {
+                            if (remaining) {
+                                lay.setShareExpected(true);
+                                lay.autoLayout();
+                            } else if (lay.resetShareToGrid) lay.resetShareToGrid();
+                            else lay.autoLayout();
                         }
                     }
                 }).catch(function () { /* ignore */ });

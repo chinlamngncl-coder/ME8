@@ -1970,5 +1970,9 @@
   "settingsHub.strip.reason.ptt": "Push-to-talk",
   "settingsHub.strip.reason.pool": "Live video",
   "settingsHub.strip.degraded": "Not OK",
-  "settingsHub.strip.degradedShort": "Not OK — {reason}"
+  "settingsHub.strip.degradedShort": "Not OK — {reason}",
+  "evidenceHub.importForensic": "Impor berkas forensik",
+  "evidenceHub.importChecking": "Memeriksa tanda tangan dan integritas berkas…",
+  "evidenceHub.importAccepted": "Bukti forensik diterima dan hash dibuat.",
+  "evidenceHub.hashLegacyPending": "Berkas lama — pindai penyimpanan untuk menghitung"
 }

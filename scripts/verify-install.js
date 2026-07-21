@@ -31,10 +31,47 @@ if (!fs.existsSync(vendorFfmpeg)) {
 ok('Media engine (LGPL) at ' + vendorFfmpeg);
 
 const nodeMajor = parseInt(process.versions.node.split('.')[0], 10);
-if (nodeMajor < 18) {
-    fail('Node 18+ required (found ' + process.version + ')');
+if (nodeMajor < 22) {
+    fail('Node 22+ required (found ' + process.version + ')');
 }
 ok('Node ' + process.version);
+
+if (String(process.env.FM_CATALOG_MODE || '') !== 'postgres_required') {
+    fail('FM_CATALOG_MODE=postgres_required is mandatory.');
+}
+if (!String(process.env.FM_CATALOG_DB_URL || '').trim()) {
+    fail('FM_CATALOG_DB_URL is required before service installation.');
+}
+try {
+    require.resolve('pg', { paths: [root] });
+} catch (_) {
+    fail('PostgreSQL driver missing — run npm install.');
+}
+if (!fs.existsSync(path.join(root, 'db', 'migrations', '001_catalog_primary.sql'))) {
+    fail('PostgreSQL catalog migration is missing.');
+}
+if (!fs.existsSync(path.join(root, 'docker', 'docker-compose.enterprise.yml'))) {
+    fail('PostgreSQL enterprise compose file is missing.');
+}
+ok('PostgreSQL primary catalog configuration present');
+
+try {
+    const sip = require('sip');
+    const sipGroupCall = require('../lib/sipGroupCall');
+    const bootProbe = sipGroupCall.create({
+        sip,
+        host: '127.0.0.1',
+        realm: '3402000000',
+        serverId: '34020000002000000001',
+        sipPort: 5062,
+    });
+    if (!bootProbe || typeof bootProbe.start !== 'function' || bootProbe.snapshot().active) {
+        fail('SOS group call boot contract is invalid');
+    }
+    ok('SOS group call waits for SIP listener readiness');
+} catch (err) {
+    fail('SOS group call blocks server startup: ' + err.message);
+}
 
 try {
     const centreLlm = require('../lib/centreLlm');

@@ -134,6 +134,7 @@
             liveCaptureAutoOnSos: !!($('ss-evidence-live-auto-sos') && $('ss-evidence-live-auto-sos').checked),
             liveCapturePath: ($('ss-evidence-live-path') || {}).value ? $('ss-evidence-live-path').value.trim() : '',
             ftpUploadPath: ($('ss-ftp-upload-path') || {}).value ? $('ss-ftp-upload-path').value.trim() : '',
+            frStorageRoot: ($('ss-fr-storage-root') || {}).value ? $('ss-fr-storage-root').value.trim() : '',
             dockFtpTargetNote: ($('ss-evidence-dock-note') || {}).value ? $('ss-evidence-dock-note').value.trim() : '',
         };
     }
@@ -161,6 +162,7 @@
         const ftpEl = $('ev-path-status-ftp');
         const liveEl = $('ev-path-status-live');
         const mountEl = $('ev-path-status-mount');
+        const frEl = $('ev-path-status-fr');
         if (ftpEl) {
             ftpEl.innerHTML = statusBadge(v.ftp, v.ftpDetail && v.ftpDetail.writable, tr('evidence.storageStatusOk'));
         }
@@ -169,6 +171,9 @@
         }
         if (mountEl) {
             mountEl.innerHTML = statusBadge(v.nas, v.nasDetail && v.nasDetail.writable, tr('evidence.storageStatusMounted'));
+        }
+        if (frEl) {
+            frEl.innerHTML = statusBadge(v.frStorage, v.frStorageDetail && v.frStorageDetail.writable, tr('evidence.storageStatusOk'));
         }
         const recEl = $('ev-storage-recommended');
         const net = data && data.networkStorage;
@@ -209,6 +214,7 @@
         const ids = [
             'ss-evidence-archive-primary', 'ss-evidence-nas-path', 'ss-evidence-live-enabled',
             'ss-evidence-live-auto-sos', 'ss-evidence-live-path', 'ss-ftp-upload-path',
+            'ss-fr-storage-root',
             'ss-ftp-enabled', 'ss-ftp-port', 'ss-ftp-user', 'ss-ftp-pass',
             'ss-ftp-pasv-min', 'ss-ftp-pasv-max', 'ev-ftp-save',
             'ev-storage-save', 'ev-storage-test', 'ev-storage-apply', 'ev-storage-scan',
@@ -269,6 +275,9 @@
             }
             if ($('ss-evidence-live-folder')) $('ss-evidence-live-folder').textContent = data.liveCaptureLabel || '—';
             if ($('ss-dock-folder')) $('ss-dock-folder').textContent = data.ftpLabel || '—';
+            if ($('ss-fr-storage-root')) $('ss-fr-storage-root').value = (data.frStorage && data.frStorage.rootPath) || '';
+            if ($('ss-fr-storage-folder')) $('ss-fr-storage-folder').textContent = (data.frStorage && data.frStorage.configuredLabel) || '—';
+            if ($('ss-fr-storage-restart')) $('ss-fr-storage-restart').hidden = !(data.frStorage && data.frStorage.restartRequired);
             fillFtpForm(data.ftp, data.runtime);
             toggleNetworkPanel();
             renderPathStatuses(data);
@@ -330,13 +339,19 @@
             lastPayload = data;
             if ($('ss-evidence-live-folder')) $('ss-evidence-live-folder').textContent = data.liveCaptureLabel || '—';
             if ($('ss-dock-folder')) $('ss-dock-folder').textContent = data.ftpLabel || '—';
+            if ($('ss-fr-storage-folder')) $('ss-fr-storage-folder').textContent = (data.frStorage && data.frStorage.configuredLabel) || '—';
+            if ($('ss-fr-storage-restart')) $('ss-fr-storage-restart').hidden = !(data.frStorage && data.frStorage.restartRequired);
             if (applyRecommended && data.networkStorage && data.networkStorage.recommended) {
                 if ($('ss-ftp-upload-path')) $('ss-ftp-upload-path').value = data.networkStorage.recommended.ftp;
                 if ($('ss-evidence-live-path')) $('ss-evidence-live-path').value = data.networkStorage.recommended.liveCapture;
             }
             renderPathStatuses(data);
             if (typeof global.loadStoragePaths === 'function') global.loadStoragePaths();
-            if (msg) msg.textContent = tr('evidence.storageSaved');
+            if (msg) {
+                msg.textContent = data.frStorage && data.frStorage.restartRequired
+                    ? tr('evidence.frStorageSavedRestart')
+                    : tr('evidence.storageSaved');
+            }
             await loadContextRail();
         } catch (err) {
             if (msg) msg.textContent = catalogMsg(err.opPayload || err.catalogPayload, err);
@@ -357,7 +372,22 @@
             });
             const data = await res.json();
             if (!res.ok || !data.ok) throwCatalogErr(data);
-            if (msg) msg.textContent = tr('evidence.storageScanDone', { n: data.indexed || 0 });
+            if (msg) {
+                const integrity = data.integrity || {};
+                if (integrity.mismatched > 0) {
+                    msg.textContent = tr('evidence.integrityMismatch', { n: integrity.mismatched });
+                } else if (integrity.unverified > 0) {
+                    msg.textContent = tr('evidence.integrityUnverified', {
+                        indexed: data.indexed || 0,
+                        n: integrity.unverified,
+                    });
+                } else {
+                    msg.textContent = tr('evidence.integrityPassed', {
+                        indexed: data.indexed || 0,
+                        n: integrity.checked || 0,
+                    });
+                }
+            }
             if (global.EvidenceHub && EvidenceHub.refreshCurrentPanel) EvidenceHub.refreshCurrentPanel();
             else await loadContextRail();
         } catch (err) {
@@ -501,7 +531,28 @@
         }
     }
 
+    function ensureFrStorageCard() {
+        if ($('ss-fr-storage-root')) return;
+        const catalogCard = document.querySelector('.ev-storage-card-compact');
+        if (!catalogCard || !catalogCard.parentNode) return;
+        const section = document.createElement('section');
+        section.className = 'ev-storage-card ev-storage-span-full';
+        section.innerHTML =
+            '<h4>' + esc(tr('evidence.frStorageTitle')) + '</h4>'
+            + '<p class="setup-hint" style="margin-top:0">' + esc(tr('evidence.frStorageHint')) + '</p>'
+            + '<label class="full" for="ss-fr-storage-root"><span>' + esc(tr('evidence.frStorageRoot')) + '</span>'
+            + '<div class="ev-path-row">'
+            + '<input type="text" id="ss-fr-storage-root" autocomplete="off" readonly>'
+            + '<button type="button" class="btn btn-ghost btn-sm ev-path-browse" data-target="ss-fr-storage-root" data-start="fr">' + esc(tr('evidence.storageBrowse')) + '</button>'
+            + '<button type="button" class="btn btn-ghost btn-sm ev-path-default" data-target="ss-fr-storage-root">' + esc(tr('evidence.storageUseDefault')) + '</button>'
+            + '</div></label>'
+            + '<p class="ev-storage-status-row">' + esc(tr('evidence.frStorageConfigured')) + ': <code id="ss-fr-storage-folder">—</code> <span id="ev-path-status-fr"></span></p>'
+            + '<p class="setup-hint" id="ss-fr-storage-restart" hidden>' + esc(tr('evidence.frStorageRestart')) + '</p>';
+        catalogCard.parentNode.insertBefore(section, catalogCard);
+    }
+
     function bindUi() {
+        ensureFrStorageCard();
         const localRadio = $('ss-evidence-archive-local');
         const netRadio = $('ss-evidence-archive-network');
         if (localRadio) localRadio.addEventListener('change', syncTierFromRadios);

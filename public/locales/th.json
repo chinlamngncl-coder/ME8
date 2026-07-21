@@ -1970,5 +1970,9 @@
   "settingsHub.strip.reason.ptt": "Push-to-talk",
   "settingsHub.strip.reason.pool": "Live video",
   "settingsHub.strip.degraded": "Not OK",
-  "settingsHub.strip.degradedShort": "Not OK — {reason}"
+  "settingsHub.strip.degradedShort": "Not OK — {reason}",
+  "evidenceHub.importForensic": "นำเข้าไฟล์นิติวิทยาศาสตร์",
+  "evidenceHub.importChecking": "กำลังตรวจสอบลายเซ็นไฟล์และความถูกต้อง…",
+  "evidenceHub.importAccepted": "รับหลักฐานนิติวิทยาศาสตร์และสร้างแฮชแล้ว",
+  "evidenceHub.hashLegacyPending": "ไฟล์เดิม — สแกนพื้นที่จัดเก็บเพื่อคำนวณ"
 }

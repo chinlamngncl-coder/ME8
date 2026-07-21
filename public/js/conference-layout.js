@@ -89,11 +89,12 @@
         if (src && pubSource === src.ScreenShare) return 'screen';
         if (src && pubSource === src.ScreenShareAudio) return 'audio';
         if (identity.indexOf('bwc-') === 0) return 'bwc';
+        if (identity.indexOf('fixed-') === 0) return 'fixed';
         return 'camera';
     }
 
     function isShareKind(kind) {
-        return kind === 'screen' || kind === 'bwc' || kind === 'image'
+        return kind === 'screen' || kind === 'bwc' || kind === 'fixed' || kind === 'image'
             || kind === 'video' || kind === 'document';
     }
 

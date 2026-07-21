@@ -28,6 +28,7 @@ const DASHBOARD_MAX_LIVE = parseInt(process.env.FM_MAX_CONCURRENT_LIVE || '8', 1
 const deviceControl = require('./lib/deviceControl');
 const { amplifyAlaw } = require('./lib/psG711Audio');
 const pttServer = require('./lib/pttServer');
+const sipGroupCallFactory = require('./lib/sipGroupCall');
 const fleetRoster = require('./lib/fleetRoster');
 const fleetRegistry = require('./lib/fleetRegistry');
 const bwcDevices = require('./lib/bwcDevices');
@@ -35,9 +36,16 @@ const facePlateIngest = require('./lib/facePlateIngest');
 const ftpIngest       = require('./lib/ftpIngest');
 const fixedCamRegistry = require('./lib/fixedCamRegistry');
 const fixedCamOnvif = require('./lib/fixedCamOnvif');
+const { Cam: OnvifCam } = require('onvif/promises');
 const evidenceCrypto   = require('./lib/evidenceCrypto');
+const evidenceUploadSafeName = require('./lib/evidenceUploadSafeName');
+const evidenceIngestGate = require('./lib/evidenceIngestGate');
 const multer = require('multer');
 const log = require('./lib/fleetLog');
+const pttFieldGroupRelay = require('./lib/pttFieldGroupRelay').create({
+    pttServer,
+    log,
+});
 const wvpRegisterMirror = require('./lib/wvpRegisterMirror');
 const wvpFleetPresence = require('./lib/wvpFleetPresence');
 const dashboardConnectWarm = require('./lib/dashboardConnectWarm');
@@ -129,6 +137,7 @@ const conferenceConfig = require('./lib/conferenceConfig');
 const conferenceLivekit = require('./lib/conferenceLivekit');
 const conferenceBwcIngress = require('./lib/conferenceBwcIngress');
 const storagePaths = require('./lib/storagePaths');
+const frStorageWorkspace = require('./lib/frStorageWorkspace');
 const storageStatus = require('./lib/storageStatus');
 const siteReadiness = require('./lib/siteReadiness');
 const authAuditShipChecklist = require('./lib/authAuditShipChecklist');
@@ -179,7 +188,36 @@ const mapGeocode = require('./lib/mapGeocode');
 const BASE_DIR = __dirname;
 const FACE_PLATE_DIR = path.join(BASE_DIR, 'storage', 'face-plate');
 const STORAGE_DIR = path.join(BASE_DIR, 'storage');
-const FR_SETTINGS_FILE = path.join(STORAGE_DIR, 'fr-settings.json');
+const STARTUP_SETTINGS = serverSettings.load(STORAGE_DIR);
+const FR_STORAGE_ROOT = frStorageWorkspace.resolveRoot(
+    BASE_DIR,
+    STORAGE_DIR,
+    STARTUP_SETTINGS
+);
+const FR_PREVIOUS_ROOT = frStorageWorkspace.resolveRoot(BASE_DIR, STORAGE_DIR, {
+    frStorage: {
+        rootPath: STARTUP_SETTINGS.frStorage && STARTUP_SETTINGS.frStorage.activeRootPath || '',
+    },
+});
+const FR_STARTUP_MIGRATION = frStorageWorkspace.prepareRootChange(FR_PREVIOUS_ROOT, FR_STORAGE_ROOT);
+const FR_STORAGE_LAYOUT = FR_STARTUP_MIGRATION.workspace;
+if (FR_STARTUP_MIGRATION.changed) {
+    log.web.info('FR storage workspace activated', {
+        from: FR_PREVIOUS_ROOT,
+        to: FR_STORAGE_ROOT,
+        copied: FR_STARTUP_MIGRATION.copied,
+    });
+}
+if (FR_STARTUP_MIGRATION.changed
+    || ((STARTUP_SETTINGS.frStorage && STARTUP_SETTINGS.frStorage.activeRootPath) || '')
+        !== ((STARTUP_SETTINGS.frStorage && STARTUP_SETTINGS.frStorage.rootPath) || '')) {
+    serverSettings.save(STORAGE_DIR, Object.assign({}, STARTUP_SETTINGS, {
+        frStorage: Object.assign({}, STARTUP_SETTINGS.frStorage || {}, {
+            activeRootPath: (STARTUP_SETTINGS.frStorage && STARTUP_SETTINGS.frStorage.rootPath) || '',
+        }),
+    }));
+}
+const FR_SETTINGS_FILE = path.join(FR_STORAGE_ROOT, 'fr-settings.json');
 const FR_MATCH_THRESHOLD_DEFAULT = Math.max(70, Math.min(99, parseInt(process.env.FM_FR_MATCH_MIN || '75', 10) || 75));
 
 function normalizeFrMatchThreshold(value) {
@@ -274,8 +312,8 @@ if (process.env.FM_LLM_WARMUP === '1') {
 }
 dashboardAuth.init(STORAGE_DIR);
 dockRegistry.init(STORAGE_DIR);
-frBlacklist.init(STORAGE_DIR);
-frKeptEvidence.init(STORAGE_DIR);
+frBlacklist.init(FR_STORAGE_ROOT);
+frKeptEvidence.init(FR_STORAGE_ROOT);
 dispatchGroups.init(STORAGE_DIR);
 firmwareOta.init({
     vendorRoot: path.join(__dirname, 'vendor', 'firmware-ota'),
@@ -351,6 +389,7 @@ function loadFtpRuntimeFromSettings() {
 loadFtpRuntimeFromSettings();
 
 const MEDIA_TRANSPORT = cfg.mediaTransport;
+const SOS_GROUP_CALL_RTP_BASE = parseInt(process.env.FM_SOS_GROUP_CALL_RTP_BASE || '40400', 10) || 40400;
 
 function runtimePortSnapshot() {
     return {
@@ -366,37 +405,109 @@ function runtimePortSnapshot() {
         ftpPasvMax: FTP_PASV_MAX,
         ftpUser: FTP_USER || '',
         mediaTransport: MEDIA_TRANSPORT,
+        sosGroupCallRtpBase: SOS_GROUP_CALL_RTP_BASE,
     };
 }
 
-function handleFtpFileUploaded(info) {
-    const filePath = info.fullPath || info.fileName || '';
-    const snapCam = camIdFromFtpUploadPath(filePath, null)
-        || sosIncidents.getSnapshotCameraId()
-        || connectedCameraId;
-    if (info.fileName && global.usedFtpFiles && global.usedFtpFiles.has(info.fileName)) {
-        return;
+async function handleFtpFileUploaded(info) {
+    const filePath = info.originalFileName || info.fullPath || info.fileName || '';
+    const snapCam = info.source === 'manual_forensic'
+        ? null
+        : (camIdFromFtpUploadPath(filePath, null)
+            || sosIncidents.getSnapshotCameraId()
+            || connectedCameraId);
+    const dedupeKey = String(info.fullPath || info.fileName || '');
+    if (dedupeKey && global.usedFtpFiles && global.usedFtpFiles.has(dedupeKey)) {
+        return null;
     }
-    if (info.fileName && global.usedFtpFiles) {
-        global.usedFtpFiles.add(info.fileName);
+    let admitted;
+    try {
+        admitted = await evidenceIngestGate.admitFile({
+            rootDir: FTP_ROOT,
+            fullPath: info.fullPath,
+            fileName: info.fileName,
+            originalFileName: info.originalFileName || info.fileName,
+            source: info.source || 'dock_ftp',
+        });
+    } catch (err) {
+        log.ftp.warn('evidence ingest quarantined', {
+            file: evidenceUploadSafeName.safeOriginalDisplayName(info.originalFileName || info.fileName),
+            peer: info.peer,
+            message: err.message,
+        });
+        const rejectedAudit = {
+            target: null,
+            detail: {
+                originalFileName: evidenceUploadSafeName.safeOriginalDisplayName(info.originalFileName || info.fileName),
+                source: info.source || 'dock_ftp',
+                reason: err.message,
+            },
+        };
+        if (info.auditRequest) {
+            auditLog.recordFromRequest(info.auditRequest, 'evidence.ingest_rejected', rejectedAudit);
+        } else {
+            auditLog.record('evidence.ingest_rejected', rejectedAudit);
+        }
+        if (info.throwOnReject) throw err;
+        return null;
+    }
+    if (global.usedFtpFiles) {
+        if (dedupeKey) global.usedFtpFiles.add(dedupeKey);
+        if (admitted.fileName) global.usedFtpFiles.add(admitted.fileName);
     }
     const opName = snapCam ? resolveOperatorNameForCam(snapCam) : null;
-    const evidenceId = evidenceRegistry.registerFromUpload({
-        fullPath: info.fullPath,
-        fileName: info.fileName,
+    const snap = info.source === 'manual_forensic'
+        ? null
+        : sosIncidents.attachSnapshotFromFtp(
+            admitted.fullPath,
+            admitted.fileName,
+            snapCam,
+        );
+    try {
+        await evidenceCrypto.encryptFileInPlace(admitted.fullPath);
+    } catch (err) {
+        try {
+            await evidenceIngestGate.quarantineFile({
+                rootDir: FTP_ROOT,
+                fullPath: admitted.fullPath,
+                originalFileName: admitted.originalFileName,
+                source: info.source || 'dock_ftp',
+                error: err,
+            });
+        } catch (quarantineErr) {
+            log.ftp.err('encryption failure quarantine failed', { message: quarantineErr.message });
+        }
+        const rejectedAudit = {
+            target: null,
+            detail: {
+                originalFileName: admitted.originalFileName,
+                source: info.source || 'dock_ftp',
+                reason: 'Encryption failed before catalog admission: ' + err.message,
+            },
+        };
+        if (info.auditRequest) {
+            auditLog.recordFromRequest(info.auditRequest, 'evidence.ingest_rejected', rejectedAudit);
+        } else {
+            auditLog.record('evidence.ingest_rejected', rejectedAudit);
+        }
+        if (info.throwOnReject) throw err;
+        return null;
+    }
+    const evidenceId = await evidenceRegistry.registerFromUpload({
+        fullPath: admitted.fullPath,
+        fileName: admitted.fileName,
+        originalFileName: admitted.originalFileName,
         peer: info.peer,
         rootDir: FTP_ROOT,
         deviceId: snapCam || null,
         operatorName: opName,
+        sha256: admitted.sha256,
+        byteSize: admitted.byteSize,
+        source: info.source || 'dock_ftp',
     });
-    const snap = sosIncidents.attachSnapshotFromFtp(
-        info.fullPath,
-        info.fileName,
-        snapCam,
-    );
     io.emit('ftp-upload', {
-        file: info.fileName,
-        path: info.fullPath,
+        file: admitted.originalFileName,
+        path: admitted.fullPath,
         peer: info.peer,
         cameraId: snapCam,
         evidenceId: evidenceId || null,
@@ -406,11 +517,23 @@ function handleFtpFileUploaded(info) {
     if (snap && snap.snapshotUrl) {
         emitToDashboardSockets('sos-snapshot', { cameraId: snapCam, snapshotUrl: snap.snapshotUrl }, snapCam);
     }
-    // Encrypt file at rest (AES-256-GCM). Runs after snapshot copy so the raw
-    // snapshot.jpg is already saved; only the evidence copy is encrypted.
-    if (info.fullPath) {
-        setImmediate(() => evidenceCrypto.encryptFileInPlace(info.fullPath));
+    const admittedAudit = {
+        target: evidenceId,
+        detail: {
+            fileId: evidenceId,
+            source: info.source || 'dock_ftp',
+            originalFileName: admitted.originalFileName,
+            sha256: admitted.sha256,
+            byteSize: admitted.byteSize,
+            detectedType: admitted.detectedType,
+        },
+    };
+    if (info.auditRequest) {
+        auditLog.recordFromRequest(info.auditRequest, 'evidence.ingest_admitted', admittedAudit);
+    } else {
+        auditLog.record('evidence.ingest_admitted', admittedAudit);
     }
+    return { evidenceId, admitted, snapshot: snap || null };
 }
 
 async function stopFtpServerRuntime() {
@@ -448,7 +571,11 @@ function startFtpServerRuntime() {
         onListening: () => {
             ftpServerListening = true;
         },
-        onFileUploaded: handleFtpFileUploaded,
+        onFileUploaded: (info) => {
+            handleFtpFileUploaded(info).catch((err) => {
+                log.ftp.err('evidence ingest failed', { message: err.message });
+            });
+        },
     });
     if (!ftpServerInstance) {
         ftpServerListening = false;
@@ -481,6 +608,24 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
     cookie: true,
+});
+
+const sosGroupCall = sipGroupCallFactory.create({
+    sip,
+    log,
+    host: HOST,
+    realm: REALM,
+    serverId: SERVER_ID,
+    sipPort: SIP_PORT,
+    rtpBase: SOS_GROUP_CALL_RTP_BASE,
+    onState: (state) => io.emit('sos-group-call-state', state),
+    onMixedPcm: (pcm, meta) => {
+        if (!meta || !meta.ownerSocketId || !pcm || !pcm.length) return;
+        io.to(meta.ownerSocketId).emit('sos-group-call-audio', {
+            callId: meta.callId,
+            sources: meta.sources || [],
+        }, pcm);
+    },
 });
 
 sosInviteQueue.setIo(io);
@@ -554,7 +699,7 @@ liveStreamPool.setOnStreamStop((camId) => {
 });
 
 frLivePoller.init({
-    storageDir: STORAGE_DIR,
+    storageDir: FR_STORAGE_ROOT,
     liveStreamPool,
     liveViewers,
     videoWsPort: VIDEO_WS_PORT,
@@ -606,8 +751,8 @@ frLivePoller.init({
 });
 frLivePoller.start();
 frOfflineVideo.init({
-    storageDir: STORAGE_DIR,
-    cropsDir: path.join(STORAGE_DIR, 'fr-live-crops'),
+    storageDir: FR_STORAGE_ROOT,
+    cropsDir: FR_STORAGE_LAYOUT.cropsRoot,
     emit: (event, payload, camId) => emitToDashboardSockets(event, payload, camId),
     onHit: (hit) => {
         try {
@@ -884,17 +1029,57 @@ function labSettingsLive() {
     return labSecurity.load(STORAGE_DIR);
 }
 
-function publicHealthDeps() {
+let startupStorageWritable = false;
+
+async function publicHealthDeps() {
+    const databaseHealth = await siteDb.healthCheck();
     return Object.assign({}, techHealthDeps(), {
         httpListenerReady,
         mediaBridgeReady,
         pttEnabled: PTT_ENABLED,
+        databaseReady: databaseHealth.ok,
+        storageWritable: startupStorageWritable,
+        buildId: require('./package.json').version,
     });
 }
 
-app.get('/api/health', (req, res) => {
+function catalogDispatcherHealth() {
+    const dispatchers = {
+        gps: gpsTrack.dispatcherHealth(),
+        audit: auditLog.dispatcherHealth(),
+        bwcRegistry: {
+            ok: bwcRegistryDroppedWrites === 0,
+            pending: bwcRegistryPendingWrites,
+            dropped: bwcRegistryDroppedWrites,
+            maxPending: BWC_REGISTRY_MAX_PENDING,
+        },
+        messages: {
+            ok: messageDroppedWrites === 0,
+            pending: messagePendingWrites,
+            dropped: messageDroppedWrites,
+            maxPending: MESSAGE_MAX_PENDING_WRITES,
+        },
+    };
+    return {
+        ok: Object.values(dispatchers).every((item) => item.ok),
+        dispatchers,
+    };
+}
+
+app.get('/api/health', async (req, res) => {
     try {
-        const body = platformHealth.collectPublicHealth(publicHealthDeps());
+        const body = platformHealth.collectPublicHealth(await publicHealthDeps());
+        const dispatcher = catalogDispatcherHealth();
+        body.catalogDispatchers = dispatcher.dispatchers;
+        if (!dispatcher.ok) {
+            body.ok = false;
+            body.degraded = true;
+            body.reasons = Array.from(new Set([...(body.reasons || []), 'catalog-dispatcher']));
+            body.reasonDetails = [
+                ...(body.reasonDetails || []),
+                { code: 'catalog-dispatcher', label: 'Catalog write dispatcher dropped work' },
+            ];
+        }
         body.at = siteTime.formatEvidence(new Date());
         body.displayMonitor3 = getDisplayMonitor3Profile();
         res.status(body.ok ? 200 : 503).json(body);
@@ -915,6 +1100,8 @@ app.get('/api/health', (req, res) => {
 function evidencePathValidation(settings) {
     const ftpRoot = storagePaths.resolveFtpRoot(BASE_DIR, settings);
     const lcRoot = storagePaths.resolveLiveCaptureRoot(BASE_DIR, settings);
+    const frRoot = frStorageWorkspace.resolveRoot(BASE_DIR, STORAGE_DIR, settings);
+    const frAccess = frStorageWorkspace.testWritable(frRoot, false);
     const nasRaw = settings.evidence && settings.evidence.nasMountPath
         ? String(settings.evidence.nasMountPath).trim()
         : '';
@@ -927,6 +1114,8 @@ function evidencePathValidation(settings) {
         liveCaptureDetail: storagePaths.testPathAccess(lcRoot),
         nas: nasRaw ? storagePaths.pathExistsOnDisk(nasPath) : null,
         nasDetail: nasRaw ? storagePaths.testPathAccess(nasPath) : null,
+        frStorage: frAccess.ok,
+        frStorageDetail: frAccess,
         networkArchive: network,
     };
 }
@@ -939,6 +1128,12 @@ function evidenceSettingsPayload(settings) {
     const mountFull = storagePaths.resolveNasPath(BASE_DIR, mountRaw);
     const recommended = mountFull ? storagePaths.recommendedNetworkPaths(mountFull) : null;
     const network = storagePaths.isNetworkArchive(settings);
+    const configuredFrRoot = frStorageWorkspace.resolveRoot(BASE_DIR, STORAGE_DIR, settings);
+    const configuredFrResolved = path.resolve(configuredFrRoot);
+    const activeFrResolved = path.resolve(FR_STORAGE_ROOT);
+    const frRestartRequired = process.platform === 'win32'
+        ? configuredFrResolved.toLowerCase() !== activeFrResolved.toLowerCase()
+        : configuredFrResolved !== activeFrResolved;
     return {
         ok: true,
         evidence: settings.evidence || {},
@@ -951,6 +1146,15 @@ function evidenceSettingsPayload(settings) {
         ftpLabel: storagePaths.displayPath(ftpRoot, BASE_DIR),
         ftpRoot: ftpRoot,
         liveCaptureRoot: lcRoot,
+        frStorage: {
+            rootPath: (settings.frStorage && settings.frStorage.rootPath) || '',
+            configuredRoot: configuredFrRoot,
+            configuredLabel: storagePaths.displayPath(configuredFrRoot, BASE_DIR),
+            activeRoot: FR_STORAGE_ROOT,
+            activeLabel: storagePaths.displayPath(FR_STORAGE_ROOT, BASE_DIR),
+            managedDirectories: frStorageWorkspace.MANAGED_DIRS.slice(),
+            restartRequired: frRestartRequired,
+        },
         pathValidation: validation,
         networkStorage: {
             enabled: network,
@@ -971,7 +1175,7 @@ app.get('/api/site-resilience', async (req, res) => {
     try {
         const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
         if (!session) return res.status(401).json(opErr("Unauthorized"));
-        const node = siteDb.isReady() ? siteDb.getSetting('siteNode', {}) : {};
+        const node = siteDb.isReady() ? await siteDb.getSetting('siteNode', {}) : {};
         const peerUrl = String((node && node.peerUrl) || '').trim().replace(/\/$/, '');
         let peerReachable = null;
         if (peerUrl) {
@@ -999,18 +1203,18 @@ app.get('/api/site-resilience', async (req, res) => {
     }
 });
 
-app.post('/api/site-resilience', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.post('/api/site-resilience', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         const body = req.body || {};
-        const current = siteDb.isReady() ? siteDb.getSetting('siteNode', {}) : {};
+        const current = siteDb.isReady() ? await siteDb.getSetting('siteNode', {}) : {};
         const next = {
             nodeId: String(body.nodeId != null ? body.nodeId : (current.nodeId || 'site-a')).trim() || 'site-a',
             peerUrl: String(body.peerUrl != null ? body.peerUrl : (current.peerUrl || '')).trim().replace(/\/$/, ''),
             maxBwcDevices: current.maxBwcDevices,
             maxConcurrentLive: current.maxConcurrentLive,
         };
-        if (siteDb.isReady()) siteDb.setSetting('siteNode', next);
-        auditLog.recordFromRequest(req, 'site.resilience.save', {
+        if (siteDb.isReady()) await siteDb.setSetting('siteNode', next);
+        await auditLog.recordFromRequest(req, 'site.resilience.save', {
             detail: { nodeId: next.nodeId, peerUrl: next.peerUrl || null },
         });
         res.json({ ok: true, siteNode: next });
@@ -1966,22 +2170,23 @@ app.post('/api/sos-ledger-unlock', (req, res) => {
 
 const VIDEO_CHANNELS_PATH = path.join(STORAGE_DIR, 'video-channels.json');
 const BWC_DEVICES_PATH = path.join(STORAGE_DIR, 'bwc-devices.json');
+let bwcDevicesCache = { devices: [] };
 
-function bootstrapSiteDatabase() {
-    siteDb.init(STORAGE_DIR);
-    operationOverlay.init({
+async function bootstrapSiteDatabase() {
+    await siteDb.init(STORAGE_DIR);
+    await operationOverlay.init({
         storageDir: STORAGE_DIR,
         getDispatchGroupColor: function (id) {
             const g = dispatchGroups.getGroup(id);
             return g && g.color ? g.color : null;
         },
     });
-    const mig = siteDb.migrateFromJson(BWC_DEVICES_PATH);
+    const mig = await siteDb.migrateFromJson(BWC_DEVICES_PATH);
     if (mig.imported) {
         log.web.info('site db migrated from json', mig);
-        siteDb.exportToJson(BWC_DEVICES_PATH);
+        await siteDb.exportToJson(BWC_DEVICES_PATH);
     }
-    siteDb.setSetting('archive', {
+    await siteDb.setSetting('archive', {
         primary: (process.env.FM_ARCHIVE_PRIMARY || 'local').trim().toLowerCase(),
         localPath: STORAGE_DIR,
         nasPath: (process.env.FM_ARCHIVE_NAS_PATH || '').trim(),
@@ -1989,14 +2194,14 @@ function bootstrapSiteDatabase() {
         cloudBucket: (process.env.FM_ARCHIVE_CLOUD_BUCKET || '').trim(),
     });
     const lim = platformLimits.loadLimits();
-    siteDb.setSetting('siteNode', {
+    await siteDb.setSetting('siteNode', {
         nodeId: (process.env.FM_SITE_NODE_ID || 'site-a').trim(),
         peerUrl: (process.env.FM_SITE_PEER_URL || '').trim(),
         maxBwcDevices: lim.maxBwcDevices,
         maxConcurrentLive: lim.maxConcurrentLive,
     });
     try {
-        const purged = siteDb.purgeBwcMessagesOlderThanDays(
+        const purged = await siteDb.purgeBwcMessagesOlderThanDays(
             parseInt(process.env.FM_MESSAGES_RETAIN_DAYS, 10) || 30
         );
         if (purged > 0) log.messaging.info('purged old bwc messages', { count: purged });
@@ -2007,40 +2212,74 @@ function bootstrapSiteDatabase() {
         ftpRoot: FTP_ROOT,
         liveCaptureRoot: storagePaths.resolveLiveCaptureRoot(BASE_DIR, serverSettings.load(STORAGE_DIR)),
     });
+    await evidenceRegistry.scanFtpRoot(400, (item) => {
+        auditLog.record('evidence.ingest_admitted', {
+            target: item.evidenceId,
+            detail: {
+                fileId: item.evidenceId,
+                source: item.source,
+                sha256: item.sha256,
+                byteSize: item.byteSize,
+                detectedType: item.detectedType,
+            },
+        }).catch((err) => log.web.warn('evidence ingest audit failed', { message: err.message }));
+    });
+    await gpsTrack.configure({ siteDb: siteDb, log: log });
     try {
-        const scanned = evidenceRegistry.scanFtpRoot(400);
-        if (scanned > 0) log.web.info('evidence catalog scan', { indexed: scanned });
-    } catch (err) {
-        log.web.warn('evidence catalog scan failed', { message: err.message });
-    }
-    gpsTrack.configure({ siteDb: siteDb, log: log });
-    try {
-        gpsTrack.runRetention();
+        await gpsTrack.runRetention();
     } catch (err) {
         log.web.warn('gps track retention skipped', { message: err.message });
     }
+    bwcDevicesCache = await bwcDevices.migrateFromChannels(
+        BWC_DEVICES_PATH,
+        readVideoChannels().channels || []
+    );
+    seedGeofenceStateFromCache();
 }
 
-bootstrapSiteDatabase();
+const startupStorageProbe = storagePaths.testWriteLifecycle(STORAGE_DIR);
+startupStorageWritable = startupStorageProbe.writable;
+if (!startupStorageWritable) {
+    throw new Error('Startup storage write lifecycle failed: ' + (startupStorageProbe.error || STORAGE_DIR));
+}
 
 setInterval(function () {
-    try {
-        gpsTrack.runRetention();
-    } catch (_) { /* ignore */ }
+    gpsTrack.runRetention().catch((err) => {
+        log.web.warn('gps track retention failed', { message: err.message });
+    });
 }, 6 * 3600000);
 
-let bwcDevicesCache = null;
-
 function loadBwcDevices() {
-    if (!bwcDevicesCache) {
-        const channels = readVideoChannels().channels || [];
-        bwcDevicesCache = bwcDevices.migrateFromChannels(BWC_DEVICES_PATH, channels);
-    }
     return bwcDevicesCache;
 }
 
 function invalidateBwcDevicesCache() {
     bwcDevicesCache = null;
+}
+
+let bwcRegistryWriteTail = Promise.resolve();
+let bwcRegistryPendingWrites = 0;
+let bwcRegistryDroppedWrites = 0;
+const BWC_REGISTRY_MAX_PENDING = 100;
+function queueBwcRegistryWrite(data, reason) {
+    const next = bwcDevices.normalize(data);
+    bwcDevicesCache = next;
+    if (bwcRegistryPendingWrites >= BWC_REGISTRY_MAX_PENDING) {
+        bwcRegistryDroppedWrites += 1;
+        log.web.err('bwc registry PostgreSQL dispatcher full', {
+            reason,
+            pending: bwcRegistryPendingWrites,
+            dropped: bwcRegistryDroppedWrites,
+        });
+        return next;
+    }
+    bwcRegistryPendingWrites += 1;
+    bwcRegistryWriteTail = bwcRegistryWriteTail
+        .catch(() => {})
+        .then(() => bwcDevices.write(BWC_DEVICES_PATH, next))
+        .catch((err) => log.web.err('bwc registry PostgreSQL write failed', { reason, message: err.message }))
+        .finally(() => { bwcRegistryPendingWrites -= 1; });
+    return next;
 }
 
 function syncFleetDeviceMeta() {
@@ -2056,7 +2295,7 @@ function purgeJunkBwcRegistryRows() {
     const kept = (data.devices || []).filter((d) => d && isBwcCameraId(d.deviceId));
     const removed = before - kept.length;
     if (removed <= 0) return data;
-    bwcDevicesCache = bwcDevices.write(BWC_DEVICES_PATH, { devices: kept });
+    bwcDevicesCache = queueBwcRegistryWrite({ devices: kept }, 'purge-junk');
     syncFleetDeviceMeta();
     if (siteDb.isReady()) {
         (data.devices || []).forEach((d) => {
@@ -2096,7 +2335,7 @@ function ensureBwcEntryForDevice(deviceId) {
         password: '',
         protocol: 'sip',
     });
-    bwcDevicesCache = bwcDevices.write(BWC_DEVICES_PATH, { devices: data.devices.concat([row]) });
+    bwcDevicesCache = queueBwcRegistryWrite({ devices: data.devices.concat([row]) }, 'sip-auto-add');
     syncFleetDeviceMeta();
     emitFleetRoster();
     log.web.info('bwc auto-added', { deviceId: id, reason: 'registered' });
@@ -2104,7 +2343,6 @@ function ensureBwcEntryForDevice(deviceId) {
 }
 
 function bootstrapBwcDeviceList() {
-    invalidateBwcDevicesCache();
     let data = loadBwcDevices();
     data = purgeJunkBwcRegistryRows() || data;
     if ((data.devices || []).length) {
@@ -2114,7 +2352,7 @@ function bootstrapBwcDeviceList() {
     const seedId = String(process.env.FM_SEED_BWC_ID || '34020000001329000008').trim();
     const seedName = String(process.env.FM_SEED_BWC_NICKNAME || 'Chin').trim();
     if (!seedId) return data;
-    bwcDevicesCache = bwcDevices.write(BWC_DEVICES_PATH, {
+    bwcDevicesCache = queueBwcRegistryWrite({
         devices: [bwcDevices.normalizeDevice({
             deviceId: seedId,
             operatorName: seedName,
@@ -2123,7 +2361,7 @@ function bootstrapBwcDeviceList() {
             password: '',
             protocol: 'sip',
         })],
-    });
+    }, 'bootstrap-seed');
     syncFleetDeviceMeta();
     log.web.info('bwc registry seeded', { deviceId: seedId, operatorName: seedName });
     return bwcDevicesCache;
@@ -2155,7 +2393,7 @@ function ensureBwcEntriesForWallChannels(channels) {
         log.web.warn('video wall bwc merge blocked — device limit', { error: err.message });
         return data;
     }
-    bwcDevicesCache = bwcDevices.write(BWC_DEVICES_PATH, merged);
+    bwcDevicesCache = queueBwcRegistryWrite(merged, 'wall-channel-merge');
     return bwcDevicesCache;
 }
 
@@ -2225,7 +2463,7 @@ app.post('/api/bwc-devices', (req, res) => {
     try {
         platformLimits.assertBwcCount(incoming.length);
         invalidateBwcDevicesCache();
-        const saved = bwcDevices.write(BWC_DEVICES_PATH, { devices: incoming });
+        const saved = queueBwcRegistryWrite({ devices: incoming }, 'registry-api-save');
         bwcDevicesCache = saved;
         const settings = serverSettings.load(STORAGE_DIR);
         let mergedSettings = pttDownlinkPolicy.syncDownlinkFromDevices(incoming, settings);
@@ -2589,7 +2827,7 @@ app.post('/api/geofence/set', (req, res) => {
         const nextDevices = current.devices.slice();
         const row = Object.assign({}, nextDevices[idx], { geofence: gf });
         nextDevices[idx] = row;
-        const saved = bwcDevices.write(BWC_DEVICES_PATH, { devices: nextDevices });
+        const saved = queueBwcRegistryWrite({ devices: nextDevices }, 'registry-delete');
         bwcDevicesCache = saved;
         delete geofenceInsideByCam[deviceId];
         const g = lastGpsByCam[deviceId];
@@ -2658,7 +2896,7 @@ app.post('/api/geofence/clear', (req, res) => {
         row.geofence = null;
         const nextDevices = current.devices.slice();
         nextDevices[idx] = row;
-        const saved = bwcDevices.write(BWC_DEVICES_PATH, { devices: nextDevices });
+        const saved = queueBwcRegistryWrite({ devices: nextDevices }, 'registry-update');
         bwcDevicesCache = saved;
         delete geofenceInsideByCam[deviceId];
         emitToDashboardSockets('geofence-update', {
@@ -2714,7 +2952,7 @@ app.post('/api/bwc-devices/:deviceId/geofence', (req, res) => {
             return res.status(400).json(opErr("geofence_or_clear_required"));
         }
         nextDevices[idx] = row;
-        const saved = bwcDevices.write(BWC_DEVICES_PATH, { devices: nextDevices });
+        const saved = queueBwcRegistryWrite({ devices: nextDevices }, 'registry-bulk-update');
         bwcDevicesCache = saved;
         delete geofenceInsideByCam[deviceId];
         const g = lastGpsByCam[deviceId];
@@ -2860,6 +3098,11 @@ app.post('/api/sos-acknowledge', async (req, res) => {
                     pttOnline: pttServer.isDevicePttOnline(id),
                 })),
             };
+            if (pushResult.pushed > 0) {
+                pttFieldGroupRelay.setSosTeam(alarmCamId, team, {
+                    source: 'sos-acknowledge',
+                });
+            }
             log.ptt.info('sos response ptt team', {
                 alarmCamId,
                 teamSize: team.length,
@@ -2911,8 +3154,17 @@ app.post('/api/ptt-restore-always-on', (req, res) => {
         if (!PTT_ENABLED) {
             return res.status(503).json(opErr("PTT not enabled on server"));
         }
+        const source = String(req.body && req.body.source || '').trim();
+        if (source === 'dispatch') {
+            pttFieldGroupRelay.clearDispatchTeam();
+        } else if (source.indexOf('sos') === 0) {
+            pttFieldGroupRelay.clearAllSosTeams();
+        } else {
+            pttFieldGroupRelay.clearDispatchTeam();
+            pttFieldGroupRelay.clearAllSosTeams();
+        }
         const result = restoreAlwaysOnPttGroups();
-        if (req.body && req.body.source === 'dispatch') {
+        if (source === 'dispatch') {
             auditLog.recordFromRequest(req, 'ptt.dispatch_ungroup', {
                 detail: { restored: result.restored, camIds: result.camIds },
             });
@@ -3020,6 +3272,12 @@ app.post('/api/dispatch-ptt-group', (req, res) => {
             teamSize: team.length,
             pushed: pushResult.pushed,
         });
+        if (pushResult.pushed > 0) {
+            pttFieldGroupRelay.setDispatchTeam(resolvedGroupId || 'adhoc', team, {
+                groupName,
+                adhoc,
+            });
+        }
         auditLog.recordFromRequest(req, 'ptt.dispatch_group', {
             target: auditTarget,
             detail: { groupId: resolvedGroupId, adhoc, team, pushed: pushResult.pushed },
@@ -3084,6 +3342,11 @@ app.post('/api/sos-ptt-team', (req, res) => {
                 pttOnline: pttServer.isDevicePttOnline(id),
             })),
         };
+        if (pushResult.pushed > 0) {
+            pttFieldGroupRelay.setSosTeam(alarmCamId, team, {
+                source: 'sos-banner',
+            });
+        }
         log.ptt.info('sos ptt team (banner)', {
             alarmCamId,
             teamSize: team.length,
@@ -3158,6 +3421,11 @@ app.post('/api/sos-ptt-team-add', (req, res) => {
                 pttOnline: pttServer.isDevicePttOnline(id),
             })),
         };
+        if (pushResult.pushed > 0) {
+            pttFieldGroupRelay.setSosTeam(alarmCamId, team, {
+                source: 'sos-add-helper',
+            });
+        }
         log.ptt.info('sos ptt team (add helpers)', {
             alarmCamId,
             teamSize: team.length,
@@ -3318,6 +3586,11 @@ app.post('/api/evidence-settings/test-paths', dashboardAuth.requireSuperAdmin, (
                     ? String(ev.ftpUploadPath).trim()
                     : ((settings.docking && settings.docking.ftpUploadPath) || ''),
             }),
+            frStorage: Object.assign({}, settings.frStorage || {}, {
+                rootPath: ev.frStorageRoot != null
+                    ? String(ev.frStorageRoot).trim()
+                    : ((settings.frStorage && settings.frStorage.rootPath) || ''),
+            }),
         });
         const payload = evidenceSettingsPayload(draft);
         res.json(Object.assign({ ok: true, tested: true }, payload));
@@ -3326,14 +3599,41 @@ app.post('/api/evidence-settings/test-paths', dashboardAuth.requireSuperAdmin, (
     }
 });
 
-app.post('/api/evidence/scan-catalog', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.post('/api/evidence/scan-catalog', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         refreshEvidenceStorage();
         const limit = req.body && req.body.limit ? req.body.limit : 400;
-        const count = evidenceRegistry.scanFtpRoot(limit);
-        const repair = evidenceRegistry.repairCatalog(2000);
-        auditLog.recordFromRequest(req, 'evidence.catalog.scan', { detail: { indexed: count, repaired: repair.repaired, missing: repair.missing } });
-        res.json({ ok: true, indexed: count, repair });
+        const count = await evidenceRegistry.scanFtpRoot(limit, (item) => {
+            auditLog.recordFromRequest(req, 'evidence.ingest_admitted', {
+                target: item.evidenceId,
+                detail: {
+                    fileId: item.evidenceId,
+                    source: item.source,
+                    sha256: item.sha256,
+                    byteSize: item.byteSize,
+                    detectedType: item.detectedType,
+                },
+            }).catch((err) => log.web.warn('evidence ingest audit failed', { message: err.message }));
+        });
+        const repair = await evidenceRegistry.repairCatalog(2000);
+        const integrity = await evidenceRegistry.verifyCatalogIntegrity(limit);
+        integrity.failures.forEach((failure) => {
+            auditLog.recordFromRequest(req, failure.actualSha256 ? 'evidence.integrity_mismatch' : 'evidence.integrity_unverified', {
+                target: failure.evidenceId,
+                detail: Object.assign({ fileId: failure.evidenceId }, failure),
+            }).catch((err) => log.web.warn('evidence integrity audit failed', { message: err.message }));
+        });
+        await auditLog.recordFromRequest(req, 'evidence.catalog.scan', {
+            detail: {
+                indexed: count,
+                repaired: repair.repaired,
+                missing: repair.missing,
+                integrityChecked: integrity.checked,
+                integrityMismatched: integrity.mismatched,
+                integrityUnverified: integrity.unverified,
+            },
+        });
+        res.json({ ok: true, indexed: count, repair, integrity });
     } catch (err) {
         log.web.warn('evidence catalog scan failed', { message: err.message });
         res.status(500).json(opErr(err));
@@ -3372,7 +3672,7 @@ app.post('/api/voice-alerts-settings', dashboardAuth.requireSuperAdmin, (req, re
     }
 });
 
-app.post('/api/evidence-settings', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.post('/api/evidence-settings', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         const body = req.body || {};
         if (reverifyForbidden(req, res, body)) return;
@@ -3401,6 +3701,9 @@ app.post('/api/evidence-settings', dashboardAuth.requireSuperAdmin, (req, res) =
         let liveCapturePath = evIn.liveCapturePath != null
             ? String(evIn.liveCapturePath).trim()
             : (current.evidence && current.evidence.liveCapturePath) || 'evidence/live-capture';
+        const frStorageRootPath = evIn.frStorageRoot != null
+            ? String(evIn.frStorageRoot).trim()
+            : (current.frStorage && current.frStorage.rootPath) || '';
         if (applyRecommended && archivePrimary === 'network') {
             const nasPath = storagePaths.resolveNasPath(BASE_DIR, nasMountPath);
             const rec = storagePaths.recommendedNetworkPaths(nasPath);
@@ -3411,6 +3714,14 @@ app.post('/api/evidence-settings', dashboardAuth.requireSuperAdmin, (req, res) =
                     evidence: { archivePrimary: 'network', nasMountPath: nasMountPath },
                 });
             }
+        }
+        const frDraft = Object.assign({}, current, {
+            frStorage: { rootPath: frStorageRootPath },
+        });
+        const newFrRoot = frStorageWorkspace.resolveRoot(BASE_DIR, STORAGE_DIR, frDraft);
+        const frAccess = frStorageWorkspace.testWritable(newFrRoot, true);
+        if (!frAccess.ok) {
+            return res.status(400).json(opErr('FR storage root is not writable: ' + frAccess.error));
         }
         const next = serverSettings.save(STORAGE_DIR, Object.assign({}, current, {
             docking: Object.assign({}, current.docking || {}, {
@@ -3426,22 +3737,28 @@ app.post('/api/evidence-settings', dashboardAuth.requireSuperAdmin, (req, res) =
                 dockFtpTargetNote: evIn.dockFtpTargetNote != null ? String(evIn.dockFtpTargetNote).trim() : (current.evidence && current.evidence.dockFtpTargetNote) || '',
                 sanInstallerNote: evIn.sanInstallerNote != null ? String(evIn.sanInstallerNote).trim() : (current.evidence && current.evidence.sanInstallerNote) || '',
             },
+            frStorage: {
+                rootPath: frStorageRootPath,
+                activeRootPath: (current.frStorage && current.frStorage.activeRootPath) || '',
+            },
         }));
         if (siteDb.isReady()) {
-            const arch = siteDb.getSetting('archive', {}) || {};
-            siteDb.setSetting('archive', Object.assign({}, arch, {
+            const arch = await siteDb.getSetting('archive', {}) || {};
+            await siteDb.setSetting('archive', Object.assign({}, arch, {
                 primary: archivePrimary,
                 nasPath: nasMountPath,
                 localPath: STORAGE_DIR,
             }));
         }
         const roots = refreshEvidenceStorage();
-        auditLog.recordFromRequest(req, 'evidence.settings.save', {
+        await auditLog.recordFromRequest(req, 'evidence.settings.save', {
             detail: {
                 archivePrimary: next.evidence.archivePrimary,
                 liveCaptureEnabled: next.evidence.liveCaptureEnabled,
                 liveCapturePath: next.evidence.liveCapturePath,
                 nasMountPath: nasMountPath,
+                frStorageRoot: newFrRoot,
+                frStorageRestartRequired: path.resolve(newFrRoot) !== path.resolve(FR_STORAGE_ROOT),
             },
         });
         res.json(Object.assign(evidenceSettingsPayload(next), {
@@ -4138,12 +4455,12 @@ app.get('/api/evidence/live-record/status', (req, res) => {
     }
 });
 
-app.get('/api/audit-log', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.get('/api/audit-log', dashboardAuth.requireSuperAdmin, async (req, res) => {
     const limit = parseInt(req.query.limit, 10) || 100;
     const since = req.query.since || null;
     res.json({
         ok: true,
-        entries: auditLog.list({ limit, since }),
+        entries: await auditLog.list({ limit, since }),
     });
 });
 
@@ -4174,18 +4491,18 @@ function requireAuditExport(req, res, next) {
     return next();
 }
 
-app.get('/api/audit-trail/meta', requireAuditView, (req, res) => {
+app.get('/api/audit-trail/meta', requireAuditView, async (req, res) => {
     try {
-        res.json({ ok: true, meta: auditTrail.listMeta() });
+        res.json({ ok: true, meta: await auditTrail.listMeta() });
     } catch (err) {
         res.status(500).json(opErr(err));
     }
 });
 
-app.get('/api/audit-trail', requireAuditView, (req, res) => {
+app.get('/api/audit-trail', requireAuditView, async (req, res) => {
     try {
         const q = req.query || {};
-        const out = auditTrail.list({
+        const out = await auditTrail.list({
             limit: q.limit,
             offset: q.offset,
             since: q.since,
@@ -4202,10 +4519,10 @@ app.get('/api/audit-trail', requireAuditView, (req, res) => {
     }
 });
 
-app.get('/api/audit-trail/export.csv', requireAuditExport, (req, res) => {
+app.get('/api/audit-trail/export.csv', requireAuditExport, async (req, res) => {
     try {
         const q = req.query || {};
-        const out = auditTrail.exportCsv({
+        const out = await auditTrail.exportCsv({
             since: q.since,
             until: q.until,
             actor: q.actor,
@@ -4215,7 +4532,7 @@ app.get('/api/audit-trail/export.csv', requireAuditExport, (req, res) => {
             preset: q.preset,
             limit: q.limit,
         }, auditTrailDisplayName);
-        auditLog.recordFromRequest(req, 'audit.export', {
+        await auditLog.recordFromRequest(req, 'audit.export', {
             detail: {
                 format: 'csv',
                 rowCount: out.rowCount,
@@ -4273,26 +4590,26 @@ app.get('/api/operations/meta', requireOverlayView, (req, res) => {
     }
 });
 
-app.get('/api/operations/active/map-overlays', requireOverlayView, (req, res) => {
+app.get('/api/operations/active/map-overlays', requireOverlayView, async (req, res) => {
     try {
-        res.json(operationOverlay.listActiveMapOverlays(req.dashboardUser));
+        res.json(await operationOverlay.listActiveMapOverlays(req.dashboardUser));
     } catch (err) {
         res.status(400).json(opErr(err));
     }
 });
 
-app.get('/api/operations', requireOverlayView, (req, res) => {
+app.get('/api/operations', requireOverlayView, async (req, res) => {
     try {
-        res.json(operationOverlay.listOperations(req.dashboardUser, req.query));
+        res.json(await operationOverlay.listOperations(req.dashboardUser, req.query));
     } catch (err) {
         res.status(400).json(opErr(err));
     }
 });
 
-app.post('/api/operations', requireOverlayEdit, express.json(), (req, res) => {
+app.post('/api/operations', requireOverlayEdit, express.json(), async (req, res) => {
     try {
-        const out = operationOverlay.createOperation(req.dashboardUser, req.body);
-        auditLog.recordFromRequest(req, 'operation.create', {
+        const out = await operationOverlay.createOperation(req.dashboardUser, req.body);
+        await auditLog.recordFromRequest(req, 'operation.create', {
             target: out.operation.id,
             detail: { title: out.operation.title, status: out.operation.status },
         });
@@ -4302,19 +4619,19 @@ app.post('/api/operations', requireOverlayEdit, express.json(), (req, res) => {
     }
 });
 
-app.get('/api/operations/:id', requireOverlayView, (req, res) => {
+app.get('/api/operations/:id', requireOverlayView, async (req, res) => {
     try {
-        res.json(operationOverlay.getOperation(req.dashboardUser, req.params.id));
+        res.json(await operationOverlay.getOperation(req.dashboardUser, req.params.id));
     } catch (err) {
         const code = err.message === 'Operation not found' || err.message === 'Operation not visible' ? 404 : 400;
         res.status(code).json(opErr(err));
     }
 });
 
-app.patch('/api/operations/:id', requireOverlayEdit, express.json(), (req, res) => {
+app.patch('/api/operations/:id', requireOverlayEdit, express.json(), async (req, res) => {
     try {
-        const out = operationOverlay.updateOperation(req.dashboardUser, req.params.id, req.body);
-        auditLog.recordFromRequest(req, 'operation.update', {
+        const out = await operationOverlay.updateOperation(req.dashboardUser, req.params.id, req.body);
+        await auditLog.recordFromRequest(req, 'operation.update', {
             target: req.params.id,
             detail: { title: out.operation.title },
         });
@@ -4325,10 +4642,10 @@ app.patch('/api/operations/:id', requireOverlayEdit, express.json(), (req, res) 
     }
 });
 
-app.post('/api/operations/:id/activate', requireOverlayEdit, (req, res) => {
+app.post('/api/operations/:id/activate', requireOverlayEdit, async (req, res) => {
     try {
-        const out = operationOverlay.activateOperation(req.dashboardUser, req.params.id);
-        auditLog.recordFromRequest(req, 'operation.activate', {
+        const out = await operationOverlay.activateOperation(req.dashboardUser, req.params.id);
+        await auditLog.recordFromRequest(req, 'operation.activate', {
             target: req.params.id,
             detail: { title: out.operation.title },
         });
@@ -4339,10 +4656,10 @@ app.post('/api/operations/:id/activate', requireOverlayEdit, (req, res) => {
     }
 });
 
-app.post('/api/operations/:id/close', requireOverlayClose, (req, res) => {
+app.post('/api/operations/:id/close', requireOverlayClose, async (req, res) => {
     try {
-        const out = operationOverlay.closeOperation(req.dashboardUser, req.params.id);
-        auditLog.recordFromRequest(req, 'operation.close', {
+        const out = await operationOverlay.closeOperation(req.dashboardUser, req.params.id);
+        await auditLog.recordFromRequest(req, 'operation.close', {
             target: req.params.id,
             detail: { title: out.operation.title },
         });
@@ -4353,19 +4670,19 @@ app.post('/api/operations/:id/close', requireOverlayClose, (req, res) => {
     }
 });
 
-app.get('/api/operations/:id/overlays', requireOverlayView, (req, res) => {
+app.get('/api/operations/:id/overlays', requireOverlayView, async (req, res) => {
     try {
-        res.json(operationOverlay.listOverlays(req.dashboardUser, req.params.id));
+        res.json(await operationOverlay.listOverlays(req.dashboardUser, req.params.id));
     } catch (err) {
         const code = err.message === 'Operation not found' || err.message === 'Operation not visible' ? 404 : 400;
         res.status(code).json(opErr(err));
     }
 });
 
-app.post('/api/operations/:id/overlays', requireOverlayEdit, express.json(), (req, res) => {
+app.post('/api/operations/:id/overlays', requireOverlayEdit, express.json(), async (req, res) => {
     try {
-        const out = operationOverlay.createOverlay(req.dashboardUser, req.params.id, req.body);
-        auditLog.recordFromRequest(req, 'overlay.create', {
+        const out = await operationOverlay.createOverlay(req.dashboardUser, req.params.id, req.body);
+        await auditLog.recordFromRequest(req, 'overlay.create', {
             target: out.pin.id,
             detail: {
                 operationId: req.params.id,
@@ -4380,10 +4697,10 @@ app.post('/api/operations/:id/overlays', requireOverlayEdit, express.json(), (re
     }
 });
 
-app.patch('/api/overlays/:pinId', requireOverlayEdit, express.json(), (req, res) => {
+app.patch('/api/overlays/:pinId', requireOverlayEdit, express.json(), async (req, res) => {
     try {
-        const out = operationOverlay.updateOverlay(req.dashboardUser, req.params.pinId, req.body);
-        auditLog.recordFromRequest(req, 'overlay.update', {
+        const out = await operationOverlay.updateOverlay(req.dashboardUser, req.params.pinId, req.body);
+        await auditLog.recordFromRequest(req, 'overlay.update', {
             target: req.params.pinId,
             detail: { operationId: out.pin.operationId, title: out.pin.title },
         });
@@ -4394,10 +4711,10 @@ app.patch('/api/overlays/:pinId', requireOverlayEdit, express.json(), (req, res)
     }
 });
 
-app.delete('/api/overlays/:pinId', requireOverlayEdit, (req, res) => {
+app.delete('/api/overlays/:pinId', requireOverlayEdit, async (req, res) => {
     try {
-        const out = operationOverlay.deleteOverlay(req.dashboardUser, req.params.pinId);
-        auditLog.recordFromRequest(req, 'overlay.delete', { target: req.params.pinId });
+        const out = await operationOverlay.deleteOverlay(req.dashboardUser, req.params.pinId);
+        await auditLog.recordFromRequest(req, 'overlay.delete', { target: req.params.pinId });
         res.json(out);
     } catch (err) {
         const code = err.message === 'Overlay pin not found' ? 404 : 400;
@@ -4405,7 +4722,7 @@ app.delete('/api/overlays/:pinId', requireOverlayEdit, (req, res) => {
     }
 });
 
-app.get('/api/platform/status', (req, res) => {
+app.get('/api/platform/status', async (req, res) => {
     const settings = serverSettings.load(STORAGE_DIR);
     const profile = tenantProfile.load(STORAGE_DIR, settings);
     const limits = platformLimits.loadLimits();
@@ -4441,9 +4758,9 @@ app.get('/api/platform/status', (req, res) => {
         limitsSource: limits.limitsSource,
         license: platformLicense.getStatusPublic(),
         licenseHeartbeat: licenseHeartbeat.getStatusPublic(),
-        siteNode: siteDb.isReady() ? siteDb.getSetting('siteNode', null) : null,
-        archive: siteDb.isReady() ? siteDb.getSetting('archive', null) : null,
-        registryBackend: siteDb.isReady() ? 'sqlite' : 'json',
+        siteNode: siteDb.isReady() ? await siteDb.getSetting('siteNode', null) : null,
+        archive: siteDb.isReady() ? await siteDb.getSetting('archive', null) : null,
+        registryBackend: siteDb.isReady() ? 'postgresql' : 'unavailable',
         sessionRole: session ? session.role : null,
     });
 });
@@ -4589,7 +4906,7 @@ function persistDispatchGroupsAndSyncBwc(groups) {
     invalidateBwcDevicesCache();
     const bwcCurrent = loadBwcDevices();
     const merged = dispatchGroups.syncGroupsToBwcDevices(bwcCurrent, saved);
-    const written = bwcDevices.write(BWC_DEVICES_PATH, merged);
+    const written = queueBwcRegistryWrite(merged, 'registry-import');
     bwcDevicesCache = written;
     fleetRegistry.refreshDeviceMeta(written, VIDEO_CHANNELS_PATH);
     return saved;
@@ -4912,11 +5229,11 @@ function requireEvidenceEdit(req, res, next) {
     return next();
 }
 
-app.get('/api/storage/status', requireEvidenceView, (req, res) => {
+app.get('/api/storage/status', requireEvidenceView, async (req, res) => {
     try {
         const settings = serverSettings.load(STORAGE_DIR);
         const includeDisk = req.query && req.query.disk === '1';
-        res.json(storageStatus.buildStatus(BASE_DIR, STORAGE_DIR, settings, {
+        res.json(await storageStatus.buildStatus(BASE_DIR, STORAGE_DIR, settings, {
             includeDiskScan: includeDisk,
         }));
     } catch (err) {
@@ -4943,25 +5260,25 @@ function evidenceOverviewCtx() {
     };
 }
 
-app.get('/api/evidence/overview', requireEvidenceView, (req, res) => {
+app.get('/api/evidence/overview', requireEvidenceView, async (req, res) => {
     try {
-        res.json(evidenceOverview.build(evidenceOverviewCtx()));
+        res.json(await evidenceOverview.build(evidenceOverviewCtx()));
     } catch (err) {
         log.web.warn('evidence overview failed', { message: err.message });
         res.status(500).json(opErr(err));
     }
 });
 
-app.post('/api/storage/maintenance', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.post('/api/storage/maintenance', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         if (!siteDb.isReady()) {
             return res.status(503).json(opErr('Database not ready'));
         }
         const vacuum = !!(req.body && req.body.vacuum);
-        const result = siteDb.runMaintenance({ vacuum: vacuum });
-        auditLog.recordFromRequest(req, 'storage.maintenance', { detail: { vacuum: vacuum } });
+        const result = await siteDb.runMaintenance({ vacuum: vacuum });
+        await auditLog.recordFromRequest(req, 'storage.maintenance', { detail: { vacuum: vacuum } });
         res.json(Object.assign({ ok: true }, result, {
-            stats: siteDb.getDatabaseStats(),
+            stats: await siteDb.getDatabaseStats(),
         }));
     } catch (err) {
         log.web.warn('storage maintenance failed', { message: err.message });
@@ -4969,17 +5286,17 @@ app.post('/api/storage/maintenance', dashboardAuth.requireSuperAdmin, (req, res)
     }
 });
 
-app.post('/api/storage/backup', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.post('/api/storage/backup', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         if (!siteDb.isReady()) {
             return res.status(503).json(opErr('Database not ready'));
         }
         const backupDir = path.join(STORAGE_DIR, 'backups');
-        const result = siteDb.backupDatabase(backupDir);
+        const result = await siteDb.backupDatabase(backupDir);
         if (!result.ok) {
             return res.status(500).json(opErr(result.error || result));
         }
-        auditLog.recordFromRequest(req, 'storage.backup', {
+        await auditLog.recordFromRequest(req, 'storage.backup', {
             detail: { path: result.path, bytes: result.bytes },
         });
         res.json(result);
@@ -5005,7 +5322,7 @@ function sosIncidentLookup(id) {
     return entries.find(function (e) { return e.id === id || e.incidentId === id; }) || null;
 }
 
-app.get('/api/evidence/catalog', requireEvidenceView, (req, res) => {
+app.get('/api/evidence/catalog', requireEvidenceView, async (req, res) => {
     try {
         const q = req.query || {};
         const tagQ = q.tag != null ? String(q.tag).trim().toLowerCase() : '';
@@ -5013,7 +5330,7 @@ app.get('/api/evidence/catalog', requireEvidenceView, (req, res) => {
         const status = (statusRaw === 'archived' || statusRaw === 'all') ? statusRaw : 'active';
         const wantsPage = q.page != null || q.pageSize != null || q.limit == null;
         if (wantsPage || tagQ || status !== 'all') {
-            const result = evidenceRegistry.listCatalogPage({
+            const result = await evidenceRegistry.listCatalogPage({
                 page: q.page,
                 pageSize: q.pageSize || q.limit || 50,
                 tag: tagQ,
@@ -5030,7 +5347,7 @@ app.get('/api/evidence/catalog', requireEvidenceView, (req, res) => {
             });
         }
         const limit = q.limit;
-        res.json({ ok: true, files: evidenceRegistry.listCatalog(limit), status: status });
+        res.json({ ok: true, files: await evidenceRegistry.listCatalog(limit), status: status });
     } catch (err) {
         log.web.warn('evidence catalog list failed', { message: err.message });
         res.status(500).json(opErr(err));
@@ -5045,17 +5362,17 @@ app.get('/api/gps-track/settings', requireEvidenceView, (req, res) => {
     }
 });
 
-app.patch('/api/gps-track/settings', dashboardAuth.requireSuperAdmin, express.json(), (req, res) => {
+app.patch('/api/gps-track/settings', dashboardAuth.requireSuperAdmin, express.json(), async (req, res) => {
     try {
-        const settings = gpsTrack.saveSettings(req.body || {});
-        auditLog.recordFromRequest(req, 'gps_track.settings', { detail: settings });
+        const settings = await gpsTrack.saveSettings(req.body || {});
+        await auditLog.recordFromRequest(req, 'gps_track.settings', { detail: settings });
         res.json({ ok: true, settings: settings });
     } catch (err) {
         res.status(400).json(opErr(err));
     }
 });
 
-app.get('/api/gps-track/route', requireEvidenceView, (req, res) => {
+app.get('/api/gps-track/route', requireEvidenceView, async (req, res) => {
     try {
         const q = req.query || {};
         const deviceId = String(q.deviceId || '').trim();
@@ -5064,15 +5381,15 @@ app.get('/api/gps-track/route', requireEvidenceView, (req, res) => {
         if (!deviceId || !from || !to) {
             return res.status(400).json(opErr("deviceId, from, and to are required (ISO8601)."));
         }
-        const points = gpsTrack.queryRoute(deviceId, from, to, q.limit);
-        const evidence = gpsTrack.evidenceForWindow(deviceId, from, to);
+        const points = await gpsTrack.queryRoute(deviceId, from, to, q.limit);
+        const evidence = await gpsTrack.evidenceForWindow(deviceId, from, to);
         res.json({ ok: true, deviceId: deviceId, from: from, to: to, points: points, evidence: evidence });
     } catch (err) {
         res.status(500).json(opErr(err));
     }
 });
 
-app.get('/api/gps-track/evidence-at', requireEvidenceView, (req, res) => {
+app.get('/api/gps-track/evidence-at', requireEvidenceView, async (req, res) => {
     try {
         const q = req.query || {};
         const deviceId = String(q.deviceId || '').trim();
@@ -5080,7 +5397,7 @@ app.get('/api/gps-track/evidence-at', requireEvidenceView, (req, res) => {
         if (!deviceId || !at) {
             return res.status(400).json(opErr("deviceId and at are required."));
         }
-        const match = gpsTrack.evidenceNearPoint(deviceId, at);
+        const match = await gpsTrack.evidenceNearPoint(deviceId, at);
         res.json({ ok: true, match: match });
     } catch (err) {
         res.status(500).json(opErr(err));
@@ -5159,7 +5476,7 @@ app.post('/api/smart-gps/restore-incident', express.json(), (req, res) => {
     }
 });
 
-app.post('/api/evidence/request-download', requireEvidenceDownload, (req, res) => {
+app.post('/api/evidence/request-download', requireEvidenceDownload, async (req, res) => {
     try {
         if (evidenceSecureExport.secureExportEnabled() && req.dashboardUser.role !== 'super_admin') {
             return res.status(403).json({
@@ -5171,8 +5488,8 @@ app.post('/api/evidence/request-download', requireEvidenceDownload, (req, res) =
         const body = req.body || {};
         const fileId = body.fileId;
         if (!fileId) return res.status(400).json(opErr("Select an evidence file."));
-        const out = evidenceRegistry.createDownloadRequest(req.dashboardUser, fileId, auditLog.clientIp(req));
-        auditLog.recordFromRequest(req, 'evidence.download_request', {
+        const out = await evidenceRegistry.createDownloadRequest(req.dashboardUser, fileId, auditLog.clientIp(req));
+        await auditLog.recordFromRequest(req, 'evidence.download_request', {
             target: out.downloadId,
             detail: { fileId: out.fileId, fileName: out.fileName },
         });
@@ -5182,18 +5499,18 @@ app.post('/api/evidence/request-download', requireEvidenceDownload, (req, res) =
     }
 });
 
-app.get('/api/evidence/stream/:downloadId', requireEvidenceDownload, (req, res) => {
+app.get('/api/evidence/stream/:downloadId', requireEvidenceDownload, async (req, res) => {
     try {
-        const resolved = evidenceRegistry.resolveStreamDownload(req.params.downloadId, req.dashboardUser);
+        const resolved = await evidenceRegistry.resolveStreamDownload(req.params.downloadId, req.dashboardUser);
         if (resolved.error) {
             return res.status(resolved.status || 400).json({ ok: false, error: resolved.error });
         }
         const { dl, file, fullPath } = resolved;
-        auditLog.recordFromRequest(req, 'evidence.download_stream', {
+        await auditLog.recordFromRequest(req, 'evidence.download_stream', {
             target: dl.downloadId,
             detail: { fileId: file.id, fileName: file.fileName },
         });
-        evidenceRegistry.markConsumed(dl.downloadId);
+        await evidenceRegistry.markConsumed(dl.downloadId);
         res.setHeader('X-Evidence-Download-Id', dl.downloadId);
         res.setHeader('Content-Disposition', 'attachment; filename="' + String(file.fileName).replace(/"/g, '') + '"');
         return evidenceCrypto.pipeDecrypted(fullPath, res);
@@ -5202,9 +5519,9 @@ app.get('/api/evidence/stream/:downloadId', requireEvidenceDownload, (req, res) 
     }
 });
 
-app.get('/api/evidence/downloads', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.get('/api/evidence/downloads', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
-        res.json({ ok: true, downloads: evidenceRegistry.listDownloads(req.query && req.query.limit) });
+        res.json({ ok: true, downloads: await evidenceRegistry.listDownloads(req.query && req.query.limit) });
     } catch (err) {
         res.status(500).json(opErr(err));
     }
@@ -5250,10 +5567,10 @@ app.get('/api/fixed-cams/public', (req, res) => {
     try {
         const cams = fixedCamRegistry.listEnabled().map(c => ({
             id: c.id, name: c.name, lat: c.lat, lng: c.lng,
-            zone: c.zone, streamSource: c.streamSource,
+            zone: c.zone, mapIcon: c.mapIcon || 'fixed', streamSource: c.streamSource,
             ptzEnabled: c.ptzEnabled, enabled: c.enabled,
             playable: c.streamSource === 'onvif'
-                ? !!(c.onvif && String(c.onvif.host || '').trim())
+                ? !!((c.onvif && String(c.onvif.host || '').trim()) || String(c.rtspUrl || '').trim())
                 : !!String(c.rtspUrl || '').trim(),
         }));
         res.json({ ok: true, cams });
@@ -5265,26 +5582,257 @@ function fixedCamStreamKey(id) {
 }
 
 async function fixedCamResolvedRtspUrl(cam) {
-    if (cam && cam.streamSource === 'onvif') {
-        try {
-            const discovered = await fixedCamOnvif.resolveStreamUri(cam);
-            return discovered.uri;
-        } catch (err) {
-            if (!String(cam.rtspUrl || '').trim()) throw err;
-            log.media.warn('fixed camera ONVIF stream discovery fallback', {
-                cameraId: cam.id,
-                message: err.message,
-            });
-        }
-    }
-    const raw = String(cam && cam.rtspUrl || '').trim();
-    if (!raw) throw new Error('Registered fixed camera has no RTSP stream URL');
-    if (!cam.onvif || (!cam.onvif.user && !cam.onvif.password)) return raw;
-    const parsed = new URL(raw);
-    if (!parsed.username && cam.onvif.user) parsed.username = cam.onvif.user;
-    if (!parsed.password && cam.onvif.password) parsed.password = cam.onvif.password;
-    return parsed.toString();
+    const resolved = await fixedCamOnvif.resolveRegisteredStreamUri(cam);
+    return resolved.uri;
 }
+
+const fixedCamZlmProxies = new Map();
+const fixedCamZlmStarting = new Map();
+const fixedCamPtzSessions = new Map();
+
+function fixedCamZlmStreamId(id) {
+    return ('fixed_' + String(id || '').trim()).replace(/[^\w.-]/g, '_');
+}
+
+function fixedCamZlmFlvPath(streamId) {
+    return '/api/lab/zlm/flv/' + encodeURIComponent(streamId) + '.live.flv';
+}
+
+async function fixedCamZlmApi(apiPath, params) {
+    const base = String(process.env.FM_ZLM_HTTP || 'http://127.0.0.1:8080').replace(/\/$/, '');
+    const secret = String(process.env.FM_ZLM_SECRET || '');
+    if (!secret) throw new Error('ZLM secret is not configured');
+    const url = new URL(base + apiPath);
+    Object.keys(params || {}).forEach(function (key) {
+        if (params[key] != null && params[key] !== '') url.searchParams.set(key, String(params[key]));
+    });
+    url.searchParams.set('secret', secret);
+    const ctrl = new AbortController();
+    const timer = setTimeout(function () { ctrl.abort(); }, 15000);
+    try {
+        const response = await fetch(url, { signal: ctrl.signal });
+        const data = await response.json();
+        if (!data || data.code !== 0) throw new Error((data && data.msg) || 'ZLM request failed');
+        return data;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+async function startFixedCamZlmProxy(camera, owner) {
+    const id = String(camera.id);
+    const ownerId = String(owner || 'fixed-camera-view').slice(0, 120);
+    const existing = fixedCamZlmProxies.get(id);
+    if (existing) {
+        existing.owners.set(ownerId, Date.now() + 90000);
+        if (existing.stopTimer) {
+            clearTimeout(existing.stopTimer);
+            existing.stopTimer = null;
+        }
+        return existing;
+    }
+    if (fixedCamZlmStarting.has(id)) {
+        const state = await fixedCamZlmStarting.get(id);
+        state.owners.set(ownerId, Date.now() + 90000);
+        return state;
+    }
+    const starting = (async function () {
+        const resolved = await fixedCamResolvedRtspUrl(camera);
+        const streamId = fixedCamZlmStreamId(id);
+        const transport = String(camera.onvif && camera.onvif.rtspTransport || 'tcp').toLowerCase();
+        const result = await fixedCamZlmApi('/index/api/addStreamProxy', {
+            vhost: process.env.FM_ZLM_VHOST || '__defaultVhost__',
+            app: process.env.FM_ZLM_APP || 'live',
+            stream: streamId,
+            url: resolved,
+            retry_count: -1,
+            rtp_type: transport === 'udp' ? 1 : 0,
+            timeout_sec: 15,
+            enable_audio: 0,
+            enable_rtsp: 1,
+            enable_rtmp: 1,
+            enable_hls: 0,
+            enable_mp4: 0,
+        });
+        const state = {
+            cameraId: id,
+            streamId,
+            key: result.data && (result.data.key || result.data),
+            flvUrl: fixedCamZlmFlvPath(streamId),
+            owners: new Map(),
+            stopTimer: null,
+        };
+        fixedCamZlmProxies.set(id, state);
+        log.media.info('fixed camera ZLM proxy started', {
+            cameraId: id,
+            streamId,
+            transport,
+        });
+        return state;
+    }());
+    fixedCamZlmStarting.set(id, starting);
+    try {
+        const state = await starting;
+        state.owners.set(ownerId, Date.now() + 90000);
+        return state;
+    } finally {
+        fixedCamZlmStarting.delete(id);
+    }
+}
+
+async function stopFixedCamZlmProxy(cameraId, owner, immediate) {
+    const id = String(cameraId || '').trim();
+    const state = fixedCamZlmProxies.get(id);
+    if (!state) return { stopped: false };
+    if (owner) state.owners.delete(String(owner).slice(0, 120));
+    const now = Date.now();
+    state.owners.forEach(function (expires, key) {
+        if (expires <= now) state.owners.delete(key);
+    });
+    if (state.owners.size && !immediate) return { stopped: false, owners: state.owners.size };
+    if (!immediate) {
+        if (!state.stopTimer) {
+            state.stopTimer = setTimeout(function () {
+                stopFixedCamZlmProxy(id, null, true).catch(function () { /* ignore */ });
+            }, 4000);
+        }
+        return { stopped: false, deferred: true };
+    }
+    fixedCamZlmProxies.delete(id);
+    if (state.stopTimer) clearTimeout(state.stopTimer);
+    if (state.key) {
+        try { await fixedCamZlmApi('/index/api/delStreamProxy', { key: state.key }); } catch (_) { /* ignore */ }
+    }
+    log.media.info('fixed camera ZLM proxy stopped', { cameraId: id, streamId: state.streamId });
+    return { stopped: true };
+}
+
+const fixedCamZlmOwnerSweep = setInterval(function () {
+    fixedCamZlmProxies.forEach(function (state, cameraId) {
+        const now = Date.now();
+        state.owners.forEach(function (expires, owner) {
+            if (expires <= now) state.owners.delete(owner);
+        });
+        if (!state.owners.size) stopFixedCamZlmProxy(cameraId, null, false).catch(function () { /* ignore */ });
+    });
+}, 30000);
+if (typeof fixedCamZlmOwnerSweep.unref === 'function') fixedCamZlmOwnerSweep.unref();
+
+async function fixedCamPtzSession(camera) {
+    const cached = fixedCamPtzSessions.get(camera.id);
+    if (cached && cached.client) return cached;
+    const cfg = camera.onvif || {};
+    if (!cfg.host) throw new Error('ONVIF host is not configured');
+    const rawHost = String(cfg.host).trim();
+    const hostname = /^https?:\/\//i.test(rawHost) ? new URL(rawHost).hostname : rawHost;
+    const client = new OnvifCam({
+        hostname,
+        port: parseInt(cfg.port, 10) || 80,
+        username: String(cfg.user || ''),
+        password: String(cfg.password || ''),
+        path: String(cfg.devicePath || '/onvif/device_service'),
+        timeout: 12000,
+        preserveAddress: true,
+    });
+    await client.connect();
+    const token = client.activeSource && client.activeSource.profileToken;
+    if (!token) throw new Error('ONVIF camera returned no PTZ profile');
+    const session = { client, token, stopTimer: null, lastCommandAt: 0 };
+    fixedCamPtzSessions.set(camera.id, session);
+    return session;
+}
+
+async function stopFixedCamPtzMotion(session) {
+    if (!session || !session.client) return;
+    if (session.stopTimer) {
+        clearTimeout(session.stopTimer);
+        session.stopTimer = null;
+    }
+    await session.client.stop({
+        profileToken: session.token,
+        panTilt: true,
+        zoom: true,
+    });
+}
+
+app.post('/api/fixed-cams/:id/zlm/start', dashboardAuth.requireDashboardAuth, express.json(), async (req, res) => {
+    try {
+        const camera = fixedCamRegistry.getById(req.params.id);
+        if (!camera || !camera.enabled) return res.status(404).json(opErr('Enabled fixed camera not found'));
+        if (camera.streamSource !== 'onvif' && camera.streamSource !== 'rtsp') {
+            return res.status(400).json(opErr('Fixed camera has no playable stream source'));
+        }
+        const state = await startFixedCamZlmProxy(camera, req.body && req.body.owner);
+        res.json({
+            ok: true,
+            cameraId: camera.id,
+            streamId: state.streamId,
+            flvUrl: state.flvUrl,
+            ptzEnabled: !!camera.ptzEnabled,
+        });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.post('/api/fixed-cams/:id/zlm/stop', dashboardAuth.requireDashboardAuth, express.json(), async (req, res) => {
+    try {
+        const out = await stopFixedCamZlmProxy(req.params.id, req.body && req.body.owner, false);
+        res.json({ ok: true, stopped: !!out.stopped, deferred: !!out.deferred });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.post('/api/fixed-cams/:id/ptz', dashboardAuth.requireDashboardAuth, express.json(), async (req, res) => {
+    try {
+        const camera = fixedCamRegistry.getById(req.params.id);
+        if (!camera || !camera.enabled || !camera.ptzEnabled || camera.streamSource !== 'onvif') {
+            return res.status(400).json(opErr('Registered ONVIF PTZ camera required'));
+        }
+        const action = String(req.body && req.body.action || '').toLowerCase();
+        if (!['left', 'right', 'up', 'down', 'zoom-in', 'zoom-out', 'home', 'stop'].includes(action)) {
+            return res.status(400).json(opErr('Unsupported PTZ command'));
+        }
+        const session = await fixedCamPtzSession(camera);
+        const now = Date.now();
+        if (action !== 'stop' && now - session.lastCommandAt < 70) {
+            return res.status(429).json(opErr('PTZ command rate limited'));
+        }
+        session.lastCommandAt = now;
+        if (action === 'stop') {
+            await stopFixedCamPtzMotion(session);
+        } else if (action === 'home') {
+            await stopFixedCamPtzMotion(session);
+            await session.client.gotoHomePosition({ profileToken: session.token });
+        } else {
+            const speed = Math.max(0.1, Math.min(0.8, Number(req.body && req.body.speed) || 0.45));
+            const velocity = { profileToken: session.token, x: 0, y: 0, zoom: 0 };
+            if (action === 'left') velocity.x = -speed;
+            if (action === 'right') velocity.x = speed;
+            if (action === 'up') velocity.y = speed;
+            if (action === 'down') velocity.y = -speed;
+            if (action === 'zoom-in') velocity.zoom = speed;
+            if (action === 'zoom-out') velocity.zoom = -speed;
+            await session.client.continuousMove({
+                ...velocity,
+                timeout: 700,
+            });
+            if (session.stopTimer) clearTimeout(session.stopTimer);
+            session.stopTimer = setTimeout(function () {
+                stopFixedCamPtzMotion(session).catch(function () { /* dead-man stop */ });
+            }, 750);
+        }
+        auditLog.recordFromRequest(req, 'fixed-camera.ptz', {
+            target: camera.id,
+            detail: { action },
+        });
+        res.json({ ok: true, cameraId: camera.id, action });
+    } catch (err) {
+        fixedCamPtzSessions.delete(req.params.id);
+        res.status(400).json(opErr(err));
+    }
+});
 
 app.post('/api/fixed-cams/:id/wall/start', dashboardAuth.requireDashboardAuth, async (req, res) => {
     try {
@@ -5360,16 +5908,31 @@ app.post('/api/fixed-cams/import-csv', dashboardAuth.requireSuperAdmin, (req, re
 // Camera docking station software or relay agents POST files here using a bearer token.
 // FTP stays enabled for LAN hardware docking stations; this endpoint is the internet-safe path.
 const httpsUploadStorage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, FTP_ROOT),
-    filename: (_req, file, cb) => cb(null, file.originalname),
+    destination: (_req, _file, cb) => {
+        try {
+            cb(null, evidenceIngestGate.pendingDir(FTP_ROOT));
+        } catch (err) {
+            cb(err);
+        }
+    },
+    filename: (_req, file, cb) => {
+        try {
+            cb(null, evidenceUploadSafeName.buildSafeFileName(file.originalname));
+        } catch (err) {
+            cb(err);
+        }
+    },
 });
 const httpsUploadMiddleware = multer({
     storage: httpsUploadStorage,
     limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2 GB max
     fileFilter: (_req, file, cb) => {
-        const allowed = /\.(mp4|avi|mov|mkv|jpg|jpeg|png|pdf|zip|bin|h264|h265|ts|dat)$/i;
-        if (allowed.test(file.originalname)) return cb(null, true);
-        cb(new Error('File type not permitted'));
+        try {
+            evidenceUploadSafeName.safeExtension(file.originalname);
+            cb(null, true);
+        } catch (err) {
+            cb(err);
+        }
     },
 });
 
@@ -5382,7 +5945,7 @@ app.post('/api/evidence/upload', (req, res) => {
     if (!token || token !== HTTPS_UPLOAD_TOKEN) {
         return res.status(401).json({ ok: false, error: 'Invalid or missing upload token.' });
     }
-    httpsUploadMiddleware.single('file')(req, res, (err) => {
+    httpsUploadMiddleware.single('file')(req, res, async (err) => {
         if (err) {
             log.ftp.warn('https-upload rejected', { message: err.message, ip: req.ip });
             return res.status(400).json({ ok: false, error: err.message });
@@ -5390,29 +5953,74 @@ app.post('/api/evidence/upload', (req, res) => {
         if (!req.file) {
             return res.status(400).json({ ok: false, error: 'No file received. Send a multipart/form-data request with field name "file".' });
         }
-        const info = {
-            fileName: req.file.filename,
-            fullPath: req.file.path,
-            peer: req.ip,
-        };
-        log.ftp.info('https-upload received', { file: info.fileName, peer: info.peer });
-        handleFtpFileUploaded(info);
-        res.json({ ok: true, fileName: info.fileName });
+        try {
+            evidenceUploadSafeName.assertPathInsideRoot(FTP_ROOT, req.file.path);
+        } catch (pathErr) {
+            try { fs.unlinkSync(req.file.path); } catch (_) { /* ignore cleanup */ }
+            log.ftp.warn('https-upload containment rejected', { ip: req.ip });
+            return res.status(400).json({ ok: false, error: 'Evidence upload path rejected.' });
+        }
+        try {
+            const info = {
+                fileName: req.file.filename,
+                fullPath: req.file.path,
+                originalFileName: evidenceUploadSafeName.safeOriginalDisplayName(req.file.originalname),
+                peer: req.ip,
+                source: 'https_upload',
+                throwOnReject: true,
+            };
+            log.ftp.info('https-upload received', { file: info.originalFileName, peer: info.peer });
+            const result = await handleFtpFileUploaded(info);
+            res.json({
+                ok: true,
+                evidenceId: result && result.evidenceId,
+                fileName: result && result.admitted && result.admitted.originalFileName,
+                sha256: result && result.admitted && result.admitted.sha256,
+            });
+        } catch (ingestErr) {
+            res.status(400).json({ ok: false, error: ingestErr.message });
+        }
     });
 });
 
-app.post('/api/evidence/request-secure-export', requireEvidenceDownload, (req, res) => {
+app.post('/api/evidence/import-forensic', dashboardAuth.requireSuperAdmin, (req, res) => {
+    httpsUploadMiddleware.single('file')(req, res, async (err) => {
+        if (err) return res.status(400).json(opErr(err));
+        if (!req.file) return res.status(400).json(opErr('Select an evidence file to import.'));
+        try {
+            const result = await handleFtpFileUploaded({
+                fileName: req.file.filename,
+                fullPath: req.file.path,
+                originalFileName: evidenceUploadSafeName.safeOriginalDisplayName(req.file.originalname),
+                peer: auditLog.clientIp(req),
+                source: 'manual_forensic',
+                throwOnReject: true,
+                auditRequest: req,
+            });
+            res.json({
+                ok: true,
+                evidenceId: result.evidenceId,
+                fileName: result.admitted.originalFileName,
+                sha256: result.admitted.sha256,
+            });
+        } catch (ingestErr) {
+            res.status(400).json(opErr(ingestErr));
+        }
+    });
+});
+
+app.post('/api/evidence/request-secure-export', requireEvidenceDownload, async (req, res) => {
     try {
         const body = req.body || {};
         const fileId = body.fileId;
         if (!fileId) return res.status(400).json(opErr("Select an evidence file."));
-        const out = evidenceSecureExport.createRequest(
+        const out = await evidenceSecureExport.createRequest(
             req.dashboardUser,
             fileId,
             body.reason,
             auditLog.clientIp(req)
         );
-        auditLog.recordFromRequest(req, 'evidence.secure_export_request', {
+        await auditLog.recordFromRequest(req, 'evidence.secure_export_request', {
             target: out.requestId,
             detail: { fileId: out.fileId, fileName: out.fileName },
         });
@@ -5422,10 +6030,10 @@ app.post('/api/evidence/request-secure-export', requireEvidenceDownload, (req, r
     }
 });
 
-app.get('/api/evidence/secure-export/queue', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.get('/api/evidence/secure-export/queue', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         const status = req.query && req.query.status;
-        const requests = evidenceSecureExport.listRequests({
+        const requests = await evidenceSecureExport.listRequests({
             status: status || null,
             limit: req.query && req.query.limit,
         });
@@ -5435,9 +6043,9 @@ app.get('/api/evidence/secure-export/queue', dashboardAuth.requireSuperAdmin, (r
     }
 });
 
-app.get('/api/evidence/secure-export/mine', requireEvidenceDownload, (req, res) => {
+app.get('/api/evidence/secure-export/mine', requireEvidenceDownload, async (req, res) => {
     try {
-        const all = evidenceSecureExport.listRequests({ limit: 100 });
+        const all = await evidenceSecureExport.listRequests({ limit: 100 });
         const mine = all.filter((r) => r.requesterUserId === req.dashboardUser.userId);
         res.json({ ok: true, requests: mine });
     } catch (err) {
@@ -5445,18 +6053,18 @@ app.get('/api/evidence/secure-export/mine', requireEvidenceDownload, (req, res) 
     }
 });
 
-app.post('/api/evidence/secure-export/:requestId/approve', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.post('/api/evidence/secure-export/:requestId/approve', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         const body = req.body || {};
         if (!dashboardAuth.verifySessionPassword(req.dashboardUser, body.adminPassword)) {
             return res.status(403).json(opErr("Enter your password to approve this export."));
         }
-        const out = evidenceSecureExport.approveRequest(
+        const out = await evidenceSecureExport.approveRequest(
             req.params.requestId,
             req.dashboardUser,
             auditLog.clientIp(req)
         );
-        auditLog.recordFromRequest(req, 'evidence.secure_export_approve', {
+        await auditLog.recordFromRequest(req, 'evidence.secure_export_approve', {
             target: out.request.requestId,
             detail: {
                 fileId: out.request.evidenceFileId,
@@ -5475,18 +6083,18 @@ app.post('/api/evidence/secure-export/:requestId/approve', dashboardAuth.require
     }
 });
 
-app.post('/api/evidence/secure-export/:requestId/deny', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.post('/api/evidence/secure-export/:requestId/deny', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         const body = req.body || {};
         if (!dashboardAuth.verifySessionPassword(req.dashboardUser, body.adminPassword)) {
             return res.status(403).json(opErr("Enter your password to deny this export."));
         }
-        const updated = evidenceSecureExport.denyRequest(
+        const updated = await evidenceSecureExport.denyRequest(
             req.params.requestId,
             req.dashboardUser,
             body.reason
         );
-        auditLog.recordFromRequest(req, 'evidence.secure_export_deny', {
+        await auditLog.recordFromRequest(req, 'evidence.secure_export_deny', {
             target: updated.requestId,
             detail: { requestedBy: updated.requestedBy, reason: updated.denyReason },
         });
@@ -5496,18 +6104,18 @@ app.post('/api/evidence/secure-export/:requestId/deny', dashboardAuth.requireSup
     }
 });
 
-app.get('/api/evidence/secure-export/stream/:requestId', requireEvidenceDownload, (req, res) => {
+app.get('/api/evidence/secure-export/stream/:requestId', requireEvidenceDownload, async (req, res) => {
     try {
-        const resolved = evidenceSecureExport.resolveStreamDownload(req.params.requestId, req.dashboardUser);
+        const resolved = await evidenceSecureExport.resolveStreamDownload(req.params.requestId, req.dashboardUser);
         if (resolved.error) {
             return res.status(resolved.status || 400).json({ ok: false, error: resolved.error });
         }
         const { req: exportReq, fullPath, fileName } = resolved;
-        auditLog.recordFromRequest(req, 'evidence.secure_export_download', {
+        await auditLog.recordFromRequest(req, 'evidence.secure_export_download', {
             target: exportReq.requestId,
             detail: { fileId: exportReq.evidenceFileId, fileName: fileName },
         });
-        evidenceSecureExport.markConsumed(exportReq.requestId);
+        await evidenceSecureExport.markConsumed(exportReq.requestId);
         res.setHeader('X-Evidence-Secure-Export-Id', exportReq.requestId);
         res.setHeader('Content-Disposition', 'attachment; filename="' + String(fileName).replace(/"/g, '') + '"');
         res.setHeader('Content-Type', 'application/octet-stream');
@@ -5517,14 +6125,14 @@ app.get('/api/evidence/secure-export/stream/:requestId', requireEvidenceDownload
     }
 });
 
-app.get('/api/evidence/detail/:fileId', requireEvidenceView, (req, res) => {
+app.get('/api/evidence/detail/:fileId', requireEvidenceView, async (req, res) => {
     try {
         const fileId = req.params.fileId;
-        const detail = evidenceWorkflow.getDetail(fileId, sosIncidentLookup);
+        const detail = await evidenceWorkflow.getDetail(fileId, sosIncidentLookup);
         if (!detail) return res.status(404).json(opErr("Evidence not found"));
         if (detail.storageAvailable === false && detail.file) {
-            evidenceCustodyAudit.recordMissingObserved(req, detail.file);
-            const custody = evidenceCustodyAudit.listForFile(fileId);
+            await evidenceCustodyAudit.recordMissingObserved(req, detail.file);
+            const custody = await evidenceCustodyAudit.listForFile(fileId);
             detail.custodyLog = custody.rows;
             detail.custodyUnavailable = !!custody.unavailable;
         }
@@ -5534,16 +6142,16 @@ app.get('/api/evidence/detail/:fileId', requireEvidenceView, (req, res) => {
     }
 });
 
-app.get('/api/evidence/preview/:fileId', requireEvidenceView, (req, res) => {
+app.get('/api/evidence/preview/:fileId', requireEvidenceView, async (req, res) => {
     try {
-        const file = evidenceRegistry.getFile(req.params.fileId);
+        const file = await evidenceRegistry.getFile(req.params.fileId);
         if (!file) return res.status(404).json(opErr("File not found"));
         if (file.storageAvailable === false) {
             return res.status(404).json(opErr("File is missing from server storage."));
         }
         const fullPath = evidenceRegistry.resolveFilePath(file);
         if (!fullPath) return res.status(404).json(opErr("File is missing from server storage."));
-        auditLog.recordFromRequest(req, 'evidence.preview', { target: req.params.fileId });
+        await auditLog.recordFromRequest(req, 'evidence.preview', { target: req.params.fileId });
         res.setHeader('Cache-Control', 'no-store, private');
         const ext = String(file.fileName || '').toLowerCase();
         if (/\.(jpe?g)$/i.test(ext)) res.setHeader('Content-Type', 'image/jpeg');
@@ -5587,21 +6195,21 @@ app.get('/api/evidence/preview/:fileId', requireEvidenceView, (req, res) => {
     }
 });
 
-app.patch('/api/evidence/detail/:fileId', requireEvidenceEdit, (req, res) => {
+app.patch('/api/evidence/detail/:fileId', requireEvidenceEdit, async (req, res) => {
     try {
         const body = req.body || {};
-        const meta = evidenceWorkflow.updateMeta(req.params.fileId, body, req.dashboardUser);
-        auditLog.recordFromRequest(req, 'evidence.meta_update', { target: req.params.fileId });
+        const meta = await evidenceWorkflow.updateMeta(req.params.fileId, body, req.dashboardUser);
+        await auditLog.recordFromRequest(req, 'evidence.meta_update', { target: req.params.fileId });
         res.json({ ok: true, meta: meta });
     } catch (err) {
         res.status(400).json(opErr(err));
     }
 });
 
-app.post('/api/evidence/detail/:fileId/archive', requireEvidenceEdit, (req, res) => {
+app.post('/api/evidence/detail/:fileId/archive', requireEvidenceEdit, async (req, res) => {
     try {
-        const file = evidenceRegistry.archiveFile(req.params.fileId, req.dashboardUser);
-        auditLog.recordFromRequest(req, 'evidence.archive', {
+        const file = await evidenceRegistry.archiveFile(req.params.fileId, req.dashboardUser);
+        await auditLog.recordFromRequest(req, 'evidence.archive', {
             target: req.params.fileId,
             detail: { storageTier: 'archived' },
         });
@@ -5611,10 +6219,10 @@ app.post('/api/evidence/detail/:fileId/archive', requireEvidenceEdit, (req, res)
     }
 });
 
-app.post('/api/evidence/detail/:fileId/restore', requireEvidenceEdit, (req, res) => {
+app.post('/api/evidence/detail/:fileId/restore', requireEvidenceEdit, async (req, res) => {
     try {
-        const file = evidenceRegistry.restoreFile(req.params.fileId, req.dashboardUser);
-        auditLog.recordFromRequest(req, 'evidence.restore', {
+        const file = await evidenceRegistry.restoreFile(req.params.fileId, req.dashboardUser);
+        await auditLog.recordFromRequest(req, 'evidence.restore', {
             target: req.params.fileId,
             detail: { storageTier: 'local' },
         });
@@ -5624,19 +6232,19 @@ app.post('/api/evidence/detail/:fileId/restore', requireEvidenceEdit, (req, res)
     }
 });
 
-app.post('/api/evidence/detail/:fileId/attachment', requireEvidenceEdit, express.json({ limit: '12mb' }), (req, res) => {
+app.post('/api/evidence/detail/:fileId/attachment', requireEvidenceEdit, express.json({ limit: '12mb' }), async (req, res) => {
     try {
         const body = req.body || {};
         const b64 = body.dataBase64 || body.data;
         if (!b64) return res.status(400).json(opErr("dataBase64 required"));
         const buf = Buffer.from(String(b64), 'base64');
-        const att = evidenceWorkflow.saveAttachment(
+        const att = await evidenceWorkflow.saveAttachment(
             req.params.fileId,
             body.fileName || 'photo.jpg',
             buf,
             req.dashboardUser
         );
-        auditLog.recordFromRequest(req, 'evidence.attachment_add', {
+        await auditLog.recordFromRequest(req, 'evidence.attachment_add', {
             target: req.params.fileId,
             detail: { attachmentId: att.id },
         });
@@ -5646,9 +6254,9 @@ app.post('/api/evidence/detail/:fileId/attachment', requireEvidenceEdit, express
     }
 });
 
-app.get('/api/evidence/attachment/:attachmentId', requireEvidenceView, (req, res) => {
+app.get('/api/evidence/attachment/:attachmentId', requireEvidenceView, async (req, res) => {
     try {
-        const resolved = evidenceWorkflow.resolveAttachmentStream(req.params.attachmentId);
+        const resolved = await evidenceWorkflow.resolveAttachmentStream(req.params.attachmentId);
         if (!resolved) return res.status(404).json(opErr("Attachment not found"));
         return evidenceCrypto.pipeDecrypted(resolved.fullPath, res);
     } catch (err) {
@@ -5660,7 +6268,7 @@ app.post('/api/evidence/detail/:fileId/trim-export', requireEvidenceExport, asyn
     try {
         const body = req.body || {};
         const out = await evidenceWorkflow.runTrimExport(req.params.fileId, body, req.dashboardUser);
-        auditLog.recordFromRequest(req, 'evidence.trim_export', {
+        await auditLog.recordFromRequest(req, 'evidence.trim_export', {
             target: req.params.fileId,
             detail: { exportId: out.exportId, trimStartSec: out.trimStartSec, trimEndSec: out.trimEndSec },
         });
@@ -5675,7 +6283,7 @@ app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin,
         const body = req.body || {};
         const regions = body.regions;
         const faceFollow = !!(body.faceFollow || body.mode === 'faceFollow' || body.mode === 'face-follow');
-        auditLog.recordFromRequest(req, 'evidence.redact_start', {
+        await auditLog.recordFromRequest(req, 'evidence.redact_start', {
             target: req.params.fileId,
             detail: {
                 regionCount: Array.isArray(regions) ? regions.length : 0,
@@ -5707,7 +6315,7 @@ app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin,
                 draftNote
             );
         }
-        auditLog.recordFromRequest(req, 'evidence.redact_save', {
+        await auditLog.recordFromRequest(req, 'evidence.redact_save', {
             target: req.params.fileId,
             detail: {
                 exportId: out.exportId,
@@ -5728,7 +6336,7 @@ app.post('/api/evidence/detail/:fileId/redact/autoface', dashboardAuth.requireSu
         if (!licenseFeatures.isFeatureEnabled('fr')) {
             return res.status(403).json(opErr('Face detection module is not enabled on this license'));
         }
-        const file = evidenceRegistry.getFile(req.params.fileId);
+        const file = await evidenceRegistry.getFile(req.params.fileId);
         if (!file) return res.status(404).json(opErr('Evidence file not found'));
         const inputPath = evidenceRegistry.resolveFilePath(file);
         if (!inputPath) return res.status(404).json(opErr('Source file missing on storage'));
@@ -5751,7 +6359,7 @@ app.post('/api/evidence/detail/:fileId/redact/autoface', dashboardAuth.requireSu
             maxRegions: Number(body.maxRegions) > 0 ? Number(body.maxRegions) : 10,
         });
         const engine = timeline.engine || faceTrackSidecar.redactFaceEngine();
-        auditLog.recordFromRequest(req, 'evidence.redact_autoface', {
+        await auditLog.recordFromRequest(req, 'evidence.redact_autoface', {
             target: req.params.fileId,
             detail: {
                 regions: regions.length,
@@ -5783,11 +6391,11 @@ app.post('/api/evidence/detail/:fileId/redact/autoface', dashboardAuth.requireSu
     }
 });
 
-app.patch('/api/evidence/redact/:exportId/note', requireEvidenceEdit, express.json({ limit: '32kb' }), (req, res) => {
+app.patch('/api/evidence/redact/:exportId/note', requireEvidenceEdit, express.json({ limit: '32kb' }), async (req, res) => {
     try {
         const body = req.body || {};
-        const result = evidenceWorkflow.saveRedactNote(req.params.exportId, body, req.dashboardUser);
-        auditLog.recordFromRequest(req, 'evidence.redact_note_draft', {
+        const result = await evidenceWorkflow.saveRedactNote(req.params.exportId, body, req.dashboardUser);
+        await auditLog.recordFromRequest(req, 'evidence.redact_note_draft', {
             target: req.params.exportId,
             detail: { reason: result.meta.redactionReason },
         });
@@ -5797,10 +6405,10 @@ app.patch('/api/evidence/redact/:exportId/note', requireEvidenceEdit, express.js
     }
 });
 
-app.post('/api/evidence/redact/:exportId/finalize', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.post('/api/evidence/redact/:exportId/finalize', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
-        const out = evidenceWorkflow.finalizeRedactExport(req.params.exportId, req.dashboardUser);
-        auditLog.recordFromRequest(req, 'evidence.redact_finalize', {
+        const out = await evidenceWorkflow.finalizeRedactExport(req.params.exportId, req.dashboardUser);
+        await auditLog.recordFromRequest(req, 'evidence.redact_finalize', {
             target: req.params.exportId,
             detail: { fileName: out.fileName },
         });
@@ -5828,7 +6436,7 @@ app.get('/api/evidence/redact/track-selfcheck', dashboardAuth.requireSuperAdmin,
 const frVerifyUpload = multer({
     storage: multer.diskStorage({
         destination: (_req, _file, cb) => {
-            const dir = path.join(STORAGE_DIR, 'fr-verify-tmp');
+            const dir = FR_STORAGE_LAYOUT.verifyTemp;
             try { fs.mkdirSync(dir, { recursive: true }); } catch (_) { /* ignore */ }
             cb(null, dir);
         },
@@ -5921,7 +6529,7 @@ app.post('/api/analytics/fr/verify', dashboardAuth.requireDashboardAuth, (req, r
 const frEnrollUpload = multer({
     storage: multer.diskStorage({
         destination: (_req, _file, cb) => {
-            const dir = path.join(STORAGE_DIR, 'fr-enroll-tmp');
+            const dir = FR_STORAGE_LAYOUT.enrollTemp;
             try { fs.mkdirSync(dir, { recursive: true }); } catch (_) { /* ignore */ }
             cb(null, dir);
         },
@@ -6685,7 +7293,7 @@ app.post('/api/analytics/fr/ptt-standby-team', dashboardAuth.requireDashboardAut
 const frOfflineUpload = multer({
     storage: multer.diskStorage({
         destination: (_req, _file, cb) => {
-            const dir = path.join(STORAGE_DIR, 'fr-offline-tmp', 'upload');
+            const dir = path.join(FR_STORAGE_LAYOUT.offlineTemp, 'upload');
             try { fs.mkdirSync(dir, { recursive: true }); } catch (_) { /* ignore */ }
             cb(null, dir);
         },
@@ -6775,10 +7383,10 @@ app.post('/api/analytics/fr/offline-video/cancel', dashboardAuth.requireDashboar
 });
 
 /* mob-evidence-redacted-exports-browser-v1 — search/list finalized redacts (registry). */
-app.get('/api/evidence/exports', requireEvidenceExport, (req, res) => {
+app.get('/api/evidence/exports', requireEvidenceExport, async (req, res) => {
     try {
         const q = req.query || {};
-        const result = evidenceWorkflow.listRedactedExports({
+        const result = await evidenceWorkflow.listRedactedExports({
             status: q.status,
             q: q.q,
             tag: q.tag,
@@ -6803,11 +7411,11 @@ app.get('/api/evidence/exports', requireEvidenceExport, (req, res) => {
     }
 });
 
-app.get('/api/evidence/export-stream/:exportId', requireEvidenceExport, (req, res) => {
+app.get('/api/evidence/export-stream/:exportId', requireEvidenceExport, async (req, res) => {
     try {
-        const resolved = evidenceWorkflow.resolveExportStream(req.params.exportId);
+        const resolved = await evidenceWorkflow.resolveExportStream(req.params.exportId);
         if (!resolved) return res.status(404).json(opErr("Export not found"));
-        auditLog.recordFromRequest(req, 'evidence.export_stream', {
+        await auditLog.recordFromRequest(req, 'evidence.export_stream', {
             target: resolved.row.exportId,
             detail: { fileId: resolved.row.evidenceFileId },
         });
@@ -6859,11 +7467,11 @@ app.post('/api/missed-activity/ptt/engage', express.json({ limit: '4kb' }), (req
     }
 });
 
-app.get('/api/case-files', requireEvidenceView, (req, res) => {
+app.get('/api/case-files', requireEvidenceView, async (req, res) => {
     try {
         const q = req.query || {};
         const limit = q.limit ? parseInt(q.limit, 10) : 200;
-        const caseFileList = caseFiles.list({
+        const caseFileList = await caseFiles.list({
             limit: limit,
             q: q.q,
             period: q.period,
@@ -6877,9 +7485,9 @@ app.get('/api/case-files', requireEvidenceView, (req, res) => {
     }
 });
 
-app.get('/api/case-files/:id', requireEvidenceView, (req, res) => {
+app.get('/api/case-files/:id', requireEvidenceView, async (req, res) => {
     try {
-        const detail = caseFiles.getDetail(req.params.id);
+        const detail = await caseFiles.getDetail(req.params.id);
         if (!detail) return res.status(404).json(opErr('Case file not found'));
         res.json({ ok: true, detail: detail });
     } catch (err) {
@@ -6887,10 +7495,10 @@ app.get('/api/case-files/:id', requireEvidenceView, (req, res) => {
     }
 });
 
-app.post('/api/case-files', requireEvidenceEdit, express.json({ limit: '256kb' }), (req, res) => {
+app.post('/api/case-files', requireEvidenceEdit, express.json({ limit: '256kb' }), async (req, res) => {
     try {
-        const detail = caseFiles.create(req.body || {}, req.dashboardUser);
-        auditLog.recordFromRequest(req, 'case_file.create', {
+        const detail = await caseFiles.create(req.body || {}, req.dashboardUser);
+        await auditLog.recordFromRequest(req, 'case_file.create', {
             target: detail.caseFile.id,
             detail: { title: detail.caseFile.title },
         });
@@ -6900,15 +7508,15 @@ app.post('/api/case-files', requireEvidenceEdit, express.json({ limit: '256kb' }
     }
 });
 
-app.post('/api/case-files/from-sos', requireEvidenceEdit, express.json({ limit: '64kb' }), (req, res) => {
+app.post('/api/case-files/from-sos', requireEvidenceEdit, express.json({ limit: '64kb' }), async (req, res) => {
     try {
         const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
         const incidentId = (req.body && req.body.incidentId) ? String(req.body.incidentId).trim() : '';
         if (!incidentId) return res.status(400).json(opErr('SOS incident ID required'));
         const entry = sosIncidents.findEntryById(incidentId);
         if (entry && entry.cameraId) assertSessionCanAccessCam(session, entry.cameraId);
-        const detail = caseFiles.createFromSos(incidentId, req.dashboardUser, sosIncidents);
-        auditLog.recordFromRequest(req, 'case_file.create_from_sos', {
+        const detail = await caseFiles.createFromSos(incidentId, req.dashboardUser, sosIncidents);
+        await auditLog.recordFromRequest(req, 'case_file.create_from_sos', {
             target: detail.caseFile.id,
             detail: { sosIncidentId: incidentId },
         });
@@ -6918,10 +7526,10 @@ app.post('/api/case-files/from-sos', requireEvidenceEdit, express.json({ limit: 
     }
 });
 
-app.patch('/api/case-files/:id', requireEvidenceEdit, express.json({ limit: '512kb' }), (req, res) => {
+app.patch('/api/case-files/:id', requireEvidenceEdit, express.json({ limit: '512kb' }), async (req, res) => {
     try {
-        const detail = caseFiles.update(req.params.id, req.body || {}, req.dashboardUser);
-        auditLog.recordFromRequest(req, 'case_file.update', { target: req.params.id });
+        const detail = await caseFiles.update(req.params.id, req.body || {}, req.dashboardUser);
+        await auditLog.recordFromRequest(req, 'case_file.update', { target: req.params.id });
         res.json({ ok: true, detail: detail });
     } catch (err) {
         const status = String(err && err.message || '').toLowerCase().includes('not found') ? 404 : 400;
@@ -6929,14 +7537,14 @@ app.patch('/api/case-files/:id', requireEvidenceEdit, express.json({ limit: '512
     }
 });
 
-app.delete('/api/case-files/:id', dashboardAuth.requireSuperAdmin, express.json({ limit: '16kb' }), (req, res) => {
+app.delete('/api/case-files/:id', dashboardAuth.requireSuperAdmin, express.json({ limit: '16kb' }), async (req, res) => {
     try {
         const body = req.body || {};
         if (!dashboardAuth.verifySessionPassword(req.dashboardUser, body.adminPassword)) {
             return res.status(403).json({ ok: false, errorKey: 'errors.passwordWrong' });
         }
-        const out = caseFiles.remove(req.params.id);
-        auditLog.recordFromRequest(req, 'case_file.delete', {
+        const out = await caseFiles.remove(req.params.id);
+        await auditLog.recordFromRequest(req, 'case_file.delete', {
             target: out.removed.id,
             detail: {
                 title: out.removed.title,
@@ -6952,12 +7560,12 @@ app.delete('/api/case-files/:id', dashboardAuth.requireSuperAdmin, express.json(
     }
 });
 
-app.post('/api/case-files/:id/evidence', requireEvidenceEdit, express.json({ limit: '32kb' }), (req, res) => {
+app.post('/api/case-files/:id/evidence', requireEvidenceEdit, express.json({ limit: '32kb' }), async (req, res) => {
     try {
         const evidenceFileId = (req.body && req.body.evidenceFileId) ? String(req.body.evidenceFileId).trim() : '';
         if (!evidenceFileId) return res.status(400).json(opErr('Evidence file ID required'));
-        const detail = caseFiles.linkEvidence(req.params.id, evidenceFileId, req.dashboardUser);
-        auditLog.recordFromRequest(req, 'case_file.link_evidence', {
+        const detail = await caseFiles.linkEvidence(req.params.id, evidenceFileId, req.dashboardUser);
+        await auditLog.recordFromRequest(req, 'case_file.link_evidence', {
             target: req.params.id,
             detail: { evidenceFileId: evidenceFileId },
         });
@@ -6968,10 +7576,10 @@ app.post('/api/case-files/:id/evidence', requireEvidenceEdit, express.json({ lim
     }
 });
 
-app.delete('/api/case-files/:id/evidence/:evidenceFileId', requireEvidenceEdit, (req, res) => {
+app.delete('/api/case-files/:id/evidence/:evidenceFileId', requireEvidenceEdit, async (req, res) => {
     try {
-        const detail = caseFiles.unlinkEvidence(req.params.id, req.params.evidenceFileId);
-        auditLog.recordFromRequest(req, 'case_file.unlink_evidence', {
+        const detail = await caseFiles.unlinkEvidence(req.params.id, req.params.evidenceFileId);
+        await auditLog.recordFromRequest(req, 'case_file.unlink_evidence', {
             target: req.params.id,
             detail: { evidenceFileId: req.params.evidenceFileId },
         });
@@ -6982,10 +7590,10 @@ app.delete('/api/case-files/:id/evidence/:evidenceFileId', requireEvidenceEdit, 
     }
 });
 
-app.get('/api/docks', requireEvidenceView, (req, res) => {
+app.get('/api/docks', requireEvidenceView, async (req, res) => {
     try {
         const docks = dockRegistry.listDocks();
-        const catWrap = evidenceOverview.safeCatalogFiles(siteDb, evidenceRegistry, operatorErrorVoice, 500);
+        const catWrap = await evidenceOverview.safeCatalogFiles(siteDb, evidenceRegistry, operatorErrorVoice, 500);
         const hints = evidenceWorkflow.ftpHintsForDocks(docks, catWrap.files);
         res.json({
             ok: true,
@@ -7000,11 +7608,11 @@ app.get('/api/docks', requireEvidenceView, (req, res) => {
     }
 });
 
-app.get('/api/docks/:id/bays', requireEvidenceView, (req, res) => {
+app.get('/api/docks/:id/bays', requireEvidenceView, async (req, res) => {
     try {
         const dock = dockRegistry.getDock(req.params.id);
         if (!dock) return res.status(404).json(opErr("Dock not found"));
-        const catWrap = evidenceOverview.safeCatalogFiles(siteDb, evidenceRegistry, operatorErrorVoice, 500);
+        const catWrap = await evidenceOverview.safeCatalogFiles(siteDb, evidenceRegistry, operatorErrorVoice, 500);
         const hints = evidenceWorkflow.ftpHintsForDocks([dock], catWrap.files);
         res.json({
             ok: true,
@@ -7358,6 +7966,44 @@ app.delete('/api/conference/room/:roomId/bwc-ingress', requireConferenceView, as
     }
 });
 
+app.post('/api/conference/room/:roomId/fixed-camera-ingress', requireConferenceView, express.json(), async (req, res) => {
+    try {
+        const cameraId = req.body && req.body.cameraId;
+        const out = await conferenceModule.addFixedCameraIngress(
+            req.params.roomId,
+            conferenceUser(req),
+            conferencePerms(req),
+            cameraId
+        );
+        auditLog.recordFromRequest(req, 'conference.fixed-camera.ingress', {
+            target: cameraId,
+            detail: { roomId: req.params.roomId },
+        });
+        res.json({ ok: true, fixedCameraIngress: out.fixedCameraIngress });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.delete('/api/conference/room/:roomId/fixed-camera-ingress', requireConferenceView, async (req, res) => {
+    try {
+        const cameraId = req.query && req.query.cameraId;
+        const out = await conferenceModule.removeFixedCameraIngress(
+            req.params.roomId,
+            conferenceUser(req),
+            conferencePerms(req),
+            cameraId
+        );
+        auditLog.recordFromRequest(req, 'conference.fixed-camera.ingress.remove', {
+            target: cameraId || req.params.roomId,
+            detail: { roomId: req.params.roomId },
+        });
+        res.json({ ok: true, fixedCameraIngressList: out.fixedCameraIngressList });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
 app.post('/api/conference/room/:roomId/guest', requireConferenceView, express.json(), (req, res) => {
     try {
         const guestUserId = req.body && req.body.userId;
@@ -7368,19 +8014,19 @@ app.post('/api/conference/room/:roomId/guest', requireConferenceView, express.js
     }
 });
 
-app.get('/api/messages/threads', (req, res) => {
+app.get('/api/messages/threads', async (req, res) => {
     try {
         const limit = req.query && req.query.limit;
         const sinceHours = req.query && req.query.sinceHours != null
             ? parseInt(req.query.sinceHours, 10)
             : (parseInt(process.env.FM_MESSAGES_UI_HOURS, 10) || 24);
-        res.json({ ok: true, threads: siteDb.listBwcMessageThreads(limit, sinceHours) });
+        res.json({ ok: true, threads: await siteDb.listBwcMessageThreads(limit, sinceHours) });
     } catch (err) {
         res.status(500).json(opErr(err));
     }
 });
 
-app.get('/api/messages/:deviceId', (req, res) => {
+app.get('/api/messages/:deviceId', async (req, res) => {
     try {
         const deviceId = req.params.deviceId;
         if (!deviceId) return res.status(400).json(opErr("deviceId required"));
@@ -7388,13 +8034,13 @@ app.get('/api/messages/:deviceId', (req, res) => {
         const sinceHours = req.query && req.query.sinceHours != null
             ? parseInt(req.query.sinceHours, 10)
             : (parseInt(process.env.FM_MESSAGES_UI_HOURS, 10) || 24);
-        res.json({ ok: true, messages: siteDb.listBwcMessages(deviceId, limit, sinceHours) });
+        res.json({ ok: true, messages: await siteDb.listBwcMessages(deviceId, limit, sinceHours) });
     } catch (err) {
         res.status(500).json(opErr(err));
     }
 });
 
-function clearMessagesForDeviceHandler(req, res) {
+async function clearMessagesForDeviceHandler(req, res) {
     try {
         const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
         if (!session || !dashboardAuth.roleCanManageServer(session.role)) {
@@ -7402,7 +8048,7 @@ function clearMessagesForDeviceHandler(req, res) {
         }
         const deviceId = req.params.deviceId;
         if (!deviceId) return res.status(400).json(opErr("deviceId required"));
-        const removed = siteDb.clearBwcMessagesForDevice(deviceId);
+        const removed = await siteDb.clearBwcMessagesForDevice(deviceId);
         res.json({ ok: true, removed });
     } catch (err) {
         res.status(500).json(opErr(err));
@@ -7412,13 +8058,13 @@ function clearMessagesForDeviceHandler(req, res) {
 app.delete('/api/messages/:deviceId', clearMessagesForDeviceHandler);
 app.post('/api/messages/:deviceId/clear', clearMessagesForDeviceHandler);
 
-app.delete('/api/messages', (req, res) => {
+app.delete('/api/messages', async (req, res) => {
     try {
         const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
         if (!session || !dashboardAuth.roleCanManageServer(session.role)) {
             return res.status(403).json(opErr("Super admin required"));
         }
-        const removed = siteDb.clearAllBwcMessages();
+        const removed = await siteDb.clearAllBwcMessages();
         res.json({ ok: true, removed });
     } catch (err) {
         res.status(500).json(opErr(err));
@@ -8076,6 +8722,7 @@ function ingestLatestFtpSnapshot(camId) {
                 let st;
                 try { st = fs.statSync(full); } catch (_) { continue; }
                 if (st.isDirectory()) {
+                    if (name === evidenceIngestGate.QUARANTINE_DIR) continue;
                     scanDir(full);
                     continue;
                 }
@@ -8683,11 +9330,25 @@ function resolveMessageRecipients(data) {
     return [];
 }
 
+const messageWriteTails = new Map();
+let messagePendingWrites = 0;
+let messageDroppedWrites = 0;
+const MESSAGE_MAX_PENDING_WRITES = 2000;
 function persistCameraMessage(payload) {
     const deviceId = payload && payload.cameraId;
     if (!deviceId || !siteDb.isReady()) return;
-    try {
-        siteDb.appendBwcMessage({
+    if (messagePendingWrites >= MESSAGE_MAX_PENDING_WRITES) {
+        messageDroppedWrites += 1;
+        log.messaging.warn('message PostgreSQL dispatcher full', {
+            deviceId,
+            pending: messagePendingWrites,
+            dropped: messageDroppedWrites,
+        });
+        return;
+    }
+    messagePendingWrites += 1;
+    const previous = messageWriteTails.get(deviceId) || Promise.resolve();
+    const next = previous.catch(() => {}).then(() => siteDb.appendBwcMessage({
             deviceId,
             direction: payload.direction === 'out' ? 'out' : 'in',
             text: payload.text || '',
@@ -8695,10 +9356,13 @@ function persistCameraMessage(payload) {
             msgType: payload.type,
             msgLevel: payload.level,
             senderName: payload.name || payload.from || null,
-        });
-    } catch (err) {
+    })).catch((err) => {
         log.messaging.warn('message save failed', { err: err.message });
-    }
+    }).finally(() => {
+        messagePendingWrites -= 1;
+        if (messageWriteTails.get(deviceId) === next) messageWriteTails.delete(deviceId);
+    });
+    messageWriteTails.set(deviceId, next);
 }
 
 function parseStartMediaPayload(payload) {
@@ -9079,13 +9743,22 @@ function getMissedPttItems() {
 }
 
 function emitPttRxState(camId, active) {
+    pttFieldGroupRelay.onPttRxState(camId, !!active);
+    if (sosGroupCall.isParticipant(camId)) return;
     io.emit('ptt-rx-state', { camId: camId || null, active: !!active });
     try { onPttRxActive(camId, !!active); } catch (_) { /* never break PTT */ }
 }
 
 function emitPttRxAudio(camId, pcmBuf) {
     if (!camId || !pcmBuf || !pcmBuf.length) return;
+    if (sosGroupCall.isParticipant(camId)) return;
     io.emit('ptt-rx-audio', { camId }, pcmBuf);
+}
+
+function relayPttRxAlaw(camId, alawBuf) {
+    if (!camId || !alawBuf || !alawBuf.length) return;
+    if (sosGroupCall.isParticipant(camId)) return;
+    pttFieldGroupRelay.onPttRxAlaw(camId, alawBuf);
 }
 
 function auditVoiceCallActor(socket) {
@@ -9220,14 +9893,15 @@ function launchOutboundTalkCall(camId, socket) {
         emitBwcCallState(camId, false, 'BWC not registered');
         return;
     }
-    const profile = voiceIntercomProfile.resolve();
+    const profile = voiceIntercomProfile.resolve('phone-channel0');
     const tel = getVoiceIntercomTelemetry();
     pttVoiceCallCamId = camId;
-    log.media.info('voice call outbound-intercom', {
+    log.media.info('voice call sdk audio-only sip', {
         camId,
         profile: profile.id,
         label: profile.label,
         fallback: !!profile.fallback,
+        video: false,
     });
     tel.logPhase(camId, 'pre-invite', profile.id);
     tel.requestStatus(camId, 'pre-invite', profile.id);
@@ -9243,7 +9917,7 @@ function launchOutboundTalkCall(camId, socket) {
         onConnected: (id) => {
             tel.logPhase(id, 'invite-200', profile.id);
             tel.requestStatus(id, 'post-200', profile.id);
-            if (profile.stopRecordOnConnect) {
+            if (profile.stopRecordOnConnect && profile.id !== 'phone-channel0') {
                 deviceControl.sendDeviceControl(sip, {
                     cameraContactUri: contact,
                     deviceId: id,
@@ -9253,9 +9927,9 @@ function launchOutboundTalkCall(camId, socket) {
                     log,
                 });
             }
-            emitBwcCallState(id, true, null, { via: 'outbound-intercom', profile: profile.id });
+            emitBwcCallState(id, true, null, { via: 'sdk-audio-only-sip', profile: profile.id });
             auditLog.record('voice.call', Object.assign(
-                { target: id, mode: 'outbound-intercom', profile: profile.id },
+                { target: id, mode: 'sdk-audio-only-sip', profile: profile.id },
                 auditVoiceCallActor(socket),
             ));
         },
@@ -9283,6 +9957,19 @@ function launchFleetVoiceBroadcast(camId, socket) {
     ));
 }
 
+function isLiveForVoiceCall(camId) {
+    const id = String(camId || '').trim();
+    if (!id) return false;
+    if (dashboardVideo.isStreamingForCam(id) || dashboardVideo.isDashboardWatchingCam(id)) return true;
+    if (liveViewers.countForCam(id) > 0) return true;
+    try {
+        const handoff = require('./lib/wvpVideoHandoff');
+        return !!(handoff.isActive && handoff.isActive(id));
+    } catch (_) {
+        return false;
+    }
+}
+
 function startBwcVoiceCall(payload, socket) {
     const parsed = parseStartMediaPayload(payload);
     const camId = parsed.camId || connectedCameraId;
@@ -9290,6 +9977,10 @@ function startBwcVoiceCall(payload, socket) {
     log.media.info('start-bwc-call', { camId, audioOnly });
     if (!camId) {
         emitBwcCallState(null, false, 'No device selected');
+        return;
+    }
+    if (sosGroupCall.isActive()) {
+        emitBwcCallState(camId, false, 'End the active SOS group call first');
         return;
     }
     if (conferenceModule.isBwcIngressActive(camId)) {
@@ -9327,11 +10018,17 @@ function startBwcVoiceCall(payload, socket) {
         clearVoiceInviteWatch();
         emitBwcCallState(prev, false, null);
     }
+    if (!audioOnly && !isLiveForVoiceCall(camId)) {
+        emitBwcCallState(camId, false, 'Start live video before calling');
+        return;
+    }
     log.media.info('voice call path', {
         camId,
-        voicePath: 'outbound-intercom',
+        voicePath: 'sdk-audio-only-sip',
         pureVoice: true,
         audioOnly,
+        preserveVideo: true,
+        video: false,
     });
     launchOutboundTalkCall(camId, socket);
 }
@@ -9543,6 +10240,7 @@ io.on('connection', (socket) => {
         if (replay) socket.emit('sos-alarm', replay);
     });
     socket.emit('sos-queue-update', filterSosQueueForSession(session, sosInviteQueue.getSnapshot()));
+    socket.emit('sos-group-call-state', sosGroupCall.snapshot());
 
     socket.emit('server-capabilities', {
         pttEnabled: PTT_ENABLED,
@@ -10088,6 +10786,89 @@ io.on('connection', (socket) => {
         });
     });
 
+    socket.on('sos-group-call-start', async (payload) => {
+        const body = payload || {};
+        const alarmCamId = String(body.alarmCamId || '').trim();
+        const camIds = sipGroupCallFactory.uniqueCamIds(body.camIds);
+        if (!alarmCamId || !camIds.length) {
+            socket.emit('sos-group-call-result', { ok: false, error: 'No SOS call team selected' });
+            return;
+        }
+        const openSos = sosIncidents.getOpenAlarms().some((alarm) => (
+            alarm && String(alarm.cameraId || '').trim() === alarmCamId
+        ));
+        if (!openSos) {
+            socket.emit('sos-group-call-result', { ok: false, error: 'No active SOS for this BWC' });
+            return;
+        }
+        const denied = camIds.find((id) => !isBwcCameraId(id) || !sessionCanSeeCam(session, id));
+        if (denied) {
+            socket.emit('sos-group-call-result', { ok: false, error: 'Device not authorized for this operator' });
+            return;
+        }
+        const conferenceBusy = camIds.find((id) => conferenceModule.isBwcIngressActive(id));
+        if (conferenceBusy) {
+            socket.emit('sos-group-call-result', {
+                ok: false,
+                error: 'A selected BWC is sharing to video conference',
+                camId: conferenceBusy,
+            });
+            return;
+        }
+        if (mediaSession.isVoiceCallActive() || pttVoiceCallCamId) {
+            socket.emit('sos-group-call-result', { ok: false, error: 'End the individual BWC call first' });
+            return;
+        }
+        if (pttTalkTargetsBySocket.size > 0) {
+            socket.emit('sos-group-call-result', { ok: false, error: 'Release HQ PTT before starting the group call' });
+            return;
+        }
+        try {
+            const state = await sosGroupCall.start({
+                alarmCamId,
+                camIds,
+                ownerSocketId: socket.id,
+                getContactUri: getContactUriForCam,
+            });
+            auditLog.record('sos.group_call.start', Object.assign({
+                target: alarmCamId,
+                detail: { camIds, callId: state.callId || null },
+            }, auditVoiceCallActor(socket)));
+            socket.emit('sos-group-call-result', { ok: true, state });
+        } catch (err) {
+            socket.emit('sos-group-call-result', {
+                ok: false,
+                error: err && err.message ? err.message : 'SOS group call failed',
+            });
+        }
+    });
+
+    socket.on('sos-group-call-stop', () => {
+        const state = sosGroupCall.snapshot();
+        const canStop = state.active && (
+            state.ownerSocketId === socket.id
+            || (session && dashboardAuth.roleCanManageServer(session.role))
+        );
+        if (!canStop) {
+            socket.emit('sos-group-call-result', { ok: false, error: 'Only the calling operator can end this group call' });
+            return;
+        }
+        sosGroupCall.stop('operator_end');
+        auditLog.record('sos.group_call.end', Object.assign({
+            target: state.alarmCamId || null,
+            detail: { callId: state.callId || null },
+        }, auditVoiceCallActor(socket)));
+        socket.emit('sos-group-call-result', { ok: true, ended: true });
+    });
+
+    socket.on('sos-group-call-audio', (meta, chunk) => {
+        if (!chunk || !sosGroupCall.isActive()) return;
+        if (sosGroupCall.ownerSocketId() !== socket.id) return;
+        const frame = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        if (!frame.length) return;
+        sosGroupCall.sendHqAlaw(frame);
+    });
+
 
 
     socket.on('start-bwc-call', (payload) => startBwcVoiceCall(payload, socket));
@@ -10163,6 +10944,11 @@ io.on('connection', (socket) => {
             emitPttTalkState(socket, null, false, 'No device selected');
             return;
         }
+        const groupCallBlocked = camIds.find((id) => sosGroupCall.isParticipant(id));
+        if (groupCallBlocked) {
+            emitPttTalkState(socket, groupCallBlocked, false, 'BWC is active in SOS group call');
+            return;
+        }
         const vcBlocked = camIds.filter(function (id) { return conferenceModule.isBwcIngressActive(id); });
         if (vcBlocked.length) {
             emitPttTalkState(socket, vcBlocked[0], false, 'BWC is sharing to video conference');
@@ -10176,6 +10962,7 @@ io.on('connection', (socket) => {
         }
         pttTalkTargetsBySocket.set(socket.id, online);
         pttGroupTxProofBySocket.set(socket.id, { seq: 0 });
+        pttFieldGroupRelay.beginHqFloor(socket.id, online);
         log.ptt.info('operator talk start', { camIds: online, group: online.length > 1 });
         online.forEach((id) => queryDeviceStatus(id, { force: false }));
         emitPttTalkState(socket, online[0], true, null);
@@ -10228,6 +11015,7 @@ io.on('connection', (socket) => {
         const targets = pttTalkTargetsBySocket.get(socket.id) || [];
         pttTalkTargetsBySocket.delete(socket.id);
         pttGroupTxProofBySocket.delete(socket.id);
+        pttFieldGroupRelay.endHqFloor(socket.id);
         const camId = parsed.camId || (targets[0] || connectedCameraId);
         if (camId) log.ptt.info('operator talk stop', { camId, groupSize: targets.length });
         emitPttTalkState(socket, camId || null, false, null);
@@ -10260,12 +11048,18 @@ io.on('connection', (socket) => {
 
     socket.on('ptt-restore-always-on', () => {
         if (!PTT_ENABLED) return;
+        pttFieldGroupRelay.clearAllSosTeams();
+        pttFieldGroupRelay.clearDispatchTeam();
         restoreAlwaysOnPttGroups();
     });
 
     socket.on('disconnect', () => {
         pttTalkTargetsBySocket.delete(socket.id);
         pttGroupTxProofBySocket.delete(socket.id);
+        pttFieldGroupRelay.endHqFloor(socket.id);
+        if (sosGroupCall.isActive() && sosGroupCall.ownerSocketId() === socket.id) {
+            sosGroupCall.stop('operator_disconnect');
+        }
         try { frLivePoller.clearWatch(socket.id); } catch (_) { /* ignore */ }
         const toStop = liveViewers.releaseSocket(socket.id);
         if (!toStop.length) return;
@@ -11101,6 +11895,7 @@ function scheduleMsgLinkCheck(camId) {
     }, 12000);
 }
 
+function startSipListener() {
 sipListenerReady = false;
 try {
 sip.start({ address: BIND_HOST, port: SIP_PORT }, (request, remote) => {
@@ -11177,6 +11972,11 @@ sip.start({ address: BIND_HOST, port: SIP_PORT }, (request, remote) => {
     if (request.method === 'BYE') {
         sip.send(sip.makeResponse(request, 200, 'OK'));
         const callId = request.headers['call-id'];
+        const groupCallCam = sosGroupCall.onRemoteBye(callId);
+        if (groupCallCam) {
+            log.sip.info('bye from device', { sosGroupCall: groupCallCam });
+            return;
+        }
         const voiceCam = mediaSession.onRemoteBye(sip, callId);
         if (voiceCam) {
             voiceBroadcastPending = null;
@@ -11403,26 +12203,52 @@ sip.start({ address: BIND_HOST, port: SIP_PORT }, (request, remote) => {
 sipListenerReady = true;
 } catch (err) {
     log.sip.err('sip listener init failed', { message: err.message });
+    throw err;
+}
 }
 
 
 
 const ports = mediaSession.getPorts();
 
+let catalogShutdownStarted = false;
+async function closeCatalogForShutdown(signal) {
+    if (catalogShutdownStarted) return;
+    catalogShutdownStarted = true;
+    log.web.info('shutdown draining PostgreSQL catalog', { signal });
+    await Promise.all([
+        bwcRegistryWriteTail.catch(() => {}),
+        Promise.all([...messageWriteTails.values()].map((tail) => tail.catch(() => {}))),
+        gpsTrack.drain(),
+        auditLog.drain(),
+    ]).catch((err) => {
+        log.web.warn('PostgreSQL dispatcher drain failed', { message: err.message });
+    });
+    await siteDb.close().catch((err) => {
+        log.web.warn('PostgreSQL catalog close failed', { message: err.message });
+    });
+}
+process.once('SIGINT', () => { closeCatalogForShutdown('SIGINT').finally(() => process.exit(0)); });
+process.once('SIGTERM', () => { closeCatalogForShutdown('SIGTERM').finally(() => process.exit(0)); });
+process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
+
 (async function startServer() {
     try {
         platformLicense.assertReadyForStartup();
         await ffmpegRuntime.assertReady(log);
+        await bootstrapSiteDatabase();
+        startSipListener();
     } catch (err) {
         const isLicense = /license/i.test(err.message);
         if (isLicense) log.web.err('startup blocked — license', { error: err.message });
-        else log.media.err('startup blocked — ffmpeg', { error: err.message });
+        else log.media.err('startup blocked', { error: err.message });
         console.error('\nMobility C2 cannot start: ' + err.message);
         if (isLicense) {
             console.error('See docs/LICENSE-OPERATIONS.md (vendor / technical ops)\n');
         } else {
             console.error('Fix: cd to FleetBackend and run  npm install\n');
         }
+        await closeCatalogForShutdown('startup-failure');
         process.exit(1);
     }
 
@@ -11445,6 +12271,7 @@ const ports = mediaSession.getPorts();
             onDeviceState: emitPttDeviceState,
             onPttRxState: emitPttRxState,
             onPttRxAudio: emitPttRxAudio,
+            onPttRxAlaw: relayPttRxAlaw,
             policyDeps: buildPttAudioCmdDeps,
             learnedCmdsPath: path.join(STORAGE_DIR, 'ptt-learned-cmds.json'),
         });

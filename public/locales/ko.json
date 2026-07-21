@@ -1973,5 +1973,9 @@
   "settingsHub.strip.reason.ptt": "Push-to-talk",
   "settingsHub.strip.reason.pool": "Live video",
   "settingsHub.strip.degraded": "Not OK",
-  "settingsHub.strip.degradedShort": "Not OK — {reason}"
+  "settingsHub.strip.degradedShort": "Not OK — {reason}",
+  "evidenceHub.importForensic": "포렌식 파일 가져오기",
+  "evidenceHub.importChecking": "파일 서명 및 무결성 확인 중…",
+  "evidenceHub.importAccepted": "포렌식 증거가 승인되고 해시가 생성되었습니다.",
+  "evidenceHub.hashLegacyPending": "레거시 파일 — 저장소를 스캔하여 계산"
 }

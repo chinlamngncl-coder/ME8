@@ -106,9 +106,11 @@ if ($Variant -eq 'Cn') {
 
 Write-Step 'Stage docker + vendor helpers...'
 Copy-Tree (Join-Path $AppRoot 'docker') (Join-Path $appDir 'docker')
+Copy-Tree (Join-Path $AppRoot 'db\migrations') (Join-Path $appDir 'db\migrations')
 New-Item -ItemType Directory -Force -Path (Join-Path $appDir 'scripts') | Out-Null
 Copy-Item (Join-Path $AppRoot 'scripts\START-LIVEKIT.ps1') (Join-Path $appDir 'scripts\START-LIVEKIT.ps1') -Force
 Copy-Item (Join-Path $AppRoot 'scripts\trial-ship\verify-install-ship.js') (Join-Path $appDir 'scripts\verify-install.js') -Force
+Copy-Item (Join-Path $AppRoot 'scripts\startup-preflight.js') (Join-Path $appDir 'scripts\startup-preflight.js') -Force
 Copy-Item (Join-Path $AppRoot 'scripts\trial-ship\package.ship.json') (Join-Path $appDir 'package.json') -Force
 if (Test-Path (Join-Path $AppRoot 'package-lock.json')) {
     Copy-Item (Join-Path $AppRoot 'package-lock.json') (Join-Path $appDir 'package-lock.json') -Force

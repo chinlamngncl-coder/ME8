@@ -5,8 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "verify": "node scripts/verify-install.js",
-    "postinstall": "node scripts/verify-install.js --quiet"
+    "verify": "node scripts/verify-install.js && node scripts/verify-postgres-catalog-retirement.js && node scripts/verify-startup-rollback-gate.js",
+    "verify:startup": "node scripts/verify-startup-rollback-gate.js",
+    "postinstall": "node scripts/verify-install.js --quiet && node scripts/verify-postgres-catalog-retirement.js && node scripts/verify-startup-rollback-gate.js"
   },
   "overrides": {
     "ip": "^2.0.1",
@@ -21,6 +22,7 @@
     "node-llama-cpp": "^3.18.1",
     "nodemailer": "^9.0.3",
     "onvif": "^0.8.1",
+    "pg": "^8.22.0",
     "qrcode": "^1.5.4",
     "sip": "0.0.6",
     "socket.io": "^4.8.3",

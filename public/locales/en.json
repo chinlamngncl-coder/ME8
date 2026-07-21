@@ -2513,5 +2513,18 @@
   "healthPlain.reason.http": "Dashboard",
   "healthPlain.reason.sip": "Cameras / signaling",
   "healthPlain.reason.ptt": "Push-to-talk",
-  "healthPlain.reason.pool": "Live video"
+  "healthPlain.reason.pool": "Live video",
+  "evidence.frStorageTitle": "Face recognition workspace",
+  "evidence.frStorageHint": "Choose a local disk or mounted NAS folder. Mobility creates and manages watchlists, crops, investigation holds, temporary jobs, and archive folders inside it.",
+  "evidence.frStorageRoot": "FR data root",
+  "evidence.frStorageConfigured": "Configured workspace",
+  "evidence.frStorageRestart": "Restart Mobility once to activate this workspace. Existing FR data will be copied safely; the old copy remains for rollback.",
+  "evidence.frStorageSavedRestart": "Storage saved. Restart Mobility once to activate the new FR workspace.",
+  "evidenceHub.importForensic": "Import forensic file",
+  "evidenceHub.importChecking": "Checking signature and integrity…",
+  "evidenceHub.importAccepted": "Forensic evidence admitted and hashed.",
+  "evidenceHub.hashLegacyPending": "Legacy file — scan storage to calculate",
+  "evidence.integrityMismatch": "Integrity warning: {n} evidence file(s) no longer match their SHA-256.",
+  "evidence.integrityUnverified": "Scan complete: {indexed} indexed; {n} legacy or missing file(s) could not be verified.",
+  "evidence.integrityPassed": "Scan complete: {indexed} indexed; {n} evidence file(s) passed integrity verification."
 }

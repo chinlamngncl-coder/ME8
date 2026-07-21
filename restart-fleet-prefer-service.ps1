@@ -20,11 +20,33 @@ function Test-ServiceRunning {
     return [bool]($svc -and $svc.Status -eq 'Running')
 }
 
-function Test-DashboardPortUp {
+function Get-DashboardPort {
+    $port = 3988
+    $envPath = Join-Path $PSScriptRoot '.env'
+    if (Test-Path $envPath) {
+        $match = Select-String -Path $envPath -Pattern '^(?:FM_HTTP_PORT|PORT)=(\d+)\s*$' |
+            Select-Object -First 1
+        if ($match -and $match.Matches.Count) { $port = [int]$match.Matches[0].Groups[1].Value }
+    }
+    return $port
+}
+
+function Test-DashboardPortUp([int]$Port) {
     try {
-        $hit = Get-NetTCPConnection -LocalPort 3988 -State Listen -ErrorAction SilentlyContinue |
+        $hit = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
             Select-Object -First 1
         return [bool]$hit
+    } catch {
+        return $false
+    }
+}
+
+function Test-PlatformHealth([int]$Port) {
+    try {
+        $health = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/health" -TimeoutSec 5
+        return [bool]($health.ok -and $health.dashboard.httpReady -and $health.dashboard.sipReady `
+            -and $health.dashboard.pttReady -and $health.dashboard.poolReady `
+            -and $health.dashboard.databaseReady -and $health.dashboard.storageWritable)
     } catch {
         return $false
     }
@@ -81,16 +103,40 @@ if (-not $ok) {
 }
 
 if (-not $ok) {
+    $failedState = Get-ServiceOrNull
     Write-Host ""
-    Write-Host "  BLOCKED: could not restart service $serviceName."
-    Write-Host "  Click Yes on the UAC box, or right-click RESTART-FLEET.bat -> Run as administrator."
+    if ($failedState -and $failedState.Status -eq 'Paused') {
+        Write-Host "  BLOCKED: service $serviceName is PAUSED after repeated application startup failures."
+        Write-Host "  This is not fixed by repeatedly clicking UAC Yes."
+        $serviceLog = Join-Path $PSScriptRoot 'storage\service-stdout.log'
+        if (Test-Path $serviceLog) {
+            $lastStartupError = Get-Content -Path $serviceLog -Tail 80 -ErrorAction SilentlyContinue |
+                Select-String -Pattern 'uncaughtException|startup|Error:' |
+                Select-Object -Last 1
+            if ($lastStartupError) {
+                Write-Host "  Last startup error: $($lastStartupError.Line)"
+            }
+        }
+        Write-Host "  Repair the reported startup error, then run this restart once as Administrator."
+    } else {
+        Write-Host "  BLOCKED: Windows did not allow the service restart."
+        Write-Host "  Click Yes on the UAC box, or right-click RESTART-FLEET.bat -> Run as administrator."
+    }
     Write-Host ""
     exit 1
 }
 
-$deadline = (Get-Date).AddSeconds(20)
+$dashboardPort = Get-DashboardPort
+$deadline = (Get-Date).AddSeconds(30)
+$stableHealth = 0
 while ((Get-Date) -lt $deadline) {
-    if ((Test-ServiceRunning) -and (Test-DashboardPortUp)) { break }
+    if ((Test-ServiceRunning) -and (Test-DashboardPortUp -Port $dashboardPort) `
+        -and (Test-PlatformHealth -Port $dashboardPort)) {
+        $stableHealth += 1
+        if ($stableHealth -ge 3) { break }
+    } else {
+        $stableHealth = 0
+    }
     Start-Sleep -Milliseconds 500
 }
 
@@ -100,10 +146,12 @@ if (-not (Test-ServiceRunning)) {
 }
 
 Write-Host "  Service $serviceName restarted."
-Write-Host "  Dashboard: http://192.168.1.38:3988  (or http://localhost:3988)"
-if (Test-DashboardPortUp) {
-    Write-Host "  Port 3988 is listening."
+Write-Host "  Dashboard: http://localhost:$dashboardPort"
+if ($stableHealth -ge 3) {
+    Write-Host "  HEALTH PASS: HTTP, SIP, PTT, media, database and storage are ready."
 } else {
-    Write-Host "  Port 3988 not up yet - wait a few seconds then refresh browser."
+    Write-Host "  BLOCKED: service is Running but the complete health gate did not pass."
+    Write-Host "  Check storage\service-stderr.log; do not treat this restart as successful."
+    exit 1
 }
 exit 0

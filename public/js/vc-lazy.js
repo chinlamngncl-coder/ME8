@@ -5,8 +5,8 @@
     'use strict';
 
     const VENDOR = '/vendor/livekit-client.umd.min.js?v=20260701-vc-bwc-remove';
-    const LAYOUT = '/js/conference-layout.js?v=20260701-vc-bwc-remove';
-    const HUB = '/js/conference-hub.js?v=20260701-vc-bwc-remove';
+    const LAYOUT = '/js/conference-layout.js?v=20260721-vc-fixed-camera-ingress-v1';
+    const HUB = '/js/conference-hub.js?v=20260721-vc-fixed-camera-ingress-v1';
 
     let loadPromise = null;
 

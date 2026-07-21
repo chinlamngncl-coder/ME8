@@ -1973,5 +1973,9 @@
   "settingsHub.strip.reason.ptt": "Push-to-talk",
   "settingsHub.strip.reason.pool": "Live video",
   "settingsHub.strip.degraded": "Not OK",
-  "settingsHub.strip.degradedShort": "Not OK — {reason}"
+  "settingsHub.strip.degradedShort": "Not OK — {reason}",
+  "evidenceHub.importForensic": "Mag-import ng forensic file",
+  "evidenceHub.importChecking": "Sinusuri ang file signature at integridad…",
+  "evidenceHub.importAccepted": "Tinanggap at na-hash ang forensic evidence.",
+  "evidenceHub.hashLegacyPending": "Lumang file — i-scan ang storage upang kalkulahin"
 }

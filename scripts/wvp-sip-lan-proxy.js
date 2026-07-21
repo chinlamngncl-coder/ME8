@@ -26,6 +26,8 @@ const tm = TARGET.match(/^([^:]+):(\d+)$/);
 const TARGET_HOST = tm ? tm[1] : '127.0.0.1';
 const TARGET_PORT = tm ? parseInt(tm[2], 10) : 15061;
 const SYNC_MS = Math.max(5000, parseInt(process.env.WVP_SIP_LAN_SYNC_MS || '10000', 10) || 10000);
+const FLEET_SIP_RETURN_HOST = String(process.env.FLEET_SIP_RETURN_HOST || '127.0.0.1').trim() || '127.0.0.1';
+const FLEET_SIP_RETURN_PORT = parseInt(process.env.FLEET_SIP_RETURN_PORT || '5062', 10) || 5062;
 
 /** call-id → { address, port, at } for UDP replies from WVP */
 const udpRoutes = new Map();
@@ -162,6 +164,15 @@ function parseSipBasics(buf) {
         cseqMethod: cseqM ? String(cseqM[1]).toUpperCase() : null,
         via: viaM ? String(viaM[1]).trim().slice(0, 180) : null,
     };
+}
+
+function isFleetCallReply(parsed) {
+    if (!parsed || parsed.isReq || !['INVITE', 'BYE'].includes(parsed.cseqMethod)) return false;
+    const via = String(parsed.via || '');
+    const sentByPort = via.match(/SIP\/2\.0\/(?:UDP|TCP)\s+[^;\s:]+:(\d+)/i);
+    const rport = via.match(/(?:^|;)rport=(\d+)(?:;|$)/i);
+    return (sentByPort && Number(sentByPort[1]) === FLEET_SIP_RETURN_PORT)
+        || (rport && Number(rport[1]) === FLEET_SIP_RETURN_PORT);
 }
 
 function rememberFromPacket(parsed, peerIp, peerPort) {
@@ -392,6 +403,27 @@ function startUdp() {
         /* MOB-APPLY-BACKEND-ACL-TRANSLATOR-V1 — MESSAGE Alarm/DevStatus → Fleet ACL (5060 unchanged) */
         if (parsed.isReq && parsed.method === 'MESSAGE') {
             maybePublishMessageAcl(parsed, msg);
+        }
+        /*
+         * MOB-APPLY PROXY-CALL-REPLY-RETURN-TO-FLEET-5062-BY-VIA-V1
+         * Fleet-originated Call INVITEs advertise Via/rport :5062. Return every
+         * provisional/final INVITE response to that SIP transaction; WVP video
+         * replies keep their existing TARGET route.
+         */
+        if (isFleetCallReply(parsed)) {
+            log('SIP Call reply from cam → Fleet', {
+                status: parsed.statusCode,
+                deviceId: deviceIdForOutbound(parsed) || parsed.toUser || null,
+                from: peerIp + ':' + rinfo.port,
+                to: FLEET_SIP_RETURN_HOST + ':' + FLEET_SIP_RETURN_PORT,
+                callId: parsed.callId || null,
+                cseqMethod: parsed.cseqMethod,
+                via: parsed.via || null,
+            });
+            sock.send(msg, FLEET_SIP_RETURN_PORT, FLEET_SIP_RETURN_HOST, (err) => {
+                if (err) log('Fleet SIP Call reply forward err', err.message);
+            });
+            return;
         }
         /* mob-proxy-invite-reply-trace-v1 — prove 200 OK returns to WVP :15061 */
         if (!parsed.isReq && parsed.statusCode === 200) {

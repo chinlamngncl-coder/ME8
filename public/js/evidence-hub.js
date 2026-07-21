@@ -153,6 +153,8 @@
         if (navDocks) navDocks.hidden = !perms.dockAdmin && dashboardRole !== 'super_admin';
         const navRx = document.getElementById('ev-nav-redacted-exports');
         if (navRx) navRx.hidden = !perms.export && !perms.superAdmin;
+        const forensicImport = document.getElementById('ev-forensic-import');
+        if (forensicImport) forensicImport.hidden = !perms.superAdmin;
         if (dashboardRole !== 'super_admin' && currentPanel === 'settings') showPanel('overview');
         else if (currentPanel === 'approvals') showPanel('catalog', { focusExportQueue: true });
         else if (!perms.dockAdmin && dashboardRole !== 'super_admin' && currentPanel === 'docks') showPanel('overview');
@@ -1134,6 +1136,7 @@
                 + '<dl class="ss-dock-ro"><dt>' + tr('evidence.colOfficer') + '</dt><dd>' + esc(f.operatorName || '—') + '</dd>'
                 + '<dt>' + tr('evidence.colUploaded') + '</dt><dd>' + esc(fmtTime(f.uploadedAt)) + '</dd>'
                 + '<dt>' + tr('evidenceHub.size') + '</dt><dd>' + fmtBytes(f.byteSize) + '</dd>'
+                + '<dt>SHA-256</dt><dd><code>' + esc(f.sha256 || tr('evidenceHub.hashLegacyPending')) + '</code></dd>'
                 + '<dt>' + tr('evidenceHub.colStatus') + '</dt><dd>' + esc(d.storageAvailable === false ? tr('evidenceHub.statusMissing') : tr('evidenceHub.statusAvailable'))
                 + ' <span class="ev-crypto-chip ' + esc(d.cryptoStatus || 'missing') + '">' + esc(cryptoStatusLabel(d.cryptoStatus)) + '</span>'
                 + (d.archived ? (' <span class="ev-crypto-chip missing">' + esc(tr('evidenceHub.archivedBadge')) + '</span>') : '')
@@ -2495,7 +2498,63 @@
         }
     }
 
+    function ensureForensicImportControl() {
+        if (document.getElementById('ev-forensic-import')) return;
+        const refresh = document.getElementById('evidence-refresh');
+        const toolbar = refresh && refresh.parentElement;
+        if (!toolbar) return;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.id = 'ev-forensic-import';
+        button.className = 'btn btn-action btn-sm';
+        button.setAttribute('data-i18n', 'evidenceHub.importForensic');
+        button.textContent = tr('evidenceHub.importForensic');
+        button.hidden = !perms.superAdmin;
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.id = 'ev-forensic-import-file';
+        input.accept = '.mp4,.avi,.mov,.mkv,.m4v,.3gp,.flv,.wmv,.ts,.ps,.h264,.h265,.dat,.bin,.jpg,.jpeg,.png,.gif,.webp,.bmp,.pdf';
+        input.hidden = true;
+        const message = document.createElement('span');
+        message.id = 'ev-forensic-import-msg';
+        message.className = 'hint';
+        toolbar.insertBefore(button, refresh.nextSibling);
+        toolbar.insertBefore(input, button.nextSibling);
+        toolbar.insertBefore(message, input.nextSibling);
+        button.addEventListener('click', function () {
+            if (!perms.superAdmin) return;
+            input.value = '';
+            input.click();
+        });
+        input.addEventListener('change', async function () {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            button.disabled = true;
+            message.textContent = tr('evidenceHub.importChecking');
+            try {
+                const form = new FormData();
+                form.append('file', file, file.name);
+                const res = await fetch('/api/evidence/import-forensic', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: form,
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) throwCatalogErr(data);
+                message.textContent = tr('evidenceHub.importAccepted');
+                catalogPage = 1;
+                await loadCatalog(true);
+            } catch (err) {
+                message.textContent = catalogMsg(err.opPayload || err.catalogPayload, err);
+            } finally {
+                button.disabled = false;
+                input.value = '';
+            }
+        });
+    }
+
     function bindUi() {
+        ensureForensicImportControl();
         document.querySelectorAll('.evidence-hub-nav-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 showPanel(btn.dataset.panel);

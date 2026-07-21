@@ -97,12 +97,16 @@ if (-not (Test-Path $nssm)) { throw "NSSM not found: $nssm" }
 
 $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if ($existing) {
-    Write-Host '  Removing existing service registration...' -ForegroundColor Yellow
-    & $nssm stop $ServiceName confirm 2>$null | Out-Null
-    Start-Sleep -Seconds 2
-    & $nssm remove $ServiceName confirm
-    Start-Sleep -Seconds 1
+    Write-Host '  Existing service found — using transactional upgrade gate.' -ForegroundColor Cyan
+    Grant-SystemFolderAccess -Root $AppRoot
+    & (Join-Path $PSScriptRoot 'Invoke-UbitronServiceUpgrade.ps1') `
+        -CandidateRoot $AppRoot -ServiceName $ServiceName
+    exit $LASTEXITCODE
 }
+
+$preflightReport = Join-Path $storageDir 'install-preflight.json'
+& (Join-Path $PSScriptRoot 'Test-UbitronStartupPreflight.ps1') `
+    -AppRoot $AppRoot -StorageRoot $storageDir -NodeExe $nodeExe -ReportPath $preflightReport | Out-Null
 
 if (-not $SkipPortKill) {
     $killScript = Join-Path $AppRoot 'kill-fleet-ports.ps1'
@@ -137,9 +141,10 @@ Write-Host '  Registering service...' -ForegroundColor Gray
 & $nssm set $ServiceName AppStderrCreationDisposition 4
 & $nssm set $ServiceName AppRotateFiles 1
 & $nssm set $ServiceName AppRotateBytes 10485760
-& $nssm set $ServiceName AppExit Default Restart
-& $nssm set $ServiceName AppRestartDelay 5000
+& $nssm set $ServiceName AppExit Default Exit
 & $nssm set $ServiceName AppEnvironmentExtra $envExtra
+& sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/15000/none/0 | Out-Null
+& sc.exe failureflag $ServiceName 1 | Out-Null
 
 Write-Host '  Starting service...' -ForegroundColor Gray
 & $nssm start $ServiceName
@@ -163,9 +168,34 @@ if (Test-Path $envPath) {
 }
 
 Write-Host ''
-if ($svc -and $svc.Status -eq 'Running') {
+$healthStable = 0
+$healthDeadline = (Get-Date).AddSeconds(45)
+$lastHealthError = ''
+while ($svc -and $svc.Status -eq 'Running' -and (Get-Date) -lt $healthDeadline) {
+    try {
+        $health = Invoke-RestMethod -Uri "http://127.0.0.1:$port/api/health" -TimeoutSec 5
+        $ready = $health.ok -and $health.dashboard.httpReady -and $health.dashboard.sipReady `
+            -and $health.dashboard.pttReady -and $health.dashboard.poolReady `
+            -and $health.dashboard.databaseReady -and $health.dashboard.storageWritable
+        if ($ready) {
+            $healthStable += 1
+            if ($healthStable -ge 3) { break }
+        } else {
+            $healthStable = 0
+            $lastHealthError = 'health reported: ' + (($health.reasons | ForEach-Object { "$_" }) -join ', ')
+        }
+    } catch {
+        $healthStable = 0
+        $lastHealthError = $_.Exception.Message
+    }
+    Start-Sleep -Seconds 2
+    $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+}
+
+if ($svc -and $svc.Status -eq 'Running' -and $healthStable -ge 3) {
     Write-Host 'UBITRON C2 SERVICE OK' -ForegroundColor Green
     Write-Host "  Status:  Running ($ServiceName)"
+    Write-Host '  Health:  HTTP, SIP, PTT, media, database and storage ready'
     Write-Host "  Portal:  http://localhost:$port  (or Operator URL from Settings)"
     Write-Host "  Logs:    $stdoutLog"
     Write-Host '  IT:      net stop UbitronC2  |  net start UbitronC2'
@@ -179,12 +209,14 @@ if ($svc -and $svc.Status -eq 'Running') {
     exit 0
 }
 
+& $nssm stop $ServiceName confirm 2>$null | Out-Null
 Write-Host 'SERVICE NOT RUNNING YET' -ForegroundColor Red
+if ($lastHealthError) { Write-Host "  Health gate: $lastHealthError" -ForegroundColor Red }
 Write-Host "  $stderrLog"
 Write-Host "  $stdoutLog"
 if ($svc) { Write-Host "  Service status: $($svc.Status)" -ForegroundColor Red }
 Write-Host ''
-Write-Host 'For now use lab mode: double-click RESTART-FLEET.bat (keep window open).' -ForegroundColor Yellow
+Write-Host 'The installation was not accepted. Do not use this build until the reported cause is repaired.' -ForegroundColor Yellow
 if ($PauseAtEnd -or $env:UBITRON_SERVICE_INSTALL_PAUSE -eq '1') {
     Write-Host 'Press any key to close...' -ForegroundColor Gray
     $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')

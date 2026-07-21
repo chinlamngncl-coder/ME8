@@ -48,6 +48,9 @@ This product includes open-source software. The tables below list components for
 
 | sip (kirm/sip.js) | MIT | Kirill Mikhailov |
 
+| pg 8.22.0 (node-postgres) | MIT | Copyright (c) 2010 - 2021 Brian Carlson |
+| pg dependency family (`pg-connection-string`, `pg-pool`, `pg-protocol`, `pg-types`, `pgpass`, `postgres-*`, `split2`, `xtend`) | MIT; `pg-int8` is ISC | Versions and license files are included with the packaged npm modules |
+
 | ffmpeg-static | GPL-3.0-or-later | FFmpeg project (bundled binary) |
 
 
@@ -132,6 +135,8 @@ This product includes open-source software. The tables below list components for
 
 | Node.js | MIT | Runtime |
 
+| PostgreSQL 16.10 | PostgreSQL License | PostgreSQL Global Development Group |
+
 
 
 ---
@@ -165,6 +170,31 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
 
 
 *(Full MIT texts for each package are in `node_modules/<package>/LICENSE`.)*
+
+---
+
+## PostgreSQL 16.10 — PostgreSQL License
+
+PostgreSQL Database Management System
+Copyright (c) 1996-2025, PostgreSQL Global Development Group
+
+Permission to use, copy, modify, and distribute this software and its documentation for any purpose, without fee, and without a written agreement is hereby granted, provided that the above copyright notice and this paragraph and the following two paragraphs appear in all copies.
+
+IN NO EVENT SHALL THE POSTGRESQL GLOBAL DEVELOPMENT GROUP BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF THE POSTGRESQL GLOBAL DEVELOPMENT GROUP HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+THE POSTGRESQL GLOBAL DEVELOPMENT GROUP SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE SOFTWARE PROVIDED HEREUNDER IS ON AN "AS IS" BASIS, AND THE POSTGRESQL GLOBAL DEVELOPMENT GROUP HAS NO OBLIGATIONS TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+
+---
+
+## pg 8.22.0 (node-postgres) — MIT License
+
+Copyright (c) 2010 - 2021 Brian Carlson
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 
