@@ -707,6 +707,35 @@
         if (lab) lab.checked = !!checked;
     }
 
+    function readinessDetailToProxyUiKey(detailKey) {
+        const map = {
+            'server.readiness.production.passProxy': 'server.proxyReadiness.passProxy',
+            'server.readiness.production.passDirect': 'server.proxyReadiness.passDirect',
+            'server.readiness.production.passDirectOff': 'server.proxyReadiness.passDirectOff',
+            'server.readiness.production.needTrustBehindProxy': 'server.proxyReadiness.warnNeedTrust',
+            'server.readiness.production.trustOnWithoutHttps': 'server.proxyReadiness.warnTrustHttp',
+            'server.readiness.production.https': 'server.proxyReadiness.warnHttps',
+        };
+        return map[detailKey] || detailKey;
+    }
+
+    function renderProxyReadiness(readiness) {
+        const el = document.getElementById('ss-proxy-readiness');
+        if (!el) return;
+        if (!readiness || !readiness.detailKey) {
+            el.className = 'ss-proxy-readiness';
+            el.innerHTML = '';
+            return;
+        }
+        const ok = readiness.status === 'ok';
+        const label = ok
+            ? tr('server.proxyReadiness.passLabel')
+            : tr('server.proxyReadiness.warnLabel');
+        const detail = tr(readinessDetailToProxyUiKey(readiness.detailKey));
+        el.className = 'ss-proxy-readiness ' + (ok ? 'is-pass' : 'is-warn');
+        el.innerHTML = '<strong>' + esc(label) + '</strong>' + esc(detail);
+    }
+
     async function loadProductionAccess() {
         const status = document.getElementById('ss-production-access-status');
         try {
@@ -715,21 +744,35 @@
                 : null;
             if (result) {
                 if (!result.ok) {
-                    if (status) status.textContent = opMsg(result.data, result._err, result.errorKey);
+                    if (status) {
+                        status.className = 'setup-hint is-error';
+                        status.textContent = opMsg(result.data, result._err, result.errorKey);
+                    }
                     return;
                 }
                 syncTrustProxyCheckbox(!!result.data.trustProxy);
-                if (status) status.textContent = '';
+                renderProxyReadiness(result.data.readiness);
+                if (status) {
+                    status.className = 'setup-hint';
+                    status.textContent = '';
+                }
                 return;
             }
             const res = await fetch('/api/production-access', { credentials: 'same-origin' });
             const data = await res.json();
             if (!res.ok || !data.ok) throwOpErr(data);
             syncTrustProxyCheckbox(!!data.trustProxy);
-            if (status) status.textContent = '';
+            renderProxyReadiness(data.readiness);
+            if (status) {
+                status.className = 'setup-hint';
+                status.textContent = '';
+            }
         } catch (err) {
             console.warn('[production-access]', err);
-            if (status) status.textContent = opMsg(null, err, 'server.productionAccess.loadFailed');
+            if (status) {
+                status.className = 'setup-hint is-error';
+                status.textContent = opMsg(null, err, 'server.productionAccess.loadFailed');
+            }
         }
     }
 
@@ -737,7 +780,12 @@
         if (!canManageServer) return;
         const status = document.getElementById('ss-production-access-status');
         const trustEl = document.getElementById('ss-trust-proxy');
-        if (status) status.textContent = tr('common.saving') || 'Saving\u2026';
+        const saveBtn = document.getElementById('ss-save-production-access');
+        if (saveBtn) saveBtn.disabled = true;
+        if (status) {
+            status.className = 'setup-hint';
+            status.textContent = tr('common.saving') || 'Saving\u2026';
+        }
         try {
             const body = { trustProxy: !!(trustEl && trustEl.checked) };
             const payload = global.AuthReverify && AuthReverify.withReverify
@@ -751,14 +799,32 @@
             });
             const data = await res.json();
             if (!res.ok || !data.ok) throwOpErr(data);
-            syncTrustProxyCheckbox(!!data.trustProxy);
-            if (status) status.textContent = tr('server.productionAccess.saved');
+            const on = !!data.trustProxy;
+            syncTrustProxyCheckbox(on);
+            renderProxyReadiness(data.readiness);
+            if (status) {
+                status.className = 'setup-hint is-saved';
+                status.textContent = on
+                    ? tr('server.productionAccess.savedOn')
+                    : tr('server.productionAccess.savedOff');
+            }
             loadSiteReadiness();
             setTimeout(function () {
-                if (status && status.textContent === tr('server.productionAccess.saved')) status.textContent = '';
-            }, 4000);
+                if (!status) return;
+                const keepOn = tr('server.productionAccess.savedOn');
+                const keepOff = tr('server.productionAccess.savedOff');
+                if (status.textContent === keepOn || status.textContent === keepOff) {
+                    status.className = 'setup-hint';
+                    status.textContent = '';
+                }
+            }, 8000);
         } catch (err) {
-            if (status) status.textContent = opMsg(err.opPayload || err.catalogPayload, err);
+            if (status) {
+                status.className = 'setup-hint is-error';
+                status.textContent = opMsg(err.opPayload || err.catalogPayload, err, 'server.productionAccess.saveFailed');
+            }
+        } finally {
+            if (saveBtn) saveBtn.disabled = !canManageServer;
         }
     }
 
@@ -1815,10 +1881,13 @@
         });
         const copyOpBtn = document.getElementById('ss-copy-operator-url');
         if (copyOpBtn) copyOpBtn.addEventListener('click', function () { copyOperatorPortalUrl(); });
+        const refreshReadinessBtn = document.getElementById('ss-refresh-readiness');
+        if (refreshReadinessBtn) refreshReadinessBtn.addEventListener('click', function () {
+            loadSiteReadiness();
+            loadProductionAccess();
+        });
         const saveProdBtn = document.getElementById('ss-save-production-access');
         if (saveProdBtn) saveProdBtn.addEventListener('click', function () { saveProductionAccess(); });
-        const refreshReadinessBtn = document.getElementById('ss-refresh-readiness');
-        if (refreshReadinessBtn) refreshReadinessBtn.addEventListener('click', function () { loadSiteReadiness(); });
         const readinessRoot = document.getElementById('ss-site-readiness');
         if (readinessRoot && !readinessRoot._ssBound) {
             readinessRoot._ssBound = true;
@@ -2136,6 +2205,8 @@
                 cachedSettingsData = null;
                 if (global.SessionBus && SessionBus.invalidateSettings) SessionBus.invalidateSettings();
                 clearTabExtrasCache();
+                loadProductionAccess();
+                loadSiteReadiness();
                 setOpen(false);
                 alert(tr('server.alert.saved'));
             } catch (err) {

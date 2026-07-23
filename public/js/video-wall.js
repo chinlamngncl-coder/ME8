@@ -3,8 +3,8 @@
  *
  * Player: JSMpeg first. Soft ZLM overlay (mob-zlm-wall-safe-no-wipe) only for
  * single-cam wall \u2014 never wipe panel; Open All skips ZLM.
- * Video WS: ws://host:(HTTP+1) e.g. 3889 \u2014 server bridge fans out (clients:2+).
- * Audio WS: ws://host:(HTTP+2) e.g. 3890 \u2014 PCM Web Audio, separate from JSMpeg.
+ * Video WS: same-origin /ws/video (ws or wss from page) — legacy port HTTP+1 still works.
+ * Audio WS: same-origin /ws/audio — legacy port HTTP+2 still works.
  *
  * Map pin: per-cam JSMpeg on pool WS fanout (mob-pin-pool-jsmpeg-primary). No wall canvas mirror.
  * Reuse: pool already live (ops / CW / stream-ready) \u2192 no start-video; attach pin JSMpeg on videoWsUrl().
@@ -218,6 +218,9 @@
     const pttWakingCamIds = new Set();
 
     function videoWsUrl(camId) {
+        if (global.DashboardWsUrl && typeof global.DashboardWsUrl.videoWsUrl === 'function') {
+            return global.DashboardWsUrl.videoWsUrl(camId);
+        }
         const port = window.location.port ? (parseInt(window.location.port, 10) + 1) : 3889;
         var url = 'ws://' + window.location.hostname + ':' + port + '/';
         if (camId) url += '?camId=' + encodeURIComponent(camId);
@@ -310,6 +313,9 @@
     }
 
     function audioWsUrl() {
+        if (global.DashboardWsUrl && typeof global.DashboardWsUrl.audioWsUrl === 'function') {
+            return global.DashboardWsUrl.audioWsUrl();
+        }
         const port = window.location.port ? (parseInt(window.location.port, 10) + 2) : 3890;
         return 'ws://' + window.location.hostname + ':' + port;
     }
@@ -1221,10 +1227,13 @@
         let camId = pttBoundCamForSlot(slotIndex, slotEl);
         const isAlarmSlot = slotEl.classList.contains('alarm');
         const liveActive = hasDashboardLiveForCam(camId) || isAlarmSlot;
-        const rx = !!(camId && !liveActive && (pttRxActive.has(camId) || pttRxLinger.has(camId)));
-        slotEl.classList.toggle('video-slot-ptt-rx', rx);
+        /* PTT-VISUAL-ALERT-FULLSTACK-V1: pulse even while live (muted watch). */
+        const rxTalking = !!(camId && pttRxActive.has(camId));
+        const rxAny = !!(camId && (pttRxActive.has(camId) || pttRxLinger.has(camId)));
+        slotEl.classList.toggle('video-slot-ptt-rx', rxAny);
+        slotEl.classList.toggle('ptt-incoming-alert', rxTalking);
         const stEl = slotEl.querySelector('.video-slot-status');
-        if (stEl && rx) {
+        if (stEl && rxTalking && !liveActive) {
             stEl.textContent = tr('video.fieldPtt');
             stEl.classList.add('video-slot-status-ptt-rx');
         } else if (stEl && stEl.classList.contains('video-slot-status-ptt-rx')) {
@@ -1413,8 +1422,10 @@
         root.classList.toggle('map-popup-ptt-rx', showFieldPttChrome);
         root.classList.toggle('map-popup-ptt-rx-linger', showFieldPttChrome
             && ((rxLinger && !rxLive) || (forced && !rxLive && !onVoiceCall)));
+        /* Visual alert on pin even when live video is open (muted watch). */
+        root.classList.toggle('ptt-incoming-alert', rxLive);
         const badge = root.querySelector('.map-pin-ptt-rx-badge');
-        if (badge) badge.hidden = !showFieldPttChrome;
+        if (badge) badge.hidden = !(showFieldPttChrome || rxLive);
         const commMode = forced ? !onVoiceCall : (rx && !liveActive && !livePinOpen);
         root.classList.toggle('map-popup-ptt-comm-mode', commMode);
         const comm = ensureMapPinPttCommEl(root);

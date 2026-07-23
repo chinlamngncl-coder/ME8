@@ -840,3 +840,25 @@ body.enterprise-legal a { color: #60a5fa; }
 .cs-btn.btn-primary {
     /* keep cs-btn sizing; colors from global buttons */
 }
+
+/* OPS-FLEET-PIN-BUTTONS-COMPACT-V1 — Ops sidebar only; undo fat global .btn bridge */
+button#fleet-open-all-pins.btn.btn-action.fleet-open-all-pins,
+button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    height: auto;
+    padding: 4px 8px;
+    gap: 0;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.25;
+    border-radius: 4px;
+}
+button#fleet-open-all-pins.btn.btn-action.fleet-open-all-pins {
+    flex: 1;
+}
+button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
+    margin-top: 0;
+}

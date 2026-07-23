@@ -2,6 +2,7 @@
 
 **Date:** 2026-07-23  
 **Status:** PAPER — **commit + push DONE**; **product is not “done”**; PTT visual alert = disc only (**no APPLY yet**)  
+**Update 2026-07-23 evening:** Settings UI theme/grid genre **SKIPPED** (not PASS) — do not reopen. TLS C1–C3 **PASS**. Next preferred APPLY when named: `PTT-VISUAL-ALERT-FULLSTACK-V1` — see `MOB-DISC-NEXT-AFTER-SETTINGS-SKIP-PTT-VISUAL-ALERT-20260723.md`.  
 **Git:** `backup/20260722-tested-genres` @ `5e2f3a0` → `origin` (ME8)  
 **Also see:** `MOB-DISC-WHATS-LEFT-SHIP-READY-MAP-20260723.md`
 

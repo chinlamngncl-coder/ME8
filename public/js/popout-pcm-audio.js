@@ -9,6 +9,9 @@
     var muted = true;
 
     function audioWsUrl(httpPort) {
+        if (global.DashboardWsUrl && typeof global.DashboardWsUrl.audioWsUrl === 'function') {
+            return global.DashboardWsUrl.audioWsUrl();
+        }
         var p = parseInt(httpPort, 10) || 3888;
         return 'ws://' + global.location.hostname + ':' + (p + 2);
     }

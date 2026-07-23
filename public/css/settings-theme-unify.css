@@ -1,0 +1,656 @@
+/**
+ * SETTINGS-UI-THEME-UNIFY-V1
+ * Visual only — scoped under Settings / Server Config.
+ * Does not rename IDs or change Save/Cancel wiring.
+ */
+
+/* ── Hub (Settings home) ───────────────────────────────────────── */
+#app-view-server.enterprise-scope {
+    background: var(--bg-base);
+    color: var(--text, #e2e8f0);
+}
+
+#server-panel {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px 20px 24px;
+}
+
+.settings-hub-head h2 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary, #f1f5f9);
+}
+
+.settings-hub-aside .status-box.enterprise-card,
+.settings-hub-aside .enterprise-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle, #334155);
+    border-radius: var(--radius-lg);
+}
+
+.settings-hub-main .enterprise-card,
+#server-panel .enterprise-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle, #334155);
+    border-radius: var(--radius-lg);
+}
+
+/* ── Server Config workspace ───────────────────────────────────── */
+#server-config-workspace {
+    background: var(--bg-base);
+    /* keep flex clip; content scrolls inside .ss-panel-scroll only */
+    overflow: hidden;
+}
+
+#server-setup-panel {
+    color: var(--text, #e2e8f0);
+    background: transparent;
+}
+
+#server-setup-panel .ss-setup-head-top h3,
+#server-setup-panel h3 {
+    color: var(--text-primary, #f1f5f9);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+#server-setup-panel h4,
+#server-setup-panel .ss-tech-section h5,
+#server-setup-panel .ss-dock-evidence h4 {
+    margin: 14px 0 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted, #94a3b8);
+}
+
+#server-setup-panel .setup-hint {
+    color: var(--text-muted, #94a3b8);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+#server-setup-panel label {
+    color: var(--text-muted, #94a3b8);
+    font-size: 11px;
+}
+
+/* Cards: config sections read like enterprise cards */
+#server-setup-panel .ss-config-section {
+    margin: 0 0 16px;
+    padding: 14px 14px 12px;
+    border: 1px solid var(--border-subtle, #334155);
+    border-radius: var(--radius-lg);
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border-subtle, #334155);
+}
+
+#server-setup-panel .ss-config-section:last-of-type {
+    border-bottom: 1px solid var(--border-subtle, #334155);
+}
+
+#server-setup-panel .ss-tech-section {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle, #334155);
+    border-radius: var(--radius-md);
+}
+
+/* Forms — match enterprise control height */
+#server-setup-panel input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]):not([type="hidden"]),
+#server-setup-panel select,
+#server-setup-panel textarea {
+    background: var(--bg-input);
+    border: 1px solid var(--border-color, #475569);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary, #f8fafc);
+    min-height: 34px;
+    padding: 7px 10px;
+    font-size: 12px;
+}
+
+#server-setup-panel textarea {
+    min-height: 72px;
+}
+
+/* Network sticky nav — pill tabs, not full-width bars */
+#server-setup-panel .ss-network-section-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle, #334155);
+    border-radius: var(--radius-md);
+    padding: 8px;
+}
+
+#server-setup-panel .ss-network-section-nav button {
+    width: auto !important;
+    max-width: none;
+    flex: 0 0 auto;
+    min-height: 0;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-muted, #94a3b8);
+}
+
+#server-setup-panel .ss-network-section-nav button:hover {
+    background: var(--bg-elevated);
+    color: var(--text, #e2e8f0);
+    border-color: var(--border-subtle, #334155);
+}
+
+#server-setup-panel .ss-network-section-nav button.active {
+    background: var(--accent-blue-soft, rgba(37, 99, 235, 0.16));
+    border-color: var(--accent-blue);
+    color: var(--text-primary, #e2e8f0);
+}
+
+/* Protocol SIP/ONVIF — content-sized, not stretched */
+#server-setup-panel .ss-protocol-tabs {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: auto;
+    max-width: 100%;
+}
+
+#server-setup-panel .ss-protocol-tabs button {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 5.5rem;
+    max-width: 10rem;
+    padding: 7px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color, #475569);
+    background: var(--bg-input);
+    color: var(--text-muted, #94a3b8);
+}
+
+#server-setup-panel .ss-protocol-tabs button.active {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue-hover);
+    color: #fff;
+}
+
+/* enterprise-form-grid must not un-hide inactive SIP/ONVIF panels */
+#server-setup-panel .ss-protocol-panel {
+    display: none !important;
+}
+
+#server-setup-panel .ss-protocol-panel.active {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 24px;
+    width: 100%;
+    max-width: none;
+}
+
+#server-setup-panel .ss-protocol-panel.active .full {
+    grid-column: 1 / -1;
+}
+
+#server-setup-panel .ss-protocol-panel.active > label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    min-width: 0;
+}
+
+#server-setup-panel .ss-protocol-panel.active > label > span {
+    color: var(--text-secondary, #94a3b8);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+#server-setup-panel .ss-protocol-panel.active input,
+#server-setup-panel .ss-protocol-panel.active select {
+    width: 100%;
+    max-width: 420px !important;
+    margin-top: 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/* MASTER-SETTINGS-GRID-AND-RULES-V4 — East-to-West forms (no JS / ID changes) */
+/* -------------------------------------------------------------------------- */
+
+#server-setup-panel .ss-east-west-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 24px;
+    width: 100%;
+    max-width: none;
+    align-items: start;
+}
+
+#server-setup-panel .ss-east-west-grid > .ss-east-west-span,
+#server-setup-panel .ss-east-west-grid > .setup-hint.ss-east-west-span,
+#server-setup-panel .ss-east-west-grid > .ss-user-add-full,
+#server-setup-panel .ss-east-west-grid > button {
+    grid-column: 1 / -1;
+}
+
+#server-setup-panel .ss-east-west-grid > label,
+#server-setup-panel .ss-user-add.ss-east-west-grid > label,
+#server-setup-panel .ss-network-grid > label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    min-width: 0;
+    max-width: none;
+}
+
+#server-setup-panel .ss-east-west-grid > label > span,
+#server-setup-panel .ss-user-add.ss-east-west-grid > label > span,
+#server-setup-panel .ss-network-grid > label > span {
+    color: var(--text-secondary, #94a3b8);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+#server-setup-panel .ss-east-west-grid input:not([type="checkbox"]):not([type="radio"]),
+#server-setup-panel .ss-east-west-grid select,
+#server-setup-panel .ss-east-west-grid textarea,
+#server-setup-panel .ss-east-west-grid .enterprise-form-control,
+#server-setup-panel .ss-user-add.ss-east-west-grid input,
+#server-setup-panel .ss-user-add.ss-east-west-grid select {
+    width: 100%;
+    max-width: 420px !important;
+    margin-top: 0;
+    box-sizing: border-box;
+}
+
+#server-setup-panel .ss-user-add.ss-east-west-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 24px;
+    margin-top: 12px;
+}
+
+#server-setup-panel .ss-network-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 24px;
+    margin-bottom: 4px;
+}
+
+#server-setup-panel .ss-network-grid input:not([type="checkbox"]):not([type="radio"]),
+#server-setup-panel .ss-network-grid select {
+    width: 100%;
+    max-width: 420px !important;
+    margin-top: 0;
+}
+
+/* Readiness / status lists — label West, status East */
+#server-setup-panel .lab-readiness-row,
+#server-setup-panel .ss-readiness-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    padding: 10px 8px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border-subtle, #334155);
+}
+
+#server-setup-panel .ss-readiness-row-body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#server-setup-panel .ss-readiness-open,
+#server-setup-panel .lab-readiness-row > span:last-child:not(.lab-readiness-dot) {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+#server-setup-panel .ss-readiness-card .lab-readiness-row > div {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* Left config nav — full width of its rail only (intentional) */
+
+#server-setup-panel h4.enterprise-section-title,
+#server-setup-panel .ss-config-section > h4 {
+    margin: 14px 0 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary, #94a3b8);
+}
+
+/* 1) TYPE ON BWC — card + 2-col label/value grid (dt/dd from fillBwcChecklist) */
+#server-setup-panel .ss-type-on-bwc-card.enterprise-card {
+    margin: 12px 0 16px;
+    padding: var(--space-md, 14px);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle, #334155);
+    border-radius: var(--radius-lg);
+    max-width: 40rem;
+}
+
+#server-setup-panel .ss-type-on-bwc-card > .enterprise-section-title {
+    margin-top: 0;
+}
+
+#server-setup-panel #server-setup-bwc.ss-type-on-bwc-grid {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+#server-setup-panel #server-setup-bwc.ss-type-on-bwc-grid dt {
+    margin: 0 !important;
+    padding: 4px 0;
+    color: var(--text-secondary, #94a3b8);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+#server-setup-panel #server-setup-bwc.ss-type-on-bwc-grid dd {
+    margin: 0 !important;
+    padding: 4px 0;
+    color: var(--text-primary, #f8fafc);
+    font-weight: 500;
+    font-family: ui-monospace, Consolas, monospace;
+    word-break: break-all;
+}
+
+/* 2) SMTP card — constrained enterprise inputs + primary/secondary actions */
+#server-setup-panel #ss-smtp-section.ss-smtp-card.enterprise-card {
+    margin: 0 0 16px;
+    padding: var(--space-md, 14px);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle, #334155);
+    border-radius: var(--radius-lg);
+    max-width: 44rem;
+}
+
+#server-setup-panel #ss-smtp-section .ss-smtp-form {
+    max-width: 40rem;
+}
+
+#server-setup-panel #ss-smtp-section .enterprise-form-control,
+#server-setup-panel #ss-smtp-section input.enterprise-form-control,
+#server-setup-panel #ss-smtp-section select.enterprise-form-control {
+    width: 100%;
+    max-width: 400px !important;
+}
+
+#server-setup-panel #ss-smtp-section .ss-smtp-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-start;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-subtle, #334155);
+}
+
+#server-setup-panel #ss-smtp-save.btn-primary,
+#server-setup-panel #ss-smtp-test.btn-secondary {
+    width: auto !important;
+    flex: 0 0 auto;
+}
+
+/* 3) Inbound services checklist table */
+#server-setup-panel .ss-inbound-checklist-card.enterprise-card {
+    margin: 0 0 16px;
+    padding: var(--space-md, 14px);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle, #334155);
+    border-radius: var(--radius-lg);
+}
+
+#server-setup-panel .ss-inbound-table-wrap {
+    overflow-x: auto;
+    margin-top: 8px;
+    border: 1px solid var(--border-subtle, #334155);
+    border-radius: var(--radius-sm);
+}
+
+#server-setup-panel .cd-firewall-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin: 0;
+}
+
+#server-setup-panel .cd-firewall-table th {
+    background: var(--bg-elevated);
+    color: var(--text-secondary, #94a3b8);
+    font-weight: 700;
+    text-align: left;
+    padding: var(--space-md, 12px);
+    border-bottom: 1px solid var(--border-color, #475569);
+}
+
+#server-setup-panel .cd-firewall-table td {
+    padding: var(--space-md, 12px);
+    text-align: left;
+    vertical-align: top;
+    color: var(--text-primary, #f8fafc);
+    border-bottom: 1px solid var(--border-color, #475569);
+    border-left: none;
+    border-right: none;
+    border-top: none;
+}
+
+#server-setup-panel .cd-firewall-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* 4) Site readiness / Site configuration status list rows */
+#server-setup-panel .ss-readiness-card.enterprise-card {
+    margin: 0 0 12px;
+    padding: var(--space-md, 14px);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle, #334155);
+    border-radius: var(--radius-lg);
+}
+
+#server-setup-panel .lab-readiness-score {
+    margin-bottom: 8px;
+    color: var(--text-primary, #f8fafc);
+}
+
+#server-setup-panel .lab-readiness-bar {
+    background: var(--bg-elevated);
+    border-radius: 3px;
+    margin-bottom: 4px;
+}
+
+#server-setup-panel .lab-readiness-row,
+#server-setup-panel .ss-readiness-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    padding: 10px 8px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border-subtle, #334155);
+    border-radius: 0;
+}
+
+#server-setup-panel .lab-readiness-row:last-of-type,
+#server-setup-panel .ss-readiness-row:last-of-type {
+    border-bottom: none;
+}
+
+#server-setup-panel .ss-readiness-row:hover,
+#server-setup-panel .lab-readiness-row.ss-readiness-row:hover {
+    background: var(--accent-blue-soft, rgba(37, 99, 235, 0.16));
+}
+
+#server-setup-panel .ss-readiness-row-body strong,
+#server-setup-panel .lab-readiness-row strong {
+    color: var(--text-primary, #f8fafc);
+    font-weight: 600;
+}
+
+#server-setup-panel .ss-command-displays-note.enterprise-card {
+    margin-top: 12px;
+    padding: var(--space-md, 14px);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle, #334155);
+    border-radius: var(--radius-lg);
+    border-top: 1px solid var(--border-subtle, #334155);
+}
+
+/* Left config nav — full width of its rail only (intentional) */
+#server-setup-panel .ss-config-nav {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle, #334155);
+    border-radius: var(--radius-md);
+}
+
+#server-setup-panel .ss-config-nav button {
+    width: 100%;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted, #94a3b8);
+}
+
+#server-setup-panel .ss-config-nav button.active {
+    background: var(--accent-blue);
+    color: #fff;
+}
+
+#server-setup-panel .ss-config-nav button:hover:not(.active) {
+    background: var(--bg-surface);
+    color: var(--text, #e2e8f0);
+}
+
+/* Action buttons — never full-bleed */
+#server-setup-panel .btn,
+#server-setup-panel button.btn-action,
+#server-setup-panel button.btn-ghost,
+#server-setup-panel button.btn-sm,
+#server-setup-panel button.btn-primary,
+#server-setup-panel button.btn-secondary,
+#server-setup-panel button.btn-danger {
+    width: auto !important;
+    max-width: none;
+    flex: 0 0 auto;
+    min-height: 32px;
+    white-space: nowrap;
+}
+
+#server-setup-panel .server-setup-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-start;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-subtle, #334155);
+    flex-shrink: 0;
+}
+
+#server-setup-panel .server-setup-actions button,
+#server-setup-panel #server-setup-save,
+#server-setup-panel #server-setup-cancel,
+#server-setup-panel #ss-save-bwc-list {
+    width: auto !important;
+    flex: 0 0 auto !important;
+    min-width: 7.5rem;
+}
+
+#server-setup-panel #server-setup-save.btn-primary,
+#server-setup-panel #cd-save.btn-primary,
+#server-setup-panel #lab-save.btn-primary {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue-hover);
+    color: #fff;
+}
+
+#server-setup-panel #server-setup-cancel.btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border-color, #475569);
+    color: var(--text, #e2e8f0);
+}
+
+#server-setup-panel #ss-config-back-btn.btn,
+#server-setup-panel .ss-config-back-btn {
+    width: auto !important;
+    flex: 0 0 auto;
+}
+
+/* Kill accidental full-width lab/cloud saves */
+#server-setup-panel #cd-save,
+#server-setup-panel #lab-save {
+    width: auto !important;
+    max-width: 22rem;
+    display: inline-flex;
+}
+
+/* Proxy readiness uses tokens */
+#server-setup-panel .ss-proxy-readiness {
+    background: var(--bg-input);
+    border-color: var(--border-subtle, #334155);
+    border-radius: var(--radius-sm);
+}
+
+#server-setup-panel .ss-network-grid {
+    gap: 10px 14px;
+}
+
+/* Scroll only the panel body — no extra empty viewport */
+#server-setup-panel .ss-panel-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+#server-setup-panel .ss-config-body {
+    min-height: 0;
+}
+
+/* Tables */
+#server-setup-panel .ss-bwc-table-wrap,
+#server-setup-panel .ss-users-table-wrap {
+    border-color: var(--border-subtle, #334155);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+}
+
+#server-setup-panel .ss-bwc-table th {
+    background: var(--bg-elevated);
+    color: var(--text-muted, #94a3b8);
+}
+
+/* Cloud entitlement cards */
+#server-setup-panel .cd-entitlement-card,
+#server-setup-panel .cd-program-phase {
+    background: var(--bg-input);
+    border-color: var(--border-subtle, #334155);
+    border-radius: var(--radius-md);
+}

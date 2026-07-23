@@ -7,11 +7,34 @@
 
     function absolutizeUrl(url) {
         if (!url) return url;
-        if (/^https?:\/\//i.test(url) || /^wss?:\/\//i.test(url)) return url;
+        var s = String(url);
+        /* SAME-ORIGIN-MEDIA-PROXY-V1 — keep /api/lab on this page origin; wrap raw ZLM http */
+        if (s.charAt(0) === '/') {
+            var baseRel = global.location && global.location.origin
+                ? global.location.origin
+                : ((global.location.protocol || 'http:') + '//' + (global.location.host || ''));
+            return baseRel + s;
+        }
+        if (/^https?:\/\//i.test(s) || /^wss?:\/\//i.test(s)) {
+            try {
+                var abs = new URL(s);
+                if (/\/api\/lab\//i.test(abs.pathname)) {
+                    return (global.location.origin || '') + abs.pathname + (abs.search || '');
+                }
+                if (global.location && global.location.protocol === 'https:' && abs.protocol === 'http:') {
+                    var zlmPorts = { '18088': 1, '8080': 1 };
+                    if (zlmPorts[abs.port] || /\/(live|rtp)\//i.test(abs.pathname)) {
+                        return (global.location.origin || '')
+                            + '/api/lab/media/upstream-flv?u=' + encodeURIComponent(s);
+                    }
+                }
+            } catch (_) { /* keep */ }
+            return s;
+        }
         var base = global.location && global.location.origin
             ? global.location.origin
             : ((global.location.protocol || 'http:') + '//' + (global.location.host || ''));
-        return base + (url.charAt(0) === '/' ? url : '/' + url);
+        return base + (s.charAt(0) === '/' ? s : '/' + s);
     }
 
     function fetchDescriptor(camId) {

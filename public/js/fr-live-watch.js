@@ -79,6 +79,9 @@
     }
 
     function videoWsUrl(camId) {
+        if (global.DashboardWsUrl && typeof global.DashboardWsUrl.videoWsUrl === 'function') {
+            return global.DashboardWsUrl.videoWsUrl(camId);
+        }
         return 'ws://' + global.location.hostname + ':' + wsPort() + '/?camId=' + encodeURIComponent(camId);
     }
 

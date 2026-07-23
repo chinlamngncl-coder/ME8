@@ -140,10 +140,16 @@
     }
 
     function videoWsUrl(camId) {
+        if (global.DashboardWsUrl && typeof global.DashboardWsUrl.videoWsUrl === 'function') {
+            return global.DashboardWsUrl.videoWsUrl(camId);
+        }
         return 'ws://' + window.location.hostname + ':' + wsPort(1) + '/?camId=' + encodeURIComponent(camId);
     }
 
     function audioWsUrl() {
+        if (global.DashboardWsUrl && typeof global.DashboardWsUrl.audioWsUrl === 'function') {
+            return global.DashboardWsUrl.audioWsUrl();
+        }
         return 'ws://' + window.location.hostname + ':' + wsPort(2);
     }
 
@@ -1424,6 +1430,9 @@
         const cell = getCell(slot);
         if (!cell) return;
         const camId = slotCamId(slot);
+        const rxTalking = !!(camId && global.PttRx && PttRx.isRxActive && PttRx.isRxActive(camId));
+        cell.classList.toggle('ptt-incoming-alert', rxTalking);
+        cell.classList.toggle(c('cell-ptt-rx'), rxTalking);
         const comm = ensureCwCellPttComm(cell);
         const commMode = !!(camId && pttCommCamId && normalizeCamId(camId) === normalizeCamId(pttCommCamId));
         cell.classList.toggle(c('cell-ptt-comm-mode'), commMode);

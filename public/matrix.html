@@ -90,7 +90,8 @@
     <script src="/js/operator-ui.js?v=20260702-op-voice-standalone"></script>
     <script src="/vendor/jsmpeg.min.js"></script>
     <script src="/vendor/mpegts.min.js"></script>
-    <script src="/js/live-player-factory.js?v=20260720-flv-wall-lifecycle-parity-v1"></script>
+    <script src="/js/live-player-factory.js?v=20260723-same-origin-media-proxy-v1"></script>
+    <script src="/js/dashboard-ws-url.js?v=20260723-wss-video-audio-sockets-v1"></script>
     <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
@@ -266,6 +267,9 @@
         });
 
         function wsVideoUrl(camId) {
+            if (window.DashboardWsUrl && typeof window.DashboardWsUrl.videoWsUrl === 'function') {
+                return window.DashboardWsUrl.videoWsUrl(camId);
+            }
             return 'ws://' + window.location.hostname + ':' + videoWsPort + '/?camId=' + encodeURIComponent(camId);
         }
 

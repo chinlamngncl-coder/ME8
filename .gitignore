@@ -7,6 +7,8 @@
 !scripts/trial-ship/.env.example.ship
 keys/
 secrets/
+# DASHBOARD-HTTPS-LAN-V1 — lab self-signed Ops TLS (never commit private key)
+certs/lab-dashboard/
 # LAB-DEFAULT-CREDS-AND-IMAGE-PIN-V1 — generated LiveKit config with real keys
 docker/livekit.runtime.yaml
 ship-build-test/customer-pack/docker/livekit.runtime.yaml

@@ -1,0 +1,14 @@
+# UI & FRONTEND DEVELOPMENT RULES
+- ALWAYS use `css/global.css` for styling. NEVER write inline `<style>` tags or page-specific CSS files unless absolutely necessary for a highly specific widget.
+- ALWAYS use the established global design system variables (e.g., `var(--bg-surface)`, `var(--space-md)`, `var(--accent-blue)`).
+- ALWAYS use standard layout wrappers: `.enterprise-card`, `.enterprise-layout-2col`, `.btn-primary`, `.btn-secondary`.
+- NEVER remove `id="..."` or `data-*="..."` attributes from HTML elements, as the frontend JavaScript strictly relies on them.
+- FORMS: Never let text inputs stretch to 100% width on wide screens; use max-widths.
+- SCROLLING: Live video matrixes and map views must never have scrollbars. They must be locked to the viewport height.
+
+# ENTERPRISE FORM & GRID LAYOUT RULES
+- STRICT EAST-TO-WEST FORMS: When designing forms with multiple inputs, NEVER stack them in a single massive vertical column on wide screens. ALWAYS use a multi-column CSS Grid: `display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 24px;`.
+- NO OVERLAPPING: Form field wrappers must cleanly separate the label and the input. ALWAYS use `display: flex; flex-direction: column; gap: 6px;` on the wrapper so the label sits strictly above the input. 
+- INPUT WIDTH CAPS: Text inputs, selects, and textareas must NEVER stretch infinitely. ALWAYS apply a max-width (e.g., `max-width: 420px;`).
+- LIST ALIGNMENT: Readiness checks and status lists must use `display: flex; justify-content: space-between; align-items: center;` to keep labels West and statuses East.
+- FUNCTIONAL PRESERVATION: Never modify or delete `id`, `data-*`, or `onclick` attributes.

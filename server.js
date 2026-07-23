@@ -8,12 +8,14 @@ const sip = require('sip');
 const xml2js = require('xml2js');
 
 const http = require('http');
+const https = require('https');
 
 const { Server } = require('socket.io');
+const dashboardTls = require('./lib/dashboardTls');
 
 const fs = require('fs');
 const crypto = require('crypto');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const {
     createSipCallId,
     createSipTag,
@@ -398,8 +400,12 @@ const MEDIA_TRANSPORT = cfg.mediaTransport;
 const SOS_GROUP_CALL_RTP_BASE = parseInt(process.env.FM_SOS_GROUP_CALL_RTP_BASE || '40400', 10) || 40400;
 
 function runtimePortSnapshot() {
+    const tlsSnap = dashboardTls.resolveFromEnv({ httpPort: HTTP_PORT, baseDir: __dirname });
     return {
         httpPort: HTTP_PORT,
+        httpsEnabled: !!tlsSnap.enabled,
+        httpsReady: !!tlsSnap.ready,
+        httpsPort: tlsSnap.enabled ? tlsSnap.httpsPort : null,
         videoWsPort: VIDEO_WS_PORT,
         audioWsPort: AUDIO_WS_PORT,
         pttEnabled: PTT_ENABLED,
@@ -616,6 +622,42 @@ const io = new Server(server, {
     cookie: true,
 });
 
+/** DASHBOARD-HTTPS-LAN-V1 — optional second listener; HTTP stays for lab fallback. */
+let httpsServer = null;
+let httpsListenerReady = false;
+if (dashboardTls.envFlag('FM_HTTPS_ENABLED')) {
+    try {
+        const ensureTls = spawnSync(
+            process.execPath,
+            [path.join(__dirname, 'scripts', 'ensure-lab-dashboard-tls-certs.js')],
+            { encoding: 'utf8', windowsHide: true, cwd: __dirname }
+        );
+        if (ensureTls.status !== 0) {
+            log.web.warn('dashboard https cert ensure failed', {
+                status: ensureTls.status,
+                stderr: String(ensureTls.stderr || '').slice(0, 400),
+                stdout: String(ensureTls.stdout || '').slice(0, 400),
+            });
+        }
+    } catch (err) {
+        log.web.warn('dashboard https cert ensure threw', {
+            message: err && err.message ? err.message : String(err),
+        });
+    }
+}
+const dashboardTlsBoot = dashboardTls.resolveFromEnv({ httpPort: HTTP_PORT, baseDir: __dirname });
+if (dashboardTlsBoot.enabled && dashboardTlsBoot.ready && dashboardTlsBoot.httpsOptions) {
+    httpsServer = https.createServer(dashboardTlsBoot.httpsOptions, app);
+    io.attach(httpsServer);
+} else if (dashboardTlsBoot.enabled && !dashboardTlsBoot.ready) {
+    log.web.warn('dashboard https enabled but not ready', {
+        reason: dashboardTlsBoot.reason,
+        certPath: dashboardTlsBoot.certPath,
+        keyPath: dashboardTlsBoot.keyPath,
+        hint: 'node scripts/ensure-lab-dashboard-tls-certs.js',
+    });
+}
+
 const sosGroupCall = sipGroupCallFactory.create({
     sip,
     log,
@@ -642,8 +684,9 @@ io.use((socket, next) => {
     next(new Error('Unauthorized'));
 });
 
-const wss = new WebSocket.Server({ host: '0.0.0.0', port: VIDEO_WS_PORT });
-wss.on('connection', (ws, req) => {
+const dashboardMediaWsBind = require('./lib/dashboardMediaWsBind');
+
+function onDashboardVideoWsConnection(ws, req) {
     const rawUrl = (req && req.url) || '';
     const q = rawUrl.indexOf('?');
     let camId = null;
@@ -658,12 +701,25 @@ wss.on('connection', (ws, req) => {
     } else {
         liveStreamPool.attachLegacyStreamClient(ws);
     }
-});
-const audioWss = new WebSocket.Server({ host: '0.0.0.0', port: AUDIO_WS_PORT });
-audioWss.on('error', (err) => log.media.err('audio ws listener error', err.message));
-audioWss.on('connection', () => {
+}
+
+function onDashboardAudioWsConnection() {
     mediaSession.attachAudioFfmpegToWs();
+}
+
+const dashboardMediaWs = dashboardMediaWsBind.createDashboardMediaWs({
+    videoWsPort: VIDEO_WS_PORT,
+    audioWsPort: AUDIO_WS_PORT,
+    onVideoConnection: onDashboardVideoWsConnection,
+    onAudioConnection: onDashboardAudioWsConnection,
+    log,
 });
+const wss = dashboardMediaWs.wss;
+const audioWss = dashboardMediaWs.audioWss;
+dashboardMediaWs.bindUpgrade(server);
+if (httpsServer) {
+    dashboardMediaWs.bindUpgrade(httpsServer);
+}
 mediaSession.setAudioWss(audioWss);
 liveStreamPool.setAudioWss(audioWss);
 try {
@@ -1029,6 +1085,9 @@ async function publicHealthDeps() {
     const databaseHealth = await siteDb.healthCheck();
     return Object.assign({}, techHealthDeps(), {
         httpListenerReady,
+        httpsListenerReady,
+        httpsEnabled: !!(dashboardTlsBoot && dashboardTlsBoot.enabled),
+        httpsPort: dashboardTlsBoot && dashboardTlsBoot.enabled ? dashboardTlsBoot.httpsPort : null,
         mediaBridgeReady,
         pttEnabled: PTT_ENABLED,
         databaseReady: databaseHealth.ok,
@@ -1818,11 +1877,18 @@ app.get('/api/production-access', dashboardAuth.requireSuperAdmin, (req, res) =>
         const lab = labSecurity.load(STORAGE_DIR);
         const server = serverSettings.load(STORAGE_DIR);
         const operatorUrl = (server.deployment && server.deployment.operatorUrl) || '';
+        const siteReadiness = require('./lib/siteReadiness');
+        const trustClass = siteReadiness.classifyTrustProxyReadiness({
+            settings: server,
+            trustProxy: !!lab.trustProxy,
+            operatorUrl: operatorUrl,
+        });
         res.json({
             ok: true,
             trustProxy: !!lab.trustProxy,
             operatorUrl: operatorUrl,
             operatorUrlHttps: /^https:\/\//i.test(String(operatorUrl).trim()),
+            readiness: trustClass,
         });
     } catch (err) {
         res.status(500).json(opErr(err));
@@ -1841,7 +1907,20 @@ app.post('/api/production-access', dashboardAuth.requireSuperAdmin, (req, res) =
         auditLog.recordFromRequest(req, 'production_access.save', {
             detail: { trustProxy: next.trustProxy },
         });
-        res.json({ ok: true, trustProxy: !!next.trustProxy });
+        const server = serverSettings.load(STORAGE_DIR);
+        const operatorUrl = (server.deployment && server.deployment.operatorUrl) || '';
+        const siteReadiness = require('./lib/siteReadiness');
+        const trustClass = siteReadiness.classifyTrustProxyReadiness({
+            settings: server,
+            trustProxy: !!next.trustProxy,
+            operatorUrl: operatorUrl,
+        });
+        res.json({
+            ok: true,
+            saved: true,
+            trustProxy: !!next.trustProxy,
+            readiness: trustClass,
+        });
     } catch (err) {
         res.status(400).json(opErr(err));
     }
@@ -3991,6 +4070,15 @@ if (process.env.FM_LAB_ZLM === '1'
     app.get('/api/lab/zlm/flv/:streamFile', labZlmOnly, zlmFlvProxy.requireLabFlvAccess, (req, res) => {
         try {
             zlmFlvProxy.proxyFlv(req, res, req.params && req.params.streamFile);
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    });
+
+    /* SAME-ORIGIN-MEDIA-PROXY-V1 — session-only allowlisted ZLM upstream for HTTPS pages */
+    app.get('/api/lab/media/upstream-flv', labZlmOnly, (req, res) => {
+        try {
+            require('./lib/sameOriginMedia').proxyUpstreamFlv(req, res);
         } catch (err) {
             res.status(500).json(opErr(err));
         }
@@ -8781,7 +8869,7 @@ if (!cameraContactUri) {
     }
 }
 
-/** Set true when sip.start() completes without throwing (UDP listener init). */
+/** Set true when SIP listener init completes without throwing (UDP listener init). */
 let sipListenerReady = false;
 /** Set true when HTTP dashboard listener is accepting connections. */
 let httpListenerReady = false;
@@ -9753,7 +9841,7 @@ function startMediaFromDashboard(payload, requestSocket) {
                         camId,
                         surface,
                         wvpVideoHandoff: true,
-                        flvUrl: out.flvUrl || null,
+                        flvUrl: require('./lib/sameOriginMedia').toBrowserFlvUrl(out.flvUrl || null),
                         reused: !!out.reused,
                     });
                 } else {
@@ -10058,6 +10146,8 @@ function emitPttRxState(camId, active) {
     pttFieldGroupRelay.onPttRxState(camId, !!active);
     if (sosGroupCall.isParticipant(camId)) return;
     io.emit('ptt-rx-state', { camId: camId || null, active: !!active });
+    /* PTT-VISUAL-ALERT-FULLSTACK-V1 — alias for tile pulse listeners */
+    io.emit('ptt_state', { deviceId: camId || null, camId: camId || null, active: !!active });
     try { onPttRxActive(camId, !!active); } catch (_) { /* never break PTT */ }
 }
 
@@ -12746,6 +12836,22 @@ process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
     }
 
     log.web.info('dashboard listening', { url: `http://${HOST}:${HTTP_PORT}`, folder: __dirname });
+    if (httpsServer && dashboardTlsBoot && dashboardTlsBoot.ready) {
+        httpsServer.listen(dashboardTlsBoot.httpsPort, '0.0.0.0', () => {
+            httpsListenerReady = true;
+            log.web.info('dashboard https listening', {
+                url: `https://${HOST}:${dashboardTlsBoot.httpsPort}`,
+                certPath: dashboardTlsBoot.certPath,
+                note: 'lab self-signed — browser will warn once; accept to continue. Video/audio raw WS still ws:// until WSS MOB.',
+            });
+        });
+        httpsServer.on('error', (err) => {
+            log.web.err('dashboard https listen failed', {
+                message: err && err.message ? err.message : String(err),
+                port: dashboardTlsBoot.httpsPort,
+            });
+        });
+    }
     /* mvp-zlm-in-pack — spawn vendor MediaServer when FM_ZLM_SPAWN/PACK=1; no-op if binary missing */
     setImmediate(() => {
         try {
