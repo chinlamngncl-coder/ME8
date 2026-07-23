@@ -78,7 +78,7 @@
         errEl.style.display = 'block';
     }
 
-    /** Same-origin path only — blocks open redirects (Display Room pop-out return). */
+    /** Same-origin path only \u2014 blocks open redirects (Display Room pop-out return). */
     function safeReturnUrl() {
         try {
             var raw = new URLSearchParams(window.location.search).get('return');

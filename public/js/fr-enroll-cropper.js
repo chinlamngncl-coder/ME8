@@ -1,5 +1,5 @@
 /**
- * Watchlist enroll cropper — vanilla canvas only (no third-party crop library).
+ * Watchlist enroll cropper \u2014 vanilla canvas only (no third-party crop library).
  * License: original Ubitron / ME8 code; no Cropper.js or similar.
  * Guides operator to our enroll specs before upload.
  */
@@ -37,7 +37,7 @@
             '<div class="ax-bl-crop-panel" role="dialog" aria-labelledby="ax-bl-crop-title">' +
             '<h3 id="ax-bl-crop-title">' + esc(tr('analytics.bl.cropTitle', 'Crop face for watchlist')) + '</h3>' +
             '<p class="hint">' + esc(tr('analytics.bl.cropHint',
-                'Frame one face. Green meters match our enroll rules. No third-party crop library — built-in tool only.')) + '</p>' +
+                'Frame one face. Green meters match our enroll rules. No third-party crop library \u2014 built-in tool only.')) + '</p>' +
             '<div class="ax-bl-crop-layout">' +
             '<div class="ax-bl-crop-stage-wrap"><canvas id="ax-bl-crop-canvas"></canvas></div>' +
             '<div class="ax-bl-crop-meters" id="ax-bl-crop-meters"></div>' +
@@ -151,13 +151,13 @@
         state.clientOk = faceOk && sizeOk && sharpOk && lumaOk;
         host.innerHTML =
             meterRow(tr('analytics.bl.meterFace', 'Face frame (px)'), faceOk, false,
-                faceShort + ' · need ≥ ' + MIN_FACE) +
+                faceShort + ' \u00B7 need ≥ ' + MIN_FACE) +
             meterRow(tr('analytics.bl.meterImage', 'Enroll image short side'), sizeOk, false,
-                exportShort + ' · need ≥ ' + MIN_SHORT) +
+                exportShort + ' \u00B7 need ≥ ' + MIN_SHORT) +
             meterRow(tr('analytics.bl.meterSharp', 'Sharpness (approx)'), sharpOk, sharpWarn,
-                Math.round(qs.sharp) + ' · hard fail < ' + MIN_SHARP) +
+                Math.round(qs.sharp) + ' \u00B7 hard fail < ' + MIN_SHARP) +
             meterRow(tr('analytics.bl.meterLuma', 'Lighting (approx)'), lumaOk, false,
-                Math.round(qs.luma) + ' · ok ' + MIN_LUMA + '–' + MAX_LUMA) +
+                Math.round(qs.luma) + ' \u00B7 ok ' + MIN_LUMA + '\u2013' + MAX_LUMA) +
             '<p class="hint">' + esc(tr('analytics.bl.meterNote',
                 'Approx meters are local. “Check with face service” uses the same gate as enroll.')) + '</p>';
         var useBtn = document.getElementById('ax-bl-crop-use');
@@ -336,7 +336,7 @@
     }
 
     function runPreflight() {
-        setStatus(tr('analytics.bl.cropChecking', 'Checking with face service…'), '');
+        setStatus(tr('analytics.bl.cropChecking', 'Checking with face service\u2026'), '');
         exportBlob(function (blob) {
             if (!blob) {
                 setStatus(tr('analytics.bl.cropExportFail', 'Could not build crop image.'), 'is-bad');
@@ -353,7 +353,7 @@
                     var j = pack.j || {};
                     if (j.ok) {
                         var face = (j.faceWidth && j.faceHeight)
-                            ? (' · face ' + j.faceWidth + '×' + j.faceHeight)
+                            ? (' \u00B7 face ' + j.faceWidth + '\u00D7' + j.faceHeight)
                             : '';
                         setStatus(tr('analytics.bl.cropPass', 'Passes enroll checks.') + face, 'is-ok');
                         state.preflightOk = true;
@@ -364,13 +364,13 @@
                     if (global.AnalyticsHub && typeof AnalyticsHub.messageForCode === 'function') {
                         msg = AnalyticsHub.messageForCode(j.code || 'fr.failed');
                     } else if (j.code === 'fr.face_too_small') {
-                        msg = tr('analytics.bl.faceTooSmall', 'Face too small — enlarge the frame.');
+                        msg = tr('analytics.bl.faceTooSmall', 'Face too small \u2014 enlarge the frame.');
                     } else if (j.code === 'fr.quality_blur') {
                         msg = tr('analytics.bl.qualityBlur', 'Too blurry.');
                     } else if (j.code === 'fr.quality_lighting') {
                         msg = tr('analytics.bl.qualityLighting', 'Lighting out of range.');
                     } else if (j.code === 'fr.multi_face' || j.code === 'fr.multiple_faces') {
-                        msg = tr('analytics.bl.multiFace', 'More than one face — tighten the crop.');
+                        msg = tr('analytics.bl.multiFace', 'More than one face \u2014 tighten the crop.');
                     } else if (j.code === 'fr.no_face') {
                         msg = tr('analytics.verify.noFace', 'No face found.');
                     } else if (j.code === 'fr.service_down') {

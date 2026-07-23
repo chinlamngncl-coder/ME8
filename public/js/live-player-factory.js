@@ -1,5 +1,5 @@
 /**
- * Live player factory — Gate D pieces + mob-zlm-wall-safe-no-wipe.
+ * Live player factory \u2014 Gate D pieces + mob-zlm-wall-safe-no-wipe.
  * Soft ZLM: overlay only after prove; never wipe host. Wall keeps JSMpeg underneath.
  */
 (function (global) {
@@ -49,8 +49,8 @@
     }
 
     /**
-     * Soft ZLM overlay — does NOT clear host. JSMpeg canvas stays.
-     * Shows video only after prove (playing + short hold). Fail → remove overlay only.
+     * Soft ZLM overlay \u2014 does NOT clear host. JSMpeg canvas stays.
+     * Shows video only after prove (playing + short hold). Fail \u2192 remove overlay only.
      */
     function softAttachZlmOverlay(host, desc, opts) {
         opts = opts || {};
@@ -178,7 +178,7 @@
     }
 
     /**
-     * Primary FLV player — no JSMpeg underneath (MOB-APPLY-BACKEND-VIDEO-UI-FLV-ON-READY-V1).
+     * Primary FLV player \u2014 no JSMpeg underneath (MOB-APPLY-BACKEND-VIDEO-UI-FLV-ON-READY-V1).
      */
     function attachFlvPrimary(host, flvUrl, opts) {
         opts = opts || {};
@@ -218,7 +218,7 @@
         ].join(';');
         host.appendChild(video);
 
-        /* MOB-APPLY-MPEGTS-AUDIO-DROP-AND-MUTED — PCMA in FLV crashes MSE; drop audio track. */
+        /* MOB-APPLY-MPEGTS-AUDIO-DROP-AND-MUTED \u2014 PCMA in FLV crashes MSE; drop audio track. */
         var player = mpegts.createPlayer({
             type: 'flv',
             isLive: true,

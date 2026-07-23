@@ -1,6 +1,6 @@
 /**
- * Inbound BWC PTT → operator speakers + fleet alert hooks.
- * Field RX: banner + row + audio; full banner hidden when live open — compact live toast instead.
+ * Inbound BWC PTT \u2192 operator speakers + fleet alert hooks.
+ * Field RX: banner + row + audio; full banner hidden when live open \u2014 compact live toast instead.
  */
 (function (global) {
     let socket = null;
@@ -32,7 +32,7 @@
         return true;
     }
 
-    /** User-gesture unlock — banner, fleet row, hold-PTT buttons (browser autoplay policy). */
+    /** User-gesture unlock \u2014 banner, fleet row, hold-PTT buttons (browser autoplay policy). */
     function unlockAudio() {
         if (!ensureAudio()) return;
         if (ctx.state === 'suspended') {
@@ -139,7 +139,7 @@
         }
     }
 
-    /** Cold release → 25s linger unless active live decode. Spurious rx-end (PTT TCP drop) never lingers. */
+    /** Cold release \u2192 25s linger unless active live decode. Spurious rx-end (PTT TCP drop) never lingers. */
     function shouldSkipLingerOnRxEnd(camId, hadFieldRx) {
         const id = normalizeCamKey(camId);
         if (!id) return true;
@@ -150,7 +150,7 @@
         return hasActiveDashboardLive(id);
     }
 
-    /** CW / wall live start — clear patrol linger; arm one-shot for invite TCP-drop rx-end only. */
+    /** CW / wall live start \u2014 clear patrol linger; arm one-shot for invite TCP-drop rx-end only. */
     function suppressLingerForLive(camId) {
         const id = normalizeCamKey(camId);
         if (!id) return;
@@ -274,7 +274,7 @@
         else clearAllLinger();
     }
 
-    /** SOS Ack / session close — clear patrol field-PTT banner, linger, and RX state. */
+    /** SOS Ack / session close \u2014 clear patrol field-PTT banner, linger, and RX state. */
     function dismissAllFieldPttSession() {
         const ids = new Set(rxActive);
         if (lingerCamId) ids.add(lingerCamId);

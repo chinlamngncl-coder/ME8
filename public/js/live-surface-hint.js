@@ -1,6 +1,6 @@
 /**
  * Soft hint when the same dashboard window goes live on Operations and video wall.
- * Advisory only — does not block start-video or pool sessions.
+ * Advisory only \u2014 does not block start-video or pool sessions.
  */
 (function (global) {
     'use strict';

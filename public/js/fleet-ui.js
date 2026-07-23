@@ -54,8 +54,8 @@
     }
 
     function shortId(id) {
-        if (!id) return '—';
-        return id.length > 12 ? id.slice(0, 8) + '…' + id.slice(-4) : id;
+        if (!id) return '\u2014';
+        return id.length > 12 ? id.slice(0, 8) + '\u2026' + id.slice(-4) : id;
     }
 
     function shouldShowInDeviceList(m) {
@@ -115,7 +115,7 @@
         if (groupedLen > FLEET_MAX_VISIBLE_ROWS) {
             parts.push('scroll list');
         }
-        el.textContent = parts.join(' · ');
+        el.textContent = parts.join(' \u00B7 ');
         const clearBtn = document.getElementById('fleet-clear-pins');
         if (clearBtn) {
             clearBtn.hidden = !canClear;
@@ -585,7 +585,7 @@
             const prev = m.telemetryStored || {};
             const nextBattery = data.battery;
             m.telemetryStored = {
-                battery: (nextBattery != null && nextBattery !== '—' && nextBattery !== '--')
+                battery: (nextBattery != null && nextBattery !== '\u2014' && nextBattery !== '--')
                     ? nextBattery
                     : prev.battery,
                 signal: data.signal != null ? data.signal : prev.signal,
@@ -594,7 +594,7 @@
                 callstate: data.callstate != null ? data.callstate : prev.callstate,
                 volume: data.volume != null ? data.volume : prev.volume,
                 appversion: data.appversion != null ? data.appversion : prev.appversion,
-                deviceTime: (data.deviceTime != null && data.deviceTime !== '—' && data.deviceTime !== '--')
+                deviceTime: (data.deviceTime != null && data.deviceTime !== '\u2014' && data.deviceTime !== '--')
                     ? data.deviceTime
                     : prev.deviceTime,
             };

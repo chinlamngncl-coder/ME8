@@ -1,5 +1,5 @@
 /**
- * Operator mic for PTT — 8 kHz mono G.711 A-law (PCMA), 20 ms frames (160 bytes).
+ * Operator mic for PTT \u2014 8 kHz mono G.711 A-law (PCMA), 20 ms frames (160 bytes).
  * Matches HDA SDK PDF 27 (dwCMD 130).
  */
 (function (global) {

@@ -1,5 +1,5 @@
 /**
- * Server Config — deployment, LAN/WAN network, SIP/ONVIF, users.
+ * Server Config \u2014 deployment, LAN/WAN network, SIP/ONVIF, users.
  */
 (function (global) {
     let lastDeploymentMode = 'lan';
@@ -380,10 +380,10 @@
 
     function fillDockPanel() {
         const hostEl = document.getElementById('display-server-host');
-        const hostFromSidebar = hostEl && hostEl.textContent && hostEl.textContent !== '—' ? hostEl.textContent : '';
+        const hostFromSidebar = hostEl && hostEl.textContent && hostEl.textContent !== '\u2014' ? hostEl.textContent : '';
         const settings = readForm();
-        const host = hostFromSidebar || settings.publicHost || '—';
-        if (document.getElementById('ss-ftp-host') && host !== '—') {
+        const host = hostFromSidebar || settings.publicHost || '\u2014';
+        if (document.getElementById('ss-ftp-host') && host !== '\u2014') {
             document.getElementById('ss-ftp-host').value = host;
         }
         const folderEl = document.getElementById('ss-dock-folder');
@@ -414,7 +414,7 @@
     }
 
     function passwordChecklistLabel(bwc) {
-        if (!bwc) return '—';
+        if (!bwc) return '\u2014';
         if (bwc.passwordStatus === 'configured') return tr('server.secrets.configured');
         if (bwc.passwordStatus === 'pending') return tr('server.secrets.pendingSave');
         if (bwc.passwordStatus === 'missing') return tr('server.secrets.notSet');
@@ -576,7 +576,7 @@
     }
 
     function permDate(val) {
-        return val ? String(val).slice(0, 10) : '—';
+        return val ? String(val).slice(0, 10) : '\u2014';
     }
 
     async function loadMyAccount() {
@@ -667,8 +667,8 @@
                 ? VideoConfig.configuredDeviceCount()
                 : 0;
             el.textContent = all
-                ? ('Device Summary · ' + all + ' registered · ' + wall + ' on video wall')
-                : 'Device Summary · no devices registered';
+                ? ('Device Summary \u00B7 ' + all + ' registered \u00B7 ' + wall + ' on video wall')
+                : 'Device Summary \u00B7 no devices registered';
         } catch (_) {
             el.textContent = 'Device Summary';
         }
@@ -737,7 +737,7 @@
         if (!canManageServer) return;
         const status = document.getElementById('ss-production-access-status');
         const trustEl = document.getElementById('ss-trust-proxy');
-        if (status) status.textContent = tr('common.saving') || 'Saving…';
+        if (status) status.textContent = tr('common.saving') || 'Saving\u2026';
         try {
             const body = { trustProxy: !!(trustEl && trustEl.checked) };
             const payload = global.AuthReverify && AuthReverify.withReverify
@@ -1032,7 +1032,7 @@
         if (!el) return;
         const tz = (document.getElementById('ss-site-timezone') || {}).value || 'Asia/Singapore';
         const sample = preview || lastSiteTimePreview || previewSiteTimeLocal();
-        el.textContent = tr('server.siteTimezoneHint', { sample }) + ' · ' + tz;
+        el.textContent = tr('server.siteTimezoneHint', { sample }) + ' \u00B7 ' + tz;
     }
 
     function startSiteTimePreviewTick() {
@@ -1057,7 +1057,7 @@
                 hour12: false,
             }).format(new Date());
         } catch (_) {
-            return '—';
+            return '\u2014';
         }
     }
 
@@ -1146,9 +1146,9 @@
         if (ftpPathEl) ftpPathEl.value = dock.ftpUploadPath || '';
         setProtocolTab(s.activeProtocol || 'sip');
         const hostEl = document.getElementById('display-server-host');
-        if (hostEl) hostEl.textContent = s.publicHost || '—';
+        if (hostEl) hostEl.textContent = s.publicHost || '\u2014';
         const displayOperatorEl = document.getElementById('display-operator-url');
-        if (displayOperatorEl) displayOperatorEl.textContent = dep.operatorUrl || s.publicHost || '—';
+        if (displayOperatorEl) displayOperatorEl.textContent = dep.operatorUrl || s.publicHost || '\u2014';
         updateSidebarDeployment(mode);
         const portEl = document.getElementById('ss-runtime-http-port');
         if (portEl && lastRuntime && lastRuntime.httpPort) portEl.textContent = String(lastRuntime.httpPort);
@@ -1216,6 +1216,8 @@
         }
         const home = document.getElementById('server-settings-home');
         const workspace = document.getElementById('server-config-workspace');
+        const help = document.getElementById('server-help-about-workspace');
+        if (help) help.hidden = true;
         if (home) home.hidden = !!open;
         if (workspace) workspace.hidden = !open;
         if (open) {
@@ -1230,7 +1232,7 @@
         return '<span class="ss-perm-badge-all">' + esc(tr('server.users.permAll')) + '</span>';
     }
 
-    /** Matches lib/dispatchScope.scopeForUser — all stations = super_admin / see-all; else assigned only. */
+    /** Matches lib/dispatchScope.scopeForUser \u2014 all stations = super_admin / see-all; else assigned only. */
     function userIsAllStationsScope(u) {
         if (!u) return false;
         if (u.role === 'super_admin') return true;
@@ -1340,15 +1342,15 @@
             const expVal = (!isSuper && perms.evidenceDownloadExpiresAt)
                 ? String(perms.evidenceDownloadExpiresAt).slice(0, 10) : '';
             const dashCell = isSuper
-                ? '<span class="ss-perm-na">—</span>'
+                ? '<span class="ss-perm-na">\u2014</span>'
                 : ('<input type="date" class="ss-user-signin-from"' +
                     (signInFromVal ? ' value="' + esc(signInFromVal) + '"' : '') + ' title="' + tr('server.users.colSignInFrom') + '">');
             const signInCell = isSuper
-                ? '<span class="ss-perm-na">—</span>'
+                ? '<span class="ss-perm-na">\u2014</span>'
                 : ('<input type="date" class="ss-user-signin-exp"' +
                     (signInVal ? ' value="' + esc(signInVal) + '"' : '') + ' title="' + tr('server.users.colSignInExpiry') + '">');
             const expCell = isSuper
-                ? '<span class="ss-perm-na">—</span>'
+                ? '<span class="ss-perm-na">\u2014</span>'
                 : ('<input type="date" class="ss-user-evidence-exp"' +
                     (expVal ? ' value="' + esc(expVal) + '"' : '') + ' title="' + tr('server.users.expiryHint') + '">');
             const actionsCell = isSuper
@@ -1519,12 +1521,12 @@
             if (nodeEl) nodeEl.value = data.nodeId || 'site-a';
             if (peerEl) peerEl.value = data.peerUrl || '';
             if (localEl) {
-                localEl.textContent = 'OK — ' + (data.uptimeSec || 0) + 's';
+                localEl.textContent = 'OK \u2014 ' + (data.uptimeSec || 0) + 's';
                 localEl.className = 'ss-resilience-ok';
             }
             if (peerStatEl) {
                 if (!data.peerUrl) {
-                    peerStatEl.textContent = '—';
+                    peerStatEl.textContent = '\u2014';
                     peerStatEl.className = '';
                 } else if (data.peerReachable) {
                     peerStatEl.textContent = tr('resilience.peerOk');
@@ -2005,7 +2007,7 @@
                 if (document.getElementById('ss-new-contact-note')) document.getElementById('ss-new-contact-note').value = '';
                 try {
                     await loadUsers();
-                } catch (_) { /* user saved — table refresh failed */ }
+                } catch (_) { /* user saved \u2014 table refresh failed */ }
                 alert(tr('server.alert.userCreated', { name: createdName }));
             } catch (err) {
                 const payload = err.opPayload || err.catalogPayload;
@@ -2280,7 +2282,7 @@
         setTechProvisionA11y(true);
 
         const cancel = function () {
-            // Always allow Cancel — never leave operator stuck on Saving…
+            // Always allow Cancel \u2014 never leave operator stuck on Saving\u2026
             if (provisionBusy && provisionBusy.isBusy()) provisionBusy.setBusy(false);
             dismissTechProvision({ onCancel: opts.onCancel || onTechGateCancel });
         };
@@ -2315,7 +2317,7 @@
                 return;
             }
 
-            // 1) Login password FIRST (visible) — never set Saving… before reverify.
+            // 1) Login password FIRST (visible) \u2014 never set Saving\u2026 before reverify.
             // Hide PIN dialog so Confirm password is not buried underneath.
             if (global.AuthReverify && AuthReverify.clear) AuthReverify.clear();
             backdrop.hidden = true;
@@ -2327,7 +2329,7 @@
                     body = await AuthReverify.withReverify(body);
                 }
             } catch (err) {
-                // Password cancel / fail → return to PIN form (do not wipe entries).
+                // Password cancel / fail \u2192 return to PIN form (do not wipe entries).
                 backdrop.hidden = false;
                 setTechProvisionA11y(true);
                 if (err && err.message === 'cancelled') {
@@ -2342,7 +2344,7 @@
                 return;
             }
 
-            // 2) Only now show Saving… and POST.
+            // 2) Only now show Saving\u2026 and POST.
             backdrop.hidden = false;
             setTechProvisionA11y(true);
             if (provisionBusy) provisionBusy.setBusy(true);
@@ -2462,7 +2464,7 @@
         const statusEl = document.getElementById('ss-tech-pin-status');
         const setBtn = document.getElementById('ss-tech-pin-set');
         if (!statusEl) return;
-        statusEl.textContent = '…';
+        statusEl.textContent = '\u2026';
         fetch('/api/tech/provision/status', { credentials: 'same-origin' })
             .then(function (r) { return r.json().catch(function () { return {}; }); })
             .then(function (data) {

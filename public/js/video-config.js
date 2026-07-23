@@ -1,5 +1,5 @@
 /**
- * Video wall — ten independently configurable panels.
+ * Video wall \u2014 ten independently configurable panels.
  * Names and map groups live in bwc-devices.js (unlimited list).
  */
 (function (global) {
@@ -185,7 +185,7 @@
         let op = '';
         if (isFixedCameraId(activeId)) {
             const fixed = fixedCameraBySourceId(activeId);
-            if (fixed) op = fixed.name + ' · Fixed ' + String(fixed.streamSource || '').toUpperCase();
+            if (fixed) op = fixed.name + ' \u00B7 Fixed ' + String(fixed.streamSource || '').toUpperCase();
         }
         if (activeId && global.BwcDevices && BwcDevices.findByDeviceId) {
             const rec = BwcDevices.findByDeviceId(activeId);
@@ -201,7 +201,7 @@
         }
         if (op) return tr('video.panelLabel', { n: n, name: op });
         if (activeId) {
-            const short = activeId.length > 12 ? activeId.slice(0, 10) + '…' : activeId;
+            const short = activeId.length > 12 ? activeId.slice(0, 10) + '\u2026' : activeId;
             return tr('video.panelLabel', { n: n, name: short });
         }
         return tr('video.panel', { n: n });
@@ -272,7 +272,7 @@
     }
 
     function updatePollUi() {
-        /* Live wall: no global rotate banner — per-panel hints only. */
+        /* Live wall: no global rotate banner \u2014 per-panel hints only. */
     }
 
     function updatePanelHints() {
@@ -292,15 +292,15 @@
             }
             const fixed = isFixedCameraId(id) ? fixedCameraBySourceId(id) : null;
             if (fixed) {
-                el.textContent = fixed.name + (fixed.zone ? ' · ' + fixed.zone : '') +
-                    ' · Fixed ' + String(fixed.streamSource || '').toUpperCase() +
-                    (fixed.playable ? '' : ' · RTSP URL required');
+                el.textContent = fixed.name + (fixed.zone ? ' \u00B7 ' + fixed.zone : '') +
+                    ' \u00B7 Fixed ' + String(fixed.streamSource || '').toUpperCase() +
+                    (fixed.playable ? '' : ' \u00B7 RTSP URL required');
                 return;
             }
             const rec = global.BwcDevices && BwcDevices.findByDeviceId ? BwcDevices.findByDeviceId(id) : null;
             if (rec) {
                 let txt = rec.operatorName || id;
-                if (rec.mapGroup) txt += ' · ' + tr('video.wall.mapGroup', { group: rec.mapGroup });
+                if (rec.mapGroup) txt += ' \u00B7 ' + tr('video.wall.mapGroup', { group: rec.mapGroup });
                 el.textContent = txt;
             } else {
                 el.textContent = tr('video.wall.hintUnknownId', { id: id });
@@ -319,12 +319,12 @@
         const id = String(device.deviceId || '').trim();
         const parts = [];
         parts.push(device.sourceKind === 'fixed'
-            ? 'Fixed · ' + String(device.streamSource || '').toUpperCase()
+            ? 'Fixed \u00B7 ' + String(device.streamSource || '').toUpperCase()
             : 'BWC');
         if (device.operatorName) parts.push(String(device.operatorName).trim());
         if (device.mapGroup) parts.push(String(device.mapGroup).trim());
         if (id) parts.push(id);
-        return parts.filter(Boolean).join(' — ');
+        return parts.filter(Boolean).join(' \u2014 ');
     }
 
     function bindManualCameraSearch(picker, value, devices, selectedId, emptyMessage) {
@@ -365,7 +365,7 @@
                     const button = document.createElement('button');
                     button.type = 'button';
                     button.className = 'video-camera-search-result';
-                    button.textContent = cameraPickerLabel(device) + (device.playable === false ? ' · RTSP URL required' : '');
+                    button.textContent = cameraPickerLabel(device) + (device.playable === false ? ' \u00B7 RTSP URL required' : '');
                     button.disabled = device.playable === false;
                     button.addEventListener('mousedown', function (event) {
                         if (device.playable === false) return;
@@ -438,7 +438,7 @@
                 if (!id) return;
                 const selected = id === ch.deviceId;
                 if (selected) configuredDeviceFound = true;
-                const label = (device.operatorName ? device.operatorName + ' — ' : '') + id;
+                const label = (device.operatorName ? device.operatorName + ' \u2014 ' : '') + id;
                 deviceOpts += '<option value="' + esc(id) + '"' + (selected ? ' selected' : '') + '>' + esc(label) + '</option>';
             });
             if (ch.deviceId && !configuredDeviceFound) {
@@ -447,7 +447,7 @@
             const modeOptions = manualPanel
                 ? '<option value="none"' + (uiMode === 'none' ? ' selected' : '') + '>None</option>' +
                     '<option value="bwc-fixed"' + (uiMode === 'bwc-fixed' ? ' selected' : '') + '>Registered BWC</option>' +
-                    '<option value="fixed-camera"' + (uiMode === 'fixed-camera' ? ' selected' : '') + '>Registered Fixed Camera — ONVIF/RTSP</option>'
+                    '<option value="fixed-camera"' + (uiMode === 'fixed-camera' ? ' selected' : '') + '>Registered Fixed Camera \u2014 ONVIF/RTSP</option>'
                 : '<option value="none"' + (mode === 'none' ? ' selected' : '') + '>' + tr('video.wall.mode.none') + '</option>' +
                     '<option value="fixed"' + (mode === 'fixed' ? ' selected' : '') + '>' + tr('video.wall.mode.fixed') + '</option>' +
                     '<option value="group"' + (mode === 'group' ? ' selected' : '') + '>' + tr('video.wall.mode.group') + '</option>' +
@@ -476,7 +476,7 @@
             row.className = 'video-config-row';
             row.innerHTML =
                 '<div class="video-config-row-title">' + tr('video.wall.panelRow', { n: i + 1 }) +
-                (manualPanel ? ' · Manual searchable camera' : '') + '</div>' +
+                (manualPanel ? ' \u00B7 Manual searchable camera' : '') + '</div>' +
                 '<label>' + tr('video.wall.sourceMode') +
                 '<select data-field="sourceMode" data-slot="' + i + '">' +
                 modeOptions +

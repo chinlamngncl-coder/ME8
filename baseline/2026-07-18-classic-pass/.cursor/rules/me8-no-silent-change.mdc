@@ -1,0 +1,14 @@
+---
+description: No silent product/brand changes — talk first, then MOB-APPLY
+alwaysApply: true
+---
+
+# No silent change
+
+**Disc:** `docs/MOB-DISC-NO-SILENT-CHANGE.md`
+
+- Never rename **Axiom** or other product face words without **advance talk + explicit yes**
+- Queue text the agent wrote is **not** user approval
+- Order: talk → you say MOB-APPLY → then change → then disc to lock
+- Do not invent “helpful” brand renames
+- Do not ask the user to pay / upgrade; billing is Cursor’s UI, not the agent

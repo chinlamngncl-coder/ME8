@@ -1,5 +1,5 @@
 // mob-missed-activity-shell + mob-missed-item-detail
-// Header "Alerts" bell + drawer. Click a row → detail panel (kind, device, time).
+// Header "Alerts" bell + drawer. Click a row \u2192 detail panel (kind, device, time).
 // Go to Operations selects the device when possible. No PTT/SIP pipeline edits.
 // mob-missed-bell-copy: never show humanizeKey "Label" from old missedActivity.label key.
 (function () {
@@ -34,7 +34,7 @@
         return n;
     }
 
-    /** Match i18n.js humanizeKey — treat that as missing translation, use fallback. */
+    /** Match i18n.js humanizeKey \u2014 treat that as missing translation, use fallback. */
     function humanizeKeyTail(key) {
         var tail = String(key || '').split('.').pop() || String(key || '');
         return tail
@@ -86,7 +86,7 @@
     }
 
     function formatWhen(iso) {
-        if (!iso) return '—';
+        if (!iso) return '\u2014';
         var d = new Date(iso);
         if (isNaN(d.getTime())) return String(iso);
         try {
@@ -217,7 +217,7 @@
                 '<dt>' + escText(tr('missedActivity.fieldDevice', 'Device')) + '</dt>' +
                 '<dd>' + escText(label) + '</dd>' +
                 '<dt>' + escText(tr('missedActivity.fieldCamId', 'Camera ID')) + '</dt>' +
-                '<dd>' + escText(camId || '—') + '</dd>' +
+                '<dd>' + escText(camId || '\u2014') + '</dd>' +
                 '<dt>' + escText(tr('missedActivity.fieldWhen', 'When')) + '</dt>' +
                 '<dd>' + escText(formatWhen(it.at)) +
                     (it.at ? ' <span class="ma-item-sub">(' + escText(timeAgo(it.at)) + ')</span>' : '') +
@@ -308,7 +308,7 @@
                 if (els.drawer && !els.drawer.hidden && !detailItem) renderList(items);
                 lastCount = count;
             })
-            .catch(function () { /* offline / transient — keep last state */ });
+            .catch(function () { /* offline / transient \u2014 keep last state */ });
     }
 
     function start() {

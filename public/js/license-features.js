@@ -3,7 +3,7 @@
  *
  * Fetches /api/license-features after login and caches the result.
  * Modules check LicenseFeatures.isEnabled('fr') etc. before showing UI.
- * The server never exposes env key names — only plain booleans arrive here.
+ * The server never exposes env key names \u2014 only plain booleans arrive here.
  */
 (function (global) {
     var _features = { fr: false, anpr: false, redaction: false };

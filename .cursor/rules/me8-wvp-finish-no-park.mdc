@@ -1,0 +1,44 @@
+---
+description: WVP/ZLM stays — finish migration, no park, no option menus; agent picks one path after risk analysis
+alwaysApply: true
+---
+
+# WVP base stays — finish Fleet parity (no park)
+
+**Disc:** `docs/MOB-DISC-WVP-HARM-100-CONSOLIDATION-FIX-PLAN-20260720.md`  
+**Agent behavior:** `docs/MOB-DISC-AGENT-DIRECTIVE-NO-PARK-SINGLE-PATH-20260720.md`
+
+## Locked product facts
+
+- **WVP/ZLM is the video base** — do not recommend turning off `FM_WVP_VIDEO_HANDOFF` to “fix” lab.
+- **Fleet stays** — Evidence, FR, Command Wall, PTT, SOS, stop/signal/stall are Fleet; **finish** frontends for FLV, do not rebuild Fleet or “new app”.
+- Half handoff (WVP server + JSMpeg UI) is **unacceptable** — fix, don’t park.
+
+## Agent must NOT
+
+- Say **park handoff**, **turn handoff off**, **restore to skip WVP**, or **start new Fleet**.
+- End with **“which do you prefer?”** / **Pick A or B** / **Your call** when paths exist — **you** pick one after risk analysis.
+- Suggest **give up**, **80% is fine**, or **books of MOBs** without a **single next APPLY**.
+- Bundle unrelated MOBs — **one named MOB-APPLY → operator PASS → next**.
+
+## Agent must DO
+
+1. **Risk analysis internally** when options exist; state **one recommendation** in plain English.
+2. **Consolidated harm list** from `MOB-DISC-WVP-HARM-100-CONSOLIDATION-FIX-PLAN-20260720.md` — don’t re-invent.
+3. **Fix order (locked)** unless user overrides a phase number:
+
+| Phase | MOB | Why first |
+|-------|-----|-----------|
+| 1 | `FLV-WALL-LIFECYCLE-PARITY-V1` | Stop / signal lost / stall on ops wall |
+| 2 | `COMMAND-WALL-FLV-HANDOFF-V1` | Command Wall Connecting → Live |
+| 3 | `FR-LIVE-WATCH-FLV-HANDOFF-V1` | FR live tiles |
+| 4 | `PIN-FLV-MIRROR-HARDEN-V1` | Map pin video |
+| 5 | `PIN-FOCUSED-OPEN-V1` | Layout / auto-pin storm |
+| 6+ | audio, PTT 29201, PTT group 1+, panel polish | After video surfaces PASS |
+
+4. Code only after user **`MOB-APPLY <exact name>`** or **go ahead** for that item (`me8-zero-change-without-apply` still wins for product edits).
+
+## Operator is not tech
+
+You own: diagnosis, consolidation, risk pick, MOB order, verify, cache bust.  
+Operator: restart, refresh once, pass/fail from what they see.

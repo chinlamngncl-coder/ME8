@@ -166,10 +166,13 @@ async function main() {
     assert.strictEqual(engine.isParticipant('B'), true);
     assert.ok(stateBeforeBye.participants.some((row) => row.camId === 'A'));
 
-    assert.strictEqual(engine.stop('verify'), true);
+    assert.strictEqual(engine.stop('sos_acknowledged'), true);
     assert.strictEqual(engine.snapshot().active, false);
+    assert.strictEqual(engine.isParticipant('B'), false,
+        'ACK end must clear participant lock so normal HQ PTT/Call can resume');
     assert.ok(sipRequests.filter((request) => request.method === 'BYE').length >= 2);
     assert.strictEqual(states[states.length - 1].active, false);
+    assert.ok(states.some((state) => state && state.active === false));
 
     console.log('SOS group SIP call verification passed.');
 }

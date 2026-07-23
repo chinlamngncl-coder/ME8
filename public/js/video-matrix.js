@@ -1,5 +1,5 @@
 /**
- * Video matrix pop-out — Operations wall (6) or Command Wall (up to 32).
+ * Video matrix pop-out \u2014 Operations wall (6) or Command Wall (up to 32).
  * Play/stop/audio delegate to opener; matrix window attaches own FLV/JSMpeg decode (V2).
  */
 (function (global) {

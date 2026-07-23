@@ -1,5 +1,5 @@
 /**
- * Settings landing — health strip + device lifecycle navigator (read-only + links).
+ * Settings landing \u2014 health strip + device lifecycle navigator (read-only + links).
  */
 (function (global) {
     'use strict';
@@ -134,7 +134,7 @@
 
             if (snapshot.licenseValid === true) {
                 var expLabel = snapshot.licenseExpiry
-                    ? tr('settingsHub.strip.licenseOk') + ' · exp ' + snapshot.licenseExpiry
+                    ? tr('settingsHub.strip.licenseOk') + ' \u00B7 exp ' + snapshot.licenseExpiry
                     : tr('settingsHub.strip.licenseOk');
                 setText('settings-val-license', expLabel);
                 setChipState('settings-chip-license', 'ok');
@@ -142,7 +142,7 @@
                 setText('settings-val-license', tr('settingsHub.strip.licenseIssue'));
                 setChipState('settings-chip-license', 'bad');
             } else {
-                setText('settings-val-license', '—');
+                setText('settings-val-license', '\u2014');
                 setChipState('settings-chip-license', '');
             }
         }
@@ -155,10 +155,10 @@
                 : tr('settingsHub.strip.degraded');
             uptimeText = tr('settingsHub.strip.degradedShort', { reason: reasonText });
             if (snapshot.uptimeSec > 0) {
-                uptimeText += ' · ' + formatUptime(snapshot.uptimeSec);
+                uptimeText += ' \u00B7 ' + formatUptime(snapshot.uptimeSec);
             }
             if (uptimeChip) {
-                uptimeChip.title = snapshot.healthReasons.map(healthReasonLabel).join(' · ');
+                uptimeChip.title = snapshot.healthReasons.map(healthReasonLabel).join(' \u00B7 ');
             }
             setChipState('settings-chip-uptime', 'warn');
         } else {
@@ -192,7 +192,7 @@
             : tr('settingsHub.status.monitorOps'));
         setText('settings-status-firmware', session.canManageServer
             ? tr('settingsHub.status.firmwarePlanning')
-            : '—');
+            : '\u2014');
     }
 
     function applyWarmSettings(sdata) {

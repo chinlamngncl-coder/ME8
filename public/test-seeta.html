@@ -19,9 +19,9 @@
   </style>
 </head>
 <body>
-  <h1>Seeta lab — compare two photos</h1>
-  <p class="hint">Same person → see Match %. Product bar is 70%. This page talks to Seeta on port 8767 only (does not change live Face watch yet).</p>
-  <div id="health">Checking Seeta…</div>
+  <h1>Seeta lab &mdash; compare two photos</h1>
+  <p class="hint">Same person &rarr; see Match %. Product bar is 70%. This page talks to Seeta on port 8767 only (does not change live Face watch yet).</p>
+  <div id="health">Checking Seeta&hellip;</div>
   <label>Photo A <input type="file" id="f1" accept="image/*"></label>
   <label>Photo B <input type="file" id="f2" accept="image/*"></label>
   <button type="button" id="go">Compare</button>
@@ -34,8 +34,8 @@
     }
     fetch('/api/lab/seeta/health', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
       var h = document.getElementById('health');
-      if (j && j.ok) h.textContent = 'Seeta: OK · model ' + (j.model || '') + ' · dims ' + (j.dims || '—');
-      else h.textContent = 'Seeta not ready — run INSTALL-SEETA-LAB.ps1 then START-SEETA-LAB.bat. ' + (j && (j.error || j.hint || j.message) || '');
+      if (j && j.ok) h.textContent = 'Seeta: OK \u00B7 model ' + (j.model || '') + ' \u00B7 dims ' + (j.dims || '\u2014');
+      else h.textContent = 'Seeta not ready \u2014 run INSTALL-SEETA-LAB.ps1 then START-SEETA-LAB.bat. ' + (j && (j.error || j.hint || j.message) || '');
     }).catch(function () {
       document.getElementById('health').textContent = 'Fleet cannot reach Seeta on 8767. Start START-SEETA-LAB.bat first.';
     });
@@ -46,7 +46,7 @@
       var btn = document.getElementById('go');
       if (!f1 || !f2) { show(out, 'Pick two photos.', 'err'); return; }
       btn.disabled = true;
-      show(out, 'Checking…', '');
+      show(out, 'Checking\u2026', '');
       Promise.all([fileToB64(f1), fileToB64(f2)]).then(function (pair) {
         return fetch('/api/lab/seeta/verify', {
           method: 'POST',
@@ -59,13 +59,13 @@
       }).then(function (pack) {
         var j = pack.j || {};
         if (j.ok && j.scorePct != null) {
-          var line = 'Match: ' + j.scorePct + '% · need 70% · ' + (j.verified ? 'pass' : 'fail');
+          var line = 'Match: ' + j.scorePct + '% \u00B7 need 70% \u00B7 ' + (j.verified ? 'pass' : 'fail');
           show(out, line, j.verified ? 'ok' : 'fail');
         } else {
           show(out, (j.message || j.error || j.hint || 'Compare failed') + (j.detail ? '\n' + j.detail : ''), 'err');
         }
       }).catch(function (e) {
-        show(out, 'Network error — is Fleet up? ' + String(e && e.message || e), 'err');
+        show(out, 'Network error \u2014 is Fleet up? ' + String(e && e.message || e), 'err');
       }).finally(function () { btn.disabled = false; });
     };
     function fileToB64(file) {

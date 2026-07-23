@@ -6,9 +6,9 @@
         unauthorized: 'errors.unauthorized',
         'invalid user or password': 'errors.signInFailed',
         invalid_credentials: 'errors.signInFailed',
-        'local sign-in disabled — use organization account': 'errors.orgSignInRequired',
-        'account expired — contact your administrator': 'errors.accountExpired',
-        'account not active yet — check sign-in from date': 'errors.accountNotActive',
+        'local sign-in disabled \u2014 use organization account': 'errors.orgSignInRequired',
+        'account expired \u2014 contact your administrator': 'errors.accountExpired',
+        'account not active yet \u2014 check sign-in from date': 'errors.accountNotActive',
         'incorrect pin': 'errors.incorrectPin',
         geofence_not_permitted: 'errors.geofenceNotPermitted',
         device_not_found: 'errors.deviceNotFound',
@@ -53,7 +53,7 @@
         'mount folder not found on this server. connect iscsi/nfs/smb and assign a drive letter or mount point first.': 'errors.storageMountNotFound',
         'usb maintenance requires windows on the dispatch pc': 'errors.usbWindowsOnly',
         'automatic media wipe is not enabled on this server.': 'usbMaint.clearNotConfigured',
-        'device connection tool not available — contact your it administrator.': 'usbMaint.adbMissing',
+        'device connection tool not available \u2014 contact your it administrator.': 'usbMaint.adbMissing',
     };
 
     const PATTERNS = [
@@ -129,7 +129,7 @@
         'mustChangePassword.errorServer': 'Could not reach server.',
         'totpEnroll.error': 'Could not complete authenticator setup. Try again.',
         'usbMaint.clearNotConfigured': 'Automatic media wipe is not enabled on this server.',
-        'usbMaint.adbMissing': 'Device connection tool not available — contact your IT administrator.',
+        'usbMaint.adbMissing': 'Device connection tool not available \u2014 contact your IT administrator.',
         'server.readiness.loadFailed': 'Could not load readiness checklist. Restart the server or contact your IT administrator.',
         'server.productionAccess.loadFailed': 'Could not load reverse proxy settings. Restart the server or contact your IT administrator.',
     };

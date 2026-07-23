@@ -28,6 +28,30 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
+// lib/sipCryptoIdentifiers.js
+var require_sipCryptoIdentifiers = __commonJS({
+  "lib/sipCryptoIdentifiers.js"(exports2, module2) {
+    "use strict";
+    var crypto2 = require("crypto");
+    function createSipCallId2(prefix) {
+      const id = crypto2.randomUUID();
+      const safePrefix = String(prefix || "").trim();
+      return safePrefix ? safePrefix + id : id;
+    }
+    function createSipTag2() {
+      return String(crypto2.randomInt(0, 1e4));
+    }
+    function createGbSequenceNumber2() {
+      return String(crypto2.randomInt(0, 1e5));
+    }
+    module2.exports = {
+      createSipCallId: createSipCallId2,
+      createSipTag: createSipTag2,
+      createGbSequenceNumber: createGbSequenceNumber2
+    };
+  }
+});
+
 // lib/siteTime.js
 var require_siteTime = __commonJS({
   "lib/siteTime.js"(exports2, module2) {
@@ -1419,6 +1443,7 @@ var require_liveStreamPool = __commonJS({
     var { createPsG711Extractor } = require_psG711Audio();
     var { loadLimits, assertConcurrentLive } = require_platformLimits();
     var log2 = require_fleetLog();
+    var { createSipCallId: createSipCallId2, createSipTag: createSipTag2 } = require_sipCryptoIdentifiers();
     var LIVE_PROBE_BYTES = 524288;
     var LIVE_ANALYZE_US = 5e5;
     var PORT_BASE = parseInt(process.env.FM_LIVE_PORT_BASE || "40140", 10);
@@ -2036,8 +2061,8 @@ var require_liveStreamPool = __commonJS({
         uri: cameraContactUri2,
         headers: {
           to: { uri: `sip:${camId}@${realm}` },
-          from: { uri: `sip:${serverId}@${realm}`, params: { tag: Math.floor(Math.random() * 1e4).toString() } },
-          "call-id": Math.random().toString(36).substring(7),
+          from: { uri: `sip:${serverId}@${realm}`, params: { tag: createSipTag2() } },
+          "call-id": createSipCallId2(),
           cseq: { method: "INVITE", seq: 1 },
           contact: [{ uri: `sip:${serverId}@${host}:${sipPort}` }],
           subject: sdpMedia.buildInviteSubject(camId, serverId),
@@ -2405,6 +2430,7 @@ var require_mediaSession = __commonJS({
     var { createPsG711Extractor, alawToPcm16 } = require_psG711Audio();
     var log2 = require_fleetLog();
     var livePool = require_liveStreamPool();
+    var { createSipCallId: createSipCallId2, createSipTag: createSipTag2 } = require_sipCryptoIdentifiers();
     var MULTI_LIVE = process.env.FM_MULTI_LIVE !== "0";
     var VIDEO_UDP_PORT = 40130;
     var FFMPEG_UDP_PORT = 40133;
@@ -3923,8 +3949,8 @@ var require_mediaSession = __commonJS({
         uri: cameraContactUri2,
         headers: {
           to: { uri: `sip:${camId}@${realm}` },
-          from: { uri: `sip:${serverId}@${realm}`, params: { tag: Math.floor(Math.random() * 1e4).toString() } },
-          "call-id": Math.random().toString(36).substring(7),
+          from: { uri: `sip:${serverId}@${realm}`, params: { tag: createSipTag2() } },
+          "call-id": createSipCallId2(),
           cseq: { method: "INVITE", seq: 1 },
           contact: [{ uri: `sip:${serverId}@${host}:${sipPort}` }],
           subject: opts.useVoicePhoneSubject ? sdpMedia.buildVoicePhoneInviteSubject(camId, serverId) : opts.useTalkSubject ? sdpMedia.buildTalkInviteSubject(camId, serverId) : sdpMedia.buildInviteSubject(camId, serverId),
@@ -7745,6 +7771,11 @@ var require_liveViewers = __commonJS({
 // lib/deviceControl.js
 var require_deviceControl = __commonJS({
   "lib/deviceControl.js"(exports2, module2) {
+    var {
+      createSipCallId: createSipCallId2,
+      createSipTag: createSipTag2,
+      createGbSequenceNumber: createGbSequenceNumber2
+    } = require_sipCryptoIdentifiers();
     var KNOWN_RECORD_CMDS = [
       "Lock",
       "Unlock",
@@ -7762,7 +7793,7 @@ var require_deviceControl = __commonJS({
       "CleanData:5"
     ];
     function buildControlXml(deviceId, recordCmd, sn) {
-      const seq = sn != null ? sn : Math.floor(Math.random() * 1e5);
+      const seq = sn != null ? sn : createGbSequenceNumber2();
       return `<?xml version="1.0"?>
 <Control>
 <CmdType>DeviceControl</CmdType>
@@ -7780,8 +7811,8 @@ var require_deviceControl = __commonJS({
         uri: cameraContactUri2,
         headers: {
           to: { uri: `sip:${deviceId}@${realm}` },
-          from: { uri: `sip:${serverId}@${realm}`, params: { tag: Math.floor(Math.random() * 1e4).toString() } },
-          "call-id": Math.random().toString(36).substring(7),
+          from: { uri: `sip:${serverId}@${realm}`, params: { tag: createSipTag2() } },
+          "call-id": createSipCallId2(),
           cseq: { method: "MESSAGE", seq: 1 },
           "content-type": "Application/MANSCDP+xml",
           "content-length": content.length
@@ -7795,7 +7826,7 @@ var require_deviceControl = __commonJS({
       return true;
     }
     function buildBroadcastXml(sourceId, targetId, sn) {
-      const seq = sn != null ? sn : Math.floor(Math.random() * 1e5);
+      const seq = sn != null ? sn : createGbSequenceNumber2();
       return `<?xml version="1.0"?>
 <Notify>
 <CmdType>Broadcast</CmdType>
@@ -7813,8 +7844,8 @@ var require_deviceControl = __commonJS({
         uri: cameraContactUri2,
         headers: {
           to: { uri: `sip:${deviceId}@${realm}` },
-          from: { uri: `sip:${serverId}@${realm}`, params: { tag: Math.floor(Math.random() * 1e4).toString() } },
-          "call-id": Math.random().toString(36).substring(7),
+          from: { uri: `sip:${serverId}@${realm}`, params: { tag: createSipTag2() } },
+          "call-id": createSipCallId2(),
           cseq: { method: "MESSAGE", seq: 1 },
           "content-type": "Application/MANSCDP+xml",
           "content-length": content.length
@@ -7977,6 +8008,7 @@ var require_pttServer = __commonJS({
     var hdaMsg2 = require_hdaMessageProtocol();
     var { alawToPcm16 } = require_psG711Audio();
     var pttAudioCmdPolicy2 = require_pttAudioCmdPolicy();
+    var { createSipCallId: createSipCallId2, createSipTag: createSipTag2 } = require_sipCryptoIdentifiers();
     var CMD_PTT_LOGIN = 1;
     var CMD_PTT_LOGIN_RET = 2;
     var CMD_PTT_AUDIO = 130;
@@ -8456,8 +8488,8 @@ ${deviceRows}</devices>
         uri: cameraContactUri2,
         headers: {
           to: { uri: `sip:${camId}@${realm}` },
-          from: { uri: `sip:${serverId}@${realm}`, params: { tag: Math.floor(Math.random() * 1e4).toString() } },
-          "call-id": Math.random().toString(36).substring(7),
+          from: { uri: `sip:${serverId}@${realm}`, params: { tag: createSipTag2() } },
+          "call-id": createSipCallId2(),
           cseq: { method: "MESSAGE", seq: 4 },
           "content-type": "Application/MANSCDP+xml",
           "content-length": content.length
@@ -11784,6 +11816,151 @@ var require_evidenceIngestGate = __commonJS({
       admitFile,
       quarantineFile,
       sha256File
+    };
+  }
+});
+
+// lib/fatalProcessPolicy.js
+var require_fatalProcessPolicy = __commonJS({
+  "lib/fatalProcessPolicy.js"(exports2, module2) {
+    "use strict";
+    var DEFAULT_EXIT_DELAY_MS = 25;
+    function isBrokenOutputPipe(err) {
+      return Boolean(err && err.code === "EPIPE" && err.syscall === "write");
+    }
+    function installFatalProcessPolicy2(options = {}) {
+      const processObject = options.processObject || process;
+      const logger = options.log;
+      const schedule = options.schedule || setTimeout;
+      const exitDelayMs = Number.isFinite(options.exitDelayMs) ? Math.max(0, options.exitDelayMs) : DEFAULT_EXIT_DELAY_MS;
+      let exiting = false;
+      function writeFallback(kind, value) {
+        try {
+          const message = value && value.message ? value.message : String(value || "");
+          processObject.stderr.write(`Fatal ${kind}: ${message}
+`);
+        } catch (_) {
+        }
+      }
+      function terminate(kind, value) {
+        if (isBrokenOutputPipe(value)) return false;
+        if (exiting) return false;
+        exiting = true;
+        const detail = {
+          message: value && value.message ? value.message : String(value)
+        };
+        if (value && value.stack) {
+          detail.stack = String(value.stack).split("\n").slice(0, 6).join(" | ");
+        }
+        try {
+          if (!logger || !logger.web || typeof logger.web.err !== "function") {
+            throw new Error("fatal logger unavailable");
+          }
+          logger.web.err(`${kind} \u2014 exiting for supervisor restart`, detail);
+        } catch (_) {
+          writeFallback(kind, value);
+        }
+        processObject.exitCode = 1;
+        const timer = schedule(() => processObject.exit(1), exitDelayMs);
+        if (timer && typeof timer.unref === "function") timer.unref();
+        return true;
+      }
+      const onUncaughtException = (err) => terminate("uncaughtException", err);
+      const onUnhandledRejection = (reason) => terminate("unhandledRejection", reason);
+      processObject.on("uncaughtException", onUncaughtException);
+      processObject.on("unhandledRejection", onUnhandledRejection);
+      return {
+        onUncaughtException,
+        onUnhandledRejection,
+        isExiting: () => exiting
+      };
+    }
+    module2.exports = {
+      DEFAULT_EXIT_DELAY_MS,
+      isBrokenOutputPipe,
+      installFatalProcessPolicy: installFatalProcessPolicy2
+    };
+  }
+});
+
+// lib/loginRateLimiter.js
+var require_loginRateLimiter = __commonJS({
+  "lib/loginRateLimiter.js"(exports2, module2) {
+    "use strict";
+    var DEFAULT_MAX_ENTRIES = 5e3;
+    var MAX_KEY_LENGTH = 128;
+    function clientKey(req) {
+      const candidate = req && (req.ip || req.socket && req.socket.remoteAddress);
+      const normalized = String(candidate || "unknown").trim();
+      return (normalized || "unknown").slice(0, MAX_KEY_LENGTH);
+    }
+    function createLoginRateLimiter2(options = {}) {
+      const maxAttempts = Number.isInteger(options.maxAttempts) ? options.maxAttempts : 10;
+      const windowMs = Number.isFinite(options.windowMs) ? options.windowMs : 15 * 60 * 1e3;
+      const blockMs = Number.isFinite(options.blockMs) ? options.blockMs : 15 * 60 * 1e3;
+      const maxEntries = Number.isInteger(options.maxEntries) ? Math.max(1, options.maxEntries) : DEFAULT_MAX_ENTRIES;
+      const now = typeof options.now === "function" ? options.now : Date.now;
+      const records = /* @__PURE__ */ new Map();
+      function touch(key, record) {
+        records.delete(key);
+        records.set(key, record);
+      }
+      function prune(at = now()) {
+        for (const [key, record] of records) {
+          if (record.blockedUntil <= at && at - record.firstAt > windowMs) {
+            records.delete(key);
+          }
+        }
+        return records.size;
+      }
+      function reserveEntry(at) {
+        if (records.size < maxEntries) return;
+        prune(at);
+        while (records.size >= maxEntries) {
+          const oldestKey = records.keys().next().value;
+          records.delete(oldestKey);
+        }
+      }
+      function middleware(req, res, next) {
+        const key = clientKey(req);
+        const at = now();
+        let record = records.get(key);
+        if (!record) {
+          reserveEntry(at);
+          record = { count: 0, firstAt: at, blockedUntil: 0 };
+        } else if (record.blockedUntil <= at && at - record.firstAt > windowMs) {
+          record.count = 0;
+          record.firstAt = at;
+          record.blockedUntil = 0;
+        }
+        if (record.blockedUntil > at) {
+          touch(key, record);
+          res.setHeader("Retry-After", Math.ceil((record.blockedUntil - at) / 1e3));
+          return res.status(429).json({ error: "Too many login attempts. Try again later." });
+        }
+        record.count += 1;
+        if (record.count > maxAttempts) {
+          record.blockedUntil = at + blockMs;
+          touch(key, record);
+          res.setHeader("Retry-After", Math.ceil(blockMs / 1e3));
+          return res.status(429).json({ error: "Too many login attempts. Try again later." });
+        }
+        touch(key, record);
+        return next();
+      }
+      return {
+        middleware,
+        prune,
+        size: () => records.size,
+        has: (key) => records.has(String(key)),
+        maxEntries
+      };
+    }
+    module2.exports = {
+      DEFAULT_MAX_ENTRIES,
+      MAX_KEY_LENGTH,
+      clientKey,
+      createLoginRateLimiter: createLoginRateLimiter2
     };
   }
 });
@@ -15271,6 +15448,8 @@ var require_auditActionLabels = __commonJS({
       "alarm.raise": "Alarm raised",
       "sos.acknowledge": "SOS acknowledged",
       "sos.ptt_team": "SOS team call",
+      "sos.group_call.start": "SOS group call started",
+      "sos.group_call.end": "SOS group call ended",
       "voice.call": "Voice call started",
       "voice.call.end": "Voice call ended",
       "voice.call.rx": "Inbound voice (BWC)",
@@ -22854,6 +23033,7 @@ var require_frFieldAlert = __commonJS({
   "lib/frFieldAlert.js"(exports2, module2) {
     "use strict";
     var { pcm16ToAlaw, amplifyAlaw: amplifyAlaw2 } = require_psG711Audio();
+    var { createSipCallId: createSipCallId2, createSipTag: createSipTag2 } = require_sipCryptoIdentifiers();
     var FRAME = 160;
     var FRAME_MS = 20;
     var REPEAT_COUNT = Math.max(1, Math.min(20, parseInt(process.env.FM_FR_FIELD_ALERT_REPEATS || "10", 10) || 10));
@@ -22974,9 +23154,9 @@ var require_frFieldAlert = __commonJS({
               to: { uri: `sip:${camId}@${deps.realm}` },
               from: {
                 uri: `sip:${deps.serverId}@${deps.realm}`,
-                params: { tag: Math.floor(Math.random() * 1e4).toString() }
+                params: { tag: createSipTag2() }
               },
-              "call-id": Math.random().toString(36).substring(7),
+              "call-id": createSipCallId2(),
               cseq: { method: "MESSAGE", seq: 1 },
               "content-type": "text/plain",
               "content-length": Buffer.byteLength(body)
@@ -24514,6 +24694,7 @@ var require_conferenceBwcIngress = __commonJS({
       buildConferenceFallbackFormats
     } = require_rtpVideoFormat();
     var log2 = require_fleetLog();
+    var { createSipCallId: createSipCallId2, createSipTag: createSipTag2 } = require_sipCryptoIdentifiers();
     var PORT_BASE = parseInt(process.env.FM_CONFERENCE_RTP_BASE || "40200", 10);
     var FFMPEG_PORT_OFFSET = parseInt(process.env.FM_CONFERENCE_FFMPEG_PORT_OFFSET || "1000", 10);
     var LIVE_PROBE_BYTES = 524288;
@@ -25005,8 +25186,8 @@ var require_conferenceBwcIngress = __commonJS({
         uri: contactUri,
         headers: {
           to: { uri: "sip:" + camId + "@" + realm },
-          from: { uri: "sip:" + serverId + "@" + realm, params: { tag: Math.floor(Math.random() * 1e4).toString() } },
-          "call-id": "conf-" + Math.random().toString(36).substring(7),
+          from: { uri: "sip:" + serverId + "@" + realm, params: { tag: createSipTag2() } },
+          "call-id": createSipCallId2("conf-"),
           cseq: { method: "INVITE", seq: 1 },
           contact: [{ uri: "sip:" + serverId + "@" + host + ":" + sipPort }],
           subject: sdpMedia.buildInviteSubject(camId, serverId),
@@ -28126,6 +28307,7 @@ var require_wvpPttGroupRelay = __commonJS({
     var wvpSipLanMap2 = require_wvpSipLanMap();
     var pttServer2 = require_pttServer();
     var fleetPttContact = require_fleetPttContact();
+    var { createGbSequenceNumber: createGbSequenceNumber2 } = require_sipCryptoIdentifiers();
     function shouldRelayForCam(camId) {
       const id = String(camId || "").trim();
       if (!id || !fleetPttContact.isHandoffOn()) return false;
@@ -28145,7 +28327,7 @@ var require_wvpPttGroupRelay = __commonJS({
       } = opts;
       const branch = "z9hG4bK" + crypto2.randomBytes(6).toString("hex");
       const callId = crypto2.randomBytes(8).toString("hex") + "@" + signalIp;
-      const tag = String(Math.floor(Math.random() * 1e5));
+      const tag = createGbSequenceNumber2();
       const body = content || "";
       const contentLen = Buffer.byteLength(body, "utf8");
       const lines = [
@@ -28230,6 +28412,7 @@ var require_sosResponseTeam = __commonJS({
   "lib/sosResponseTeam.js"(exports2, module2) {
     "use strict";
     var wvpPttGroupRelay = require_wvpPttGroupRelay();
+    var { createSipCallId: createSipCallId2, createSipTag: createSipTag2 } = require_sipCryptoIdentifiers();
     function uniqueCamIds(list) {
       const seen = /* @__PURE__ */ new Set();
       const out = [];
@@ -28346,8 +28529,8 @@ var require_sosResponseTeam = __commonJS({
         uri: contact,
         headers: {
           to: { uri: `sip:${camId}@${REALM2}` },
-          from: { uri: `sip:${SERVER_ID2}@${REALM2}`, params: { tag: Math.floor(Math.random() * 1e4).toString() } },
-          "call-id": Math.random().toString(36).substring(7),
+          from: { uri: `sip:${SERVER_ID2}@${REALM2}`, params: { tag: createSipTag2() } },
+          "call-id": createSipCallId2(),
           cseq: { method: "MESSAGE", seq: 1 },
           "content-type": "text/plain;charset=utf-8",
           "content-length": Buffer.byteLength(body, "utf8")
@@ -30638,12 +30821,17 @@ var require_package = __commonJS({
       main: "server.js",
       scripts: {
         start: "node server.js",
-        verify: "node scripts/verify-install.js && node scripts/verify-postgres-catalog-retirement.js && node scripts/verify-startup-rollback-gate.js",
+        verify: "node scripts/verify-install.js && node scripts/verify-postgres-catalog-retirement.js && node scripts/verify-startup-rollback-gate.js && node scripts/verify-fatal-process-policy.js && node scripts/verify-sip-crypto-identifiers.js && node scripts/verify-login-rate-lru.js && node scripts/verify-sos-ack-ends-group-call.js",
+        "verify:dependencies": "node scripts/verify-production-dependency-security.js",
+        "verify:fatal": "node scripts/verify-fatal-process-policy.js",
+        "verify:login-rate": "node scripts/verify-login-rate-lru.js",
+        "verify:sip-crypto": "node scripts/verify-sip-crypto-identifiers.js",
+        "verify:sos-ack-group-call": "node scripts/verify-sos-ack-ends-group-call.js && node scripts/verify-sos-group-sip-call.js",
         "verify:startup": "node scripts/verify-startup-rollback-gate.js",
         postinstall: "node scripts/verify-install.js --quiet && node scripts/verify-postgres-catalog-retirement.js && node scripts/verify-startup-rollback-gate.js"
       },
       overrides: {
-        ip: "^2.0.1",
+        ip: "npm:@webpod/ip@0.6.1",
         uuid: "^11.1.1"
       },
       dependencies: {
@@ -31523,6 +31711,11 @@ var { Server } = require("socket.io");
 var fs = require("fs");
 var crypto = require("crypto");
 var { spawn } = require("child_process");
+var {
+  createSipCallId,
+  createSipTag,
+  createGbSequenceNumber
+} = require_sipCryptoIdentifiers();
 var WebSocket = require("ws");
 var hdaMsg = require_hdaMessageProtocol();
 var mediaSession = require_mediaSession();
@@ -31548,6 +31741,8 @@ var evidenceUploadSafeName = require_evidenceUploadSafeName();
 var evidenceIngestGate = require_evidenceIngestGate();
 var multer = require("multer");
 var log = require_fleetLog();
+var { installFatalProcessPolicy } = require_fatalProcessPolicy();
+var { createLoginRateLimiter } = require_loginRateLimiter();
 var pttFieldGroupRelay = require_pttFieldGroupRelay().create({
   pttServer,
   log
@@ -31556,31 +31751,7 @@ var wvpRegisterMirror = require_wvpRegisterMirror();
 var wvpFleetPresence = require_wvpFleetPresence();
 var dashboardConnectWarm = require_dashboardConnectWarm();
 var wvpSipLanMap = require_wvpSipLanMap();
-process.on("uncaughtException", (err) => {
-  if (err && err.code === "EPIPE" && err.syscall === "write") {
-    return;
-  }
-  try {
-    log.web.err("uncaughtException \u2014 process kept alive", {
-      message: err && err.message,
-      stack: err && err.stack ? String(err.stack).split("\n").slice(0, 6).join(" | ") : null
-    });
-  } catch (_) {
-    try {
-      process.stderr.write("Fatal uncaughtException: " + (err && err.message ? err.message : "") + "\n");
-    } catch (__) {
-    }
-  }
-});
-process.on("unhandledRejection", (reason) => {
-  try {
-    log.web.err("unhandledRejection \u2014 process kept alive", {
-      message: reason && reason.message ? reason.message : String(reason)
-    });
-  } catch (_) {
-    console.error("unhandledRejection", reason);
-  }
-});
+installFatalProcessPolicy({ log });
 var serverSettings = require_serverSettings();
 var platformSmtp = require_platformSmtp();
 var authRecoveryEmail = require_authRecoveryEmail();
@@ -32412,37 +32583,15 @@ app.use((req, res, next) => {
   res.setHeader("Permissions-Policy", "geolocation=()");
   next();
 });
-var _loginAttempts = /* @__PURE__ */ new Map();
-var _LOGIN_MAX = 10;
-var _LOGIN_WIN = 15 * 60 * 1e3;
-var _LOGIN_BLOCK = 15 * 60 * 1e3;
-function loginRateLimit(req, res, next) {
-  const ip = req.ip || "unknown";
-  const now = Date.now();
-  const rec = _loginAttempts.get(ip) || { count: 0, firstAt: now, blockedUntil: 0 };
-  if (rec.blockedUntil > now) {
-    res.setHeader("Retry-After", Math.ceil((rec.blockedUntil - now) / 1e3));
-    return res.status(429).json({ error: "Too many login attempts. Try again later." });
-  }
-  if (now - rec.firstAt > _LOGIN_WIN) {
-    rec.count = 0;
-    rec.firstAt = now;
-  }
-  rec.count++;
-  if (rec.count > _LOGIN_MAX) {
-    rec.blockedUntil = now + _LOGIN_BLOCK;
-    _loginAttempts.set(ip, rec);
-    return res.status(429).json({ error: "Too many login attempts. Try again later." });
-  }
-  _loginAttempts.set(ip, rec);
-  next();
-}
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, rec] of _loginAttempts) {
-    if (rec.blockedUntil < now && now - rec.firstAt > _LOGIN_WIN) _loginAttempts.delete(ip);
-  }
-}, 5 * 60 * 1e3);
+var loginLimiter = createLoginRateLimiter({
+  maxAttempts: 10,
+  windowMs: 15 * 60 * 1e3,
+  blockMs: 15 * 60 * 1e3,
+  maxEntries: 5e3
+});
+var loginRateLimit = loginLimiter.middleware;
+var loginLimiterPruneTimer = setInterval(() => loginLimiter.prune(), 5 * 60 * 1e3);
+if (typeof loginLimiterPruneTimer.unref === "function") loginLimiterPruneTimer.unref();
 function labSettingsLive() {
   return labSecurity.load(STORAGE_DIR);
 }
@@ -34421,17 +34570,40 @@ app.post("/api/sos-acknowledge", async (req, res) => {
     if (alarmCamId) {
       sosInviteQueue.clearForCam(alarmCamId);
     }
+    let endedGroupCall = null;
+    if (sosGroupCall.isActive()) {
+      const before = sosGroupCall.snapshot();
+      sosGroupCall.stop("sos_acknowledged");
+      endedGroupCall = {
+        callId: before.callId || null,
+        alarmCamId: before.alarmCamId || alarmCamId || null,
+        participants: Array.isArray(before.participants) ? before.participants.map((row) => row && row.camId).filter(Boolean) : []
+      };
+      auditLog.recordFromRequest(req, "sos.group_call.end", {
+        target: endedGroupCall.alarmCamId,
+        detail: {
+          callId: endedGroupCall.callId,
+          reason: "sos_acknowledged",
+          participants: endedGroupCall.participants
+        }
+      });
+      log.sip.info("sos ack ended group call", endedGroupCall);
+    }
     if (!sosIncidents.getOpenAlarms().length) {
       smartGpsTrack.stopAllSosTracking();
       emitSmartGpsState();
     }
     if (alarmCamId) {
-      emitToDashboardSockets("sos-acknowledged", { cameraId: alarmCamId }, alarmCamId);
+      emitToDashboardSockets("sos-acknowledged", {
+        cameraId: alarmCamId,
+        endedGroupCall: !!endedGroupCall
+      }, alarmCamId);
     }
     res.json({
       ok: true,
       entry: entry && entry.id ? sosIncidents.getPublicEntry(entry.id) || entry : entry,
-      pttTeam
+      pttTeam,
+      endedGroupCall
     });
   } catch (err) {
     res.status(err.status || 500).json(opErr(err));
@@ -41899,8 +42071,8 @@ function pushFleetRoster(camId, sn, online, opts) {
     uri: contact,
     headers: {
       to: { uri: `sip:${camId}@${REALM}` },
-      from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: Math.floor(Math.random() * 1e4).toString() } },
-      "call-id": Math.random().toString(36).substring(7),
+      from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: createSipTag() } },
+      "call-id": createSipCallId(),
       cseq: { method: "MESSAGE", seq: 2 },
       "content-type": "Application/MANSCDP+xml",
       "content-length": onlineStatusXml.length
@@ -42134,7 +42306,7 @@ function sendStatusQuery(camId, cmdType, style) {
     log.sip.warn("device status query skipped", { camId, hasContact: !!contact });
     return;
   }
-  const sn = String(Math.floor(Math.random() * 1e5));
+  const sn = createGbSequenceNumber();
   const queryStyle = style === "target" ? "target" : "direct";
   const xml = queryStyle === "target" ? `<?xml version="1.0"?>
 <Query>
@@ -42154,8 +42326,8 @@ function sendStatusQuery(camId, cmdType, style) {
     uri: contact,
     headers: {
       to: { uri: `sip:${camId}@${REALM}` },
-      from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: Math.floor(Math.random() * 1e4).toString() } },
-      "call-id": Math.random().toString(36).substring(7),
+      from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: createSipTag() } },
+      "call-id": createSipCallId(),
       cseq: { method: "MESSAGE", seq: 4 },
       "content-type": "Application/MANSCDP+xml",
       "content-length": xml.length
@@ -42171,7 +42343,7 @@ function sendMobilePositionQuery(camId, intervalSec) {
     log.sip.warn("mobile position query skipped", { camId, hasContact: !!contact });
     return;
   }
-  const sn = String(Math.floor(Math.random() * 1e5));
+  const sn = createGbSequenceNumber();
   const interval = parseInt(intervalSec, 10);
   const intervalXml = !Number.isNaN(interval) && interval > 0 ? `
 <Interval>${interval}</Interval>` : "";
@@ -42187,8 +42359,8 @@ function sendMobilePositionQuery(camId, intervalSec) {
     uri: contact,
     headers: {
       to: { uri: `sip:${camId}@${REALM}` },
-      from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: Math.floor(Math.random() * 1e4).toString() } },
-      "call-id": Math.random().toString(36).substring(7),
+      from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: createSipTag() } },
+      "call-id": createSipCallId(),
       cseq: { method: "MESSAGE", seq: 5 },
       "content-type": "Application/MANSCDP+xml",
       "content-length": xml.length
@@ -42349,7 +42521,7 @@ function bootstrapOnlineFleetForMap() {
 function pushMsgServerHints(camId) {
   const contact = getContactUriForCam(camId);
   if (!contact || !camId) return;
-  const sn = String(Math.floor(Math.random() * 1e5));
+  const sn = createGbSequenceNumber();
   const xml = `<?xml version="1.0" encoding="utf-8"?>
 <Notify>
 <CmdType>DeviceConfig</CmdType>
@@ -42365,8 +42537,8 @@ function pushMsgServerHints(camId) {
     uri: contact,
     headers: {
       to: { uri: `sip:${camId}@${REALM}` },
-      from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: Math.floor(Math.random() * 1e4).toString() } },
-      "call-id": Math.random().toString(36).substring(7),
+      from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: createSipTag() } },
+      "call-id": createSipCallId(),
       cseq: { method: "MESSAGE", seq: 3 },
       "content-type": "Application/MANSCDP+xml",
       "content-length": xml.length

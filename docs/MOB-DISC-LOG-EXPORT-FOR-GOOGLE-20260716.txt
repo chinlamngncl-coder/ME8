@@ -1,0 +1,86 @@
+﻿=== ME8 / Mobility Axiom — log for Google (media proof only) ===
+Window: 2026-07-16 22:37-22:39 +08
+Operator: picture PASS on normal panel
+Counts: wvp-zlm primary=0 | zlm-relay primary=0 | Fleet invite accepted=yes
+Ask: WVP startPlay fails; Fleet-to-ZLM relay dies Unknown encoder libx264; keep Fleet SIP 5060. Next fix?
+Secrets stripped. Full service log remains local in storage/service-stdout.log
+---
+
+2026-07-16 22:37:05.320 +08:00 [Media] INFO wvp lab routes enabled | {"testPage":"/test-wvp-tile.html","base":"http://127.0.0.1:18080"}
+2026-07-16 22:37:05.378 +08:00 [Media] INFO ffmpeg ready | {"path":"C:\\Users\\user\\Desktop\\Enterprise Mobility\\ME8\\vendor\\ffmpeg-lgpl\\ffmpeg.exe","source":"vendor-lgpl","bundled":true,"version":"ffmpeg version N-125478-gc6498178bb-20260706 Copyright (c) 2000-2026 the FFmpeg developers"}
+2026-07-16 22:37:05.498 +08:00 [Media] INFO zlm health ok | {"httpBase":"http://127.0.0.1:8080"}
+2026-07-16 22:38:02.499 +08:00 [Media] INFO invite requested | {"camId":"34020000001329000008","mode":"video","transport":"udp"}
+2026-07-16 22:38:03.158 +08:00 [SIP] INFO invite accepted | {"status":200,"mode":"video","transport":"udp"}
+2026-07-16 22:38:04.072 +08:00 [Media] INFO invite requested | {"camId":"34020000001329000009","mode":"video","transport":"udp"}
+2026-07-16 22:38:04.675 +08:00 [SIP] INFO invite accepted | {"status":200,"mode":"video","transport":"udp"}
+2026-07-16 22:38:05.725 +08:00 [Media] INFO wvp lab login ok | {"user":"admin","base":"http://127.0.0.1:18080","jwt":true}
+2026-07-16 22:38:07.300 +08:00 [Media] INFO live broker fallback | {"camId":"34020000001329000008","reason":"wvp_startplay_failure","message":"æœªæ‰¾åˆ°å¯ç”¨çš„zlm"}
+2026-07-16 22:38:07.308 +08:00 [Media] INFO zlm health ok | {"httpBase":"http://127.0.0.1:8080"}
+2026-07-16 22:38:07.314 +08:00 [Media] INFO zlm health ok | {"httpBase":"http://127.0.0.1:8080"}
+2026-07-16 22:38:07.327 +08:00 [Media] INFO zlm relay ws connected | {"camId":"34020000001329000008","wsUrl":"ws://192.168.1.38:3989/?camId=34020000001329000008"}
+2026-07-16 22:38:07.343 +08:00 [Media] INFO zlm relay first frame | {"camId":"34020000001329000008","streamId":"34020000001329000008","bytes":44744,"rtmpUrl":"rtmp://127.0.0.1:19350/live/34020000001329000008"}
+2026-07-16 22:38:07.412 +08:00 [Media] WARN zlm relay ffmpeg | {"camId":"34020000001329000008","line":"[vost#0:0 @ 0000027b1176bd40] Unknown encoder 'libx264'\r\n[vost#0:0 @ 0000027b1176bd40] Error selecting an encoder\r\nError opening output file rtmp://127.0.0.1:19"}
+2026-07-16 22:38:07.417 +08:00 [Media] WARN zlm relay ffmpeg exit | {"camId":"34020000001329000008","code":3165764104,"signal":null}
+2026-07-16 22:38:07.419 +08:00 [Media] INFO zlm relay ws closed | {"camId":"34020000001329000008","bytes":56212}
+2026-07-16 22:38:07.421 +08:00 [Media] INFO zlm relay stopped | {"camId":"34020000001329000008","streamId":"34020000001329000008","bytes":56212,"droppedChunks":0}
+2026-07-16 22:38:08.581 +08:00 [Media] INFO live broker fallback | {"camId":"34020000001329000009","reason":"wvp_startplay_failure","message":"æœªæ‰¾åˆ°å¯ç”¨çš„zlm"}
+2026-07-16 22:38:08.585 +08:00 [Media] INFO zlm health ok | {"httpBase":"http://127.0.0.1:8080"}
+2026-07-16 22:38:08.590 +08:00 [Media] INFO zlm health ok | {"httpBase":"http://127.0.0.1:8080"}
+2026-07-16 22:38:08.602 +08:00 [Media] INFO zlm relay ws connected | {"camId":"34020000001329000009","wsUrl":"ws://192.168.1.38:3989/?camId=34020000001329000009"}
+2026-07-16 22:38:08.607 +08:00 [Media] INFO zlm relay first frame | {"camId":"34020000001329000009","streamId":"34020000001329000009","bytes":2820,"rtmpUrl":"rtmp://127.0.0.1:19350/live/34020000001329000009"}
+2026-07-16 22:38:08.856 +08:00 [Media] WARN zlm relay ffmpeg | {"camId":"34020000001329000009","line":"Last message repeated 4 times\r\n[vost#0:0 @ 000001d9b5915b40] Unknown encoder 'libx264'\r\n[vost#0:0 @ 000001d9b5915b40] Error selecting an encoder\r\nError opening "}
+2026-07-16 22:38:08.857 +08:00 [Media] WARN zlm relay ffmpeg | {"camId":"34020000001329000009","line":"Error opening output files: Encoder not found"}
+2026-07-16 22:38:08.865 +08:00 [Media] WARN zlm relay ffmpeg exit | {"camId":"34020000001329000009","code":3165764104,"signal":null}
+2026-07-16 22:38:08.868 +08:00 [Media] INFO zlm relay ws closed | {"camId":"34020000001329000009","bytes":54708}
+2026-07-16 22:38:08.869 +08:00 [Media] INFO zlm relay stopped | {"camId":"34020000001329000009","streamId":"34020000001329000009","bytes":54708,"droppedChunks":0}
+2026-07-16 22:38:15.805 +08:00 [Media] INFO live broker zlm-relay not ready | {"camId":"34020000001329000008","streamId":"34020000001329000008"}
+2026-07-16 22:38:15.806 +08:00 [Media] INFO live broker zlm probe idle | {"camId":"34020000001329000008","reason":"zlm_relay_inactive","poolLive":true}
+2026-07-16 22:38:17.090 +08:00 [Media] INFO live broker zlm-relay not ready | {"camId":"34020000001329000009","streamId":"34020000001329000009"}
+2026-07-16 22:38:17.091 +08:00 [Media] INFO live broker zlm probe idle | {"camId":"34020000001329000009","reason":"zlm_relay_inactive","poolLive":true}
+2026-07-16 22:38:18.049 +08:00 [Media] INFO live broker fallback | {"camId":"34020000001329000008","reason":"wvp_startplay_failure","message":"æœªæ‰¾åˆ°å¯ç”¨çš„zlm"}
+2026-07-16 22:38:18.052 +08:00 [Media] INFO zlm health ok | {"httpBase":"http://127.0.0.1:8080"}
+2026-07-16 22:38:18.054 +08:00 [Media] INFO zlm health ok | {"httpBase":"http://127.0.0.1:8080"}
+2026-07-16 22:38:18.067 +08:00 [Media] INFO zlm relay ws connected | {"camId":"34020000001329000008","wsUrl":"ws://192.168.1.38:3989/?camId=34020000001329000008"}
+2026-07-16 22:38:18.071 +08:00 [Media] INFO zlm relay first frame | {"camId":"34020000001329000008","streamId":"34020000001329000008","bytes":1880,"rtmpUrl":"rtmp://127.0.0.1:19350/live/34020000001329000008"}
+2026-07-16 22:38:18.474 +08:00 [Media] WARN zlm relay ffmpeg | {"camId":"34020000001329000008","line":"times\r\n[vost#0:0 @ 000002161607eb40] Unknown encoder 'libx264'\r\n[vost#0:0 @ 000002161607eb40] Error selecting an encoder\r\nError opening output file rtmp://127.0"}
+2026-07-16 22:38:18.479 +08:00 [Media] WARN zlm relay ffmpeg exit | {"camId":"34020000001329000008","code":3165764104,"signal":null}
+2026-07-16 22:38:18.480 +08:00 [Media] INFO zlm relay ws closed | {"camId":"34020000001329000008","bytes":70876}
+2026-07-16 22:38:18.480 +08:00 [Media] INFO zlm relay stopped | {"camId":"34020000001329000008","streamId":"34020000001329000008","bytes":70876,"droppedChunks":0}
+2026-07-16 22:38:19.604 +08:00 [Media] INFO live broker fallback | {"camId":"34020000001329000009","reason":"wvp_startplay_failure","message":"æœªæ‰¾åˆ°å¯ç”¨çš„zlm"}
+2026-07-16 22:38:19.608 +08:00 [Media] INFO zlm health ok | {"httpBase":"http://127.0.0.1:8080"}
+2026-07-16 22:38:19.613 +08:00 [Media] INFO zlm health ok | {"httpBase":"http://127.0.0.1:8080"}
+2026-07-16 22:38:19.619 +08:00 [Media] INFO zlm relay ws connected | {"camId":"34020000001329000009","wsUrl":"ws://192.168.1.38:3989/?camId=34020000001329000009"}
+2026-07-16 22:38:19.695 +08:00 [Media] INFO zlm relay first frame | {"camId":"34020000001329000009","streamId":"34020000001329000009","bytes":752,"rtmpUrl":"rtmp://127.0.0.1:19350/live/34020000001329000009"}
+2026-07-16 22:38:19.930 +08:00 [Media] WARN zlm relay ffmpeg | {"camId":"34020000001329000009","line":"ssage repeated 3 times\r\n[vost#0:0 @ 0000025f19095e80] Unknown encoder 'libx264'\r\n[vost#0:0 @ 0000025f19095e80] Error selecting an encoder\r\nError opening output "}
+2026-07-16 22:38:19.935 +08:00 [Media] WARN zlm relay ffmpeg exit | {"camId":"34020000001329000009","code":3165764104,"signal":null}
+2026-07-16 22:38:19.936 +08:00 [Media] INFO zlm relay ws closed | {"camId":"34020000001329000009","bytes":54708}
+2026-07-16 22:38:19.937 +08:00 [Media] INFO zlm relay stopped | {"camId":"34020000001329000009","streamId":"34020000001329000009","bytes":54708,"droppedChunks":0}
+2026-07-16 22:38:26.320 +08:00 [Media] INFO live broker zlm-relay not ready | {"camId":"34020000001329000008","streamId":"34020000001329000008"}
+2026-07-16 22:38:26.322 +08:00 [Media] INFO live broker zlm probe idle | {"camId":"34020000001329000008","reason":"zlm_relay_inactive","poolLive":true}
+2026-07-16 22:38:27.891 +08:00 [Media] INFO live broker zlm-relay not ready | {"camId":"34020000001329000009","streamId":"34020000001329000009"}
+2026-07-16 22:38:27.892 +08:00 [Media] INFO live broker zlm probe idle | {"camId":"34020000001329000009","reason":"zlm_relay_inactive","poolLive":true}
+2026-07-16 22:38:28.530 +08:00 [Media] INFO live broker fallback | {"camId":"34020000001329000008","reason":"wvp_startplay_failure","message":"æœªæ‰¾åˆ°å¯ç”¨çš„zlm"}
+2026-07-16 22:38:28.534 +08:00 [Media] INFO zlm health ok | {"httpBase":"http://127.0.0.1:8080"}
+2026-07-16 22:38:28.537 +08:00 [Media] INFO zlm health ok | {"httpBase":"http://127.0.0.1:8080"}
+2026-07-16 22:38:28.546 +08:00 [Media] INFO zlm relay ws connected | {"camId":"34020000001329000008","wsUrl":"ws://192.168.1.38:3989/?camId=34020000001329000008"}
+2026-07-16 22:38:28.593 +08:00 [Media] INFO zlm relay first frame | {"camId":"34020000001329000008","streamId":"34020000001329000008","bytes":752,"rtmpUrl":"rtmp://127.0.0.1:19350/live/34020000001329000008"}
+2026-07-16 22:38:29.012 +08:00 [Media] WARN zlm relay ffmpeg | {"camId":"34020000001329000008","line":"Last message repeated 7 times\r\n[vost#0:0 @ 0000012039b05e40] Unknown encoder 'libx264'\r\n[vost#0:0 @ 0000012039b05e40] Error selecting an encoder\r\nError opening "}
+2026-07-16 22:38:29.017 +08:00 [Media] WARN zlm relay ffmpeg exit | {"camId":"34020000001329000008","code":3165764104,"signal":null}
+2026-07-16 22:38:29.019 +08:00 [Media] INFO zlm relay ws closed | {"camId":"34020000001329000008","bytes":77268}
+2026-07-16 22:38:29.020 +08:00 [Media] INFO zlm relay stopped | {"camId":"34020000001329000008","streamId":"34020000001329000008","bytes":77268,"droppedChunks":0}
+2026-07-16 22:38:30.097 +08:00 [Media] INFO live broker fallback | {"camId":"34020000001329000009","reason":"wvp_startplay_failure","message":"æœªæ‰¾åˆ°å¯ç”¨çš„zlm"}
+2026-07-16 22:38:30.101 +08:00 [Media] INFO zlm health ok | {"httpBase":"http://127.0.0.1:8080"}
+2026-07-16 22:38:30.105 +08:00 [Media] INFO zlm health ok | {"httpBase":"http://127.0.0.1:8080"}
+2026-07-16 22:38:30.112 +08:00 [Media] INFO zlm relay ws connected | {"camId":"34020000001329000009","wsUrl":"ws://192.168.1.38:3989/?camId=34020000001329000009"}
+2026-07-16 22:38:30.187 +08:00 [Media] INFO zlm relay first frame | {"camId":"34020000001329000009","streamId":"34020000001329000009","bytes":17296,"rtmpUrl":"rtmp://127.0.0.1:19350/live/34020000001329000009"}
+2026-07-16 22:38:30.316 +08:00 [Media] WARN zlm relay ffmpeg | {"camId":"34020000001329000009","line":"[vost#0:0 @ 000001bcbadd8f00] Unknown encoder 'libx264'\r\n[vost#0:0 @ 000001bcbadd8f00] Error selecting an encoder"}
+2026-07-16 22:38:30.317 +08:00 [Media] WARN zlm relay ffmpeg | {"camId":"34020000001329000009","line":"Error opening output file rtmp://127.0.0.1:19350/live/34020000001329000009.\r\nError opening output files: Encoder not found"}
+2026-07-16 22:38:30.322 +08:00 [Media] WARN zlm relay ffmpeg exit | {"camId":"34020000001329000009","code":3165764104,"signal":null}
+2026-07-16 22:38:30.324 +08:00 [Media] INFO zlm relay ws closed | {"camId":"34020000001329000009","bytes":64484}
+2026-07-16 22:38:30.325 +08:00 [Media] INFO zlm relay stopped | {"camId":"34020000001329000009","streamId":"34020000001329000009","bytes":64484,"droppedChunks":0}
+2026-07-16 22:38:37.033 +08:00 [Media] INFO live broker zlm-relay not ready | {"camId":"34020000001329000008","streamId":"34020000001329000008"}
+2026-07-16 22:38:37.034 +08:00 [Media] INFO live broker zlm probe idle | {"camId":"34020000001329000008","reason":"zlm_relay_inactive","poolLive":true}
+2026-07-16 22:38:38.595 +08:00 [Media] INFO live broker zlm-relay not ready | {"camId":"34020000001329000009","streamId":"34020000001329000009"}
+2026-07-16 22:38:38.595 +08:00 [Media] INFO live broker zlm probe idle | {"camId":"34020000001329000009","reason":"zlm_relay_inactive","poolLive":true}
+2026-07-16 22:39:47.804 +08:00 [Media] INFO pool ffmpeg exit | {"camId":"34020000001329000008","code":null,"signal":"SIGINT"}
+2026-07-16 22:39:48.607 +08:00 [Media] INFO pool ffmpeg exit | {"camId":"34020000001329000009","code":null,"signal":"SIGINT"}

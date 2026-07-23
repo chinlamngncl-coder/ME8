@@ -1,5 +1,5 @@
 /**
- * Video Conference hub — LiveKit WebRTC, 3×8 rooms, BWC ingress, recordings.
+ * Video Conference hub \u2014 LiveKit WebRTC, 3\u00D78 rooms, BWC ingress, recordings.
  * Isolated from Operations map / SOS live wall.
  */
 (function (global) {
@@ -99,6 +99,8 @@
 
     function showPanel(name, opts) {
         opts = opts || {};
+        /* VC-LIVE-LOBBY-COMBINE-V1 \u2014 Lobby tab removed; old links land on Live */
+        if (name === 'lobby') name = 'live';
         currentPanel = name;
         document.querySelectorAll('.vc-hub-panel').forEach(function (p) {
             p.hidden = p.id !== 'vc-panel-' + name;
@@ -164,15 +166,21 @@
         const el = document.getElementById('vc-room-picker');
         if (!el || !status) return;
         el.innerHTML = status.rooms.map(function (r) {
-            const active = r.active ? tr('conference.roomActive') : tr('conference.roomIdle');
-            return '<button type="button" class="vc-room-btn' + (selectedRoomId === r.id ? ' active' : '') + '" data-room-id="' + esc(r.id) + '">'
-                + esc(tr(r.labelKey)) + '<span class="hint">' + esc(active) + '</span></button>';
+            const active = !!r.active;
+            const badge = active ? tr('conference.roomActive') : tr('conference.roomIdle');
+            const selected = selectedRoomId === r.id;
+            return '<button type="button" class="vc-room-card' + (selected ? ' active' : '') + '" data-room-id="'
+                + esc(r.id) + '" role="option" aria-selected="' + (selected ? 'true' : 'false') + '">'
+                + '<span class="vc-room-card-name">' + esc(tr(r.labelKey)) + '</span>'
+                + '<span class="vc-room-badge ' + (active ? 'is-active' : 'is-idle') + '">' + esc(badge) + '</span>'
+                + '</button>';
         }).join('');
         el.querySelectorAll('[data-room-id]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 selectedRoomId = btn.getAttribute('data-room-id');
                 renderRoomPicker();
                 renderLiveControls();
+                renderLobby();
             });
         });
     }
@@ -241,7 +249,7 @@
         el.innerHTML = '<h4>' + esc(tr('conference.rosterTitle')) + '</h4><ul>'
             + items.map(function (m) {
                 const cls = m.inRoom ? 'in-room' : (m.online ? 'online' : '');
-                const suffix = m.inRoom ? ' · ' + tr('conference.rosterInRoom') : (m.online ? ' · ' + tr('conference.online') : ' · ' + tr('conference.offline'));
+                const suffix = m.inRoom ? ' \u00B7 ' + tr('conference.rosterInRoom') : (m.online ? ' \u00B7 ' + tr('conference.online') : ' \u00B7 ' + tr('conference.offline'));
                 return '<li class="' + cls + '">' + esc(m.name) + esc(suffix) + '</li>';
             }).join('')
             + '</ul><p class="hint">' + esc(tr('conference.rosterHint')) + '</p>';
@@ -505,7 +513,7 @@
             const fixedWrapClass = compact ? 'vc-bwc-share' : 'vc-bwc-inline';
             html += '<' + (compact ? 'div' : 'span') + ' class="' + fixedWrapClass + '">';
             fixedList.forEach(function (camera) {
-                html += '<span class="vc-bwc-chip">Fixed · ' + esc(camera.displayName || camera.cameraId);
+                html += '<span class="vc-bwc-chip">Fixed \u00B7 ' + esc(camera.displayName || camera.cameraId);
                 if (perms.bwcShare || perms.host) {
                     html += ' <button type="button" class="btn btn-ghost btn-sm vc-fixed-remove-one" data-camera="'
                         + esc(camera.cameraId) + '">' + tr('conference.bwcRemove') + '</button>';
@@ -521,15 +529,15 @@
                 html += '<span class="vc-bwc-compact-label">' + esc(tr('conference.bwcHead')) + '</span>';
                 html += '<span class="vc-bwc-compact-status ' + (onlineBwc ? 'online' : '') + '">'
                     + esc(tr(onlineBwc ? 'conference.bwcOnlineOne' : 'conference.bwcNoOnline', { count: onlineBwc })) + '</span>';
-                html += '<select id="vc-bwc-select"><option value="">—</option></select>';
+                html += '<select id="vc-bwc-select"><option value="">\u2014</option></select>';
                 html += '<button type="button" class="btn btn-ghost btn-sm" id="vc-bwc-add-btn">' + tr('conference.bwcAddBtn') + '</button>';
-                html += '<select id="vc-fixed-camera-select"><option value="">— Fixed camera —</option></select>';
+                html += '<select id="vc-fixed-camera-select"><option value="">\u2014 Fixed camera \u2014</option></select>';
                 html += '<button type="button" class="btn btn-ghost btn-sm" id="vc-fixed-camera-add-btn">Add fixed camera</button>';
                 html += '</div>';
             } else {
-                html += '<select id="vc-bwc-select" class="vc-bwc-inline-select"><option value="">— BWC —</option></select>';
+                html += '<select id="vc-bwc-select" class="vc-bwc-inline-select"><option value="">\u2014 BWC \u2014</option></select>';
                 html += '<button type="button" class="btn btn-ghost btn-sm" id="vc-bwc-add-btn">' + tr('conference.bwcAddBtn') + '</button>';
-                html += '<select id="vc-fixed-camera-select" class="vc-bwc-inline-select"><option value="">— Fixed camera —</option></select>';
+                html += '<select id="vc-fixed-camera-select" class="vc-bwc-inline-select"><option value="">\u2014 Fixed camera \u2014</option></select>';
                 html += '<button type="button" class="btn btn-ghost btn-sm" id="vc-fixed-camera-add-btn">Add fixed camera</button>';
             }
         } else if (cameraCount >= maxBwc) {
@@ -602,17 +610,19 @@
             }
         } else {
             if (perms.join) {
-                html += '<button type="button" class="btn btn-action btn-sm" id="vc-enter-room">' + tr('conference.enterRoom') + '</button>';
+                html += '<button type="button" class="btn btn-action btn-sm btn-lg" id="vc-enter-room">' + tr('conference.enterRoom') + '</button>';
             }
             if (perms.host || perms.record || perms.bwcShare) {
-                html += '<details class="vc-advanced"><summary>' + tr('conference.hostTools') + '</summary>';
+                /* VC-HOST-TOOLS-ALWAYS-OPEN-V1 \u2014 no <details> accordion */
+                html += '<div class="vc-host-tools-panel enterprise-card" role="region" aria-label="' + esc(tr('conference.hostTools')) + '">';
+                html += '<div class="vc-host-tools-title">' + esc(tr('conference.hostTools')) + '</div>';
                 html += '<div class="vc-secondary-row">';
                 if (perms.host) {
                     html += '<button type="button" class="btn btn-ghost btn-sm" id="vc-end-room"' + (!roomOpen ? ' disabled' : '') + '>' + tr('conference.endRoom') + '</button>';
                 }
                 html += '</div>';
                 html += buildBwcShareHtml(true);
-                html += '</details>';
+                html += '</div>';
             }
         }
 
@@ -629,11 +639,11 @@
         if (!sel || !lobby) return;
         const room = roomById(selectedRoomId);
         const active = new Set(bwcIngressListFor(room).map(function (b) { return b.camId; }));
-        let html = '<option value="">—</option>';
+        let html = '<option value="">\u2014</option>';
         (lobby.groups || []).forEach(function (g) {
             (g.members || []).forEach(function (m) {
                 if (!m.online || !m.camId || active.has(m.camId)) return;
-                html += '<option value="' + esc(m.camId) + '">' + esc(m.name) + ' · ' + esc(m.camId) + '</option>';
+                html += '<option value="' + esc(m.camId) + '">' + esc(m.name) + ' \u00B7 ' + esc(m.camId) + '</option>';
             });
         });
         sel.innerHTML = html;
@@ -646,10 +656,10 @@
         const active = new Set(fixedCameraIngressListFor(room).map(function (camera) {
             return camera.cameraId;
         }));
-        let html = '<option value="">— Fixed camera —</option>';
+        let html = '<option value="">\u2014 Fixed camera \u2014</option>';
         (lobby.fixedCameras || []).forEach(function (camera) {
             if (!camera.playable || active.has(camera.cameraId)) return;
-            const suffix = camera.zone ? (' · ' + camera.zone) : '';
+            const suffix = camera.zone ? (' \u00B7 ' + camera.zone) : '';
             html += '<option value="' + esc(camera.cameraId) + '">'
                 + esc(camera.name || camera.cameraId) + esc(suffix) + '</option>';
         });
@@ -938,7 +948,7 @@
                 }
                 await room.localParticipant.publishTrack(localTracks[i]);
                 // LocalTrackPublished event (wired in wireRoomEvents) handles adding the tile.
-                // Do not add it explicitly here — that causes a duplicate blank tile when
+                // Do not add it explicitly here \u2014 that causes a duplicate blank tile when
                 // track.sid is not yet assigned at publish time.
             }
             if (!localMicEnabled) {
@@ -966,7 +976,7 @@
                     method: 'POST',
                     body: { clientKind: 'web' },
                 });
-            } catch (_) { /* best-effort — still leave */ }
+            } catch (_) { /* best-effort \u2014 still leave */ }
         }
         if (wasInRoom && !opts.keepBwc && bwcIngressListFor(room).length && (perms.host || perms.bwcShare)) {
             const bwcList = bwcIngressListFor(room);
@@ -974,7 +984,7 @@
                 try {
                     await api('/api/conference/room/' + encodeURIComponent(roomId) + '/bwc-ingress?camId='
                         + encodeURIComponent(bwcList[i].camId), { method: 'DELETE' });
-                } catch (_) { /* best-effort — still leave the room */ }
+                } catch (_) { /* best-effort \u2014 still leave the room */ }
             }
         }
         if (wasInRoom && !opts.keepBwc && fixedCameraIngressListFor(room).length && (perms.host || perms.bwcShare)) {
@@ -985,7 +995,7 @@
                         + '/fixed-camera-ingress?cameraId=' + encodeURIComponent(fixedList[i].cameraId), {
                         method: 'DELETE',
                     });
-                } catch (_) { /* best-effort — still leave the room */ }
+                } catch (_) { /* best-effort \u2014 still leave the room */ }
             }
         }
         if (lkRoom) {
@@ -1105,6 +1115,35 @@
         }
     }
 
+    function truncateId(id) {
+        const s = String(id || '').trim();
+        if (s.length <= 10) return s;
+        return s.slice(0, 4) + '\u2026' + s.slice(-4);
+    }
+
+    function openGroupIdsFromDom() {
+        const open = {};
+        document.querySelectorAll('#vc-lobby-body .vc-personnel-group[open]').forEach(function (d) {
+            const id = d.getAttribute('data-group-id');
+            if (id) open[id] = true;
+        });
+        return open;
+    }
+
+    async function inviteGuestUser(userId) {
+        if (!userId || !selectedRoomId) return;
+        const room = roomById(selectedRoomId);
+        if (!room || !room.active) throw new Error(tr('conference.roomNotOpen'));
+        const res = await api('/api/conference/room/' + encodeURIComponent(selectedRoomId) + '/guest', {
+            method: 'POST',
+            body: { userId: userId },
+        });
+        if (!res.ok || !res.data.ok) {
+            throw new Error((res.data && res.data.error) || tr('conference.inviteFailed'));
+        }
+        await refreshPanel(true);
+    }
+
     function renderLobby() {
         const el = document.getElementById('vc-lobby-body');
         if (!el) return;
@@ -1112,17 +1151,69 @@
             el.innerHTML = '<p class="hint">' + esc(tr('conference.loading')) + '</p>';
             return;
         }
+        const wasOpen = openGroupIdsFromDom();
+        const room = roomById(selectedRoomId);
+        const roomOpen = !!(room && room.active);
+        const showInvite = !!(perms.host || perms.crossGroup);
         let html = '';
-        (lobby.groups || []).forEach(function (g) {
-            html += '<div class="vc-lobby-group"><h4><span class="vc-pin" style="background:' + esc(g.pinColor || '#64748b') + '"></span> ' + esc(g.name) + '</h4><ul>';
-            (g.members || []).forEach(function (m) {
-                html += '<li class="' + (m.online ? 'online' : 'offline') + '">' + esc(m.name)
-                    + ' <code>' + esc(m.camId) + '</code> '
-                    + (m.online ? tr('conference.online') : tr('conference.offline')) + '</li>';
-            });
-            html += '</ul></div>';
+        const groups = lobby.groups || [];
+        groups.forEach(function (g, idx) {
+            const gid = String(g.groupId || g.name || idx);
+            const members = g.members || [];
+            const onlineN = members.filter(function (m) { return m.online; }).length;
+            const openAttr = (wasOpen[gid] || (!Object.keys(wasOpen).length && idx === 0)) ? ' open' : '';
+            html += '<details class="vc-personnel-group"' + openAttr + ' data-group-id="' + esc(gid) + '">'
+                + '<summary><span class="vc-pin" style="background:' + esc(g.pinColor || '#64748b') + '"></span> '
+                + esc(g.name)
+                + ' <span class="vc-personnel-count">' + onlineN + '/' + members.length + '</span></summary>'
+                + '<ul class="vc-personnel-list">';
+            if (!members.length) {
+                html += '<li class="vc-personnel-item"><span class="hint">\u2014</span></li>';
+            } else {
+                members.forEach(function (m) {
+                    const online = !!m.online;
+                    html += '<li class="vc-personnel-item' + (online ? ' is-online' : '') + '">'
+                        + '<div class="vc-personnel-left">'
+                        + '<span class="vc-dot' + (online ? ' is-online' : '') + '" aria-hidden="true"></span>'
+                        + '<span class="vc-personnel-name" title="' + esc(m.name) + '">' + esc(m.name) + '</span>'
+                        + '<code class="vc-personnel-id" title="' + esc(m.camId) + '">' + esc(truncateId(m.camId)) + '</code>'
+                        + '</div></li>';
+                });
+            }
+            html += '</ul></details>';
         });
-        el.innerHTML = html || '<p class="hint">—</p>';
+
+        const operators = lobby.operators || [];
+        if (operators.length) {
+            const ogid = 'operators';
+            const openAttr = wasOpen[ogid] ? ' open' : '';
+            html += '<details class="vc-personnel-group"' + openAttr + ' data-group-id="' + ogid + '">'
+                + '<summary>' + esc(tr('conference.whoCanJoin'))
+                + ' <span class="vc-personnel-count">' + operators.length + '</span></summary>'
+                + '<ul class="vc-personnel-list">';
+            operators.forEach(function (op) {
+                html += '<li class="vc-personnel-item is-online">'
+                    + '<div class="vc-personnel-left">'
+                    + '<span class="vc-dot is-online" aria-hidden="true"></span>'
+                    + '<span class="vc-personnel-name" title="' + esc(op.username) + '">' + esc(op.username) + '</span>'
+                    + '<code class="vc-personnel-id" title="' + esc(op.role || '') + '">' + esc(op.role || '') + '</code>'
+                    + '</div>';
+                if (showInvite) {
+                    html += '<button type="button" class="btn btn-ghost btn-sm vc-personnel-invite" data-invite-user="'
+                        + esc(op.userId) + '"' + (!roomOpen ? ' disabled title="' + esc(tr('conference.roomNotOpen')) + '"' : '')
+                        + '>' + esc(tr('conference.invite')) + '</button>';
+                }
+                html += '</li>';
+            });
+            html += '</ul></details>';
+        }
+
+        el.innerHTML = html || '<p class="hint">\u2014</p>';
+        el.querySelectorAll('[data-invite-user]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                inviteGuestUser(btn.getAttribute('data-invite-user')).catch(function (e) { alert(e.message); });
+            });
+        });
     }
 
     async function deleteRecording(recordingId) {
@@ -1161,7 +1252,7 @@
                 if (canDelete && r.status !== 'recording') {
                     actions += '<button type="button" class="btn btn-ghost btn-sm vc-rec-delete" data-rec-id="' + esc(r.id) + '">' + tr('conference.recDelete') + '</button>';
                 }
-                return '<tr><td>' + esc(r.roomId) + '</td><td>' + esc(r.startedAt) + '</td><td>' + esc(r.startedBy || '—') + '</td><td>' + actions + '</td></tr>';
+                return '<tr><td>' + esc(r.roomId) + '</td><td>' + esc(r.startedAt) + '</td><td>' + esc(r.startedBy || '\u2014') + '</td><td>' + actions + '</td></tr>';
             }).join('') + '</tbody></table>';
         el.innerHTML = html;
         el.querySelectorAll('.vc-rec-delete').forEach(function (btn) {
@@ -1299,7 +1390,7 @@
                         if (statusEl) {
                             statusEl.textContent = r.ok
                                 ? tr('conference.settingsTestOk')
-                                : tr('conference.settingsTestFail') + ': ' + (r.tokenError || (r.signaling && r.signaling.error) || '—');
+                                : tr('conference.settingsTestFail') + ': ' + (r.tokenError || (r.signaling && r.signaling.error) || '\u2014');
                             statusEl.className = r.ok ? 'vc-set-status ok' : 'vc-set-status err';
                         }
                         if (r.remoteReadiness) {
@@ -1376,39 +1467,13 @@
         const fw = data.firewall || [];
         const readiness = data.remoteReadiness || null;
 
+        /* VC-SETTINGS-FORM-TOP-FW-BORDER-V1 \u2014 Conference service first; status + firewall below */
         let html = '<div class="vc-settings-wrap">';
         if (!canEdit) {
             html += '<p class="setup-hint vc-settings-intro">' + esc(tr('conference.settingsReadonly')) + '</p>';
         } else {
             html += '<p id="vc-set-form-intro" class="setup-hint vc-settings-intro">' + esc(tr(hideCredentials ? 'conference.settingsFormIntroLan' : 'conference.settingsFormIntro')) + '</p>';
         }
-
-        html += '<div class="vc-settings-top-row">';
-        html += '<section class="vc-settings-section vc-settings-card vc-settings-status">'
-            + '<h3>' + esc(tr('conference.settingsStatus')) + '</h3>'
-            + '<dl class="vc-settings-status-dl">'
-            + '<div class="vc-settings-kv"><dt>' + esc(tr('conference.settingsMcuLabel')) + '</dt><dd>' + esc((status && status.openSourceNotice && status.openSourceNotice.mcu) || tr('conference.settingsMcuName')) + '</dd></div>'
-            + '<div class="vc-settings-kv"><dt>' + tr('conference.mcuStatus') + '</dt><dd>' + (lk.enabled ? tr('conference.mcuReady') : tr('conference.mcuOff')) + '</dd></div>'
-            + '<div class="vc-settings-kv"><dt>' + tr('conference.settingsClientUrl') + '</dt><dd><code>' + esc(lk.clientWsUrl || lk.wsUrl || '—') + '</code></dd></div>'
-            + '<div class="vc-settings-kv"><dt>' + tr('conference.featureRecording') + '</dt><dd>' + (feat.recording ? tr('common.yes') : tr('common.no')) + '</dd></div>'
-            + '<div class="vc-settings-kv"><dt>' + tr('conference.featureBwcIngress') + '</dt><dd>' + (feat.bwcIngress ? tr('common.yes') : tr('common.no')) + '</dd></div>'
-            + '<div class="vc-settings-kv"><dt>' + tr('conference.settingsMuteAllOnStart') + '</dt><dd>' + ((status && status.muteAllOnStart) ? tr('common.yes') : tr('common.no')) + '</dd></div>'
-            + '<div class="vc-settings-kv vc-settings-span-2"><dt>' + tr('conference.featureTurn') + '</dt><dd>' + (feat.turn ? esc(lk.turnUrl) : tr('conference.notConfigured')) + '</dd></div>'
-            + '</dl>'
-            + buildReadinessHtml(readiness)
-            + '</section>';
-
-        if (fw.length) {
-            html += '<section class="vc-settings-section vc-settings-card vc-settings-firewall">'
-                + '<h3>' + esc(tr('conference.settingsFirewall')) + '</h3>'
-                + '<table class="evidence-table vc-settings-fw"><thead><tr><th>' + tr('cloud.firewall.service') + '</th><th>'
-                + tr('cloud.firewall.port') + '</th><th>' + tr('cloud.firewall.note') + '</th></tr></thead><tbody>'
-                + fw.map(function (r) {
-                    return '<tr><td>' + esc(r.service) + '</td><td>' + esc(r.port) + '</td><td>' + esc(r.note) + '</td></tr>';
-                }).join('')
-                + '</tbody></table></section>';
-        }
-        html += '</div>';
 
         html += '<section class="vc-settings-section vc-settings-card vc-settings-form">';
         html += '<h3>' + esc(tr('conference.settingsTitle')) + '</h3>';
@@ -1459,7 +1524,34 @@
                 + '<p id="vc-set-status" class="vc-set-status vc-settings-span-2"></p>'
                 + '<p class="hint vc-settings-span-2">' + esc(tr('conference.settingsRestartNote')) + '</p>';
         }
-        html += '</div></section></div>';
+        html += '</div></section>';
+
+        html += '<div class="vc-settings-top-row">';
+        html += '<section class="vc-settings-section vc-settings-card vc-settings-status">'
+            + '<h3>' + esc(tr('conference.settingsStatus')) + '</h3>'
+            + '<dl class="vc-settings-status-dl">'
+            + '<div class="vc-settings-kv"><dt>' + esc(tr('conference.settingsMcuLabel')) + '</dt><dd>' + esc((status && status.openSourceNotice && status.openSourceNotice.mcu) || tr('conference.settingsMcuName')) + '</dd></div>'
+            + '<div class="vc-settings-kv"><dt>' + tr('conference.mcuStatus') + '</dt><dd>' + (lk.enabled ? tr('conference.mcuReady') : tr('conference.mcuOff')) + '</dd></div>'
+            + '<div class="vc-settings-kv"><dt>' + tr('conference.settingsClientUrl') + '</dt><dd><code>' + esc(lk.clientWsUrl || lk.wsUrl || '\u2014') + '</code></dd></div>'
+            + '<div class="vc-settings-kv"><dt>' + tr('conference.featureRecording') + '</dt><dd>' + (feat.recording ? tr('common.yes') : tr('common.no')) + '</dd></div>'
+            + '<div class="vc-settings-kv"><dt>' + tr('conference.featureBwcIngress') + '</dt><dd>' + (feat.bwcIngress ? tr('common.yes') : tr('common.no')) + '</dd></div>'
+            + '<div class="vc-settings-kv"><dt>' + tr('conference.settingsMuteAllOnStart') + '</dt><dd>' + ((status && status.muteAllOnStart) ? tr('common.yes') : tr('common.no')) + '</dd></div>'
+            + '<div class="vc-settings-kv vc-settings-span-2"><dt>' + tr('conference.featureTurn') + '</dt><dd>' + (feat.turn ? esc(lk.turnUrl) : tr('conference.notConfigured')) + '</dd></div>'
+            + '</dl>'
+            + buildReadinessHtml(readiness)
+            + '</section>';
+
+        if (fw.length) {
+            html += '<section class="vc-settings-section vc-settings-card vc-settings-firewall">'
+                + '<h3>' + esc(tr('conference.settingsFirewall')) + '</h3>'
+                + '<table class="evidence-table vc-settings-fw"><thead><tr><th>' + tr('cloud.firewall.service') + '</th><th>'
+                + tr('cloud.firewall.port') + '</th><th>' + tr('cloud.firewall.note') + '</th></tr></thead><tbody>'
+                + fw.map(function (r) {
+                    return '<tr><td>' + esc(r.service) + '</td><td>' + esc(r.port) + '</td><td>' + esc(r.note) + '</td></tr>';
+                }).join('')
+                + '</tbody></table></section>';
+        }
+        html += '</div></div>';
         el.innerHTML = html;
         bindSettingsForm(canEdit);
     }
@@ -1474,9 +1566,8 @@
                 await loadLobby();
                 renderRoomPicker();
                 renderLiveControls();
-            } else if (currentPanel === 'lobby') {
-                await loadLobby();
                 renderLobby();
+                syncLiveIdle();
             } else if (currentPanel === 'recordings') {
                 await renderRecordings();
             } else if (currentPanel === 'settings') {

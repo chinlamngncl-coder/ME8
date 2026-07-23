@@ -267,12 +267,33 @@ def _make_frame_detector(args, width, height):
     return engine, lambda frame: _detect_boxes_yunet(detector, frame, width, height)
 
 
+def _center(b):
+    return (b["x"] + b["w"] * 0.5, b["y"] + b["h"] * 0.5)
+
+
+def _center_dist(a, b):
+    ax, ay = _center(a)
+    bx, by = _center(b)
+    return ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5
+
+
+def _blend_box(old, new, new_w=0.65):
+    """Light blend — stable box on turn without growing pad."""
+    ow = 1.0 - float(new_w)
+    return {
+        "x": int(round(old["x"] * ow + new["x"] * new_w)),
+        "y": int(round(old["y"] * ow + new["y"] * new_w)),
+        "w": int(round(old["w"] * ow + new["w"] * new_w)),
+        "h": int(round(old["h"] * ow + new["h"] * new_w)),
+    }
+
+
 def _update_tracks(tracks, detections, iou_thresh, hold_frames, frame_idx):
-    """IoU match; hold last box a few frames — never grow a union over time."""
+    """IoU match + nearby-center rematch for direction changes; hold last box across short misses."""
     assigned = set()
     for tr in tracks:
         best_i = -1
-        best = iou_thresh
+        best = float(iou_thresh)
         for i, det in enumerate(detections):
             if i in assigned:
                 continue
@@ -280,8 +301,19 @@ def _update_tracks(tracks, detections, iou_thresh, hold_frames, frame_idx):
             if v >= best:
                 best = v
                 best_i = i
+        # Face turn: IoU often collapses while the head stays in roughly the same place.
+        if best_i < 0 and detections:
+            dist_lim = max(tr["box"]["w"], tr["box"]["h"]) * 0.85
+            best_d = dist_lim
+            for i, det in enumerate(detections):
+                if i in assigned:
+                    continue
+                d = _center_dist(tr["box"], det)
+                if d <= best_d:
+                    best_d = d
+                    best_i = i
         if best_i >= 0:
-            tr["box"] = detections[best_i]
+            tr["box"] = _blend_box(tr["box"], detections[best_i], 0.65)
             tr["last"] = frame_idx
             tr["miss"] = 0
             assigned.add(best_i)
@@ -514,6 +546,7 @@ def run_burn(args):
         "score": float(args.score),
         "detectEvery": detect_every,
         "holdFrames": hold_frames,
+        "iou": float(args.iou),
         "engine": engine,
         "detector": "seeta_face_detector" if engine == "seeta" else "yunet",
     }
@@ -562,8 +595,9 @@ def main(argv):
     br.add_argument("--pad", type=float, default=0.12)
     br.add_argument("--sigma", type=float, default=18.0)
     br.add_argument("--detect-every", type=int, default=1, dest="detect_every")
-    br.add_argument("--hold-frames", type=int, default=4, dest="hold_frames")
-    br.add_argument("--iou", type=float, default=0.25)
+    # REDACT-FACE-QUALITY-KNOBS-V1 — longer hold bridges turn/dropouts; pad stays tight (no body cover)
+    br.add_argument("--hold-frames", type=int, default=14, dest="hold_frames")
+    br.add_argument("--iou", type=float, default=0.18)
     br.add_argument("--timeline-out", default=None, dest="timeline_out")
 
     args = parser.parse_args(argv)

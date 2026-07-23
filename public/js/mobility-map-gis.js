@@ -1,5 +1,5 @@
 /**
- * Map region control — country/capital presets on the Leaflet map.
+ * Map region control \u2014 country/capital presets on the Leaflet map.
  */
 (function (global) {
     'use strict';
@@ -27,14 +27,14 @@
         zh: ['cn', 'za'],
     };
 
-    /** Plain country names — no i18n keys in the UI. */
+    /** Plain country names \u2014 no i18n keys in the UI. */
     var COUNTRY_NAMES = {
-        en: { sg: 'Singapore', ph: 'Philippines', id: 'Indonesia', th: 'Thailand', kr: 'Korea', cn: 'China', za: 'South Africa — JHB · CPT' },
-        fil: { sg: 'Singapore', ph: 'Pilipinas', id: 'Indonesia', th: 'Thailand', kr: 'Korea', cn: 'China', za: 'South Africa — JHB · Cape Town' },
-        id: { sg: 'Singapura', ph: 'Filipina', id: 'Indonesia', th: 'Thailand', kr: 'Korea', cn: 'Tiongkok', za: 'Afrika Selatan — JHB · Cape Town' },
-        th: { sg: 'สิงคโปร์', ph: 'ฟิลิปปินส์', id: 'อินโดนีเซีย', th: 'ไทย', kr: 'เกาหลี', cn: 'จีน', za: 'แอฟริกาใต้ (จוךฮันเนสเบิร์ก·เคปทาวน์)' },
-        ko: { sg: '싱가포르', ph: '필리핀', id: '인도네시아', th: '태국', kr: '한국', cn: '중국', za: '남아프리카공화국 (요하네스버그·케이프타운)' },
-        zh: { cn: '中国', za: '南非（约翰内斯堡·开普敦）' },
+        en: { sg: 'Singapore', ph: 'Philippines', id: 'Indonesia', th: 'Thailand', kr: 'Korea', cn: 'China', za: 'South Africa \u2014 JHB \u00B7 CPT' },
+        fil: { sg: 'Singapore', ph: 'Pilipinas', id: 'Indonesia', th: 'Thailand', kr: 'Korea', cn: 'China', za: 'South Africa \u2014 JHB \u00B7 Cape Town' },
+        id: { sg: 'Singapura', ph: 'Filipina', id: 'Indonesia', th: 'Thailand', kr: 'Korea', cn: 'Tiongkok', za: 'Afrika Selatan \u2014 JHB \u00B7 Cape Town' },
+        th: { sg: 'สิงคโปร์', ph: 'ฟิลิปปินส์', id: 'อินโดนีเซีย', th: 'ไทย', kr: 'เกาหลี', cn: 'จีน', za: 'แอฟริกาใต้ (จוךฮันเนสเบิร์ก\u00B7เคปทาวน์)' },
+        ko: { sg: '싱가포르', ph: '필리핀', id: '인도네시아', th: '태국', kr: '한국', cn: '중국', za: '남아프리카공화국 (요하네스버그\u00B7케이프타운)' },
+        zh: { cn: '中国', za: '南非（约翰内斯堡\u00B7开普敦）' },
     };
 
     var leafletMap = null;
@@ -250,7 +250,7 @@
         if (!placeSearchEnabled()) return '';
         return '<div class="map-place-search-wrap" id="map-place-search-wrap">'
             + '<input type="search" id="map-place-search-input" autocomplete="off" spellcheck="false"'
-            + ' data-i18n-placeholder="map.placeSearch.placeholder" placeholder="City, address, country…"'
+            + ' data-i18n-placeholder="map.placeSearch.placeholder" placeholder="City, address, country\u2026"'
             + ' data-i18n-aria="map.placeSearch.aria" aria-label="Search place">'
             + '<button type="button" id="map-place-search-btn" data-i18n="map.placeSearch.button"'
             + ' data-i18n-title="map.placeSearch.buttonTitle" title="Search place">Go</button>'

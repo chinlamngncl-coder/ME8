@@ -1,5 +1,5 @@
 /**
- * PCM live audio (WS port HTTP+2) for pop-out viewers — mirrors video-wall.js path.
+ * PCM live audio (WS port HTTP+2) for pop-out viewers \u2014 mirrors video-wall.js path.
  */
 (function (global) {
     'use strict';

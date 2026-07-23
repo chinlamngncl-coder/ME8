@@ -1,5 +1,5 @@
 /**
- * Field-engineer diagnostics — health, trace log, runbooks.
+ * Field-engineer diagnostics \u2014 health, trace log, runbooks.
  * Separate administrator PIN (not the dashboard password).
  */
 (function (global) {
@@ -321,7 +321,7 @@
             });
             detailEl.innerHTML =
                 '<h5>' + esc(rb.title) + '</h5>' +
-                '<p class="setup-hint">' + esc(tr('tech.runbook.severity', { level: rb.severity || '—' })) + '</p>' +
+                '<p class="setup-hint">' + esc(tr('tech.runbook.severity', { level: rb.severity || '\u2014' })) + '</p>' +
                 '<p><strong>' + esc(tr('tech.runbook.symptoms')) + '</strong></p><ul>' +
                 (rb.symptoms || []).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' +
                 '<p><strong>' + esc(tr('tech.runbook.steps')) + '</strong></p><ol>' + steps + '</ol>';

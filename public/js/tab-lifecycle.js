@@ -1,5 +1,5 @@
 /**
- * ME8 dashboard tab lifecycle — sticky revisits, optional stale refresh (60s).
+ * ME8 dashboard tab lifecycle \u2014 sticky revisits, optional stale refresh (60s).
  */
 (function (global) {
     'use strict';

@@ -115,7 +115,7 @@
         var pinPopupDockSide = {};
         var pinPopupDockRing = {};
         var pinPopupDockIdx = {};
-        /** Manual drag offset (px) on pin popups — cleared on popup close or reset layout. */
+        /** Manual drag offset (px) on pin popups \u2014 cleared on popup close or reset layout. */
         var pinPopupDragOffset = {};
         /** True after operator drags a popup (distinct from auto-fan offsets). */
         var pinPopupUserMoved = {};
@@ -124,7 +124,7 @@
         var stackDragFocusCamId = null;
         var mapPanActive = false;
         var pinDockLayoutBusy = false;
-        /** Colocated cluster → which cam shows the single map popup (shift ‹ › up to 8). */
+        /** Colocated cluster \u2192 which cam shows the single map popup (shift \u2039 \u203A up to 8). */
         var pinClusterActiveCam = {};
         var popoutMirrorSelectedCamId = null;
         var sosIncidentActive = false;
@@ -376,7 +376,7 @@
                 SessionBus.warmSettings().then(function (sdata) {
                     var urlEl = document.getElementById('display-operator-url');
                     if (urlEl && sdata && sdata.settings && sdata.settings.deployment) {
-                        urlEl.textContent = sdata.settings.deployment.operatorUrl || sdata.settings.publicHost || '—';
+                        urlEl.textContent = sdata.settings.deployment.operatorUrl || sdata.settings.publicHost || '\u2014';
                     }
                 }).catch(function () { /* ignore */ });
             }
@@ -425,14 +425,14 @@
 
         function pinDeviceTimeFromData(camId, data) {
             var dt = data && data.deviceTime;
-            if (dt && dt !== '—' && dt !== '--') {
+            if (dt && dt !== '\u2014' && dt !== '--') {
                 if (!data.deviceTimeSource || data.deviceTimeSource === 'device') return String(dt);
             }
             if (data && data.serverTime) return String(data.serverTime);
             if (window.globalTelemetryCache && window.globalTelemetryCache[camId]) {
                 var cached = window.globalTelemetryCache[camId];
                 dt = cached.deviceTime;
-                if (dt && dt !== '—' && dt !== '--' && cached.deviceTimeSource !== 'server') return String(dt);
+                if (dt && dt !== '\u2014' && dt !== '--' && cached.deviceTimeSource !== 'server') return String(dt);
                 if (cached.serverTime) return String(cached.serverTime);
             }
             return formatSiteEvidenceNow();
@@ -470,7 +470,7 @@
                 var cache = window.globalTelemetryCache && window.globalTelemetryCache[camId];
                 var deviceTime = pinDeviceTimeFromData(camId, cache || null);
                 var muted = !cache || cache.deviceTimeSource === 'server';
-                pinTelSet(root, '.pin-tel-device-time', deviceTime || '—', deviceTime && !muted ? '' : 'pin-tel-muted');
+                pinTelSet(root, '.pin-tel-device-time', deviceTime || '\u2014', deviceTime && !muted ? '' : 'pin-tel-muted');
             });
         }
         setInterval(refreshOpenPinDeviceTimes, 1000);
@@ -480,7 +480,7 @@
             if (!root) return;
             var deviceTime = pinDeviceTimeFromData(camId, data);
             var timeMuted = !data || data.deviceTimeSource === 'server';
-            pinTelSet(root, '.pin-tel-device-time', deviceTime || '—', deviceTime && !timeMuted ? '' : 'pin-tel-muted');
+            pinTelSet(root, '.pin-tel-device-time', deviceTime || '\u2014', deviceTime && !timeMuted ? '' : 'pin-tel-muted');
             if (!data) return;
             setTelemetryUi(Object.assign({ cameraId: camId }, data));
         }
@@ -498,12 +498,12 @@
             if (!window.globalTelemetryCache) window.globalTelemetryCache = {};
             var prevCache = window.globalTelemetryCache[data.cameraId] || {};
             var merged = Object.assign({}, prevCache, data);
-            if ((data.battery == null || data.battery === '--' || data.battery === '—')
-                && prevCache.battery && prevCache.battery !== '—' && prevCache.battery !== '--') {
+            if ((data.battery == null || data.battery === '--' || data.battery === '\u2014')
+                && prevCache.battery && prevCache.battery !== '\u2014' && prevCache.battery !== '--') {
                 merged.battery = prevCache.battery;
             }
-            if ((data.deviceTime == null || data.deviceTime === '--' || data.deviceTime === '—')
-                && prevCache.deviceTime && prevCache.deviceTime !== '—' && prevCache.deviceTime !== '--') {
+            if ((data.deviceTime == null || data.deviceTime === '--' || data.deviceTime === '\u2014')
+                && prevCache.deviceTime && prevCache.deviceTime !== '\u2014' && prevCache.deviceTime !== '--') {
                 merged.deviceTime = prevCache.deviceTime;
             }
             window.globalTelemetryCache[data.cameraId] = merged;
@@ -516,7 +516,7 @@
             var root = mapPopupRootForCam(data.cameraId);
             if (!root) return;
 
-            if (data.battery != null && data.battery !== '--' && data.battery !== '—') {
+            if (data.battery != null && data.battery !== '--' && data.battery !== '\u2014') {
                 var b = String(data.battery);
                 if (b.toUpperCase() === 'N/A') {
                     pinTelSet(root, '.pin-tel-battery', 'N/A', 'pin-tel-muted');
@@ -534,7 +534,7 @@
             } else if (data.audio != null) {
                 pinTelSet(root, '.pin-tel-audio', dashboardTr('common.off'), 'pin-tel-muted');
             }
-            if (merged.deviceTime && merged.deviceTime !== '—' && merged.deviceTime !== '--') {
+            if (merged.deviceTime && merged.deviceTime !== '\u2014' && merged.deviceTime !== '--') {
                 var dtMuted = merged.deviceTimeSource === 'server';
                 pinTelSet(root, '.pin-tel-device-time', String(merged.deviceTime), dtMuted ? 'pin-tel-muted' : '');
             }
@@ -549,10 +549,10 @@
             return '<div class="map-popup-telemetry">' +
                 '<p class="map-popup-tel-title">' + dashboardTr('map.telemetry.title') + '</p>' +
                 '<div class="map-popup-tel-grid">' +
-                '<div class="map-popup-tel-row"><span>' + dashboardTr('map.telemetry.deviceTime') + '</span><span class="pin-tel-device-time pin-tel-muted">—</span></div>' +
-                '<div class="map-popup-tel-row"><span>' + dashboardTr('map.telemetry.battery') + '</span><span class="pin-tel-battery">—</span></div>' +
-                '<div class="map-popup-tel-row"><span>' + dashboardTr('map.telemetry.sdRecord') + '</span><span class="pin-tel-record">—</span></div>' +
-                '<div class="map-popup-tel-row"><span>' + dashboardTr('map.telemetry.audioRec') + '</span><span class="pin-tel-audio">—</span></div>' +
+                '<div class="map-popup-tel-row"><span>' + dashboardTr('map.telemetry.deviceTime') + '</span><span class="pin-tel-device-time pin-tel-muted">\u2014</span></div>' +
+                '<div class="map-popup-tel-row"><span>' + dashboardTr('map.telemetry.battery') + '</span><span class="pin-tel-battery">\u2014</span></div>' +
+                '<div class="map-popup-tel-row"><span>' + dashboardTr('map.telemetry.sdRecord') + '</span><span class="pin-tel-record">\u2014</span></div>' +
+                '<div class="map-popup-tel-row"><span>' + dashboardTr('map.telemetry.audioRec') + '</span><span class="pin-tel-audio">\u2014</span></div>' +
                 '</div></div>';
         }
 
@@ -579,7 +579,7 @@
                 metaHtml +
                 '</div>' +
                 '<button type="button" class="map-pin-minimize" data-cam-id="' + escapePinText(camId) + '" title="' +
-                escapePinText(dashboardTr('map.pin.minimize')) + '" aria-label="' + escapePinText(dashboardTr('map.pin.minimize')) + '">−</button>' +
+                escapePinText(dashboardTr('map.pin.minimize')) + '" aria-label="' + escapePinText(dashboardTr('map.pin.minimize')) + '">\u2212</button>' +
                 '</div>';
         }
 
@@ -617,7 +617,7 @@
             var who = (typeof FleetDisplay !== 'undefined' && FleetDisplay.friendlyDeviceName)
                 ? FleetDisplay.friendlyDeviceName(camId)
                 : ('BWC #' + String(camId).slice(-4));
-            showMapPinToast('BWC button · ' + companionButtonLabel(data) + ' · ' + who);
+            showMapPinToast('BWC button \u00B7 ' + companionButtonLabel(data) + ' \u00B7 ' + who);
             if (typeof console !== 'undefined' && console.info) {
                 console.info('[BWC companion button]', data);
             }
@@ -774,7 +774,7 @@
             if (value === true || value === 1) return true;
             if (value === false || value === 0) return false;
             var text = String(value == null ? '' : value).trim().toLowerCase();
-            if (!text || text === '—' || text === '--') return null;
+            if (!text || text === '\u2014' || text === '--') return null;
             if (['1', 'true', 'on', 'yes', 'started', 'recording', 'active'].indexOf(text) >= 0) return true;
             if (['0', 'false', 'off', 'no', 'stopped', 'idle', 'inactive'].indexOf(text) >= 0) return false;
             return null;
@@ -1043,23 +1043,33 @@
         function pttGroupPickSourceKeyFn() {
             var sel = document.getElementById('ptt-group-select');
             var groupId = sel && sel.value;
-            if (groupId) return 'group:' + groupId;
             var pinned = getPinnedPttCamIds();
-            if (pinned.length) return 'pinned:' + pinned.slice().sort().join('|');
-            return '';
+            var parts = [];
+            if (groupId) parts.push('group:' + groupId);
+            if (pinned.length) parts.push('pinned:' + pinned.slice().sort().join('|'));
+            return parts.join('+');
         }
 
         function fullPttCandidatesMeta() {
             var sel = document.getElementById('ptt-group-select');
             var groupId = sel && sel.value;
             var catalog = window.pttGroupCatalog || [];
+            var byId = Object.create(null);
+            var out = [];
+            function addMeta(m) {
+                if (!m || !m.camId || byId[m.camId]) return;
+                byId[m.camId] = true;
+                out.push(m);
+            }
+            /* PTT-GROUP-NET-MESH-AND-TALK-V1 \u2014 map group preset ∪ fleet ticks (cross-group); Join needs 2+ */
             if (groupId) {
                 var g = catalog.find(function (x) { return x.id === groupId; });
-                return membersForSavedGroup(g);
+                membersForSavedGroup(g).forEach(addMeta);
             }
-            var pinned = getPinnedPttCamIds();
-            if (pinned.length) return membersForPinned();
-            return [];
+            getPinnedPttCamIds().forEach(function (id) {
+                addMeta(pttMemberChipMeta(id));
+            });
+            return out;
         }
 
         function syncPttGroupPickFromSource() {
@@ -1088,7 +1098,7 @@
             if (hintEl) hintEl.hidden = !opts.editable;
             el.innerHTML = members.map(function (m) {
                 var title = m.subtitle
-                    ? (m.label + ' · ' + m.subtitle)
+                    ? (m.label + ' \u00B7 ' + m.subtitle)
                     : m.label;
                 var on = opts.editable
                     ? pttGroupPickCamIds.indexOf(m.camId) >= 0
@@ -1099,7 +1109,7 @@
                 var actionBtn = '';
                 if (opts.editable) {
                     actionBtn = on
-                        ? '<button type="button" class="ptt-member-chip-btn" data-ptt-pick-action="remove" data-cam-id="' + escPttHtml(m.camId) + '" title="' + escPttHtml(dashboardTr('ptt.excludeFromGroup')) + '" aria-label="' + escPttHtml(dashboardTr('common.exclude')) + '">×</button>'
+                        ? '<button type="button" class="ptt-member-chip-btn" data-ptt-pick-action="remove" data-cam-id="' + escPttHtml(m.camId) + '" title="' + escPttHtml(dashboardTr('ptt.excludeFromGroup')) + '" aria-label="' + escPttHtml(dashboardTr('common.exclude')) + '">\u00D7</button>'
                         : '<button type="button" class="ptt-member-chip-btn" data-ptt-pick-action="add" data-cam-id="' + escPttHtml(m.camId) + '" title="' + escPttHtml(dashboardTr('ptt.includeInGroup')) + '" aria-label="' + escPttHtml(dashboardTr('common.include')) + '">+</button>';
                 }
                 return '<span class="' + chipClass + '" title="' + escPttHtml(title) + '">'
@@ -1129,6 +1139,16 @@
                     pickHint.classList.remove('ready', 'warn');
                 }
             }
+            syncDispatchGroupTalkChrome();
+        }
+
+        function syncDispatchGroupTalkChrome() {
+            var team = global.activeDispatchPttTeam;
+            var active = Array.isArray(team) && team.length >= 2;
+            var row = document.getElementById('ptt-group-talk-row');
+            var hint = document.getElementById('ptt-group-talk-hint');
+            if (row) row.hidden = !active;
+            if (hint) hint.hidden = !active;
         }
 
         function bindPttGroupMemberClicks() {
@@ -1201,12 +1221,9 @@
             }
 
             if (pinnedHint) {
-                if (!groupId && pinned.length >= 2) {
+                if (!groupId && pinned.length >= 1) {
                     pinnedHint.hidden = false;
                     pinnedHint.textContent = dashboardTr('ptt.groupBox.pinnedReady', { n: pinned.length });
-                } else if (!groupId && pinned.length === 1) {
-                    pinnedHint.hidden = false;
-                    pinnedHint.textContent = dashboardTr('ptt.groupBox.pinnedNeedMore');
                 } else {
                     pinnedHint.hidden = true;
                     pinnedHint.textContent = '';
@@ -1240,8 +1257,8 @@
                     var names = (g.members || []).slice(0, 3).map(function (m) {
                         return (m && m.nickname) ? m.nickname : '';
                     }).filter(Boolean);
-                    var namePart = names.length ? (' · ' + names.join(', ')) : '';
-                    if ((g.members || []).length > 3) namePart += '…';
+                    var namePart = names.length ? (' \u00B7 ' + names.join(', ')) : '';
+                    if ((g.members || []).length > 3) namePart += '\u2026';
                     var opt = document.createElement('option');
                     opt.value = g.id;
                     opt.textContent = (g.name || g.id) + namePart + ' (' + n + ')';
@@ -1278,7 +1295,17 @@
             var sel = document.getElementById('ptt-group-select');
             var groupId = sel && sel.value;
             var body = { camIds: pick };
-            if (groupId) body.groupId = groupId;
+            if (groupId) {
+                var catalog = window.pttGroupCatalog || [];
+                var g = catalog.find(function (x) { return x.id === groupId; });
+                var roster = (g && g.members || []).map(function (m) {
+                    return m && m.deviceId ? String(m.deviceId) : '';
+                }).filter(Boolean);
+                var rosterSet = Object.create(null);
+                roster.forEach(function (id) { rosterSet[id] = true; });
+                var allInRoster = pick.every(function (id) { return !!rosterSet[id]; });
+                if (allInRoster) body.groupId = groupId;
+            }
             fetch('/api/dispatch-ptt-group', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1290,12 +1317,12 @@
                     if (global.VideoWall && VideoWall.setDispatchPttTeam) {
                         VideoWall.setDispatchPttTeam(data.pttTeam.team);
                     }
-                    var label = data.pttTeam.groupName
-                        || dashboardTr('ptt.groupBox.quickName', { n: data.pttTeam.team.length });
+                    var n = data.pttTeam.team.length;
                     setPttGroupStatus(
-                        dashboardTr('ptt.groupBox.active', { name: label, n: data.pttTeam.team.length }),
+                        dashboardTr('ptt.groupBox.radioNet', { n: n }),
                         true
                     );
+                    syncDispatchGroupTalkChrome();
                     refreshPttGroupPreview();
                 } else {
                     alert((data && data.error) || dashboardTr('ptt.groupBox.failed'));
@@ -1318,6 +1345,7 @@
                     data && data.ok ? dashboardTr('ptt.groupBox.ungrouped') : dashboardTr('ptt.groupBox.ungroupFailed'),
                     false
                 );
+                syncDispatchGroupTalkChrome();
                 refreshPttGroupPreview();
             }).catch(function () {
                 setPttGroupStatus(dashboardTr('ptt.groupBox.ungroupFailed'), false);
@@ -1365,7 +1393,7 @@
                 body.innerHTML = '<ul class="ss-group-view-list">' + (g.members || []).map(function (m) {
                     var st = m.online ? 'Online' : 'Offline';
                     return '<li><span class="ss-group-dot" style="background:' + g.color + '"></span><strong>' +
-                        escapePinText(m.nickname || '—') + '</strong>' +
+                        escapePinText(m.nickname || '\u2014') + '</strong>' +
                         (m.deviceId ? ' <code>' + escapePinText(m.deviceId) + '</code>' : '') +
                         ' <span class="hint">(' + st + ')</span></li>';
                 }).join('') + '</ul>';
@@ -1394,10 +1422,10 @@
             var color;
             if (alarmKind === 'fall') {
                 color = '#F59E0B';
-                if (label.indexOf('FALL') !== 0) label = 'FALL · ' + label;
+                if (label.indexOf('FALL') !== 0) label = 'FALL \u00B7 ' + label;
             } else if (alarmKind === 'sos') {
                 color = '#FF3333';
-                if (label.indexOf('SOS') !== 0) label = 'SOS · ' + label;
+                if (label.indexOf('SOS') !== 0) label = 'SOS \u00B7 ' + label;
             } else if (offline) {
                 color = '#94a3b8';
             } else {
@@ -1408,7 +1436,7 @@
             if (geofenceOutside) {
                 color = '#f97316';
                 var outLbl = dashboardTr('map.pin.geofenceOut');
-                if (label.indexOf(outLbl) !== 0) label = outLbl + ' · ' + label;
+                if (label.indexOf(outLbl) !== 0) label = outLbl + ' \u00B7 ' + label;
             }
             return { label: label, color: color, mapGroup: mapGroup, alarmKind: alarmKind || null, offline: offline, geofenceOutside: geofenceOutside };
         }
@@ -1506,7 +1534,7 @@
                         root.classList.toggle('pin-popup-minimized', min);
                         var minBtn = root.querySelector('.map-pin-minimize');
                         if (minBtn) {
-                            minBtn.textContent = min ? '+' : '−';
+                            minBtn.textContent = min ? '+' : '\u2212';
                         }
                     }
                 });
@@ -1587,14 +1615,44 @@
             if (!bar) {
                 bar = document.createElement('div');
                 bar.className = 'map-pin-cluster-shift';
-                bar.innerHTML = '<button type="button" class="map-pin-cluster-prev" title="' + dashboardTr('map.clusterPrev') + '">‹</button>' +
+                bar.innerHTML = '<button type="button" class="map-pin-cluster-prev" title="' + dashboardTr('map.clusterPrev') + '">\u2039</button>' +
                     '<span class="map-pin-cluster-label"></span>' +
-                    '<button type="button" class="map-pin-cluster-next" title="' + dashboardTr('map.clusterNext') + '">›</button>';
+                    '<button type="button" class="map-pin-cluster-next" title="' + dashboardTr('map.clusterNext') + '">\u203A</button>';
                 head.insertBefore(bar, head.firstChild);
             }
             bar.setAttribute('data-cluster', clusterId);
             var label = bar.querySelector('.map-pin-cluster-label');
-            if (label) label.textContent = (idx + 1) + '/' + cluster.length + ' · ' + friendlyPinName(camId);
+            if (label) label.textContent = (idx + 1) + '/' + cluster.length + ' \u00B7 ' + friendlyPinName(camId);
+        }
+
+        function colocatedClusterHasOpenPopup(cluster) {
+            if (!cluster || cluster.length < 2) return false;
+            if (window.__me8PinBatchOpening) return true;
+            var open = getOpenPinCamIds();
+            if (!open.length) return false;
+            return cluster.some(function (id) {
+                var nid = normalizeCamId(id);
+                return open.some(function (o) { return normalizeCamId(o) === nid; });
+            });
+        }
+
+        function refreshMapPinClusters() {
+            if (typeof MapPinLayer !== 'undefined' && MapPinLayer.refreshClusters) {
+                MapPinLayer.refreshClusters();
+            }
+        }
+
+        function reattachColocatedMarkersForCluster(cluster) {
+            if (!cluster || cluster.length < 2) return;
+            cluster.forEach(function (camId) {
+                var mk = deviceMarkers[camId];
+                if (!mk) return;
+                var alarmKind = getCamAlarmKind(camId);
+                var isSos = isCamSosActive(camId);
+                if (typeof MapPinLayer !== 'undefined' && MapPinLayer.attachMarker) {
+                    MapPinLayer.attachMarker(mk, isSos, alarmKind, camId);
+                }
+            });
         }
 
         function collapseClusterMarkersToGps(cluster) {
@@ -1623,7 +1681,7 @@
             });
         }
 
-        /** Cycle focus among colocated open pins — all popups stay open (no single-popup collapse). */
+        /** Cycle focus among colocated open pins \u2014 all popups stay open (no single-popup collapse). */
         function shiftPinCluster(clusterId, delta) {
             if (!clusterId) return;
             var ids = clusterId.split('|').filter(Boolean);
@@ -1737,7 +1795,32 @@
             return (merged && merged[0] && merged[0].length >= 2) ? merged[0] : found;
         }
 
+        function pinMapHandsOffIdle() {
+            return !getOpenPinCamIds().length && !window.__me8PinBatchOpening;
+        }
+
+        function collapseIdleColocatedMarkersForClustering() {
+            if (getOpenPinCamIds().length || window.__me8PinBatchOpening || pinDockLayoutBusy) return;
+            var collapsed = false;
+            var processed = Object.create(null);
+            clusterAllPinCamIdsByGps().forEach(function (gpsCluster) {
+                var seed = gpsCluster[0] && gpsCluster[0].id;
+                if (!seed) return;
+                var cluster = colocatedMapClusterForCam(seed);
+                if (cluster.length < 2) return;
+                var key = cluster.map(function (id) { return normalizeCamId(id); }).sort().join('|');
+                if (processed[key]) return;
+                processed[key] = true;
+                collapseClusterMarkersToGps(cluster);
+                reattachColocatedMarkersForCluster(cluster);
+                collapsed = true;
+            });
+            if (collapsed) refreshMapPinClusters();
+        }
+
         function spreadStableColocatedMarkers() {
+            if (pinDockLayoutBusy) return;
+            if (!getOpenPinCamIds().length && !window.__me8PinBatchOpening) return;
             var spreadIds = Object.create(null);
             var processed = Object.create(null);
             clusterAllPinCamIdsByGps().forEach(function (gpsCluster) {
@@ -1748,6 +1831,7 @@
                 var key = cluster.map(function (id) { return normalizeCamId(id); }).sort().join('|');
                 if (processed[key]) return;
                 processed[key] = true;
+                if (!colocatedClusterHasOpenPopup(cluster)) return;
                 var centerPt = clusterCenterLayerPoint(cluster);
                 if (!centerPt) return;
                 var distPx = Math.max(58, 38 + cluster.length * 14);
@@ -1957,6 +2041,11 @@
         function clusterMetaForOpenCam(camId) {
             camId = normalizeCamId(camId);
             if (!camId) return null;
+            var mapCluster = colocatedMapClusterForCam(camId);
+            if (mapCluster.length >= 2) {
+                var mapCenter = clusterCenterLatLng(mapCluster);
+                if (mapCenter) return { center: mapCenter, size: mapCluster.length };
+            }
             var clusters = clusterOpenPinCamIds(getOpenPinCamIds());
             for (var i = 0; i < clusters.length; i++) {
                 var cluster = clusters[i];
@@ -1964,11 +2053,6 @@
                 if (!cluster.some(function (id) { return normalizeCamId(id) === camId; })) continue;
                 var center = clusterCenterLatLng(cluster);
                 return center ? { center: center, size: cluster.length } : null;
-            }
-            var mapCluster = colocatedMapClusterForCam(camId);
-            if (mapCluster.length >= 2) {
-                var mapCenter = clusterCenterLatLng(mapCluster);
-                return mapCenter ? { center: mapCenter, size: mapCluster.length } : null;
             }
             return null;
         }
@@ -2025,7 +2109,7 @@
         }
 
         function ensureStackPopupToolbar(camId, cluster, clusterId, idx, overlapping) {
-            /* Toolbar moved to #map-pin-stack-hud — always visible above overlapping popups. */
+            /* Toolbar moved to #map-pin-stack-hud \u2014 always visible above overlapping popups. */
         }
 
         function autoFanStackedPopups(cluster) {
@@ -2094,8 +2178,8 @@
                     stackHint = 'Select chip, then drag that header';
                 }
                 label.textContent = overlapping
-                    ? ('Overlapping (' + stackedCluster.length + ') — ' + stackHint)
-                    : ('Stacked nearby (' + stackedCluster.length + ') — ' + stackHint);
+                    ? ('Overlapping (' + stackedCluster.length + ') \u2014 ' + stackHint)
+                    : ('Stacked nearby (' + stackedCluster.length + ') \u2014 ' + stackHint);
             }
             var chipsEl = hud.querySelector('.map-pin-stack-hud-chips');
             if (chipsEl) {
@@ -2258,7 +2342,7 @@
                 var root = mapPopupRootForCam(camId);
                 if (!root) return;
                 var minimized = root.classList.toggle('pin-popup-minimized');
-                minBtn.textContent = minimized ? '+' : '−';
+                minBtn.textContent = minimized ? '+' : '\u2212';
                 minBtn.title = dashboardTr(minimized ? 'map.pin.expand' : 'map.pin.minimize');
                 minBtn.setAttribute('aria-label', minBtn.title);
                 if (!minimized) {
@@ -2506,8 +2590,10 @@
         }
 
         function assignColocatedPinPopupDocks() {
-            pinDockLayoutBusy = true;
+            if (window.__me8PinBatchOpening) return;
             var open = getOpenPinCamIds();
+            if (!open.length) return;
+            pinDockLayoutBusy = true;
             open.forEach(function (camId) {
                 var nid = normalizeCamId(camId);
                 if (!pinPopupUserMoved[nid]) delete pinPopupDragOffset[nid];
@@ -2559,14 +2645,18 @@
                 MapPopoutSync.publishDebounced();
             }
             setTimeout(function () {
-                spreadStableColocatedMarkers();
+                if (getOpenPinCamIds().length) {
+                    spreadStableColocatedMarkers();
+                }
                 refreshSpreadPinIcons(open);
                 repositionAllOpenPinPopupsMeasured();
                 updateStackedPopupDragUi(open, clusters);
                 purgeOrphanPinPopups();
             }, 150);
             setTimeout(function () {
-                spreadStableColocatedMarkers();
+                if (getOpenPinCamIds().length) {
+                    spreadStableColocatedMarkers();
+                }
                 refreshSpreadPinIcons(open);
                 repositionAllOpenPinPopupsMeasured();
                 updateStackedPopupDragUi(open, clusters);
@@ -2693,6 +2783,9 @@
                 }
                 setTimeout(function () {
                     assignColocatedPinPopupDocks();
+                    if (pinMapHandsOffIdle()) {
+                        collapseIdleColocatedMarkersForClustering();
+                    }
                     repairOpenPinPopupVideos();
                     purgeOrphanPinPopups();
                 }, 40);
@@ -2785,7 +2878,7 @@
             return null;
         }
 
-        /** Pan map to device only when appropriate — colocated open pins stay put; SOS follows red dot only when far. */
+        /** Pan map to device only when appropriate \u2014 colocated open pins stay put; SOS follows red dot only when far. */
         function shouldPanMapToDevice(camId, lat, lon, isSos) {
             var sel = (typeof FleetUi !== 'undefined' && FleetUi.getSelectedCamId) ? FleetUi.getSelectedCamId() : null;
             if (!isSos) return normalizeCamId(camId) === normalizeCamId(sel);
@@ -2869,7 +2962,9 @@
                     });
                 }
                 m._gpsLatLng = L.latLng(lat, lon);
-                m.setLatLng(latlng);
+                if (!pinMapHandsOffIdle() || colocatedMapClusterForCam(camId).length < 2) {
+                    m.setLatLng(latlng);
+                }
                 m.setIcon(buildPinIcon(meta, selected));
                 if (!pinPopupShouldKeepVideo(camId, isSos)) {
                     m.setPopupContent(html);
@@ -2973,6 +3068,9 @@
                     }
                     setTimeout(function () {
                         assignColocatedPinPopupDocks();
+                        if (pinMapHandsOffIdle()) {
+                            collapseIdleColocatedMarkersForClustering();
+                        }
                         repairOpenPinPopupVideos();
                         purgeOrphanPinPopups();
                     }, 40);
@@ -3020,10 +3118,8 @@
                 });
                 deviceMarkers[camId] = m;
             }
-            if (getOpenPinCamIds().length >= 2) {
+            if (getOpenPinCamIds().length || window.__me8PinBatchOpening) {
                 spreadStableColocatedMarkers();
-            } else if (m && m._gpsLatLng) {
-                m.setLatLng(m._gpsLatLng);
             }
             if (selected || isSos) cameraMarker = m;
             if (typeof MapPinLayer !== 'undefined' && MapPinLayer.attachMarker) {
@@ -3457,7 +3553,7 @@
             var headerRole = document.getElementById('header-session-role');
             var headerDisplay = document.getElementById('header-session-display');
             if (chip) chip.hidden = !data.username;
-            if (headerUser) headerUser.textContent = data.username || '—';
+            if (headerUser) headerUser.textContent = data.username || '\u2014';
             if (headerRole && data.role) {
                 headerRole.hidden = false;
                 headerRole.textContent = dashboardRoleLabel(data.role);
@@ -3929,7 +4025,7 @@
                 var base = activeAlarmKind === 'fall'
                     ? dashboardTr('sos.banner.fall')
                     : dashboardTr('sos.banner.distress');
-                prefix.textContent = n > 1 ? (base + ' · ' + n + ' alarms') : base;
+                prefix.textContent = n > 1 ? (base + ' \u00B7 ' + n + ' alarms') : base;
             }
             if (typeof FleetDisplay !== 'undefined') {
                 FleetDisplay.setCamLabel(document.getElementById('sos-cam'), alarm.cameraId);
@@ -3953,7 +4049,7 @@
             strip.innerHTML = keys.map(function (camId) {
                 var a = activeSosAlarms[camId];
                 var status = videoStatusForSosCam(camId);
-                var badgeLabel = status === 'live' ? 'Live' : (status === 'queued' ? 'Queued' : (status === 'connecting' ? '…' : '—'));
+                var badgeLabel = status === 'live' ? 'Live' : (status === 'queued' ? 'Queued' : (status === 'connecting' ? '\u2026' : '\u2014'));
                 var hasGps = a.lat != null && a.lon != null && !isNaN(parseFloat(a.lat)) && !isNaN(parseFloat(a.lon));
                 var focused = normalizeCamId(focusedSosCamId) === camId ? ' focused' : '';
                 return '<div class="sos-alarm-row' + focused + '" data-cam="' + String(camId).replace(/"/g, '&quot;') + '">' +
@@ -4198,7 +4294,7 @@
             if (btn) {
                 btn.classList.toggle('active', active);
                 btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-                btn.textContent = active ? 'PTT TEAM · ON' : dashboardTr('sos.banner.pttTeam');
+                btn.textContent = active ? 'PTT TEAM \u00B7 ON' : dashboardTr('sos.banner.pttTeam');
             }
             var sidebar = document.getElementById('sos-ptt-team-sidebar');
             var postBanner = active && getSosAlarmCount() === 0;
@@ -4208,7 +4304,7 @@
                     var sideSummary = document.getElementById('sos-ptt-team-sidebar-summary');
                     if (sideSummary) {
                         var sideLabels = sosPttTeamFriendlyNames(team).join(', ');
-                        sideSummary.textContent = 'SOS response team — ' + team.length + ' unit(s): '
+                        sideSummary.textContent = 'SOS response team \u2014 ' + team.length + ' unit(s): '
                             + sideLabels + '. Hold PTT on map pin or wall.';
                     }
                 }
@@ -4225,7 +4321,7 @@
             }
             var labels = sosPttTeamFriendlyNames(team).join(', ');
             el.classList.add('sos-ptt-team-active');
-            el.textContent = 'PTT team ON — ' + team.length + ' unit(s): ' + labels
+            el.textContent = 'PTT team ON \u2014 ' + team.length + ' unit(s): ' + labels
                 + '. Hold PTT on map pin or wall during active SOS.';
             syncSosPttMemberUi();
         }
@@ -4318,7 +4414,7 @@
             list.innerHTML = candidates.map(function (d) {
                 var cid = String(d.cameraId).replace(/"/g, '&quot;');
                 var distLabel = d.distanceM != null
-                    ? (' (' + d.distanceM + ' m' + (d.outsideCircle ? ' · outside circle' : '') + ')')
+                    ? (' (' + d.distanceM + ' m' + (d.outsideCircle ? ' \u00B7 outside circle' : '') + ')')
                     : ' (remote / no GPS)';
                 var cls = 'sos-ptt-add-btn' + (d.remote ? ' remote' : (d.outsideCircle ? ' outside' : ''));
                 return '<button type="button" class="' + cls + '" data-cam-id="' + cid + '">+ '
@@ -4378,7 +4474,7 @@
             syncSosPttTeamUi();
             if (!opts.silentToast) {
                 var names = sosPttTeamFriendlyNames(data.pttTeam.team).join(' + ');
-                showSosPttTeamToast('PTT team ON — ' + names + ' (' + data.pttTeam.team.length + ' units). Hold PTT to talk.', 14000);
+                showSosPttTeamToast('PTT team ON \u2014 ' + names + ' (' + data.pttTeam.team.length + ' units). Hold PTT to talk.', 14000);
             }
             renderSosPttMemberList();
             return true;
@@ -4406,7 +4502,7 @@
             }
             var addName = (typeof FleetDisplay !== 'undefined' && FleetDisplay.friendlyDeviceName)
                 ? FleetDisplay.friendlyDeviceName(helperCamId) : helperCamId;
-            showSosPttTeamToast('Adding ' + addName + ' to PTT team…', 8000);
+            showSosPttTeamToast('Adding ' + addName + ' to PTT team\u2026', 8000);
             var team = global.activeSosPttTeam;
             var useFullPush = !team || team.length < 2;
             var fetchOpts = {
@@ -4425,7 +4521,7 @@
                 .then(function (data) {
                     if (applySosPttTeamResult(data, { silentToast: !useFullPush })) {
                         if (!useFullPush) {
-                            showSosPttTeamToast('Added ' + addName + ' — team now '
+                            showSosPttTeamToast('Added ' + addName + ' \u2014 team now '
                                 + data.pttTeam.team.length + ' unit(s).', 12000);
                         }
                     } else {
@@ -4465,7 +4561,7 @@
                         nName = FleetDisplay.friendlyDeviceName(nearest.cameraId) || nName;
                     }
                     var offTag = nearest.online ? '' : ' (offline)';
-                    el.textContent = base + ' Nearest (GPS): ' + nName + offTag + ' — ' + nearest.distanceM + ' m.';
+                    el.textContent = base + ' Nearest (GPS): ' + nName + offTag + ' \u2014 ' + nearest.distanceM + ' m.';
                 } else {
                     el.textContent = base;
                 }
@@ -4475,7 +4571,7 @@
                 return x.name + ' (' + x.distanceM + ' m)';
             }).join(', ');
             el.textContent = dashboardTr('sos.response.nearby', { n: n, max: SOS_RESPONSE_MAX, radius: radiusM, names: names })
-                + ' — Press PTT team to join them on one push-to-talk group (audio only).';
+                + ' \u2014 Press PTT team to join them on one push-to-talk group (audio only).';
         }
 
         function pushSosPttTeamNow() {
@@ -4487,7 +4583,7 @@
             var btn = document.getElementById('sos-ptt-team-btn');
             if (btn && btn.disabled) return;
             if (btn) btn.disabled = true;
-            showSosPttTeamToast('Pushing PTT team to nearby units…', 8000);
+            showSosPttTeamToast('Pushing PTT team to nearby units\u2026', 8000);
             refreshSosResponseTeam();
             var helpers = sosResponseNearby.filter(function (d) { return d.online !== false; }).map(function (d) { return d.cameraId; });
             if (!helpers.length) {
@@ -4700,7 +4796,7 @@
                 el.id = 'sos-received-toast';
                 document.body.appendChild(el);
             }
-            el.textContent = 'SOS received · ' + (camId || '');
+            el.textContent = 'SOS received \u00B7 ' + (camId || '');
             el.hidden = false;
             positionSosReceivedToast(el);
             requestAnimationFrame(function () { positionSosReceivedToast(el); });
@@ -4708,7 +4804,7 @@
             window._sosToastTimer = setTimeout(function () { el.hidden = true; }, 8000);
         }
 
-        /** Every sos-alarm event runs full UI — no sameSos early return (replay-only bypass caused cold-start silence). */
+        /** Every sos-alarm event runs full UI \u2014 no sameSos early return (replay-only bypass caused cold-start silence). */
         function onDashboardSosAlarm(data) {
             try {
                 if (!data || !data.cameraId) return;
@@ -4953,7 +5049,7 @@
                 var label = document.createElement('label');
                 label.className = 'geofence-pick-option' + (clearable ? '' : ' geofence-pick-disabled');
                 var name = d.operatorName || (typeof FleetDisplay !== 'undefined' ? FleetDisplay.friendlyDeviceName(d.deviceId) : d.deviceId);
-                var group = d.mapGroup ? (' · ' + d.mapGroup) : '';
+                var group = d.mapGroup ? (' \u00B7 ' + d.mapGroup) : '';
                 var checked = false;
                 if (clearable) {
                     if (preselectId && d.deviceId === preselectId && d.hasGeofence) checked = true;
@@ -5533,7 +5629,7 @@
             }
         }
 
-        /** After SOS close — patrol pins were on the map layer during alarm; re-attach so cluster/viewport does not hide them until zoom-out. */
+        /** After SOS close \u2014 patrol pins were on the map layer during alarm; re-attach so cluster/viewport does not hide them until zoom-out. */
         function reattachFleetMarkersAfterSosClose() {
             var openIds = getOpenPinCamIds();
             if (typeof MapPinLayer !== 'undefined' && MapPinLayer.setPopupOpenCamId) {
@@ -5550,7 +5646,7 @@
                     m.addTo(map);
                 }
             });
-            if (Object.keys(deviceMarkers).length >= 2) {
+            if (getOpenPinCamIds().length || window.__me8PinBatchOpening) {
                 spreadStableColocatedMarkers();
             }
             refreshAllDeviceMarkerStyles();
@@ -5569,7 +5665,7 @@
             }
         }
 
-        /** After SOS Ack — patrol Field PTT banner/linger must not outlive the incident. */
+        /** After SOS Ack \u2014 patrol Field PTT banner/linger must not outlive the incident. */
         function dismissFieldPttForSosClose() {
             if (global.PttRx && PttRx.dismissAllFieldPttSession) {
                 PttRx.dismissAllFieldPttSession();
@@ -5705,6 +5801,12 @@
                             var hadSosPttTeam = global.activeSosPttTeam
                                 && global.activeSosPttTeam.length > 1;
                             refreshSosLedger();
+                            if (data && data.ok && data.endedGroupCall) {
+                                showSosPttTeamToast(
+                                    'SOS group call ended \u2014 HQ PTT / Call ready.',
+                                    10000
+                                );
+                            }
                             finishDismiss(ackPushedTeam || hadSosPttTeam);
                         })
                         .catch(function () { finishDismiss(false); });
@@ -5836,7 +5938,7 @@
             document.getElementById('sos-detail-panel').hidden = false;
             document.getElementById('sos-detail-status').textContent = row.acknowledged ? dashboardTr('sos.detail.statusAck') : dashboardTr('sos.detail.statusOpen');
             document.getElementById('sos-detail-time').textContent = formatLedgerTime(row.at);
-            document.getElementById('sos-detail-operator').textContent = row.operatorName || (typeof FleetDisplay !== 'undefined' ? FleetDisplay.friendlyDeviceName(row.cameraId) : row.cameraId) || '—';
+            document.getElementById('sos-detail-operator').textContent = row.operatorName || (typeof FleetDisplay !== 'undefined' ? FleetDisplay.friendlyDeviceName(row.cameraId) : row.cameraId) || '\u2014';
             var reportUrl = sosReportUrlForRow(row);
             var frame = document.getElementById('sos-detail-report-frame');
             var noReport = document.getElementById('sos-detail-no-report');
@@ -5856,7 +5958,7 @@
                             frame.hidden = true;
                             if (noReport) noReport.hidden = false;
                         }
-                    } catch (_) { /* cross-origin — ignore */ }
+                    } catch (_) { /* cross-origin \u2014 ignore */ }
                 };
                 frame.onerror = function () {
                     frame.hidden = true;
@@ -6041,20 +6143,20 @@
                     var tag = row.acknowledged ? dashboardTr('sos.ledger.tagAck') : dashboardTr('sos.ledger.tagOpen');
                     var typeTag = row.alarmKind === 'fall' ? dashboardTr('sos.ledger.tagFall') : dashboardTr('sos.ledger.tagSos');
                     var hint = row.acknowledged ? dashboardTr('sos.ledger.hintAck') : dashboardTr('sos.ledger.hintOpen');
-                    if (row.serverRecordingEvidenceId) hint += ' · ' + dashboardTr('sos.ledger.hasRecording');
+                    if (row.serverRecordingEvidenceId) hint += ' \u00B7 ' + dashboardTr('sos.ledger.hasRecording');
                     var op = row.operatorName ? String(row.operatorName) : (typeof FleetDisplay !== 'undefined' ? FleetDisplay.friendlyDeviceName(row.cameraId) : dashboardTr('fleet.bwc'));
                     var cam = '';
                     item.innerHTML = thumb +
-                        '<div class="sos-ledger-body"><div class="sos-ledger-tag">' + typeTag + ' · ' + tag + '</div>' +
-                        '<div class="when">' + formatLedgerTime(row.at) + ' · ' + op.replace(/</g, '&lt;') + cam + '</div>' +
+                        '<div class="sos-ledger-body"><div class="sos-ledger-tag">' + typeTag + ' \u00B7 ' + tag + '</div>' +
+                        '<div class="when">' + formatLedgerTime(row.at) + ' \u00B7 ' + op.replace(/</g, '&lt;') + cam + '</div>' +
                         '<div class="note-hint">' + hint + '</div></div>';
                     item.addEventListener('click', function () { openSosLedgerDetail(row.id); });
                     list.appendChild(item);
                 });
                 var summary = rows.length + ' shown (' + windowDays + ' days)';
-                if (openCount) summary += ' · ' + openCount + ' need acknowledge';
-                if (older) summary += ' · older in folder';
-                summary += ' · Updated ' + new Date().toLocaleTimeString();
+                if (openCount) summary += ' \u00B7 ' + openCount + ' need acknowledge';
+                if (older) summary += ' \u00B7 older in folder';
+                summary += ' \u00B7 Updated ' + new Date().toLocaleTimeString();
                 setSosLedgerMeta(summary, '');
                 if (!opts.silent) {
                     list.classList.remove('sos-list-pulse');
@@ -6112,6 +6214,11 @@
         if (pttJoinBtn) pttJoinBtn.addEventListener('click', joinDispatchPttGroup);
         if (pttUngroupBtn) pttUngroupBtn.addEventListener('click', ungroupDispatchPtt);
         if (pttGroupSelect) pttGroupSelect.addEventListener('change', refreshPttGroupPreview);
+        var pttGroupTalkHold = document.getElementById('ptt-group-talk-hold');
+        if (pttGroupTalkHold && global.VideoWall && VideoWall.bindDispatchGroupPttHold) {
+            VideoWall.bindDispatchGroupPttHold(pttGroupTalkHold);
+        }
+        syncDispatchGroupTalkChrome();
         var mapPopoutBtn = document.getElementById('map-popout-open');
         if (mapPopoutBtn) mapPopoutBtn.addEventListener('click', openMapPopout);
         var srvRecStart = document.getElementById('map-server-record-start');
@@ -6199,11 +6306,11 @@
                     actions = '<button type="button" class="btn btn-stop btn-sm ks-approve" data-request-id="'
                         + ksEscAttr(r.id) + '">' + dashboardTr('map.killSwitch.approve') + '</button>';
                 }
-                var incident = r.incidentId ? (' · ' + ksEscAttr(r.incidentId)) : '';
+                var incident = r.incidentId ? (' \u00B7 ' + ksEscAttr(r.incidentId)) : '';
                 return '<div class="kill-switch-approve-item"><div class="ks-meta"><strong>'
-                    + ksEscAttr(cmdLabel) + '</strong> — ' + ksEscAttr(deviceLabel)
-                    + '<br>' + dashboardTr('map.killSwitch.requestedBy', { user: r.requesterUsername || '—' })
-                    + (exp ? (' · ' + dashboardTr('map.killSwitch.expiresIn', { time: exp })) : '')
+                    + ksEscAttr(cmdLabel) + '</strong> \u2014 ' + ksEscAttr(deviceLabel)
+                    + '<br>' + dashboardTr('map.killSwitch.requestedBy', { user: r.requesterUsername || '\u2014' })
+                    + (exp ? (' \u00B7 ' + dashboardTr('map.killSwitch.expiresIn', { time: exp })) : '')
                     + '<div class="ks-reason">' + ksEscAttr(r.reason || '') + incident + '</div></div>'
                     + '<div class="ks-actions">' + actions + '</div></div>';
             }).join('');
@@ -6474,9 +6581,9 @@
             try {
                 var res = await fetch('/api/storage');
                 var data = await res.json();
-                document.getElementById('storage-ftp-path').textContent = data.ftpLabel || data.ftp || '—';
+                document.getElementById('storage-ftp-path').textContent = data.ftpLabel || data.ftp || '\u2014';
             } catch (_) {
-                document.getElementById('storage-ftp-path').textContent = '—';
+                document.getElementById('storage-ftp-path').textContent = '\u2014';
             }
         }
         window.loadStoragePaths = loadStoragePaths;

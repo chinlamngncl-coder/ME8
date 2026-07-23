@@ -1,5 +1,5 @@
 /**
- * Evidence storage settings — industry-style layout (local vs IP SAN/NAS, test, apply, scan).
+ * Evidence storage settings \u2014 industry-style layout (local vs IP SAN/NAS, test, apply, scan).
  */
 (function (global) {
     let lastPayload = null;
@@ -54,7 +54,7 @@
         const rt = runtime || {};
         const f = ftp || {};
         if (svcEl) {
-            let badge = '<span class="ev-st-badge ev-st-muted">—</span>';
+            let badge = '<span class="ev-st-badge ev-st-muted">\u2014</span>';
             if (!f.enabled) {
                 badge = '<span class="ev-st-badge ev-st-muted">' + esc(tr('server.dock.stopped')) + '</span>';
             } else if (rt.ftpListening) {
@@ -142,12 +142,12 @@
     async function loadContextRail() {
         if (!global.EvContextRail || !EvContextRail.refresh) return;
         await EvContextRail.refresh('settings', {
-            ftpSvc: ($('ss-ftp-service-state') || {}).textContent || '—',
+            ftpSvc: ($('ss-ftp-service-state') || {}).textContent || '\u2014',
         });
     }
 
     function statusBadge(ok, writable, label) {
-        if (ok === null || ok === undefined) return '<span class="ev-st-badge ev-st-muted">—</span>';
+        if (ok === null || ok === undefined) return '<span class="ev-st-badge ev-st-muted">\u2014</span>';
         if (ok && writable) {
             return '<span class="ev-st-badge ev-st-ok">✓ ' + esc(label || tr('evidence.storageStatusOk')) + '</span>';
         }
@@ -273,10 +273,10 @@
             if ($('ss-ftp-upload-path')) {
                 $('ss-ftp-upload-path').value = (data.docking && data.docking.ftpUploadPath) || '';
             }
-            if ($('ss-evidence-live-folder')) $('ss-evidence-live-folder').textContent = data.liveCaptureLabel || '—';
-            if ($('ss-dock-folder')) $('ss-dock-folder').textContent = data.ftpLabel || '—';
+            if ($('ss-evidence-live-folder')) $('ss-evidence-live-folder').textContent = data.liveCaptureLabel || '\u2014';
+            if ($('ss-dock-folder')) $('ss-dock-folder').textContent = data.ftpLabel || '\u2014';
             if ($('ss-fr-storage-root')) $('ss-fr-storage-root').value = (data.frStorage && data.frStorage.rootPath) || '';
-            if ($('ss-fr-storage-folder')) $('ss-fr-storage-folder').textContent = (data.frStorage && data.frStorage.configuredLabel) || '—';
+            if ($('ss-fr-storage-folder')) $('ss-fr-storage-folder').textContent = (data.frStorage && data.frStorage.configuredLabel) || '\u2014';
             if ($('ss-fr-storage-restart')) $('ss-fr-storage-restart').hidden = !(data.frStorage && data.frStorage.restartRequired);
             fillFtpForm(data.ftp, data.runtime);
             toggleNetworkPanel();
@@ -337,9 +337,9 @@
             const data = await res.json();
             if (!res.ok || !data.ok) throwCatalogErr(data);
             lastPayload = data;
-            if ($('ss-evidence-live-folder')) $('ss-evidence-live-folder').textContent = data.liveCaptureLabel || '—';
-            if ($('ss-dock-folder')) $('ss-dock-folder').textContent = data.ftpLabel || '—';
-            if ($('ss-fr-storage-folder')) $('ss-fr-storage-folder').textContent = (data.frStorage && data.frStorage.configuredLabel) || '—';
+            if ($('ss-evidence-live-folder')) $('ss-evidence-live-folder').textContent = data.liveCaptureLabel || '\u2014';
+            if ($('ss-dock-folder')) $('ss-dock-folder').textContent = data.ftpLabel || '\u2014';
+            if ($('ss-fr-storage-folder')) $('ss-fr-storage-folder').textContent = (data.frStorage && data.frStorage.configuredLabel) || '\u2014';
             if ($('ss-fr-storage-restart')) $('ss-fr-storage-restart').hidden = !(data.frStorage && data.frStorage.restartRequired);
             if (applyRecommended && data.networkStorage && data.networkStorage.recommended) {
                 if ($('ss-ftp-upload-path')) $('ss-ftp-upload-path').value = data.networkStorage.recommended.ftp;
@@ -434,7 +434,7 @@
         if (cwdEl) {
             cwdEl.textContent = data.mode === 'roots'
                 ? tr('evidence.storageBrowseRoots')
-                : (data.cwdLabel || data.cwd || '—');
+                : (data.cwdLabel || data.cwd || '\u2014');
         }
         if (upBtn) upBtn.disabled = data.mode === 'roots';
         if (selectBtn) selectBtn.disabled = data.mode === 'roots';
@@ -446,7 +446,7 @@
 
         const entries = data.entries || [];
         if (!entries.length) {
-            listEl.innerHTML = '<p class="hint" style="padding:10px">—</p>';
+            listEl.innerHTML = '<p class="hint" style="padding:10px">\u2014</p>';
             return;
         }
 
@@ -533,10 +533,13 @@
 
     function ensureFrStorageCard() {
         if ($('ss-fr-storage-root')) return;
-        const catalogCard = document.querySelector('.ev-storage-card-compact');
+        const catalogCard = document.getElementById('ev-storage-catalog')
+            || document.querySelector('.ev-storage-card-compact');
         if (!catalogCard || !catalogCard.parentNode) return;
         const section = document.createElement('section');
-        section.className = 'ev-storage-card ev-storage-span-full';
+        /* STORAGE-SETTINGS-COMPACT-ENTERPRISE-V1 \u2014 de-boxed section in left stack */
+        section.className = 'ev-storage-section';
+        section.id = 'ev-storage-fr';
         section.innerHTML =
             '<h4>' + esc(tr('evidence.frStorageTitle')) + '</h4>'
             + '<p class="setup-hint" style="margin-top:0">' + esc(tr('evidence.frStorageHint')) + '</p>'
@@ -546,7 +549,7 @@
             + '<button type="button" class="btn btn-ghost btn-sm ev-path-browse" data-target="ss-fr-storage-root" data-start="fr">' + esc(tr('evidence.storageBrowse')) + '</button>'
             + '<button type="button" class="btn btn-ghost btn-sm ev-path-default" data-target="ss-fr-storage-root">' + esc(tr('evidence.storageUseDefault')) + '</button>'
             + '</div></label>'
-            + '<p class="ev-storage-status-row">' + esc(tr('evidence.frStorageConfigured')) + ': <code id="ss-fr-storage-folder">—</code> <span id="ev-path-status-fr"></span></p>'
+            + '<p class="ev-storage-status-row">' + esc(tr('evidence.frStorageConfigured')) + ': <code id="ss-fr-storage-folder">\u2014</code> <span id="ev-path-status-fr"></span></p>'
             + '<p class="setup-hint" id="ss-fr-storage-restart" hidden>' + esc(tr('evidence.frStorageRestart')) + '</p>';
         catalogCard.parentNode.insertBefore(section, catalogCard);
     }

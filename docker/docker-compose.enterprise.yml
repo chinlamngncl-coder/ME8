@@ -1,16 +1,42 @@
-# Mobility Axiom primary catalog — PostgreSQL 16.10.
-# App (server.js) runs on the host. Valkey is intentionally outside this MOB.
+# Mobility Axiom enterprise runtime — Valkey + PostgreSQL
+# App (server.js) runs on the host. Point .env at these after compose up.
 # Env template: ../.env.enterprise.example — docs/ME8-ENV-ENTERPRISE.md
 #
 #   docker compose -f docker/docker-compose.enterprise.yml up -d
 #   docker compose -f docker/docker-compose.enterprise.yml ps
 #
 # Host URLs (default ports):
+#   FM_REDIS_URL=redis://127.0.0.1:6379
 #   FM_CATALOG_DB_URL=postgresql://mobility:mobility_dev_change_me@127.0.0.1:5432/mobility
+#
+# Degrade: docker stop mobility-valkey | mobility-postgres
+#   (see docs/google-feedback-discussion/07-DEGRADE-TESTS-AND-PG-RESYNC.md)
 
 name: mobility-enterprise
 
 services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: mobility-valkey
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MOBILITY_VALKEY_PORT:-6379}:6379"
+    volumes:
+      - mobility_valkey_data:/data
+    command:
+      - valkey-server
+      - --save
+      - "60"
+      - "1"
+      - --appendonly
+      - "yes"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
   postgres:
     image: postgres:16.10-alpine
     container_name: mobility-postgres
@@ -31,4 +57,5 @@ services:
       start_period: 10s
 
 volumes:
+  mobility_valkey_data:
   mobility_postgres_data:

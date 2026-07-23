@@ -1,5 +1,5 @@
 /**
- * Server Config — Firmware OTA planning page (super admin).
+ * Server Config \u2014 Firmware OTA planning page (super admin).
  */
 (function (global) {
     function tr(key, params) {
@@ -12,11 +12,11 @@
     }
 
     function fmtTime(ms) {
-        if (!ms) return '—';
+        if (!ms) return '\u2014';
         try {
             return new Date(ms).toLocaleString();
         } catch (_) {
-            return '—';
+            return '\u2014';
         }
     }
 
@@ -68,7 +68,7 @@
                     + '<td>' + esc(p.vendor) + '</td>'
                     + '<td>' + esc(p.model) + '<div class="fw-ota-sub">' + esc(p.id) + '</div></td>'
                     + '<td>' + esc(p.protocol) + '</td>'
-                    + '<td>' + esc(p.targetVersion || '—') + '</td>'
+                    + '<td>' + esc(p.targetVersion || '\u2014') + '</td>'
                     + '<td>' + profileStatusBadge(p.status) + '</td>'
                     + '</tr>';
             }).join('')
@@ -100,7 +100,7 @@
                 return '<tr>'
                     + '<td>' + esc(r.name) + '</td>'
                     + '<td class="fw-ota-mono">' + esc(r.deviceId) + '</td>'
-                    + '<td>' + esc(r.mapGroup || '—') + '</td>'
+                    + '<td>' + esc(r.mapGroup || '\u2014') + '</td>'
                     + '<td>' + esc(r.appversion || tr('firmware.fleet.unknown')) + '</td>'
                     + '<td>' + profile + '</td>'
                     + '<td>' + online + '</td>'
@@ -124,7 +124,7 @@
         if (versionsEl) {
             const versions = (s.distinctVersions || []);
             versionsEl.textContent = versions.length
-                ? versions.join(' · ')
+                ? versions.join(' \u00B7 ')
                 : tr('firmware.versions.none');
         }
 

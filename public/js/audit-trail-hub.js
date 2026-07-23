@@ -1,5 +1,5 @@
 /**
- * Audit Trail hub — compliance activity log (human-readable, filter, CSV export).
+ * Audit Trail hub \u2014 compliance activity log (human-readable, filter, CSV export).
  * Isolated from Operations / SOS / live video.
  */
 (function (global) {
@@ -64,7 +64,7 @@
     }
 
     function fmtTime(iso) {
-        if (!iso) return '—';
+        if (!iso) return '\u2014';
         try {
             return new Date(iso).toLocaleString();
         } catch (_) {
@@ -312,12 +312,12 @@
         tbody.innerHTML = entries.map(function (e) {
             return '<tr class="at-row" data-id="' + esc(e.id) + '" tabindex="0">'
                 + '<td class="at-col-time mono">' + esc(fmtTime(e.ts)) + '</td>'
-                + '<td>' + esc(e.actor || '—') + '</td>'
-                + '<td class="at-col-role">' + esc(e.role || '—') + '</td>'
+                + '<td>' + esc(e.actor || '\u2014') + '</td>'
+                + '<td class="at-col-role">' + esc(e.role || '\u2014') + '</td>'
                 + '<td><span class="at-cat-pill">' + esc(e.categoryLabel) + '</span></td>'
                 + '<td>' + esc(e.actionLabel) + '</td>'
-                + '<td>' + esc(e.targetLabel || e.target || '—') + '</td>'
-                + '<td class="at-col-ip mono">' + esc(e.clientIp || '—') + '</td>'
+                + '<td>' + esc(e.targetLabel || e.target || '\u2014') + '</td>'
+                + '<td class="at-col-ip mono">' + esc(e.clientIp || '\u2014') + '</td>'
                 + '</tr>';
         }).join('');
         tbody.querySelectorAll('.at-row').forEach(function (row) {
@@ -352,13 +352,13 @@
         body.innerHTML = ''
             + '<dl class="at-detail-dl">'
             + '<dt>' + esc(tr('auditTrail.colTime')) + '</dt><dd>' + esc(fmtTime(entry.ts)) + '</dd>'
-            + '<dt>' + esc(tr('auditTrail.colUser')) + '</dt><dd>' + esc(entry.actor || '—') + '</dd>'
-            + '<dt>' + esc(tr('auditTrail.colRole')) + '</dt><dd>' + esc(entry.role || '—') + '</dd>'
+            + '<dt>' + esc(tr('auditTrail.colUser')) + '</dt><dd>' + esc(entry.actor || '\u2014') + '</dd>'
+            + '<dt>' + esc(tr('auditTrail.colRole')) + '</dt><dd>' + esc(entry.role || '\u2014') + '</dd>'
             + '<dt>' + esc(tr('auditTrail.colCategory')) + '</dt><dd>' + esc(entry.categoryLabel) + '</dd>'
             + '<dt>' + esc(tr('auditTrail.colAction')) + '</dt><dd>' + esc(entry.actionLabel) + '</dd>'
-            + '<dt>' + esc(tr('auditTrail.colTarget')) + '</dt><dd>' + esc(entry.targetLabel || entry.target || '—') + '</dd>'
-            + '<dt>' + esc(tr('auditTrail.colIp')) + '</dt><dd class="mono">' + esc(entry.clientIp || '—') + '</dd>'
-            + '<dt>' + esc(tr('auditTrail.colSummary')) + '</dt><dd>' + esc(entry.detailSummary || '—') + '</dd>'
+            + '<dt>' + esc(tr('auditTrail.colTarget')) + '</dt><dd>' + esc(entry.targetLabel || entry.target || '\u2014') + '</dd>'
+            + '<dt>' + esc(tr('auditTrail.colIp')) + '</dt><dd class="mono">' + esc(entry.clientIp || '\u2014') + '</dd>'
+            + '<dt>' + esc(tr('auditTrail.colSummary')) + '</dt><dd>' + esc(entry.detailSummary || '\u2014') + '</dd>'
             + '</dl>'
             + '<h4>' + esc(tr('auditTrail.detailRaw')) + '</h4>'
             + detailJson;

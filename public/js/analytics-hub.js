@@ -1,6 +1,6 @@
 /**
- * Analytics Hub — Face FR: Live shell, Verify 1:1, Watchlist enroll/dossier.
- * Operator-facing copy only — no install/script/port jargon on screen.
+ * Analytics Hub \u2014 Face FR: Live shell, Verify 1:1, Watchlist enroll/dossier.
+ * Operator-facing copy only \u2014 no install/script/port jargon on screen.
  */
 (function (global) {
     var currentPanel = 'face';
@@ -114,7 +114,7 @@
             'fr.quality_blur': ['analytics.bl.qualityBlur', 'This photo looks too blurry for a reliable enroll. Use a sharper picture.'],
             'fr.quality_lighting': ['analytics.bl.qualityLighting', 'This photo is too dark or too bright on the face. Use a clearer, evenly lit picture.'],
             'fr.face_too_small': ['analytics.bl.faceTooSmall', 'The face in this photo is too small. Crop closer so the face fills more of the picture, then try again.'],
-            'fr.image_too_small': ['analytics.bl.imageTooSmall', 'This photo is too low-resolution. Use a clearer, larger photo (at least about 480×480 pixels).'],
+            'fr.image_too_small': ['analytics.bl.imageTooSmall', 'This photo is too low-resolution. Use a clearer, larger photo (at least about 480\u00D7480 pixels).'],
             'fr.busy': ['analytics.verify.busy', 'Face matching is busy. Wait a moment and try again.'],
             'fr.bad_file': ['analytics.verify.badFile', 'Use JPEG/PNG ID photo, or Add recent snapshots from BWC.'],
             'fr.timeout': ['analytics.verify.timeout', 'Face matching took too long. Try again with smaller photos.'],
@@ -153,7 +153,7 @@
     function refreshSidecarStatus() {
         var el = document.getElementById('ax-fr-sidecar-status');
         if (!el) return;
-        el.textContent = tr('analytics.verify.checking', 'Checking face matching…');
+        el.textContent = tr('analytics.verify.checking', 'Checking face matching\u2026');
         fetch('/api/analytics/fr/health', { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
@@ -205,6 +205,107 @@
         box.hidden = false;
         box.className = 'ax-fr-verify-result' + (cls ? ' ' + cls : '');
         box.innerHTML = html;
+    }
+
+    function hideVerifyStatus() {
+        var box = document.getElementById('ax-fr-verify-result');
+        if (!box) return;
+        box.hidden = true;
+        box.innerHTML = '';
+        box.className = 'ax-fr-verify-result';
+    }
+
+    function setVerifyActionMode(mode) {
+        var runBtn = document.getElementById('ax-fr-verify-btn');
+        var clearBtn = document.getElementById('ax-fr-verify-clear');
+        if (mode === 'result') {
+            if (runBtn) runBtn.hidden = true;
+            if (clearBtn) clearBtn.hidden = false;
+        } else {
+            if (runBtn) runBtn.hidden = false;
+            if (clearBtn) clearBtn.hidden = true;
+        }
+    }
+
+    function hideMatchResults() {
+        var panel = document.getElementById('ax-fr-match-results');
+        var scoreEl = document.getElementById('ax-fr-match-score');
+        var verdictEl = document.getElementById('ax-fr-match-verdict');
+        if (panel) {
+            panel.hidden = false;
+            panel.className = 'match-results-display match-idle';
+        }
+        if (scoreEl) scoreEl.textContent = tr('analytics.verify.scoreIdle', 'Awaiting verify');
+        if (verdictEl) verdictEl.textContent = '';
+    }
+
+    function showMatchResults(scorePct, verified) {
+        var panel = document.getElementById('ax-fr-match-results');
+        var scoreEl = document.getElementById('ax-fr-match-score');
+        var verdictEl = document.getElementById('ax-fr-match-verdict');
+        if (!panel || !scoreEl) return;
+        var n = scorePct != null && isFinite(Number(scorePct)) ? Number(scorePct) : null;
+        var high = n != null ? n > 80 : !!verified;
+        panel.hidden = false;
+        panel.className = 'match-results-display ' + (high ? 'match-high' : 'match-low');
+        scoreEl.textContent = n != null ? (Math.round(n * 10) / 10) + '%' : '\u2014';
+        if (verdictEl) {
+            verdictEl.textContent = verified
+                ? tr('analytics.verify.match', 'Match')
+                : tr('analytics.verify.nomatch', 'No match');
+        }
+        setVerifyActionMode('result');
+        hideVerifyStatus();
+    }
+
+    function clearDropzonePreview(slot) {
+        var zone = document.getElementById('ax-fr-dropzone-' + slot);
+        var img = document.getElementById('ax-fr-preview-' + slot);
+        if (zone) zone.classList.remove('has-preview');
+        if (img) {
+            img.removeAttribute('src');
+            img.alt = slot === 1 ? 'Photo A preview' : 'Photo B preview';
+        }
+    }
+
+    function previewVerifyFile(input, slot) {
+        var file = input && input.files && input.files[0] ? input.files[0] : null;
+        var zone = document.getElementById('ax-fr-dropzone-' + slot);
+        var img = document.getElementById('ax-fr-preview-' + slot);
+        if (!file || !img) {
+            clearDropzonePreview(slot);
+            return;
+        }
+        if (!file.type || file.type.indexOf('image/') !== 0) {
+            clearDropzonePreview(slot);
+            return;
+        }
+        var reader = new FileReader();
+        reader.onload = function () {
+            img.src = String(reader.result || '');
+            img.alt = file.name || (slot === 1 ? 'Photo A' : 'Photo B');
+            if (zone) zone.classList.add('has-preview');
+        };
+        reader.onerror = function () {
+            clearDropzonePreview(slot);
+        };
+        reader.readAsDataURL(file);
+        /* Selecting new photos leaves prior score visible until re-run or clear */
+        hideMatchResults();
+        setVerifyActionMode('upload');
+        hideVerifyStatus();
+    }
+
+    function clearVerifyUi() {
+        var f1 = document.getElementById('ax-fr-file1');
+        var f2 = document.getElementById('ax-fr-file2');
+        if (f1) f1.value = '';
+        if (f2) f2.value = '';
+        clearDropzonePreview(1);
+        clearDropzonePreview(2);
+        hideMatchResults();
+        hideVerifyStatus();
+        setVerifyActionMode('upload');
     }
 
     function showBlMsg(html, cls) {
@@ -480,7 +581,7 @@
         }
         if (!global.FrEnrollCropper || !FrEnrollCropper.open) {
             setPendingCrop(file);
-            showBlMsg(tr('analytics.bl.cropFallback', 'Crop tool unavailable — using full image.'), '');
+            showBlMsg(tr('analytics.bl.cropFallback', 'Crop tool unavailable \u2014 using full image.'), '');
             return;
         }
         FrEnrollCropper.open(file, function (cropped) {
@@ -513,7 +614,7 @@
         el.className = 'hint ax-bl-match-debug-result' + (cls ? ' ' + cls : '');
     }
 
-    /** mob-fr-score-result-plain — one operator line only (no engine/file/dims dump) */
+    /** mob-fr-score-result-plain \u2014 one operator line only (no engine/file/dims dump) */
     function runMatchDebug() {
         var id = blDrawerId;
         if (!id) {
@@ -522,7 +623,7 @@
         }
         var btn = document.getElementById('ax-bl-match-debug-btn');
         if (btn) btn.disabled = true;
-        showMatchDebugResult(tr('analytics.bl.matchDebugRunning', 'Checking…'), '');
+        showMatchDebugResult(tr('analytics.bl.matchDebugRunning', 'Checking\u2026'), '');
         fetch('/api/analytics/fr/match-debug', {
             method: 'POST',
             credentials: 'same-origin',
@@ -564,10 +665,10 @@
                 if (pct == null || isNaN(Number(pct))) pct = null;
                 /* Prefer the live path score; if nonsense low and fresh exists, still show live path (honest). */
                 var pass = !!(j.clears70);
-                var pctStr = pct != null ? String(pct) : '—';
+                var pctStr = pct != null ? String(pct) : '\u2014';
                 var line = tr(
                     'analytics.bl.matchDebugPlain',
-                    'Match: {pct}% · need {bar}% · {result}'
+                    'Match: {pct}% \u00B7 need {bar}% \u00B7 {result}'
                 )
                     .replace('{pct}', pctStr)
                     .replace('{bar}', String(bar))
@@ -599,7 +700,7 @@
         var face = document.getElementById('ax-bl-drawer-face');
         var dl = document.getElementById('ax-bl-drawer-dl');
         var samplesEl = document.getElementById('ax-bl-samples');
-        if (title) title.textContent = e.displayName || '—';
+        if (title) title.textContent = e.displayName || '\u2014';
         var photoUrl = e.photoFile
             ? ('/api/analytics/fr/blacklist/' + encodeURIComponent(e.id) + '/photo')
             : '';
@@ -612,16 +713,16 @@
                 face.removeAttribute('src');
             }
         }
-        var when = e.enrolledAt ? String(e.enrolledAt).replace('T', ' ').slice(0, 19) : '—';
+        var when = e.enrolledAt ? String(e.enrolledAt).replace('T', ' ').slice(0, 19) : '\u2014';
         var rows = [
             [tr('analytics.bl.grade', 'Watch grade'), gradeBadgeHtml(e.listStatus)],
             [tr('analytics.bl.reason', 'Reason'), esc(reasonLabel(e.reasonCode, e.reasonOther))],
-            [tr('analytics.bl.idNumber', 'ID / case ref'), esc(e.idNumber || '—')],
-            [tr('analytics.bl.lastSeen', 'Last seen'), esc(e.lastSeen || '—')],
-            [tr('analytics.bl.lastIncident', 'Last incident'), esc(e.lastIncident || '—')],
-            [tr('analytics.bl.notes', 'Notes'), esc(e.notes || '—')],
+            [tr('analytics.bl.idNumber', 'ID / case ref'), esc(e.idNumber || '\u2014')],
+            [tr('analytics.bl.lastSeen', 'Last seen'), esc(e.lastSeen || '\u2014')],
+            [tr('analytics.bl.lastIncident', 'Last incident'), esc(e.lastIncident || '\u2014')],
+            [tr('analytics.bl.notes', 'Notes'), esc(e.notes || '\u2014')],
             [tr('analytics.bl.colWhen', 'Enrolled'), esc(when)],
-            [tr('analytics.bl.enrolledBy', 'Enrolled by'), esc(e.enrolledBy || '—')],
+            [tr('analytics.bl.enrolledBy', 'Enrolled by'), esc(e.enrolledBy || '\u2014')],
             [tr('analytics.bl.colStatus', 'Status'), esc(e.enabled !== false
                 ? tr('analytics.bl.active', 'Active')
                 : tr('analytics.bl.disabled', 'Disabled'))],
@@ -638,7 +739,7 @@
                     ? ('/api/analytics/fr/blacklist/' + encodeURIComponent(e.id) + '/sample/' + encodeURIComponent(s.sampleId) + '/photo')
                     : '';
                 return '<div class="ax-bl-sample-chip">' +
-                    (src ? ('<img src="' + esc(src) + '" alt="">') : '<span>—</span>') +
+                    (src ? ('<img src="' + esc(src) + '" alt="">') : '<span>\u2014</span>') +
                     '<span>' + esc((i === 0 ? 'Primary' : ('Face ' + (i + 1)))) + '</span></div>';
             }).join('') : '';
         }
@@ -650,6 +751,8 @@
         var f2 = document.getElementById('ax-fr-file2');
         var btn = document.getElementById('ax-fr-verify-btn');
         if (!f1 || !f2 || !f1.files || !f2.files || !f1.files[0] || !f2.files[0]) {
+            hideMatchResults();
+            setVerifyActionMode('upload');
             showVerifyResult(false, messageForCode('fr.need_two'), 'is-err');
             return;
         }
@@ -658,7 +761,9 @@
         fd.append('file2', f2.files[0]);
         fd.append('model', 'Facenet');
         if (btn) btn.disabled = true;
-        showVerifyResult(false, tr('analytics.verify.running', 'Comparing photos…'), '');
+        hideMatchResults();
+        setVerifyActionMode('upload');
+        showVerifyResult(false, tr('analytics.verify.running', 'Comparing photos\u2026'), '');
         fetch('/api/analytics/fr/verify', { method: 'POST', credentials: 'same-origin', body: fd })
             .then(function (r) {
                 return r.json().then(function (j) { return { status: r.status, j: j }; }).catch(function () {
@@ -668,11 +773,7 @@
             .then(function (pack) {
                 var j = pack.j || {};
                 if (j.ok && (j.verified === true || j.verified === false)) {
-                    var line = (j.verified
-                        ? tr('analytics.verify.match', 'Match')
-                        : tr('analytics.verify.nomatch', 'No match')) +
-                        ' · ' + (j.scorePct != null ? j.scorePct + '%' : '—');
-                    showVerifyResult(true, line, j.verified ? 'is-match' : 'is-nomatch');
+                    showMatchResults(j.scorePct, j.verified);
                     return;
                 }
                 var code = j.code || null;
@@ -683,9 +784,13 @@
                     else if (pack.status === 400) code = 'fr.bad_file';
                     else code = 'fr.failed';
                 }
+                hideMatchResults();
+                setVerifyActionMode('upload');
                 showVerifyResult(false, messageForCode(code), 'is-err');
             })
             .catch(function () {
+                hideMatchResults();
+                setVerifyActionMode('upload');
                 showVerifyResult(false, messageForCode('fr.network'), 'is-err');
             })
             .finally(function () {
@@ -700,7 +805,7 @@
         var gradeEl = document.getElementById('ax-bl-grade-filter');
         var q = qEl && qEl.value ? String(qEl.value).trim() : '';
         var grade = gradeEl && gradeEl.value ? String(gradeEl.value).trim() : '';
-        if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="hint">' + esc(tr('analytics.bl.loading', 'Loading…')) + '</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="hint">' + esc(tr('analytics.bl.loading', 'Loading\u2026')) + '</td></tr>';
         var url = '/api/analytics/fr/blacklist';
         var params = [];
         if (q) params.push('q=' + encodeURIComponent(q));
@@ -735,7 +840,7 @@
                 }
                 tbody.innerHTML = rows.map(function (e) {
                     var en = e.enabled !== false;
-                    var when = e.enrolledAt ? String(e.enrolledAt).replace('T', ' ').slice(0, 19) : '—';
+                    var when = e.enrolledAt ? String(e.enrolledAt).replace('T', ' ').slice(0, 19) : '\u2014';
                     var status = en
                         ? tr('analytics.bl.active', 'Active')
                         : tr('analytics.bl.disabled', 'Disabled');
@@ -750,13 +855,13 @@
                             esc(tr('analytics.bl.openPhoto', 'Open enrolled photo')) + '">' +
                             '<img class="ax-bl-face" src="' + esc(photoUrl) + '" alt="" loading="lazy" ' +
                             'onerror="this.classList.add(\'is-broken\');this.removeAttribute(\'src\')"></a>')
-                        : '<span class="ax-bl-face-ph" aria-hidden="true">—</span>';
+                        : '<span class="ax-bl-face-ph" aria-hidden="true">\u2014</span>';
                     return '<tr class="' + (en ? '' : 'is-disabled') + '" data-id="' + esc(e.id) + '">' +
                         '<td class="ax-bl-face-td">' + faceCell + '</td>' +
                         '<td><button type="button" class="ax-bl-name-btn ax-bl-open">' + esc(e.displayName) + '</button></td>' +
                         '<td>' + gradeBadgeHtml(e.listStatus) + '</td>' +
                         '<td>' + esc(reasonLabel(e.reasonCode, e.reasonOther)) + '</td>' +
-                        '<td>' + esc(e.idNumber || '—') + '</td>' +
+                        '<td>' + esc(e.idNumber || '\u2014') + '</td>' +
                         '<td>' + esc(when) + '</td>' +
                         '<td>' + esc(status) + '</td>' +
                         '<td><button type="button" class="btn btn-ghost btn-sm ax-bl-toggle" data-enabled="' +
@@ -826,7 +931,7 @@
     function postFrThreshold(next, password) {
         var btn = document.getElementById('ax-bl-threshold-save');
         if (btn) btn.disabled = true;
-        showBlMsg(tr('analytics.bl.thresholdSaving', 'Saving match threshold…'), '');
+        showBlMsg(tr('analytics.bl.thresholdSaving', 'Saving match threshold\u2026'), '');
         fetch('/api/analytics/fr/settings', {
             method: 'POST',
             credentials: 'same-origin',
@@ -888,7 +993,7 @@
     }
 
     function shortTime(iso) {
-        if (!iso) return '—';
+        if (!iso) return '\u2014';
         try {
             var d = new Date(iso);
             if (isNaN(d.getTime())) return String(iso).slice(0, 19).replace('T', ' ');
@@ -977,7 +1082,7 @@
         }
         grid.innerHTML = facePicker.snaps.map(function (s) {
             var active = s.cropFile === facePicker.cropFile;
-            var score = s.scorePct != null ? (' · ' + Math.round(Number(s.scorePct) || 0) + '%') : '';
+            var score = s.scorePct != null ? (' \u00B7 ' + Math.round(Number(s.scorePct) || 0) + '%') : '';
             var img = s.cropUrl || ('/api/analytics/fr/snap/' + encodeURIComponent(s.cropFile));
             return '<button type="button" class="ax-bl-face-pick' + (active ? ' is-active' : '') +
                 '" data-crop="' + esc(s.cropFile) + '">' +
@@ -1049,7 +1154,7 @@
             return;
         }
         closeFacePicker(true);
-        showBlMsg('Adding BWC snapshot…', '');
+        showBlMsg('Adding BWC snapshot\u2026', '');
         fetch('/api/analytics/fr/blacklist/' + encodeURIComponent(id) + '/sample-from-snap', {
             method: 'POST',
             credentials: 'same-origin',
@@ -1111,7 +1216,7 @@
         }
         if (btn) btn.disabled = true;
         closeFacePicker(true);
-        showBlMsg('Adding BWC snapshot…', '');
+        showBlMsg('Adding BWC snapshot\u2026', '');
         fetch('/api/analytics/fr/blacklist/enroll-from-snap', {
             method: 'POST',
             credentials: 'same-origin',
@@ -1138,8 +1243,8 @@
                 if (j.ok && j.entry) {
                     showBlMsg(
                         'BWC snapshot added.' +
-                            ' · ' + esc(j.entry.displayName) +
-                            (j.cropFile ? (' · ' + esc(String(j.cropFile))) : ''),
+                            ' \u00B7 ' + esc(j.entry.displayName) +
+                            (j.cropFile ? (' \u00B7 ' + esc(String(j.cropFile))) : ''),
                         'is-match'
                     );
                     if (nameEl) nameEl.value = '';
@@ -1227,7 +1332,7 @@
             return;
         }
         if (btn) btn.disabled = true;
-        showBlMsg(tr('analytics.bl.enrolling', 'Enrolling…'), '');
+        showBlMsg(tr('analytics.bl.enrolling', 'Enrolling\u2026'), '');
 
         function doPost() {
             var fd = new FormData();
@@ -1249,7 +1354,7 @@
                 .then(function (pack) {
                     var j = pack.j || {};
                     if (j.ok && j.entry) {
-                        showBlMsg(tr('analytics.bl.enrolled', 'Added to watchlist.') + ' · ' + esc(j.entry.displayName), 'is-match');
+                        showBlMsg(tr('analytics.bl.enrolled', 'Added to watchlist.') + ' \u00B7 ' + esc(j.entry.displayName), 'is-match');
                         if (nameEl) nameEl.value = '';
                         if (idEl) idEl.value = '';
                         if (reasonOtherEl) reasonOtherEl.value = '';
@@ -1288,7 +1393,7 @@
         closeMigrateModal();
         var btn = document.getElementById('ax-bl-migrate-btn');
         if (btn) btn.disabled = true;
-        showBlMsg('Refreshing Watchlist vectors…', '');
+        showBlMsg('Refreshing Watchlist vectors\u2026', '');
         fetch('/api/analytics/fr/blacklist/re-enroll-migrate', {
             method: 'POST',
             credentials: 'same-origin',
@@ -1314,7 +1419,7 @@
                     var cls = (j.failed > 0) ? '' : 'is-match';
                     if (j.failed > 0 && j.details && j.details.failed && j.details.failed.length) {
                         var first = j.details.failed[0];
-                        line += ' · ' + esc(first.displayName || first.id || '') + ': ' + esc(first.error || '');
+                        line += ' \u00B7 ' + esc(first.displayName || first.id || '') + ': ' + esc(first.error || '');
                     }
                     showBlMsg(line, cls);
                     loadBlacklist();
@@ -1505,6 +1610,12 @@
         });
         var vbtn = document.getElementById('ax-fr-verify-btn');
         if (vbtn) vbtn.addEventListener('click', runVerify);
+        var vclear = document.getElementById('ax-fr-verify-clear');
+        if (vclear) vclear.addEventListener('click', clearVerifyUi);
+        var vf1 = document.getElementById('ax-fr-file1');
+        if (vf1) vf1.addEventListener('change', function () { previewVerifyFile(vf1, 1); });
+        var vf2 = document.getElementById('ax-fr-file2');
+        if (vf2) vf2.addEventListener('change', function () { previewVerifyFile(vf2, 2); });
         var ebtn = document.getElementById('ax-bl-enroll-btn');
         if (ebtn) ebtn.addEventListener('click', enrollBlacklist);
         var eBwc = document.getElementById('ax-bl-enroll-bwc-btn');

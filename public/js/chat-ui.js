@@ -1,5 +1,5 @@
 /**
- * BWC messaging — online picker, multi-thread tabs, SQLite-backed history.
+ * BWC messaging \u2014 online picker, multi-thread tabs, SQLite-backed history.
  */
 (function (global) {
     const ONLINE_VISIBLE = 6;
@@ -21,16 +21,16 @@
             'messages.title': 'Messages',
             'messages.you': 'You',
             'messages.device': 'Device',
-            'messages.onlinePick': 'Online BWCs — pick to chat',
+            'messages.onlinePick': 'Online BWCs \u2014 pick to chat',
             'messages.noOnline': 'No BWC online',
             'messages.pickThread': 'Select a BWC above or an open chat tab',
             'messages.send': 'Send',
-            'messages.placeholder': 'Message to BWC…',
+            'messages.placeholder': 'Message to BWC\u2026',
             'messages.clearThread': 'Clear thread',
             'messages.clearConfirm': 'Clear messages for this BWC? This cannot be undone.',
             'messages.cleared': 'Messages cleared.',
             'messages.clearFailed': 'Could not clear messages. Restart the fleet server and try again.',
-            'messages.retentionHint': 'Showing last 24 hours · stored up to 30 days',
+            'messages.retentionHint': 'Showing last 24 hours \u00B7 stored up to 30 days',
         };
         return fallbacks[key] || key;
     }
@@ -48,8 +48,8 @@
     }
 
     function shortId(id) {
-        if (!id) return '—';
-        return id.length > 12 ? id.slice(0, 8) + '…' + id.slice(-4) : id;
+        if (!id) return '\u2014';
+        return id.length > 12 ? id.slice(0, 8) + '\u2026' + id.slice(-4) : id;
     }
 
     function deviceLabel(camId) {
@@ -112,7 +112,7 @@
             const active = camId === activeCamId ? ' active' : '';
             return '<span class="chat-thread-tab' + active + '" data-cam-id="' + esc(camId) + '">'
                 + esc(deviceLabel(camId))
-                + '<button type="button" class="chat-thread-close" data-cam-id="' + esc(camId) + '" aria-label="Close">×</button>'
+                + '<button type="button" class="chat-thread-close" data-cam-id="' + esc(camId) + '" aria-label="Close">\u00D7</button>'
                 + '</span>';
         }).join('');
     }
@@ -148,7 +148,7 @@
             return;
         }
         const box = document.getElementById('chat-box');
-        if (box) box.innerHTML = '<p class="chat-empty">Loading…</p>';
+        if (box) box.innerHTML = '<p class="chat-empty">Loading\u2026</p>';
         try {
             const res = await fetch('/api/messages/' + encodeURIComponent(camId) + '?limit=200&sinceHours=' + UI_HOURS);
             const data = await res.json();

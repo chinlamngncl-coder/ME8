@@ -1,5 +1,5 @@
 /**
- * Shared busy lock for password/PIN forms — disable inputs, show Verifying…, block double submit.
+ * Shared busy lock for password/PIN forms \u2014 disable inputs, show Verifying\u2026, block double submit.
  */
 (function (global) {
     'use strict';
@@ -12,7 +12,7 @@
         var submitBtn = opts.submitBtn;
         var busy = false;
         var submitDefault = submitBtn ? submitBtn.textContent : '';
-        var busyLabel = opts.busyLabel || 'Verifying…';
+        var busyLabel = opts.busyLabel || 'Verifying\u2026';
 
         function setBusy(on) {
             busy = !!on;

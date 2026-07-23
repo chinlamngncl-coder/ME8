@@ -1,0 +1,319 @@
+/**
+ * ME8 Enterprise Design System
+ * MOB-EXECUTE-ESTABLISH-GLOBAL-ENTERPRISE-DESIGN-SYSTEM-V1
+ *
+ * Scope: tokens + reusable layout/form/button classes for Settings, VC, Evidence Storage.
+ * Map / Video Wall keep their own constraints — do not hang map UI off these grids.
+ */
+
+:root {
+    /* Color — dark enterprise (aliases keep older --bg / --surface working) */
+    --bg-base: #0f172a;
+    --bg-surface: #1e293b;
+    --bg-elevated: #111827;
+    --bg-input: #0f172a;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border-color: #334155;
+    --border-subtle: rgba(51, 65, 85, 0.75);
+    --accent-blue: #2563eb;
+    --accent-blue-hover: #1d4ed8;
+    --accent-blue-soft: rgba(37, 99, 235, 0.16);
+    --status-green: #22c55e;
+    --status-green-soft: rgba(34, 197, 94, 0.18);
+    --status-warn: #f59e0b;
+    --status-danger: #ef4444;
+    --focus-ring: rgba(59, 130, 246, 0.35);
+
+    /* Compat with legacy inline tokens */
+    --bg: var(--bg-base);
+    --surface: var(--bg-surface);
+    --border: var(--border-color);
+    --muted: var(--text-secondary);
+    --text: #e2e8f0;
+    --accent: #3b82f6;
+    --ok: #10b981;
+    --warn: var(--status-warn);
+    --danger: var(--status-danger);
+    --field-bg: var(--bg-input);
+    --field-border: #475569;
+    --field-text: #f8fafc;
+    --field-muted: var(--text-muted);
+    --field-radius: 6px;
+
+    /* Spacing scale */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+
+    /* Radii / type */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 12px;
+    --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Layout                                                                     */
+/* -------------------------------------------------------------------------- */
+
+.enterprise-page-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: var(--space-xl);
+    align-items: start;
+}
+
+/** VC Live lobby: main console + personnel (not a fixed 300px sidebar) */
+.enterprise-page-layout.enterprise-page-layout--split {
+    grid-template-columns: 2fr 1fr;
+    gap: var(--space-lg);
+}
+
+@media (max-width: 960px) {
+    .enterprise-page-layout,
+    .enterprise-page-layout.enterprise-page-layout--split {
+        grid-template-columns: 1fr;
+        gap: var(--space-md);
+    }
+}
+
+.enterprise-card {
+    margin: 0;
+    padding: var(--space-md);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    box-shadow: none;
+}
+
+.enterprise-card--surface {
+    background: var(--bg-surface);
+}
+
+.enterprise-section-title {
+    margin: 0 0 var(--space-sm);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Forms                                                                      */
+/* -------------------------------------------------------------------------- */
+
+.enterprise-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-lg) var(--space-md);
+    width: 100%;
+    max-width: none;
+}
+
+.enterprise-form-grid .full,
+.enterprise-form-grid .enterprise-span-2 {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 720px) {
+    .enterprise-form-grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-md);
+    }
+}
+
+.form-control,
+.enterprise-scope input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]),
+.enterprise-scope select,
+.enterprise-scope textarea {
+    width: 100%;
+    max-width: none;
+    min-height: 34px;
+    padding: 7px 9px;
+    margin: 0;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--field-text);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+.enterprise-scope input[readonly],
+.form-control[readonly] {
+    color: var(--text-secondary);
+    background: #0b1220;
+}
+
+.form-control:focus,
+.enterprise-scope input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+.enterprise-scope select:focus,
+.enterprise-scope textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--focus-ring);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Buttons — new names + bridge to existing .btn-action / .btn-ghost          */
+/* -------------------------------------------------------------------------- */
+
+.enterprise-scope .btn {
+    width: auto;
+    max-width: none;
+}
+
+.btn-primary,
+.enterprise-scope .btn.btn-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: auto;
+    max-width: none;
+    min-height: 32px;
+    padding: 7px 14px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--accent-blue);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.btn-primary:hover,
+.enterprise-scope .btn.btn-action:hover {
+    background: var(--accent-blue-hover);
+    color: #fff;
+}
+
+.btn-secondary,
+.enterprise-scope .btn.btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: auto;
+    max-width: none;
+    min-height: 32px;
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.btn-secondary:hover,
+.enterprise-scope .btn.btn-ghost:hover {
+    background: rgba(30, 41, 59, 0.85);
+    border-color: #475569;
+    color: var(--text-primary);
+}
+
+.btn-danger,
+.enterprise-scope .btn.btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: auto;
+    max-width: none;
+    min-height: 32px;
+    padding: 6px 12px;
+    border: 1px solid rgba(239, 68, 68, 0.45);
+    border-radius: var(--radius-sm);
+    background: rgba(127, 29, 29, 0.35);
+    color: #fecaca;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.btn-danger:hover,
+.enterprise-scope .btn.btn-danger:hover {
+    background: rgba(153, 27, 27, 0.5);
+    color: #fff;
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-danger:disabled,
+.enterprise-scope .btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Page bridges — Settings / VC / Storage keep IDs; layout owned here         */
+/* -------------------------------------------------------------------------- */
+
+#app-view-conference.enterprise-scope .vc-live-dashboard.enterprise-page-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+#ev-panel-settings.enterprise-scope .ev-storage-card.enterprise-card {
+    margin-bottom: var(--space-lg);
+    padding: var(--space-md);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+}
+
+/* STORAGE-SETTINGS-COMPACT-ENTERPRISE-V1 */
+.action-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+#ev-panel-settings.enterprise-scope input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]),
+#ev-panel-settings.enterprise-scope select,
+#ev-panel-settings.enterprise-scope textarea {
+    max-width: 480px;
+}
+
+#ev-panel-settings.enterprise-scope #ss-ftp-port,
+#ev-panel-settings.enterprise-scope #ss-ftp-pasv-min,
+#ev-panel-settings.enterprise-scope #ss-ftp-pasv-max {
+    max-width: 120px;
+}
+/* DESTROY-SCROLL-LOCK-V1 — Storage Settings document scroll (Ops map keeps body lock) */
+html.ev-storage-scroll-unlock body {
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+html.ev-storage-scroll-unlock #app-view-evidence,
+html.ev-storage-scroll-unlock #evidence-panel,
+html.ev-storage-scroll-unlock #ev-panel-settings {
+    overflow: visible;
+    height: auto;
+    max-height: none;
+}
+
+.enterprise-page-layout {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    align-items: start;
+}

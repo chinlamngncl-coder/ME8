@@ -1,5 +1,5 @@
 /**
- * Browser voice alerts (TTS) — SOS / fall / geofence / optional SD record edges.
+ * Browser voice alerts (TTS) \u2014 SOS / fall / geofence / optional SD record edges.
  * Listens in parallel to existing dashboard handlers; does not modify SOS or video logic.
  */
 (function (global) {
@@ -89,12 +89,12 @@
     }
 
     /**
-     * Preferred voice priority list — applied when no explicit language is set.
+     * Preferred voice priority list \u2014 applied when no explicit language is set.
      * All SOS/fall alerts use this same voice regardless of which device triggered them.
      * First match wins. Add or reorder names here to change the unified alert voice.
      */
     var PREFERRED_VOICE_NAMES = [
-        'microsoft aria',       // Windows 10/11 — natural neural female
+        'microsoft aria',       // Windows 10/11 \u2014 natural neural female
         'microsoft jenny',      // Windows 11 neural female
         'microsoft zira',       // Windows 10 female (good quality)
         'google us english',    // Chrome built-in
@@ -123,7 +123,7 @@
             if (partial.length) return partial[0];
         }
 
-        // No preference — try preferred voices in priority order so every alert
+        // No preference \u2014 try preferred voices in priority order so every alert
         // uses the same natural-sounding voice regardless of device name length.
         for (var pi = 0; pi < PREFERRED_VOICE_NAMES.length; pi++) {
             var target = PREFERRED_VOICE_NAMES[pi];

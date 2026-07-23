@@ -80,6 +80,32 @@
         return key;
     }
 
+    /* CENTRE-SUMMARY-HONEST-LOAD-V2 \u2014 never fall through to OperatorUI generic remap */
+    const CENTRE_ERR_EN = {
+        'centre.error.auth': 'Super admin login required.',
+        'centre.error.load': 'Failed to load summary.',
+        'centre.error.loadFailedSub': 'Load failed \u2014 try Refresh or check permissions.',
+    };
+
+    function centreMsg(key) {
+        const k = key || 'centre.error.load';
+        const s = tr(k);
+        if (s && s !== k) return s;
+        return CENTRE_ERR_EN[k] || k;
+    }
+
+    function looksCentreAuth(err, data) {
+        if (err && err.centreAuth) return true;
+        if (err && err.message === 'centre-auth') return true;
+        const blob = [
+            typeof err === 'string' ? err : '',
+            err && err.message ? err.message : '',
+            data && data.error ? data.error : '',
+            data && data.errorKey ? data.errorKey : '',
+        ].join(' ');
+        return /super admin|centre\.error\.auth|401|403|unauthorized/i.test(blob);
+    }
+
     function getLang() {
         if (typeof I18n !== 'undefined' && I18n.getLocale) return I18n.getLocale();
         return 'en';
@@ -89,22 +115,35 @@
         const loading = el('loading');
         const content = el('content');
         const errEl = el('error');
-        let msg;
-        if (typeof err === 'string') {
-            msg = err;
-        } else if (global.OperatorUI && OperatorUI.opMsg) {
-            msg = OperatorUI.opMsg(data, err, fallbackKey || 'centre.error.load');
-        } else if (global.OperatorErrorVoice) {
-            msg = OperatorErrorVoice.fromCatch(err, data, fallbackKey || 'centre.error.load');
-        } else {
-            msg = tr(fallbackKey || 'centre.error.load');
-        }
+        const gen = el('generatedAt');
+        let fb = fallbackKey || 'centre.error.load';
+        if (looksCentreAuth(err, data)) fb = 'centre.error.auth';
+        else if (fb !== 'centre.error.auth') fb = 'centre.error.load';
+        const msg = centreMsg(fb);
         if (loading) loading.hidden = true;
         if (content) content.hidden = true;
         if (errEl) {
             errEl.hidden = false;
             errEl.textContent = msg;
         }
+        /* Never leave subtitle stuck on Loading\u2026 */
+        if (gen) {
+            gen.textContent = fb === 'centre.error.auth'
+                ? centreMsg('centre.error.auth')
+                : centreMsg('centre.error.loadFailedSub');
+        }
+    }
+
+    function beginCentreLoadUi() {
+        const loading = el('loading');
+        const errEl = el('error');
+        const gen = el('generatedAt');
+        if (loading) loading.hidden = false;
+        if (errEl) {
+            errEl.hidden = true;
+            errEl.textContent = '';
+        }
+        if (gen) gen.textContent = tr('common.loading');
     }
 
     function fmtUptime(sec) {
@@ -187,7 +226,7 @@
         const storagePct = st.usedPct != null ? st.usedPct : (st.totalBytes ? pct(st.totalBytes, (st.capacityGb || 500) * 1073741824) : 50);
         const grid = el('statsGrid');
         if (!grid) return;
-        // Inline Lucide (ISC) outline icons — no emoji, no CDN, theme-coloured.
+        // Inline Lucide (ISC) outline icons \u2014 no emoji, no CDN, theme-coloured.
         const csIcon = function (name) {
             const paths = {
                 wifi: '<path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/>',
@@ -204,7 +243,7 @@
             '<div class="cs-kpi-icon">' + csIcon('wifi') + '</div>' +
             '<div class="cs-kpi-body"><div class="cs-kpi-label">' + esc(tr('centre.kpi.online')) + '</div>' +
             '<div class="cs-kpi-value">' + (f.online || 0) + '</div>' +
-            '<div class="cs-kpi-hint">' + onlinePct + '% · ' + (f.online || 0) + ' / ' + capacity + ' ' + esc(tr('centre.kpi.capacity')) + '</div></div></div>' +
+            '<div class="cs-kpi-hint">' + onlinePct + '% \u00B7 ' + (f.online || 0) + ' / ' + capacity + ' ' + esc(tr('centre.kpi.capacity')) + '</div></div></div>' +
             '<div class="cs-kpi">' +
             '<div class="cs-kpi-icon">' + csIcon('wifi-off') + '</div>' +
             '<div class="cs-kpi-body"><div class="cs-kpi-label">' + esc(tr('centre.kpi.offline')) + '</div>' +
@@ -222,7 +261,7 @@
             '<div class="cs-kpi">' +
             '<div class="cs-kpi-icon">' + csIcon('drive') + '</div>' +
             '<div class="cs-kpi-body"><div class="cs-kpi-label">' + esc(tr('centre.kpi.storage')) + '</div>' +
-            '<div class="cs-kpi-value cs-kpi-sm">' + esc(st.totalLabel || '—') + '</div></div></div>' +
+            '<div class="cs-kpi-value cs-kpi-sm">' + esc(st.totalLabel || '\u2014') + '</div></div></div>' +
             '<div class="cs-kpi">' +
             '<div class="cs-kpi-icon">' + csIcon('clock') + '</div>' +
             '<div class="cs-kpi-body"><div class="cs-kpi-label">' + esc(tr('centre.kpi.uptime')) + '</div>' +
@@ -486,7 +525,7 @@
         const buckets = getTrendBuckets(activePeriod);
         const canvas = document.createElement('canvas');
         const chartTitle = activePeriod === 'yearly' && activeYearMonth
-            ? tr('centre.chart.title') + ' — ' + monthSelectLabel(activeYearMonth)
+            ? tr('centre.chart.title') + ' \u2014 ' + monthSelectLabel(activeYearMonth)
             : tr('centre.chart.title') + ' (' + activePeriod + ')';
         canvas.width = Math.max(640, Math.min(1200, 80 + buckets.length * 22));
         canvas.height = 320;
@@ -548,23 +587,50 @@
             if (global.TabLifecycle) TabLifecycle.markLoaded('centre-summary');
             return Promise.resolve();
         }
-        const loading = el('loading');
-        if (loading) loading.hidden = false;
+        beginCentreLoadUi();
         return fetch('/api/command-centre/summary', { credentials: 'same-origin' })
             .then(function (r) {
-                if (r.status === 401 || r.status === 403) {
-                    throw new Error(tr('centre.error.auth'));
-                }
-                return r.json();
+                return r.text().then(function (text) {
+                    let data = null;
+                    if (text && String(text).trim()) {
+                        try {
+                            data = JSON.parse(text);
+                        } catch (_) {
+                            data = null;
+                        }
+                    }
+                    if (r.status === 401 || r.status === 403 || looksCentreAuth(null, data)) {
+                        const authErr = new Error('centre-auth');
+                        authErr.centreAuth = true;
+                        authErr.opPayload = data;
+                        throw authErr;
+                    }
+                    if (!r.ok || !data || !data.ok) {
+                        const loadErr = new Error('centre-load');
+                        loadErr.centreLoad = true;
+                        loadErr.opPayload = data;
+                        throw loadErr;
+                    }
+                    return data;
+                });
             })
             .then(function (data) {
-                if (!data || !data.ok) throw new Error((data && data.error) || tr('centre.error.load'));
+                const loading = el('loading');
                 summary = data;
                 if (loading) loading.hidden = true;
                 const content = el('content');
                 if (content) content.hidden = false;
+                const errEl = el('error');
+                if (errEl) {
+                    errEl.hidden = true;
+                    errEl.textContent = '';
+                }
                 const gen = el('generatedAt');
-                if (gen) gen.textContent = tr('centre.updated') + ' ' + new Date(data.generatedAt).toLocaleString();
+                if (gen) {
+                    const updated = tr('centre.updated');
+                    gen.textContent = (updated && updated !== 'centre.updated' ? updated : 'Updated') +
+                        ' ' + new Date(data.generatedAt).toLocaleString();
+                }
                 renderStats(data);
                 renderStorage(data);
                 renderServices(data);
@@ -580,7 +646,9 @@
             })
             .catch(function (err) {
                 console.warn('[centre-summary]', err);
-                showError(err, err.opPayload || err.catalogPayload, 'centre.error.load');
+                const data = err && (err.opPayload || err.catalogPayload);
+                const fb = looksCentreAuth(err, data) ? 'centre.error.auth' : 'centre.error.load';
+                showError(err, data, fb);
             });
     }
 

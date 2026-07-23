@@ -1,13 +1,13 @@
 /**
- * Six-slot live video wall — panels 1–4 fixed; panels 5–6 poll extra online BWCs.
+ * Six-slot live video wall \u2014 panels 1\u20134 fixed; panels 5\u20136 poll extra online BWCs.
  *
  * Player: JSMpeg first. Soft ZLM overlay (mob-zlm-wall-safe-no-wipe) only for
- * single-cam wall — never wipe panel; Open All skips ZLM.
- * Video WS: ws://host:(HTTP+1) e.g. 3889 — server bridge fans out (clients:2+).
- * Audio WS: ws://host:(HTTP+2) e.g. 3890 — PCM Web Audio, separate from JSMpeg.
+ * single-cam wall \u2014 never wipe panel; Open All skips ZLM.
+ * Video WS: ws://host:(HTTP+1) e.g. 3889 \u2014 server bridge fans out (clients:2+).
+ * Audio WS: ws://host:(HTTP+2) e.g. 3890 \u2014 PCM Web Audio, separate from JSMpeg.
  *
  * Map pin: per-cam JSMpeg on pool WS fanout (mob-pin-pool-jsmpeg-primary). No wall canvas mirror.
- * Reuse: pool already live (ops / CW / stream-ready) → no start-video; attach pin JSMpeg on videoWsUrl().
+ * Reuse: pool already live (ops / CW / stream-ready) \u2192 no start-video; attach pin JSMpeg on videoWsUrl().
  */
 
 (function (global) {
@@ -30,7 +30,7 @@
         return !!(global.CommandWall && CommandWall.hasLiveForCam && CommandWall.hasLiveForCam(camId));
     }
 
-    /** Pool session up for this camId — pin may attach JSMpeg without a new INVITE. */
+    /** Pool session up for this camId \u2014 pin may attach JSMpeg without a new INVITE. */
     function pinCanReusePoolWs(camId) {
         if (!camId) return false;
         return wallHasPlayerForCam(camId) || isStreamInvited(camId) || commandWallWatchingCam(camId);
@@ -48,7 +48,7 @@
         socket.emit('start-video', payload);
     }
 
-    /** Operator-initiated stop — wins over socket reason if events race. */
+    /** Operator-initiated stop \u2014 wins over socket reason if events race. */
     const localDashboardStopCams = new Set();
 
     function emitOpsStopVideo(camId, reason, clientReason) {
@@ -73,10 +73,10 @@
 
     const players = new Map();
 
-    /** Wall slot index or 'map:camId' → camId bound to that JSMpeg player. */
+    /** Wall slot index or 'map:camId' \u2192 camId bound to that JSMpeg player. */
     const activeStreams = new Map();
 
-    /** camId → JSMpeg player for map pin popups (up to MAX_LIVE_STREAMS). */
+    /** camId \u2192 JSMpeg player for map pin popups (up to MAX_LIVE_STREAMS). */
     const mapPlayers = new Map();
     const mapPinCleanupInProgress = new Set();
 
@@ -118,13 +118,13 @@
     /** Cam IDs from last Open All session. */
     let openAllReservedIds = null;
 
-    /** Open All: camId → config wall slot (panel = slot + 1). */
+    /** Open All: camId \u2192 config wall slot (panel = slot + 1). */
     let openAllSlotByCam = null;
 
     /** Wall slots locked by Open All (rotation paused on these). */
     const openAllOccupiedSlots = new Set();
 
-    /** Pending assignCamToSlot canvas timers — cleared when the same slot re-assigns. */
+    /** Pending assignCamToSlot canvas timers \u2014 cleared when the same slot re-assigns. */
     const slotRenderTimers = new Map();
 
     const OPEN_ALL_DEVICE_STAGGER_MS = 300;
@@ -196,7 +196,7 @@
 
     const pttRxLinger = new Set();
 
-    /** Operator clicked banner/toast — show PTT Comm on map pin even when live is open. */
+    /** Operator clicked banner/toast \u2014 show PTT Comm on map pin even when live is open. */
     let pttCommPinForcedCamId = null;
 
     let pttDownlinkPolicy = {
@@ -283,13 +283,13 @@
         syncPinAudioUi();
     }
 
-    /** After SOS session ends — restore GTID 49 always-on PTT unless dispatch group PTT is active. */
+    /** After SOS session ends \u2014 restore GTID 49 always-on PTT unless dispatch group PTT is active. */
     function restorePttAfterSosSessionClose(opts) {
         opts = opts || {};
         global.activeSosPttTeam = null;
         syncAllPttUi();
         const dispatchActive = Array.isArray(global.activeDispatchPttTeam)
-            && global.activeDispatchPttTeam.length > 1;
+            && global.activeDispatchPttTeam.length >= 2;
         if (dispatchActive && opts.respectDispatchGroup !== false) {
             return;
         }
@@ -363,6 +363,9 @@
                 if (other !== id) camAudioMuted.set(other, true);
             });
             camAudioMuted.set(id, false);
+            /* WALL-AUDIO-PATH-V1 \u2014 handoff never starts PCM on JSMpeg attach; open WS + focus on unmute */
+            if (!isFixedCameraSourceId(id)) startPcmAudio();
+            if (socket) socket.emit('audio-focus', { camId: id });
             syncAllCamAudioUi();
         } else {
             camAudioMuted.set(id, true);
@@ -442,12 +445,15 @@
         for (let i = 0; i < slots.length; i++) {
             if (!players.has(i)) continue;
             const camId = resolveCamIdForSlot(slots[i]) || slots[i].dataset.camId || streamingCamId;
-            if (!camId || !isStreamInvited(camId)) continue;
+            if (!camId) continue;
+            /* WALL-AUDIO-PATH-V1 \u2014 handoff Live counts even if invite set races */
+            if (!isStreamInvited(camId) && !wallHasPlayerForCam(camId)) continue;
             if (!isCamAudioMuted(camId)) return true;
         }
         let pinOk = false;
         eachOpenPinPopup(function (id) {
-            if (pinOk || !id || !isStreamInvited(id)) return;
+            if (pinOk || !id) return;
+            if (!isStreamInvited(id) && !wallHasPlayerForCam(id) && !mapPlayers.has(id)) return;
             if ((mapPlayers.has(id) || wallHasPlayerForCam(id)) && !isCamAudioMuted(id)) pinOk = true;
         });
         return pinOk;
@@ -471,7 +477,6 @@
     function unmuteListenForCam(camId) {
         if (!camId) return;
         setCamAudioMuted(camId, false);
-        if (socket) socket.emit('audio-focus', { camId: camId });
         hideVoiceHintToast();
     }
 
@@ -617,7 +622,7 @@
         const muted = isSlotAudioMuted(slotIndex);
         const live = players.has(slotIndex);
         btn.disabled = !live;
-        btn.textContent = muted ? '🔇' : '🔊';
+        btn.textContent = muted ? '\uD83D\uDD07' : '\uD83D\uDD0A';
         btn.title = !live ? 'Audio (starts muted when live)' : (muted ? 'Listen to this panel' : 'Mute this panel');
         btn.setAttribute('aria-pressed', muted ? 'true' : 'false');
         btn.classList.toggle('listening', live && !muted);
@@ -671,7 +676,8 @@
         const id = String(camId || '').trim();
         if (!id) return [];
         const dispatchTeam = global.activeDispatchPttTeam;
-        if (Array.isArray(dispatchTeam) && dispatchTeam.length > 1 && dispatchTeam.indexOf(id) >= 0) {
+        /* PTT-GROUP-NET-MESH-AND-TALK-V1 \u2014 fanout when Joined net includes this cam (2+) */
+        if (Array.isArray(dispatchTeam) && dispatchTeam.length >= 2 && dispatchTeam.indexOf(id) >= 0) {
             return dispatchTeam.map(String).filter(Boolean);
         }
         const sosTeam = global.activeSosPttTeam;
@@ -681,7 +687,48 @@
         return [id];
     }
 
-    /** SOS response team active for this cam — HQ hold PTT fans out to full team (v1.8). */
+    function dispatchGroupNetActive() {
+        return Array.isArray(global.activeDispatchPttTeam)
+            && global.activeDispatchPttTeam.length >= 2;
+    }
+
+    function resolveDispatchGroupTalkSeedCamId() {
+        const team = global.activeDispatchPttTeam;
+        if (!Array.isArray(team) || team.length < 2) return null;
+        for (let i = 0; i < team.length; i++) {
+            const id = String(team[i] || '').trim();
+            if (id && isPttTalkReadyForCam(id)) return id;
+        }
+        return String(team[0] || '').trim() || null;
+    }
+
+    function updateDispatchGroupPttButton() {
+        const row = document.getElementById('ptt-group-talk-row');
+        const hint = document.getElementById('ptt-group-talk-hint');
+        const btn = document.getElementById('ptt-group-talk-hold');
+        const activeNet = dispatchGroupNetActive();
+        if (row) row.hidden = !activeNet;
+        if (hint) hint.hidden = !activeNet;
+        if (!btn) return;
+        const talking = !!(pttHolding && pttTalkCamIds && pttTalkCamIds.length > 1);
+        btn.classList.toggle('active', talking);
+        btn.disabled = !activeNet || !pttEnabled
+            || (pttHolding && !talking)
+            || false;
+        btn.setAttribute('aria-pressed', talking ? 'true' : 'false');
+        if (talking) {
+            btn.title = tr('ptt.groupTalking', { n: pttTalkCamIds.length });
+        } else {
+            btn.title = tr('ptt.groupBox.holdTalk');
+        }
+    }
+
+    function bindDispatchGroupPttHold(btn) {
+        if (!btn) return;
+        bindPttHoldButton(btn, resolveDispatchGroupTalkSeedCamId, { wakeOnNotReady: true });
+    }
+
+    /** SOS response team active for this cam \u2014 HQ hold PTT fans out to full team (v1.8). */
     function sosPttGroupTalkActiveForCam(camId) {
         const id = String(camId || '').trim();
         if (!id) return false;
@@ -746,6 +793,7 @@
         syncPinPttUi();
         syncPinPttTxUi();
         syncFleetPttRows();
+        updateDispatchGroupPttButton();
     }
 
     function applyVoiceCallPolicy(data) {
@@ -854,7 +902,7 @@
 
     const fleetPttWakeOnlyInFlight = new Set();
 
-    /** Tap-to-wake fleet row PTT — channel prep without hold (cold start). */
+    /** Tap-to-wake fleet row PTT \u2014 channel prep without hold (cold start). */
     function pokeFleetPttWakeOnly(camId) {
         if (!socket || !camId || !pttEnabled) return;
         camId = String(camId).trim();
@@ -973,7 +1021,7 @@
             return;
         }
         if (!isPttTalkReadyForCam(camId)) {
-            alert(tr('ptt.notOnChannel') + ' — wait a few seconds after live video starts, or press PTT team again.');
+            alert(tr('ptt.notOnChannel') + ' \u2014 wait a few seconds after live video starts, or press PTT team again.');
             return;
         }
         pttTalkCamId = camId;
@@ -1025,7 +1073,7 @@
             return;
         }
         if (!isPttTalkReadyForCam(camId)) {
-            alert(tr('ptt.notOnChannel') + ' — wait a few seconds after live video starts, or press PTT team again.');
+            alert(tr('ptt.notOnChannel') + ' \u2014 wait a few seconds after live video starts, or press PTT team again.');
             return;
         }
         const camIds = (opts.forceOneToOne && !sosPttGroupTalkActiveForCam(camId))
@@ -1237,7 +1285,7 @@
         );
     }
 
-    /** Active decode only — cold PTT linger must not treat stale slot/pin intent as live. */
+    /** Active decode only \u2014 cold PTT linger must not treat stale slot/pin intent as live. */
     function hasActiveDashboardLiveForCam(camId) {
         if (!camId) return false;
         if (global.CommandWall && CommandWall.hasActiveLivePlayerForCam
@@ -1558,6 +1606,10 @@
     function toggleVoiceCall(camId, opts) {
         opts = opts || {};
         if (!socket || !camId) return;
+        if (typeof window.dispatchCallGroupTryToggle === 'function'
+            && window.dispatchCallGroupTryToggle(camId)) {
+            return;
+        }
         dismissPttCommForCall(camId);
         if (voiceCallCamId === camId) {
             if (!voiceCallPending) {
@@ -1626,7 +1678,7 @@
             if (muteBtn) muteBtn.hidden = !live;
             if (!live || !muteBtn) return;
             const muted = isCamAudioMuted(id);
-            muteBtn.textContent = muted ? '🔇' : '🔊';
+            muteBtn.textContent = muted ? '\uD83D\uDD07' : '\uD83D\uDD0A';
             muteBtn.title = muted ? 'Listen to live audio' : 'Mute live audio';
             muteBtn.classList.toggle('listening', !muted);
             muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
@@ -1789,7 +1841,7 @@
             if (state.stopped || !ev.data) return;
             enqueuePcmListenChunk(state, ev.data);
         };
-        ws.onerror = () => { /* ignore — video keeps running */ };
+        ws.onerror = () => { /* ignore \u2014 video keeps running */ };
         ws.onclose = () => {
             if (!state.stopped) pcmAudio = null;
         };
@@ -1806,8 +1858,8 @@
     function updateWallBankTabLabels() {
         const nextBtn = document.getElementById('video-wall-bank-next');
         const curEl = document.getElementById('video-wall-bank-current');
-        if (curEl) curEl.textContent = wallBankPage === 'b' ? 'Panels 6–10' : 'Panels 1–5';
-        if (nextBtn) nextBtn.textContent = wallBankPage === 'b' ? 'Next Panels 1–5' : 'Next Panels 6–10';
+        if (curEl) curEl.textContent = wallBankPage === 'b' ? 'Panels 6\u201310' : 'Panels 1\u20135';
+        if (nextBtn) nextBtn.textContent = wallBankPage === 'b' ? 'Next Panels 1\u20135' : 'Next Panels 6\u201310';
         const wall = document.getElementById('video-wall');
         if (wall) wall.setAttribute('data-bank', wallBankPage);
     }
@@ -2094,14 +2146,14 @@
         });
     }
 
-    /** Wall stage has live decode — JSMpeg canvas or WVP handoff FLV video. */
+    /** Wall stage has live decode \u2014 JSMpeg canvas or WVP handoff FLV video. */
     function wallStageHasLiveMedia(stage) {
         if (!stage) return false;
         return !!(stage.querySelector('canvas')
             || stage.querySelector('video.me8-zlm-primary'));
     }
 
-    /** Pin host shows live picture — direct canvas or wall mirror canvas. */
+    /** Pin host shows live picture \u2014 direct canvas or wall mirror canvas. */
     function pinHostHasLiveMedia(pinHost, camId) {
         if (!pinHost) return false;
         if (pinHost.querySelector('canvas.map-pin-video-canvas')) return true;
@@ -2401,7 +2453,7 @@
         return injectWallSlotStreamingLabel(stage, false);
     }
 
-    /** Wall panel waiting label — survives until video-slot-has-live. */
+    /** Wall panel waiting label \u2014 survives until video-slot-has-live. */
     function injectWallSlotStreamingLabel(stage, isAlarm) {
         if (!stage) return null;
         let el = stage.querySelector('.video-slot-streaming-label');
@@ -2490,7 +2542,7 @@
         return VideoConfig.getActiveDeviceForSlot(slot) || '';
     }
 
-    /** Per-slot cam — never falls back to global activeCamId (avoids empty panels cloning last play). */
+    /** Per-slot cam \u2014 never falls back to global activeCamId (avoids empty panels cloning last play). */
     function resolveCamIdForSlot(slotEl) {
         const slot = findSlotIndex(slotEl);
         if (typeof slot === 'number' && activeStreams.has(slot)) {
@@ -2533,7 +2585,7 @@
         return !!(pending && pending !== camId);
     }
 
-    /** First free pin-capable panel; manual Panels 9–10 are never allocated by pins. */
+    /** First free pin-capable panel; manual Panels 9\u201310 are never allocated by pins. */
     function freeWallSlotForCam(camId) {
         for (let i = 0; i < PIN_SLOT_COUNT; i += 1) {
             if (!wallSlotTaken(i, camId)) return i;
@@ -2570,7 +2622,7 @@
         if (pendingWallSlots[slotIndex] === camId) delete pendingWallSlots[slotIndex];
     }
 
-    /** Video Config panel registration → wall slot; else first free panel. */
+    /** Video Config panel registration \u2192 wall slot; else first free panel. */
     function resolveWallSlotFromConfig(camId, taken) {
         if (!camId) return 0;
         taken = taken || {};
@@ -2678,7 +2730,7 @@
         return resolveSlotIndexForCam(camId);
     }
 
-    /** Wall slot for a map pin: Open All lock → SOS slot → Video Config panel. */
+    /** Wall slot for a map pin: Open All lock \u2192 SOS slot \u2192 Video Config panel. */
     function resolvePinWallSlot(camId) {
         if (!camId) return null;
         const openAllSlot = openAllWallSlotForCam(camId);
@@ -2720,7 +2772,7 @@
         if (slotEl) slotEl.classList.add('selected');
     }
 
-    /** True when HQ may resume after Stopped by BWC (Play / SOS / Open All) — never auto. */
+    /** True when HQ may resume after Stopped by BWC (Play / SOS / Open All) \u2014 never auto. */
     function allowBwcStoppedLiveResume(opts) {
         opts = opts || {};
         return !!(opts.userPlay || opts.sosLive || opts.alarm || opts.openAll || opts.allowBwcStoppedResume);
@@ -2744,7 +2796,7 @@
         return true;
     }
 
-    /** Wall or server stream already up — attach JSMpeg only, no backend INVITE. */
+    /** Wall or server stream already up \u2014 attach JSMpeg only, no backend INVITE. */
     function requestStreamForCam(camId, force, opts) {
         if (!camId) return false;
         camId = String(camId).trim();
@@ -2759,13 +2811,13 @@
         return ensureInvite(camId, force, opts);
     }
 
-    /** Soft ZLM overlays by wall slot — JSMpeg stays; overlay removed on fail/stop. */
+    /** Soft ZLM overlays by wall slot \u2014 JSMpeg stays; overlay removed on fail/stop. */
     const zlmWallOverlays = new Map();
 
-    /** WVP handoff FLV URL per cam — MOB-APPLY-BACKEND-VIDEO-UI-FLV-ON-READY-V1 */
+    /** WVP handoff FLV URL per cam \u2014 MOB-APPLY-BACKEND-VIDEO-UI-FLV-ON-READY-V1 */
     const wvpHandoffFlvByCam = new Map();
 
-    /** Per-slot handoff attach lock — MOB-APPLY-FLV-SINGLE-ATTACH-DEDUPE-V1 */
+    /** Per-slot handoff attach lock \u2014 MOB-APPLY-FLV-SINGLE-ATTACH-DEDUPE-V1 */
     const wvpHandoffSlotInflight = new Map();
 
 function handoffPlayerAttaching(player) {
@@ -2852,6 +2904,7 @@ function handoffPlayerAttaching(player) {
                     noteVideoFrame(camId);
                     ensureBwcStallWatch(camId);
                 }
+                if (!isFixedCameraSourceId(camId)) startPcmAudio();
                 updateSlotAudioButton(slotKey);
                 syncAllCallUi();
                 if (camId) {
@@ -2924,7 +2977,7 @@ function handoffPlayerAttaching(player) {
         try { h.destroy(); } catch (_) { /* ignore */ }
     }
 
-    /** One-cam ZLM soft try only — Open All / multi-live stays JSMpeg. */
+    /** One-cam ZLM soft try only \u2014 Open All / multi-live stays JSMpeg. */
     function wallZlmSoftUpgradeAllowed() {
         if (openAllReservedIds && openAllReservedIds.length) return false;
         if (openAllOccupiedSlots.size > 0) return false;
@@ -2956,7 +3009,7 @@ function handoffPlayerAttaching(player) {
                         proveMs: 450,
                         timeoutMs: 8000,
                         onProven: function () {
-                            /* JSMpeg kept under overlay for pin mirror — no wipe */
+                            /* JSMpeg kept under overlay for pin mirror \u2014 no wipe */
                         },
                         onFail: function () {
                             zlmWallOverlays.delete(slotKey);
@@ -3044,7 +3097,7 @@ function handoffPlayerAttaching(player) {
                             if (camId && !fixedCameraSource) {
                                 setTimeout(function () { syncMapPopupPlayer(camId); }, 120);
                             }
-                            /* Baseline (Firmware Gold): multi-live → open map pins + one dock. */
+                            /* Baseline (Firmware Gold): multi-live \u2192 open map pins + one dock. */
                             if (!fixedCameraSource && wallActiveCamIds().length >= 2) {
                                 setTimeout(function () {
                                     ensurePopupsForLiveWallCams();
@@ -3117,7 +3170,7 @@ function handoffPlayerAttaching(player) {
             '<span class="map-pin-ptt-rx-badge" hidden>' + tr('ptt.fieldBadge') + '</span>' +
             '<div class="media-box vid-box map-pin-video" data-cam-id="' + camId + '">' +
             '<div class="map-pin-video-placeholder">' + tr('map.pin.livePlaceholder') + '</div>' +
-            '<button type="button" class="map-pin-audio-mute" title="Listen to live audio" hidden>🔇</button>' +
+            '<button type="button" class="map-pin-audio-mute" title="Listen to live audio" hidden>\uD83D\uDD07</button>' +
             '</div>' +
             '<div class="map-pin-video-bar">' +
             '<button type="button" class="map-pin-play" data-cam-id="' + camId + '" title="' + tr('call.liveVideo') + '">' + tr('call.liveVideo') + '</button>' +
@@ -3267,14 +3320,14 @@ function handoffPlayerAttaching(player) {
         return null;
     }
 
-    /** WVP handoff wall player — mpegts on <video>, no JSMpeg canvas. */
+    /** WVP handoff wall player \u2014 mpegts on <video>, no JSMpeg canvas. */
 
     /**
-     * Pin mirror source — Firmware Gold canvas first; else handoff <video> when wall decoded.
+     * Pin mirror source \u2014 Firmware Gold canvas first; else handoff <video> when wall decoded.
      * Player-only change for WVP/ZLM (no layout).
      */
 
-    /** Wall panel has real decode (video-slot-has-live) — not merely an invited player canvas. */
+    /** Wall panel has real decode (video-slot-has-live) \u2014 not merely an invited player canvas. */
     function wallSlotDecodedForCam(camId) {
         if (!camId) return false;
         return getSlots().some(function (el) {
@@ -3286,7 +3339,7 @@ function handoffPlayerAttaching(player) {
     }
 
 
-    /** WVP handoff wall player — mpegts on <video>, no JSMpeg canvas. */
+    /** WVP handoff wall player \u2014 mpegts on <video>, no JSMpeg canvas. */
     function wallHandoffVideoForCam(camId) {
         if (!camId) return null;
         camId = String(camId).trim();
@@ -3301,7 +3354,7 @@ function handoffPlayerAttaching(player) {
         return null;
     }
 
-    /** Pin mirror source — classic canvas first; else handoff <video> when wall decoded. */
+    /** Pin mirror source \u2014 classic canvas first; else handoff <video> when wall decoded. */
     function wallMirrorSourceForCam(camId) {
         if (!camId) return null;
         const canvas = wallCanvasForCam(camId);
@@ -3313,11 +3366,11 @@ function handoffPlayerAttaching(player) {
     }
 
 
-    /** Pin video mirror — RAF copy from wall canvas or handoff <video> (Gold + player-only). */
+    /** Pin video mirror \u2014 RAF copy from wall canvas or handoff <video> (Gold + player-only). */
     function startMapMirrorFromWall(camId, host) {
         if (!camId || !host) return false;
         camId = String(camId).trim();
-        /* PIN-FLEET-BASELINE-PLAYER-ONLY-CLEANUP-V1 — classic RAF; source = canvas or WVP video. */
+        /* PIN-FLEET-BASELINE-PLAYER-ONLY-CLEANUP-V1 \u2014 classic RAF; source = canvas or WVP video. */
         const src = wallMirrorSourceForCam(camId);
         if (!src || !src.el) return false;
         const srcKind = src.kind === 'video' ? 'video' : 'canvas';
@@ -3437,7 +3490,7 @@ function handoffPlayerAttaching(player) {
             updateMapPinStopButton(camId);
             return false;
         }
-        /* Do not clear Stopped by BWC here — that reopened live / auto call-back. */
+        /* Do not clear Stopped by BWC here \u2014 that reopened live / auto call-back. */
         if (bwcStoppedCams.has(camId)) {
             updateMapPinStopButton(camId);
             return false;
@@ -4049,7 +4102,7 @@ function handoffPlayerAttaching(player) {
                 stage.innerHTML = '<span class="video-slot-empty">' + tr('video.stopped') + '</span>';
             }
             const st = slotEl.querySelector('.video-slot-status');
-            if (st && (st.textContent === 'Live' || st.textContent === 'Connecting…'
+            if (st && (st.textContent === 'Live' || st.textContent === 'Connecting\u2026'
                 || st.textContent === alarmStreamLabel() || st.textContent === liveStreamLabel())) {
                 st.textContent = 'Stopped';
             }
@@ -4184,7 +4237,7 @@ function handoffPlayerAttaching(player) {
                 stage.innerHTML = '<span class="video-slot-empty">' + tr('video.stopped') + '</span>';
             }
             const st = slotEl.querySelector('.video-slot-status');
-            if (st && (st.textContent === 'Live' || st.textContent === 'Connecting…'
+            if (st && (st.textContent === 'Live' || st.textContent === 'Connecting\u2026'
                 || st.textContent === alarmStreamLabel() || st.textContent === liveStreamLabel())) {
                 st.textContent = 'Stopped';
             }
@@ -4207,7 +4260,7 @@ function handoffPlayerAttaching(player) {
         if (typeof global.expandMapPinVideo === 'function') {
             global.expandMapPinVideo(camId);
         }
-        /* Keep every live wall panel's map popup open — panel-by-panel play, colocated spread + drag. */
+        /* Keep every live wall panel's map popup open \u2014 panel-by-panel play, colocated spread + drag. */
         if (typeof global.selectFleetDevice === 'function') {
             global.selectFleetDevice(camId, {
                 skipVideo: true,
@@ -4226,7 +4279,7 @@ function handoffPlayerAttaching(player) {
         }
         if (wallHasPlayerForCam(camId)) syncMapPopupPlayer(camId);
         else updateMapPinStopButton(camId);
-        /* One dock pass — triple delayed docks caused pin jump / top thrash. */
+        /* One dock pass \u2014 triple delayed docks caused pin jump / top thrash. */
         if (typeof global.assignColocatedPinPopupDocks === 'function') {
             global.assignColocatedPinPopupDocks('focus-map-pin');
         }
@@ -4253,7 +4306,7 @@ function handoffPlayerAttaching(player) {
         return ids;
     }
 
-    /** Baseline Firmware Gold — openPopup for every live wall cam + pin video. */
+    /** Baseline Firmware Gold \u2014 openPopup for every live wall cam + pin video. */
     function ensurePopupsForLiveWallCams() {
         var ids = wallActiveCamIds();
         ids.forEach(function (id) {
@@ -4283,7 +4336,7 @@ function handoffPlayerAttaching(player) {
             setSlotMeta(slotEl, sourceId, 'Already live on Panel ' + (duplicateSlot + 1));
             return;
         }
-        setSlotMeta(slotEl, sourceId, 'Connecting…');
+        setSlotMeta(slotEl, sourceId, 'Connecting\u2026');
         try {
             const response = await fetch('/api/fixed-cams/' + encodeURIComponent(fixedCameraRegistryId(sourceId)) + '/wall/start', {
                 method: 'POST',
@@ -4555,7 +4608,7 @@ function handoffPlayerAttaching(player) {
         openAllReservedIds = ids.slice();
     }
 
-    /** Open All: Video Config panel N → wall slot N; map popups use dock layout separately. */
+    /** Open All: Video Config panel N \u2192 wall slot N; map popups use dock layout separately. */
     function openAllLivePins(camIds) {
         const ids = (camIds || []).map(function (id) { return String(id || '').trim(); }).filter(Boolean).slice(0, PIN_SLOT_COUNT);
         if (!ids.length) return;
@@ -4707,7 +4760,7 @@ function handoffPlayerAttaching(player) {
         requestStreamForCam(camId, !!opts.forceLive);
         // mob-play-on-map-popup-wall-claim: always claim a wall slot (Firmware Gold).
         // Optional freeWallSlotForCam skip left opsWallClaimsCam false during colocated
-        // popupclose → releaseServerStreamIfIdle → stop-video → pool kill.
+        // popupclose \u2192 releaseServerStreamIfIdle \u2192 stop-video \u2192 pool kill.
         const slotIndex = (forcedWallSlot != null && forcedWallSlot >= 0)
             ? forcedWallSlot
             : reserveWallSlotForCam(camId);
@@ -4946,7 +4999,7 @@ function handoffPlayerAttaching(player) {
                 if (!camId || !host) return;
                 e.preventDefault();
                 e.stopPropagation();
-                /* Clear before play — capture runs before dashboard-boot bubble clear (1-click Live). */
+                /* Clear before play \u2014 capture runs before dashboard-boot bubble clear (1-click Live). */
                 if (typeof global.clearPinVideoUserStop === 'function') {
                     global.clearPinVideoUserStop(camId);
                 }
@@ -5409,7 +5462,7 @@ function handoffPlayerAttaching(player) {
                 markBwcStoppedOverlay(camId);
                 return;
             }
-            /* stop-video after device BYE (clear watching) — keep Stopped by BWC chrome */
+            /* stop-video after device BYE (clear watching) \u2014 keep Stopped by BWC chrome */
             if (bwcStoppedCams.has(camId)) {
                 return;
             }
@@ -5592,6 +5645,8 @@ function handoffPlayerAttaching(player) {
         restorePttAfterSosSessionClose,
         setDispatchPttTeam,
         clearDispatchPttTeam,
+        dispatchGroupNetActive,
+        bindDispatchGroupPttHold,
         syncFleetPttRows,
         syncFleetVoiceRows,
         toggleVoiceCall,

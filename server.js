@@ -14,6 +14,11 @@ const { Server } = require('socket.io');
 const fs = require('fs');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
+const {
+    createSipCallId,
+    createSipTag,
+    createGbSequenceNumber,
+} = require('./lib/sipCryptoIdentifiers');
 
 const WebSocket = require('ws');
 
@@ -42,6 +47,8 @@ const evidenceUploadSafeName = require('./lib/evidenceUploadSafeName');
 const evidenceIngestGate = require('./lib/evidenceIngestGate');
 const multer = require('multer');
 const log = require('./lib/fleetLog');
+const { installFatalProcessPolicy } = require('./lib/fatalProcessPolicy');
+const { createLoginRateLimiter } = require('./lib/loginRateLimiter');
 const pttFieldGroupRelay = require('./lib/pttFieldGroupRelay').create({
     pttServer,
     log,
@@ -51,34 +58,7 @@ const wvpFleetPresence = require('./lib/wvpFleetPresence');
 const dashboardConnectWarm = require('./lib/dashboardConnectWarm');
 const wvpSipLanMap = require('./lib/wvpSipLanMap');
 
-process.on('uncaughtException', (err) => {
-    // mob-sec-epipe-log-guard: stdout/stderr broken pipes can throw while logging.
-    // Do not log EPIPE back through console/fleetLog, or Fleet can loop red text.
-    if (err && err.code === 'EPIPE' && err.syscall === 'write') {
-        return;
-    }
-
-    try {
-        log.web.err('uncaughtException — process kept alive', {
-            message: err && err.message,
-            stack: err && err.stack ? String(err.stack).split('\n').slice(0, 6).join(' | ') : null,
-        });
-    } catch (_) {
-        try {
-            process.stderr.write('Fatal uncaughtException: ' + (err && err.message ? err.message : '') + '\n');
-        } catch (__) { /* ignore */ }
-    }
-});
-
-process.on('unhandledRejection', (reason) => {
-    try {
-        log.web.err('unhandledRejection — process kept alive', {
-            message: reason && reason.message ? reason.message : String(reason),
-        });
-    } catch (_) {
-        console.error('unhandledRejection', reason);
-    }
-});
+installFatalProcessPolicy({ log });
 const serverSettings = require('./lib/serverSettings');
 const platformSmtp = require('./lib/platformSmtp');
 const authRecoveryEmail = require('./lib/authRecoveryEmail');
@@ -109,6 +89,31 @@ const platformLicense = require('./lib/platformLicense');
 const tenantProfile = require('./lib/tenantProfile');
 const bwcNetwork = require('./lib/bwcNetwork');
 const siteDb = require('./lib/siteDb');
+const enterpriseEnv = require('./lib/enterpriseEnv');
+const { createRedisRuntime } = require('./lib/redisRuntime');
+let RedisCtor = null;
+try {
+    RedisCtor = require('ioredis');
+} catch (_) {
+    RedisCtor = null;
+}
+const enterpriseCfg = enterpriseEnv.loadEnterpriseEnv(process.env, __dirname);
+const redisRuntime = createRedisRuntime({
+    url: enterpriseCfg.redis.url,
+    keyPrefix: enterpriseCfg.redis.keyPrefix,
+    connectTimeoutMs: enterpriseCfg.redis.connectTimeoutMs,
+    Redis: RedisCtor,
+    log,
+});
+(function wireRedisOnlineDualWrite() {
+    const originalTouch = siteDb.touchRuntime.bind(siteDb);
+    siteDb.touchRuntime = function touchRuntimeWithCache(deviceId, patch) {
+        originalTouch(deviceId, patch);
+        try {
+            redisRuntime.writeOnline(deviceId, patch || {});
+        } catch (_) { /* never block fleet */ }
+    };
+})();
 const gpsTrack = require('./lib/gpsTrack');
 const smartGpsTrack = require('./lib/smartGpsTrack');
 const auditLog = require('./lib/auditLog');
@@ -660,6 +665,14 @@ audioWss.on('connection', () => {
 });
 mediaSession.setAudioWss(audioWss);
 liveStreamPool.setAudioWss(audioWss);
+try {
+    const wvpWallListenAudio = require('./lib/wvpWallListenAudio');
+    wvpWallListenAudio.setPushPcm(function (pcm) {
+        mediaSession.pushListenPcm(pcm);
+    });
+} catch (err) {
+    log.media.warn('wvp wall listen init skipped', { message: err && err.message ? err.message : String(err) });
+}
 liveStreamPool.setOnVideoDecode((camId) => {
     if (camId) {
         const sosPull = sosInviteQueue.wasSosPending(camId);
@@ -994,35 +1007,15 @@ app.use((req, res, next) => {
 });
 
 // ── Login rate limiter (no external dependency) ───────────────────────────────
-const _loginAttempts = new Map();
-const _LOGIN_MAX   = 10;
-const _LOGIN_WIN   = 15 * 60 * 1000;
-const _LOGIN_BLOCK = 15 * 60 * 1000;
-
-function loginRateLimit(req, res, next) {
-    const ip  = req.ip || 'unknown';
-    const now = Date.now();
-    const rec = _loginAttempts.get(ip) || { count: 0, firstAt: now, blockedUntil: 0 };
-    if (rec.blockedUntil > now) {
-        res.setHeader('Retry-After', Math.ceil((rec.blockedUntil - now) / 1000));
-        return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
-    }
-    if (now - rec.firstAt > _LOGIN_WIN) { rec.count = 0; rec.firstAt = now; }
-    rec.count++;
-    if (rec.count > _LOGIN_MAX) {
-        rec.blockedUntil = now + _LOGIN_BLOCK;
-        _loginAttempts.set(ip, rec);
-        return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
-    }
-    _loginAttempts.set(ip, rec);
-    next();
-}
-setInterval(() => {
-    const now = Date.now();
-    for (const [ip, rec] of _loginAttempts) {
-        if (rec.blockedUntil < now && now - rec.firstAt > _LOGIN_WIN) _loginAttempts.delete(ip);
-    }
-}, 5 * 60 * 1000);
+const loginLimiter = createLoginRateLimiter({
+    maxAttempts: 10,
+    windowMs: 15 * 60 * 1000,
+    blockMs: 15 * 60 * 1000,
+    maxEntries: 5000,
+});
+const loginRateLimit = loginLimiter.middleware;
+const loginLimiterPruneTimer = setInterval(() => loginLimiter.prune(), 5 * 60 * 1000);
+if (typeof loginLimiterPruneTimer.unref === 'function') loginLimiterPruneTimer.unref();
 // ─────────────────────────────────────────────────────────────────────────────
 
 function labSettingsLive() {
@@ -1082,6 +1075,8 @@ app.get('/api/health', async (req, res) => {
         }
         body.at = siteTime.formatEvidence(new Date());
         body.displayMonitor3 = getDisplayMonitor3Profile();
+        /* CACHE_DEGRADED is informational — never flip health ok/503 (SOS/live/PTT independent). */
+        body.cache = redisRuntime.snapshot();
         res.status(body.ok ? 200 : 503).json(body);
     } catch (err) {
         res.status(503).json({
@@ -1909,7 +1904,7 @@ app.post('/api/bwc-companion/telemetry', requireBwcCompanionToken, handleBwcComp
                 emitToDashboardSockets('heartbeat', { cameraId: camId }, camId);
             },
             emitGpsUpdate: function (camId, lat, lon) {
-                lastGpsByCam[camId] = { lat: lat, lon: lon, at: Date.now() };
+                rememberGps(camId, lat, lon);
                 emitToDashboardSockets('gps-update', { cameraId: camId, lat: lat, lon: lon }, camId);
             },
             emitDeviceStatusFromAcl: function (norm) {
@@ -3132,17 +3127,44 @@ app.post('/api/sos-acknowledge', async (req, res) => {
             sosInviteQueue.clearForCam(alarmCamId);
             // Keep live video on the wall until the operator hits Stop — ack only closes the alarm UI.
         }
+        // SOS-ACK-ENDS-GROUP-CALL-RESTORE-PTT-V1: ACK closes the multi-party SIP call so
+        // normal HQ PTT / Call are not left blocked after the alarm is cleared.
+        let endedGroupCall = null;
+        if (sosGroupCall.isActive()) {
+            const before = sosGroupCall.snapshot();
+            sosGroupCall.stop('sos_acknowledged');
+            endedGroupCall = {
+                callId: before.callId || null,
+                alarmCamId: before.alarmCamId || alarmCamId || null,
+                participants: Array.isArray(before.participants)
+                    ? before.participants.map((row) => row && row.camId).filter(Boolean)
+                    : [],
+            };
+            auditLog.recordFromRequest(req, 'sos.group_call.end', {
+                target: endedGroupCall.alarmCamId,
+                detail: {
+                    callId: endedGroupCall.callId,
+                    reason: 'sos_acknowledged',
+                    participants: endedGroupCall.participants,
+                },
+            });
+            log.sip.info('sos ack ended group call', endedGroupCall);
+        }
         if (!sosIncidents.getOpenAlarms().length) {
             smartGpsTrack.stopAllSosTracking();
             emitSmartGpsState();
         }
         if (alarmCamId) {
-            emitToDashboardSockets('sos-acknowledged', { cameraId: alarmCamId }, alarmCamId);
+            emitToDashboardSockets('sos-acknowledged', {
+                cameraId: alarmCamId,
+                endedGroupCall: !!endedGroupCall,
+            }, alarmCamId);
         }
         res.json({
             ok: true,
             entry: entry && entry.id ? (sosIncidents.getPublicEntry(entry.id) || entry) : entry,
             pttTeam,
+            endedGroupCall,
         });
     } catch (err) {
         res.status(err.status || 500).json(opErr(err));
@@ -3183,6 +3205,7 @@ app.post('/api/dispatch-ptt-group', (req, res) => {
         const adhocCamIds = Array.isArray(body.camIds)
             ? body.camIds.map(String).map((id) => id.trim()).filter(Boolean)
             : [];
+        /* PTT-GROUP-NET-MESH-AND-TALK-V1 — group net needs 2+ field units (1 alone = use wall 1:1) */
         if (!groupId && adhocCamIds.length < 2) {
             return res.status(400).json({
                 ok: false,
@@ -3209,7 +3232,7 @@ app.post('/api/dispatch-ptt-group', (req, res) => {
             if (!roster.length) {
                 return res.status(400).json(opErr("Group has no devices with IDs"));
             }
-            if (adhocCamIds.length >= 2) {
+            if (adhocCamIds.length >= 1) {
                 const rosterSet = new Set(roster);
                 camIds = adhocCamIds.filter((id) => rosterSet.has(id));
                 if (camIds.length < 2) {
@@ -3272,12 +3295,11 @@ app.post('/api/dispatch-ptt-group', (req, res) => {
             teamSize: team.length,
             pushed: pushResult.pushed,
         });
-        if (pushResult.pushed > 0) {
-            pttFieldGroupRelay.setDispatchTeam(resolvedGroupId || 'adhoc', team, {
-                groupName,
-                adhoc,
-            });
-        }
+        /* Mesh relay arms even if XML push partially skipped — field↔field needs team */
+        pttFieldGroupRelay.setDispatchTeam(resolvedGroupId || 'adhoc', team, {
+            groupName,
+            adhoc,
+        });
         auditLog.recordFromRequest(req, 'ptt.dispatch_group', {
             target: auditTarget,
             detail: { groupId: resolvedGroupId, adhoc, team, pushed: pushResult.pushed },
@@ -6418,6 +6440,91 @@ app.post('/api/evidence/redact/:exportId/finalize', dashboardAuth.requireSuperAd
     }
 });
 
+/* REDACT-PRIOR-EXPORTS-CLEANUP-V1 — remove non-finalized redact copies (not custody). */
+/* REDACT-PRIOR-EXPORTS-CLEAR-FINALIZED-V1 — ?finalized=1 removes one Finalized copy. */
+app.delete('/api/evidence/redact/:exportId', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        const allowFinalized = String(req.query.finalized || '') === '1'
+            || String((req.body && req.body.finalized) || '') === '1';
+        const out = allowFinalized
+            ? await evidenceWorkflow.removeRedactExportFinalized(req.params.exportId)
+            : await evidenceWorkflow.removeRedactExportDraft(req.params.exportId);
+        const auditAction = allowFinalized
+            ? 'evidence.redact_finalized_removed'
+            : 'evidence.redact_export_removed';
+        await auditLog.recordFromRequest(req, auditAction, {
+            target: out.evidenceFileId,
+            detail: {
+                fileId: out.evidenceFileId,
+                evidenceFileId: out.evidenceFileId,
+                exportId: out.exportId,
+                fileName: out.fileName,
+                status: out.status,
+            },
+        });
+        res.json({ ok: true, removed: out });
+    } catch (err) {
+        const msg = String(err && err.message || '');
+        const code = msg.indexOf('Finalized') >= 0 || msg.indexOf('not finalized') >= 0
+            ? 409
+            : (msg.indexOf('not found') >= 0 ? 404 : 400);
+        const errorKey = String(req.query.finalized || '') === '1'
+            ? 'evidenceHub.exportFinalizedCleanupFailed'
+            : 'evidenceHub.exportCleanupFailed';
+        res.status(code).json(Object.assign({ errorKey: errorKey }, opErr(err)));
+    }
+});
+
+app.post('/api/evidence/detail/:fileId/redact/cleanup-drafts', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        const out = await evidenceWorkflow.removeRedactExportDraftsForFile(req.params.fileId);
+        await auditLog.recordFromRequest(req, 'evidence.redact_drafts_cleaned', {
+            target: out.evidenceFileId,
+            detail: {
+                fileId: out.evidenceFileId,
+                evidenceFileId: out.evidenceFileId,
+                count: out.count,
+                exportIds: (out.removed || []).map(function (r) { return r.exportId; }),
+            },
+        });
+        res.json({ ok: true, count: out.count, removed: out.removed });
+    } catch (err) {
+        res.status(400).json(Object.assign({
+            errorKey: 'evidenceHub.exportCleanupFailed',
+        }, opErr(err)));
+    }
+});
+
+/* REDACT-PRIOR-EXPORTS-CLEAR-FINALIZED-V1 — bulk clear Finalized for one clip (typed DELETE). */
+app.post('/api/evidence/detail/:fileId/redact/cleanup-finalized', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        const confirm = String((req.body && req.body.confirm) || '').trim();
+        if (confirm !== 'DELETE') {
+            return res.status(400).json({
+                ok: false,
+                error: 'Type DELETE to confirm clearing Finalized redacted copies.',
+                errorKey: 'evidenceHub.exportClearFinalizedNeedConfirm',
+            });
+        }
+        const out = await evidenceWorkflow.removeRedactExportFinalizedForFile(req.params.fileId);
+        await auditLog.recordFromRequest(req, 'evidence.redact_finalized_cleaned', {
+            target: out.evidenceFileId,
+            detail: {
+                fileId: out.evidenceFileId,
+                evidenceFileId: out.evidenceFileId,
+                count: out.count,
+                exportIds: (out.removed || []).map(function (r) { return r.exportId; }),
+                status: 'finalized',
+            },
+        });
+        res.json({ ok: true, count: out.count, removed: out.removed });
+    } catch (err) {
+        res.status(400).json(Object.assign({
+            errorKey: 'evidenceHub.exportFinalizedCleanupFailed',
+        }, opErr(err)));
+    }
+});
+
 // Face-track selfcheck — Seeta default (mob-evidence-redact-seeta-detect-v1).
 app.get('/api/evidence/redact/track-selfcheck', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
@@ -7182,6 +7289,7 @@ app.get('/api/analytics/fr/kept', dashboardAuth.requireDashboardAuth, (req, res)
         let rows = frKeptEvidence.list({
             limit: req.query.limit,
             camId: req.query.camId,
+            status: req.query.status,
         });
         rows = rows.filter(function (r) {
             if (!r.camId) return true;
@@ -7222,6 +7330,51 @@ app.get('/api/analytics/fr/kept/:id/jpg', dashboardAuth.requireDashboardAuth, (r
         res.type('image/jpeg').sendFile(p);
     } catch (_) {
         res.status(500).end();
+    }
+});
+
+/* FR-HOLDS-DISPOSITION-STATUS-V1 — clear / discard hold (files stay on disk) */
+app.post('/api/analytics/fr/kept/:id/disposition', dashboardAuth.requireDashboardAuth, express.json({ limit: '32kb' }), (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        const meta = frKeptEvidence.getById(req.params.id);
+        if (!meta) return res.status(404).json({ ok: false, error: 'not_found' });
+        if (meta.camId) {
+            try { assertSessionCanAccessCam(session, meta.camId); }
+            catch (_) { return res.status(403).json({ ok: false, error: 'forbidden' }); }
+        }
+        const body = req.body || {};
+        const result = frKeptEvidence.setDisposition(req.params.id, {
+            status: body.status,
+            reason: body.reason,
+            note: body.note,
+            actor: session && (session.username || session.user) || null,
+        });
+        if (!result.ok) {
+            const code = result.error || 'disposition_failed';
+            const status = code === 'not_found' ? 404 : (code === 'not_open' ? 409 : 400);
+            return res.status(status).json({ ok: false, error: code });
+        }
+        const hold = result.hold || {};
+        const auditAction = String(body.status || '').toLowerCase() === 'discarded'
+            ? 'analytics.fr_hold_discarded'
+            : 'analytics.fr_hold_cleared';
+        auditLog.recordFromRequest(req, auditAction, {
+            target: hold.id,
+            detail: {
+                status: hold.status,
+                reason: hold.dispositionReason || null,
+                note: hold.dispositionNote || null,
+                camId: hold.camId || null,
+                displayName: hold.displayName || null,
+            },
+        });
+        res.json({ ok: true, hold: hold });
+    } catch (err) {
+        res.status(500).json({ ok: false, error: String(err && err.message || err).slice(0, 120) });
     }
 });
 
@@ -8429,6 +8582,7 @@ function restoreCameraContactForCam(camId, request, remote) {
             lastContactUriByCam[camId] = contactUri;
             recordCamIp(camId, contactUri);
             saveContactCache();
+            try { redisRuntime.writeContact(camId, contactUri); } catch (_) { /* never block fleet */ }
         }
         log.sip.info('contact restored from request contact', { camId, contact: contactUri });
         return contactUri;
@@ -8440,6 +8594,7 @@ function restoreCameraContactForCam(camId, request, remote) {
             lastContactUriByCam[camId] = remoteUri;
             recordCamIp(camId, remoteUri);
             saveContactCache();
+            try { redisRuntime.writeContact(camId, remoteUri); } catch (_) { /* never block fleet */ }
         }
         log.sip.info('contact restored from sip remote', { camId, contact: remoteUri });
         return remoteUri;
@@ -8456,6 +8611,7 @@ function restoreCameraContactForCam(camId, request, remote) {
             lastContactUriByCam[camId] = fromUri;
             recordCamIp(camId, fromUri);
             saveContactCache();
+            try { redisRuntime.writeContact(camId, fromUri); } catch (_) { /* never block fleet */ }
         }
         log.sip.info('contact restored from notify from', { camId, contact: fromUri });
         return cameraContactUri;
@@ -8556,15 +8712,19 @@ app.post('/api/admin/clear-cache', dashboardAuth.requireSuperAdmin, (req, res) =
     }
 });
 
-function commandCentreDeps() {
+async function commandCentreDeps() {
     syncFleetDeviceMeta();
     const ftpRoot = currentFtpRoot();
     const limits = platformLimits.loadLimits();
     const bwcData = loadBwcDevices();
     let auditEntries = [];
     try {
-        auditEntries = auditLog.list({ limit: 50 }) || [];
-    } catch (_) { /* ignore */ }
+        /* CENTRE-SUMMARY-AWAIT-AUDIT-PG-V1 — auditLog.list is async (Postgres) */
+        const rows = await auditLog.list({ limit: 50 });
+        auditEntries = Array.isArray(rows) ? rows : [];
+    } catch (_) {
+        auditEntries = [];
+    }
     function resolveDeviceName(id) {
         const camId = String(id || '').trim();
         if (!camId) return '';
@@ -8599,21 +8759,21 @@ function commandCentreDeps() {
     };
 }
 
-app.get('/api/command-centre/summary', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.get('/api/command-centre/summary', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
-        res.json(commandCentreReport.buildSummary(commandCentreDeps()));
+        res.json(commandCentreReport.buildSummary(await commandCentreDeps()));
     } catch (err) {
         res.status(500).json(opErr(err));
     }
 });
 
-app.get('/api/command-centre/export', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.get('/api/command-centre/export', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         const period = String((req.query && req.query.period) || 'weekly').toLowerCase();
         const format = String((req.query && req.query.format) || 'csv').toLowerCase();
         const allowed = ['daily', 'weekly', 'monthly', 'yearly'];
         const p = allowed.indexOf(period) >= 0 ? period : 'weekly';
-        const summary = commandCentreReport.buildSummary(commandCentreDeps());
+        const summary = commandCentreReport.buildSummary(await commandCentreDeps());
         const stamp = siteTime.formatEvidenceDate(new Date());
         if (format === 'json') {
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -8644,7 +8804,7 @@ app.post('/api/command-centre/ask', dashboardAuth.requireSuperAdmin, async (req,
     try {
         const question = req.body && req.body.question;
         const lang = req.body && req.body.lang;
-        const summary = commandCentreReport.buildSummary(commandCentreDeps());
+        const summary = commandCentreReport.buildSummary(await commandCentreDeps());
         const result = await centreLlm.ask(question, summary, lang);
         res.json(result);
     } catch (err) {
@@ -8654,17 +8814,32 @@ app.post('/api/command-centre/ask', dashboardAuth.requireSuperAdmin, async (req,
 
 let dashboardSelectedCamId = null;
 
-function getContactUriForCam(camId) {
+/* DEVICE-CONTROL-SIP-ACK-TRACE-V1 — resolve URI + source for control logs */
+function resolveContactForCam(camId) {
     const id = camId || connectedCameraId;
-    if (!id) return cameraContactUri || null;
+    if (!id) {
+        if (cameraContactUri) return { uri: cameraContactUri, source: 'legacy_connected' };
+        return null;
+    }
     try {
         const fleetPttContact = require('./lib/fleetPttContact');
         const resolved = fleetPttContact.resolveContactUri(id, lastContactUriByCam);
-        if (resolved && resolved.uri) return resolved.uri;
+        if (resolved && resolved.uri) {
+            return { uri: resolved.uri, source: resolved.source || 'resolved' };
+        }
     } catch (_) { /* ignore */ }
-    if (lastContactUriByCam[id]) return lastContactUriByCam[id];
-    if (connectedCameraId === id && cameraContactUri) return cameraContactUri;
+    if (lastContactUriByCam[id]) {
+        return { uri: lastContactUriByCam[id], source: 'fleet_sip_cache' };
+    }
+    if (connectedCameraId === id && cameraContactUri) {
+        return { uri: cameraContactUri, source: 'legacy_connected' };
+    }
     return null;
+}
+
+function getContactUriForCam(camId) {
+    const resolved = resolveContactForCam(camId);
+    return resolved ? resolved.uri : null;
 }
 
 conferenceConfig.init({ storageDir: STORAGE_DIR, baseDir: BASE_DIR });
@@ -8908,17 +9083,20 @@ deviceAlarm.configure({
 
 function sendTakePictureToCam(camId) {
     const target = camId || getCommandTargetCamId();
-    const contact = getContactUriForCam(target);
-    if (!target || !contact) {
-        log.sip.warn('TakePicture skipped', { camId: target, hasContact: !!contact });
+    const resolved = resolveContactForCam(target);
+    if (!target || !resolved || !resolved.uri) {
+        log.sip.warn('TakePicture skipped', { camId: target, hasContact: !!(resolved && resolved.uri) });
         return;
     }
     deviceControl.sendDeviceControl(sip, {
-        cameraContactUri: contact,
+        cameraContactUri: resolved.uri,
         deviceId: target,
         realm: REALM,
         serverId: SERVER_ID,
+        publicHost: HOST,
+        sipPort: SIP_PORT,
         recordCmd: 'TakePicture',
+        contactSource: resolved.source,
         log,
     });
 }
@@ -9201,8 +9379,12 @@ function rememberGps(camId, lat, lon) {
     const lo = parseGpsCoord(lon);
     if (!camId || Number.isNaN(la) || Number.isNaN(lo)) return;
     if (la < -90 || la > 90 || lo < -180 || lo > 180) return;
-    lastGpsByCam[camId] = { lat: la, lon: lo, at: Date.now() };
+    const fix = { lat: la, lon: lo, at: Date.now() };
+    lastGpsByCam[camId] = fix;
     saveGpsCache();
+    try {
+        redisRuntime.writeGps(camId, fix);
+    } catch (_) { /* never block fleet */ }
 }
 
 function ingestGpsFromSipContent(camIdHint, rawXml) {
@@ -9918,12 +10100,16 @@ function launchOutboundTalkCall(camId, socket) {
             tel.logPhase(id, 'invite-200', profile.id);
             tel.requestStatus(id, 'post-200', profile.id);
             if (profile.stopRecordOnConnect && profile.id !== 'phone-channel0') {
+                const stopResolved = resolveContactForCam(id);
                 deviceControl.sendDeviceControl(sip, {
-                    cameraContactUri: contact,
+                    cameraContactUri: (stopResolved && stopResolved.uri) || contact,
                     deviceId: id,
                     realm: REALM,
                     serverId: SERVER_ID,
+                    publicHost: HOST,
+                    sipPort: SIP_PORT,
                     recordCmd: 'StopRecord',
+                    contactSource: (stopResolved && stopResolved.source) || 'voice_on_connect',
                     log,
                 });
             }
@@ -10381,17 +10567,20 @@ io.on('connection', (socket) => {
             socket.emit('remote-control-denied', { error: reasonCheck.error });
             return;
         }
-        const contact = getContactUriForCam(camId);
-        if (!camId || !contact) {
-            log.sip.warn('remote-control blocked', { camId, hasContact: !!contact });
+        const resolved = resolveContactForCam(camId);
+        if (!camId || !resolved || !resolved.uri) {
+            log.sip.warn('remote-control blocked', { camId, hasContact: !!(resolved && resolved.uri) });
             return;
         }
         deviceControl.sendDeviceControl(sip, {
-            cameraContactUri: contact,
+            cameraContactUri: resolved.uri,
             deviceId: camId,
             realm: REALM,
             serverId: SERVER_ID,
+            publicHost: HOST,
+            sipPort: SIP_PORT,
             recordCmd: cmd,
+            contactSource: resolved.source,
             log,
         });
         const auditDetail = { recordCmd: cmd };
@@ -10486,17 +10675,20 @@ io.on('connection', (socket) => {
             socket.emit('kill-switch-denied', { error: 'A different operator must approve this request.' });
             return;
         }
-        const contact = getContactUriForCam(req.camId);
-        if (!contact) {
+        const resolved = resolveContactForCam(req.camId);
+        if (!resolved || !resolved.uri) {
             socket.emit('kill-switch-denied', { error: 'BWC is not reachable for remote control.' });
             return;
         }
         deviceControl.sendDeviceControl(sip, {
-            cameraContactUri: contact,
+            cameraContactUri: resolved.uri,
             deviceId: req.camId,
             realm: REALM,
             serverId: SERVER_ID,
+            publicHost: HOST,
+            sipPort: SIP_PORT,
             recordCmd: req.recordCmd,
+            contactSource: resolved.source,
             log,
         });
         const auditDetail = {
@@ -10643,8 +10835,26 @@ io.on('connection', (socket) => {
     socket.on('audio-focus', (payload) => {
         const camId = payload && payload.camId ? String(payload.camId).trim() : null;
         if (!camId) return;
-        if (dashboardVideo.isStreamingForCam(camId)) {
+        /* Classic pool path */
+        if (dashboardVideo.isStreamingForCam(camId) || liveStreamPool.isStreamingForCam(camId)) {
             liveStreamPool.setAudioFocusCamId(camId);
+            mediaSession.setAudioFocusCamId(camId);
+        }
+        /* WALL-AUDIO-PATH-V1 — WVP handoff: no Fleet INVITE PCM; pull ZLM FLV audio */
+        try {
+            const handoff = require('./lib/wvpVideoHandoff');
+            const wallListen = require('./lib/wvpWallListenAudio');
+            wallListen.setFocus(camId);
+            if (handoff.isHandoffEnabled() && handoff.isActive(camId)) {
+                const upstream = handoff.getUpstreamFlv(camId);
+                wallListen.ensureListen(camId, upstream);
+            }
+        } catch (err) {
+            log.media.warn('audio-focus wall listen fail', {
+                camId,
+                message: err && err.message ? err.message : String(err),
+                path: 'wall-audio-path-v1',
+            });
         }
     });
 
@@ -10825,6 +11035,8 @@ io.on('connection', (socket) => {
         }
         try {
             const state = await sosGroupCall.start({
+                kind: 'sos',
+                playAlertTone: true,
                 alarmCamId,
                 camIds,
                 ownerSocketId: socket.id,
@@ -10845,6 +11057,10 @@ io.on('connection', (socket) => {
 
     socket.on('sos-group-call-stop', () => {
         const state = sosGroupCall.snapshot();
+        if (!state.active || (state.kind && state.kind !== 'sos')) {
+            socket.emit('sos-group-call-result', { ok: false, error: 'No active SOS group call' });
+            return;
+        }
         const canStop = state.active && (
             state.ownerSocketId === socket.id
             || (session && dashboardAuth.roleCanManageServer(session.role))
@@ -10867,6 +11083,105 @@ io.on('connection', (socket) => {
         const frame = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
         if (!frame.length) return;
         sosGroupCall.sendHqAlaw(frame);
+    });
+
+    /* CALL-GROUP-DISPATCH-V1 — daily Call Groups (discussion); same sipGroupCall engine, no SOS gate */
+    socket.on('dispatch-call-group-start', async (payload) => {
+        const body = payload || {};
+        const camIds = sipGroupCallFactory.uniqueCamIds(body.camIds);
+        if (camIds.length < 2) {
+            socket.emit('dispatch-call-group-result', {
+                ok: false,
+                error: 'Select at least 2 BWCs for a call group.',
+            });
+            return;
+        }
+        if (sosGroupCall.isActive()) {
+            const snap = sosGroupCall.snapshot();
+            socket.emit('dispatch-call-group-result', {
+                ok: false,
+                error: snap.kind === 'sos'
+                    ? 'End the SOS group call first'
+                    : 'A call group is already active',
+            });
+            return;
+        }
+        const denied = camIds.find((id) => !isBwcCameraId(id) || !sessionCanSeeCam(session, id));
+        if (denied) {
+            socket.emit('dispatch-call-group-result', {
+                ok: false,
+                error: 'Device not authorized for this operator',
+            });
+            return;
+        }
+        const conferenceBusy = camIds.find((id) => conferenceModule.isBwcIngressActive(id));
+        if (conferenceBusy) {
+            socket.emit('dispatch-call-group-result', {
+                ok: false,
+                error: 'A selected BWC is sharing to video conference',
+                camId: conferenceBusy,
+            });
+            return;
+        }
+        if (mediaSession.isVoiceCallActive() || pttVoiceCallCamId) {
+            socket.emit('dispatch-call-group-result', {
+                ok: false,
+                error: 'End the individual BWC call first',
+            });
+            return;
+        }
+        if (pttTalkTargetsBySocket.size > 0) {
+            socket.emit('dispatch-call-group-result', {
+                ok: false,
+                error: 'Release HQ PTT before starting the call group',
+            });
+            return;
+        }
+        try {
+            const state = await sosGroupCall.start({
+                kind: 'dispatch',
+                playAlertTone: false,
+                camIds,
+                ownerSocketId: socket.id,
+                getContactUri: getContactUriForCam,
+            });
+            auditLog.record('dispatch.call_group.start', Object.assign({
+                target: camIds[0] || null,
+                detail: { camIds, callId: state.callId || null, kind: 'dispatch' },
+            }, auditVoiceCallActor(socket)));
+            socket.emit('dispatch-call-group-result', { ok: true, state });
+        } catch (err) {
+            socket.emit('dispatch-call-group-result', {
+                ok: false,
+                error: err && err.message ? err.message : 'Call group failed',
+            });
+        }
+    });
+
+    socket.on('dispatch-call-group-stop', () => {
+        const state = sosGroupCall.snapshot();
+        if (!state.active || state.kind !== 'dispatch') {
+            socket.emit('dispatch-call-group-result', {
+                ok: false,
+                error: 'No active call group',
+            });
+            return;
+        }
+        const canStop = state.ownerSocketId === socket.id
+            || (session && dashboardAuth.roleCanManageServer(session.role));
+        if (!canStop) {
+            socket.emit('dispatch-call-group-result', {
+                ok: false,
+                error: 'Only the calling operator can end this call group',
+            });
+            return;
+        }
+        sosGroupCall.stop('operator_end');
+        auditLog.record('dispatch.call_group.end', Object.assign({
+            target: null,
+            detail: { callId: state.callId || null, kind: 'dispatch' },
+        }, auditVoiceCallActor(socket)));
+        socket.emit('dispatch-call-group-result', { ok: true, ended: true });
     });
 
 
@@ -11249,9 +11564,9 @@ function pushFleetRoster(camId, sn, online, opts) {
 
             to: { uri: `sip:${camId}@${REALM}` },
 
-            from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: Math.floor(Math.random() * 10000).toString() } },
+            from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: createSipTag() } },
 
-            'call-id': Math.random().toString(36).substring(7),
+            'call-id': createSipCallId(),
 
             cseq: { method: 'MESSAGE', seq: 2 },
 
@@ -11501,7 +11816,7 @@ function sendStatusQuery(camId, cmdType, style) {
         log.sip.warn('device status query skipped', { camId, hasContact: !!contact });
         return;
     }
-    const sn = String(Math.floor(Math.random() * 100000));
+    const sn = createGbSequenceNumber();
     const queryStyle = style === 'target' ? 'target' : 'direct';
     const xml = queryStyle === 'target'
         ? `<?xml version="1.0"?>\n<Query>\n<CmdType>${cmdType}</CmdType>\n<SN>${sn}</SN>\n<DeviceID>${SERVER_ID}</DeviceID>\n<TargetDeviceID>${camId}</TargetDeviceID>\n</Query>`
@@ -11512,8 +11827,8 @@ function sendStatusQuery(camId, cmdType, style) {
         uri: contact,
         headers: {
             to: { uri: `sip:${camId}@${REALM}` },
-            from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: Math.floor(Math.random() * 10000).toString() } },
-            'call-id': Math.random().toString(36).substring(7),
+            from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: createSipTag() } },
+            'call-id': createSipCallId(),
             cseq: { method: 'MESSAGE', seq: 4 },
             'content-type': 'Application/MANSCDP+xml',
             'content-length': xml.length,
@@ -11530,7 +11845,7 @@ function sendMobilePositionQuery(camId, intervalSec) {
         log.sip.warn('mobile position query skipped', { camId, hasContact: !!contact });
         return;
     }
-    const sn = String(Math.floor(Math.random() * 100000));
+    const sn = createGbSequenceNumber();
     const interval = parseInt(intervalSec, 10);
     const intervalXml = (!Number.isNaN(interval) && interval > 0)
         ? `\n<Interval>${interval}</Interval>`
@@ -11542,8 +11857,8 @@ function sendMobilePositionQuery(camId, intervalSec) {
         uri: contact,
         headers: {
             to: { uri: `sip:${camId}@${REALM}` },
-            from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: Math.floor(Math.random() * 10000).toString() } },
-            'call-id': Math.random().toString(36).substring(7),
+            from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: createSipTag() } },
+            'call-id': createSipCallId(),
             cseq: { method: 'MESSAGE', seq: 5 },
             'content-type': 'Application/MANSCDP+xml',
             'content-length': xml.length,
@@ -11719,15 +12034,15 @@ function bootstrapOnlineFleetForMap() {
 function pushMsgServerHints(camId) {
     const contact = getContactUriForCam(camId);
     if (!contact || !camId) return;
-    const sn = String(Math.floor(Math.random() * 100000));
+    const sn = createGbSequenceNumber();
     const xml = `<?xml version="1.0" encoding="utf-8"?>\n<Notify>\n<CmdType>DeviceConfig</CmdType>\n<SN>${sn}</SN>\n<DeviceID>${SERVER_ID}</DeviceID>\n<TargetDeviceID>${camId}</TargetDeviceID>\n<MsgServerIP>${HOST}</MsgServerIP>\n<MsgServerPort>${MSG_WS_PORT}</MsgServerPort>\n<MsgServerUri>${MSG_WS_URL}</MsgServerUri>\n</Notify>`;
     sip.send({
         method: 'MESSAGE',
         uri: contact,
         headers: {
             to: { uri: `sip:${camId}@${REALM}` },
-            from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: Math.floor(Math.random() * 10000).toString() } },
-            'call-id': Math.random().toString(36).substring(7),
+            from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: createSipTag() } },
+            'call-id': createSipCallId(),
             cseq: { method: 'MESSAGE', seq: 3 },
             'content-type': 'Application/MANSCDP+xml',
             'content-length': xml.length,
@@ -11923,6 +12238,7 @@ sip.start({ address: BIND_HOST, port: SIP_PORT }, (request, remote) => {
             lastContactUriByCam[camId] = cameraContactUri;
             recordCamIp(camId, cameraContactUri);
             saveContactCache();
+            try { redisRuntime.writeContact(camId, cameraContactUri); } catch (_) { /* never block fleet */ }
 
             emitToDashboardSockets('heartbeat', { cameraId: camId }, camId);
 
@@ -12224,6 +12540,7 @@ async function closeCatalogForShutdown(signal) {
     ]).catch((err) => {
         log.web.warn('PostgreSQL dispatcher drain failed', { message: err.message });
     });
+    await redisRuntime.stop().catch(() => {});
     await siteDb.close().catch((err) => {
         log.web.warn('PostgreSQL catalog close failed', { message: err.message });
     });
@@ -12237,6 +12554,24 @@ process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
         platformLicense.assertReadyForStartup();
         await ffmpegRuntime.assertReady(log);
         await bootstrapSiteDatabase();
+        const cacheSnap = await redisRuntime.start();
+        log.web.info('valkey runtime cache status', cacheSnap);
+        try {
+            const gpsHydrate = await redisRuntime.hydrateGps(lastGpsByCam);
+            const contactHydrate = await redisRuntime.hydrateContact(lastContactUriByCam);
+            const onlineHydrate = await redisRuntime.hydrateOnline(function (id, patch) {
+                try { siteDb.touchRuntime(id, patch); } catch (_) { /* ignore */ }
+            });
+            if ((gpsHydrate && gpsHydrate.merged) || (contactHydrate && contactHydrate.merged) || (onlineHydrate && onlineHydrate.merged)) {
+                log.web.info('valkey hydrate merged', {
+                    gps: gpsHydrate && gpsHydrate.merged,
+                    contact: contactHydrate && contactHydrate.merged,
+                    online: onlineHydrate && onlineHydrate.merged,
+                });
+            }
+        } catch (err) {
+            log.web.warn('valkey hydrate skipped', { message: err && err.message ? err.message : String(err) });
+        }
         startSipListener();
     } catch (err) {
         const isLicense = /license/i.test(err.message);
@@ -12350,6 +12685,13 @@ process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
                     connectedCameraId = camId;
                 }
                 log.sip.info('device online from wvp presence', { camId });
+                /* WVP-PRESENCE-REPLAY-GPS-ON-ONLINE-V1 — same as REGISTER: remount pin from cache */
+                const lastGps = lastGpsByCam[camId];
+                if (lastGps) {
+                    emitToDashboardSockets('gps-update', { cameraId: camId, lat: lastGps.lat, lon: lastGps.lon }, camId);
+                } else {
+                    maybeQueryGpsForDevice(camId);
+                }
                 pushFleetRoster(camId, '66', true);
             },
             emitRoster: function () {

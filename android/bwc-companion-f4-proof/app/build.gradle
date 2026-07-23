@@ -1,0 +1,16 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.ubitron.bwccompanion.proof'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.ubitron.bwccompanion.proof'
+        minSdk 26
+        targetSdk 35
+        versionCode 3
+        versionName '0.3-all-buttons-post'
+    }
+}

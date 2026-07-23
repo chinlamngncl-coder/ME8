@@ -1,0 +1,179 @@
+﻿2026-07-21 10:48:03.665 +08:00 [Media] WARN wvp video handoff startPlay fail | {"camId":"34020000001329000008","message":"wvp_stream_timeout","raw":"收流超时","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:03.679 +08:00 [Media] INFO wvp video handoff hard-stop | {"camId":"34020000001329000008","ok":true,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:03.695 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000009","surface":null,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:03.808 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:03.817 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:03.823 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000009","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:03.831 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000009","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:05.853 +08:00 [Media] INFO wvp video handoff start | {"camId":"34020000001329000008","flvHost":"192.168.1.38:18088","flvProxy":"/api/lab/wvp/flv-stream?camId=34020000001329000008&labWvp=…","path":"flv-stream-token-auth-v1"}
+2026-07-21 10:48:06.922 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000009","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:06.928 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000009","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:06.944 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000009","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:06.950 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000009","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:09.220 +08:00 [Media] WARN wvp video handoff startPlay fail | {"camId":"34020000001329000009","message":"wvp_stream_timeout","raw":"收流超时","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:09.230 +08:00 [Media] INFO wvp video handoff hard-stop | {"camId":"34020000001329000009","ok":true,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:09.691 +08:00 [Media] INFO stop-video from dashboard | {"camId":"34020000001329000008","surface":"ops","socketId":"kD_raoIE63Rn8JibAAAF","remainingViewers":0,"remainingOps":0,"remainingCommandWall":0,"remainingAnalyticsFr":0,"remainingMatrixPopout":0,"remainingLivePopout":0,"remainingConference":0,"countForCam":0,"socketsWithRefs":0}
+2026-07-21 10:48:09.695 +08:00 [Media] INFO wvp video handoff soft-stop scheduled | {"camId":"34020000001329000008","graceMs":4000,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:10.605 +08:00 [Media] INFO stop-video from dashboard | {"camId":"34020000001329000009","surface":"ops","socketId":"kD_raoIE63Rn8JibAAAF","remainingViewers":0,"remainingOps":0,"remainingCommandWall":0,"remainingAnalyticsFr":0,"remainingMatrixPopout":0,"remainingLivePopout":0,"remainingConference":0,"countForCam":0,"socketsWithRefs":0}
+2026-07-21 10:48:10.607 +08:00 [Media] INFO wvp video handoff soft-stop scheduled | {"camId":"34020000001329000009","graceMs":4000,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:11.747 +08:00 [Media] INFO voice intercom telemetry | {"camId":"34020000001329000008","phase":"invite-failed","profile":"talk-duplex","device":{"recording":"1","encode":null,"video":null,"online":null,"callstate":"0","audio":"0"},"message":"Voice call failed (408)"}
+2026-07-21 10:48:12.106 +08:00 [Media] INFO wvp video handoff start | {"camId":"34020000001329000009","flvHost":"192.168.1.38:18088","flvProxy":"/api/lab/wvp/flv-stream?camId=34020000001329000009&labWvp=…","path":"flv-stream-token-auth-v1"}
+2026-07-21 10:48:13.716 +08:00 [Media] INFO wvp video handoff hard-stop | {"camId":"34020000001329000008","ok":true,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:16.579 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000009","reason":"pin-open","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:18.351 +08:00 [Media] INFO stop-video from dashboard | {"camId":"34020000001329000009","surface":"ops","socketId":"kD_raoIE63Rn8JibAAAF","remainingViewers":0,"remainingOps":0,"remainingCommandWall":0,"remainingAnalyticsFr":0,"remainingMatrixPopout":0,"remainingLivePopout":0,"remainingConference":0,"countForCam":0,"socketsWithRefs":0}
+2026-07-21 10:48:18.353 +08:00 [Media] INFO wvp video handoff soft-stop scheduled | {"camId":"34020000001329000009","graceMs":4000,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:21.275 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"pin-open","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:21.332 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:21.340 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:21.346 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:21.353 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:21.396 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000009","reason":"pin-open","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:21.425 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:21.432 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:21.482 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:21.491 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:21.509 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000009","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:21.516 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000009","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:21.521 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000009","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:21.529 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000009","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:21.568 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000009","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:21.576 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000009","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:21.609 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000009","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:21.617 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000009","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:21.762 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:21.766 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:21.769 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:21.773 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:22.182 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:22.190 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:22.501 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:22.510 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:23.564 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:23.569 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:24.073 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:24.078 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:24.776 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:24.783 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:27.478 +08:00 [Media] INFO stop-video from dashboard | {"camId":"34020000001329000008","surface":"ops","socketId":"kD_raoIE63Rn8JibAAAF","remainingViewers":0,"remainingOps":0,"remainingCommandWall":0,"remainingAnalyticsFr":0,"remainingMatrixPopout":0,"remainingLivePopout":0,"remainingConference":0,"countForCam":0,"socketsWithRefs":0}
+2026-07-21 10:48:27.480 +08:00 [Media] INFO wvp video handoff soft-stop scheduled | {"camId":"34020000001329000008","graceMs":4000,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:28.194 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:28.201 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:28.209 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"select-device","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:28.214 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:28.221 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:28.224 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:28.232 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:28.259 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"pin-open","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:28.324 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:28.331 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:28.336 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:28.343 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:28.355 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:28.364 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:28.413 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:28.421 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:28.457 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:28.464 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:28.512 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:28.520 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:29.340 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"select-device","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:29.360 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:29.368 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:29.372 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:29.379 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:29.615 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:48:29.620 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:30.671 +08:00 [Media] INFO stop-video from dashboard | {"camId":"34020000001329000008","surface":"ops","socketId":"kD_raoIE63Rn8JibAAAF","remainingViewers":0,"remainingOps":0,"remainingCommandWall":0,"remainingAnalyticsFr":0,"remainingMatrixPopout":0,"remainingLivePopout":0,"remainingConference":0,"countForCam":0,"socketsWithRefs":0}
+2026-07-21 10:48:30.673 +08:00 [Media] INFO wvp video handoff soft-stop scheduled | {"camId":"34020000001329000008","graceMs":4000,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:31.371 +08:00 [Media] WARN wvp video handoff startPlay fail | {"camId":"34020000001329000008","message":"wvp_stream_timeout","raw":"收流超时","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:31.382 +08:00 [Media] INFO wvp video handoff hard-stop | {"camId":"34020000001329000008","ok":true,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:32.243 +08:00 [Media] INFO voice call outbound-intercom | {"camId":"34020000001329000009","profile":"talk-duplex","label":"Talk duplex (§8 y/f, sendrecv)","fallback":false}
+2026-07-21 10:48:32.244 +08:00 [Media] INFO voice intercom telemetry | {"camId":"34020000001329000009","phase":"pre-invite","profile":"talk-duplex","device":{"recording":"1","encode":null,"video":null,"online":null,"callstate":"0","audio":"0"}}
+2026-07-21 10:48:32.251 +08:00 [Media] INFO invite sending | {"camId":"34020000001329000009","mode":"audio","transport":"tcp","sessionName":"Talk","voicePhone":false,"intercomProfile":"talk-duplex","useTalkSubject":true,"useVoicePhoneSubject":false,"includeTalkExtensions":true,"audioDirection":"both","subject":"34020000001329000009:0100000001,34020000002000000001:0","audioOnly":true,"hasVideoMline":false,"hasYline":true,"hasFline":true}
+2026-07-21 10:48:37.986 +08:00 [Media] INFO stop-video from dashboard | {"camId":"34020000001329000009","surface":"ops","socketId":"kD_raoIE63Rn8JibAAAF","remainingViewers":0,"remainingOps":0,"remainingCommandWall":0,"remainingAnalyticsFr":0,"remainingMatrixPopout":0,"remainingLivePopout":0,"remainingConference":0,"countForCam":0,"socketsWithRefs":0}
+2026-07-21 10:48:37.989 +08:00 [Media] INFO wvp video handoff soft-stop scheduled | {"camId":"34020000001329000009","graceMs":4000,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:39.065 +08:00 [Media] INFO stop-video from dashboard | {"camId":"34020000001329000008","surface":"ops","socketId":"kD_raoIE63Rn8JibAAAF","remainingViewers":0,"remainingOps":0,"remainingCommandWall":0,"remainingAnalyticsFr":0,"remainingMatrixPopout":0,"remainingLivePopout":0,"remainingConference":0,"countForCam":0,"socketsWithRefs":0}
+2026-07-21 10:48:39.067 +08:00 [Media] INFO wvp video handoff soft-stop scheduled | {"camId":"34020000001329000008","graceMs":4000,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:39.736 +08:00 [Media] INFO stop-video from dashboard | {"camId":"34020000001329000009","surface":"ops","socketId":"kD_raoIE63Rn8JibAAAF","remainingViewers":0,"remainingOps":0,"remainingCommandWall":0,"remainingAnalyticsFr":0,"remainingMatrixPopout":0,"remainingLivePopout":0,"remainingConference":0,"countForCam":0,"socketsWithRefs":0}
+2026-07-21 10:48:39.740 +08:00 [Media] INFO wvp video handoff soft-stop scheduled | {"camId":"34020000001329000009","graceMs":4000,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:42.299 +08:00 [Media] WARN wvp video handoff retry fail | {"camId":"34020000001329000008","message":"wvp_stream_timeout","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:48:43.638 +08:00 [Media] INFO wvp video handoff start | {"camId":"34020000001329000008","flvHost":"192.168.1.38:18088","flvProxy":"/api/lab/wvp/flv-stream?camId=34020000001329000008&labWvp=…","path":"flv-stream-token-auth-v1"}
+2026-07-21 10:48:43.757 +08:00 [Media] INFO wvp video handoff hard-stop | {"camId":"34020000001329000009","ok":true,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:49:04.262 +08:00 [Media] INFO voice intercom telemetry | {"camId":"34020000001329000009","phase":"invite-failed","profile":"talk-duplex","device":{"recording":"1","encode":null,"video":null,"online":null,"callstate":"0","audio":"0"},"message":"Voice call failed (408)"}
+2026-07-21 10:49:18.014 +08:00 [Media] INFO stop-video from dashboard | {"camId":"34020000001329000008","surface":"ops","socketId":"kD_raoIE63Rn8JibAAAF","remainingViewers":0,"remainingOps":0,"remainingCommandWall":0,"remainingAnalyticsFr":0,"remainingMatrixPopout":0,"remainingLivePopout":0,"remainingConference":0,"countForCam":0,"socketsWithRefs":0}
+2026-07-21 10:49:18.016 +08:00 [Media] INFO wvp video handoff soft-stop scheduled | {"camId":"34020000001329000008","graceMs":4000,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:49:20.527 +08:00 [Media] INFO stop-video from dashboard | {"camId":"34020000001329000008","surface":"ops","socketId":"kD_raoIE63Rn8JibAAAF","remainingViewers":0,"remainingOps":0,"remainingCommandWall":0,"remainingAnalyticsFr":0,"remainingMatrixPopout":0,"remainingLivePopout":0,"remainingConference":0,"countForCam":0,"socketsWithRefs":0}
+2026-07-21 10:49:20.529 +08:00 [Media] INFO wvp video handoff soft-stop scheduled | {"camId":"34020000001329000008","graceMs":4000,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:49:24.563 +08:00 [Media] INFO wvp video handoff hard-stop | {"camId":"34020000001329000008","ok":true,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:49:28.692 +08:00 [PTT] INFO operator talk start | {"camIds":["34020000001329000008"],"group":false}
+2026-07-21 10:49:28.698 +08:00 [PTT] INFO operator talk stop | {"camId":"34020000001329000008","groupSize":1}
+2026-07-21 10:49:34.269 +08:00 [Web] INFO dashboard connected | {"user":"global"}
+2026-07-21 10:51:21.610 +08:00 [SIP] INFO fast status poll stopped | {"camId":"34020000001329000009"}
+2026-07-21 10:51:29.621 +08:00 [SIP] INFO fast status poll stopped | {"camId":"34020000001329000008"}
+2026-07-21 10:52:47.850 +08:00 [Web] INFO dashboard connected | {"user":"global"}
+2026-07-21 10:52:56.071 +08:00 [Media] INFO voice call outbound-intercom | {"camId":"34020000001329000008","profile":"talk-duplex","label":"Talk duplex (§8 y/f, sendrecv)","fallback":false}
+2026-07-21 10:52:56.072 +08:00 [Media] INFO voice intercom telemetry | {"camId":"34020000001329000008","phase":"pre-invite","profile":"talk-duplex","device":{"recording":"1","encode":null,"video":null,"online":null,"callstate":"0","audio":"0"}}
+2026-07-21 10:52:56.076 +08:00 [Media] INFO invite sending | {"camId":"34020000001329000008","mode":"audio","transport":"tcp","sessionName":"Talk","voicePhone":false,"intercomProfile":"talk-duplex","useTalkSubject":true,"useVoicePhoneSubject":false,"includeTalkExtensions":true,"audioDirection":"both","subject":"34020000001329000008:0100000001,34020000002000000001:0","audioOnly":true,"hasVideoMline":false,"hasYline":true,"hasFline":true}
+2026-07-21 10:53:13.818 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"pin-open","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:13.870 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:13.875 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:13.881 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:13.885 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:13.929 +08:00 [Media] WARN wvp video handoff startPlay fail | {"camId":"34020000001329000008","message":"Busy Here","raw":"Busy Here","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:13.954 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:13.962 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:13.965 +08:00 [Media] INFO wvp video handoff hard-stop | {"camId":"34020000001329000008","ok":true,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:14.017 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:14.026 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:14.922 +08:00 [Media] WARN wvp video handoff retry fail | {"camId":"34020000001329000008","message":"Busy Here","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:15.441 +08:00 [Media] WARN wvp video handoff startPlay fail | {"camId":"34020000001329000008","message":"Busy Here","raw":"Busy Here","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:15.451 +08:00 [Media] INFO wvp video handoff hard-stop | {"camId":"34020000001329000008","ok":true,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:15.682 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:15.687 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:16.189 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:16.199 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:16.419 +08:00 [Media] WARN wvp video handoff retry fail | {"camId":"34020000001329000008","message":"Busy Here","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:16.890 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:16.899 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:16.947 +08:00 [Media] WARN wvp video handoff startPlay fail | {"camId":"34020000001329000008","message":"Busy Here","raw":"Busy Here","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:16.957 +08:00 [Media] INFO wvp video handoff hard-stop | {"camId":"34020000001329000008","ok":true,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:17.909 +08:00 [Media] WARN wvp video handoff retry fail | {"camId":"34020000001329000008","message":"Busy Here","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:18.423 +08:00 [Media] WARN wvp video handoff startPlay fail | {"camId":"34020000001329000008","message":"Busy Here","raw":"Busy Here","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:18.435 +08:00 [Media] INFO wvp video handoff hard-stop | {"camId":"34020000001329000008","ok":true,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:19.401 +08:00 [Media] WARN wvp video handoff retry fail | {"camId":"34020000001329000008","message":"Busy Here","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:19.881 +08:00 [Media] WARN wvp video handoff startPlay fail | {"camId":"34020000001329000008","message":"Busy Here","raw":"Busy Here","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:19.890 +08:00 [Media] INFO wvp video handoff hard-stop | {"camId":"34020000001329000008","ok":true,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:20.836 +08:00 [Media] WARN wvp video handoff retry fail | {"camId":"34020000001329000008","message":"Busy Here","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:21.256 +08:00 [Media] INFO stop-video from dashboard | {"camId":"34020000001329000008","surface":"ops","socketId":"KphUnlaqE2MV5YpnAAAD","remainingViewers":0,"remainingOps":0,"remainingCommandWall":0,"remainingAnalyticsFr":0,"remainingMatrixPopout":0,"remainingLivePopout":0,"remainingConference":0,"countForCam":0,"socketsWithRefs":0}
+2026-07-21 10:53:21.261 +08:00 [Media] INFO wvp video handoff soft-stop scheduled | {"camId":"34020000001329000008","graceMs":4000,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:21.356 +08:00 [Media] WARN wvp video handoff startPlay fail | {"camId":"34020000001329000008","message":"Busy Here","raw":"Busy Here","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:21.365 +08:00 [Media] INFO wvp video handoff hard-stop | {"camId":"34020000001329000008","ok":true,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:22.304 +08:00 [Media] WARN wvp video handoff retry fail | {"camId":"34020000001329000008","message":"Busy Here","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:22.816 +08:00 [Media] WARN wvp video handoff startPlay fail | {"camId":"34020000001329000008","message":"Busy Here","raw":"Busy Here","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:22.824 +08:00 [Media] INFO wvp video handoff hard-stop | {"camId":"34020000001329000008","ok":true,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:25.559 +08:00 [Media] INFO wvp video handoff start | {"camId":"34020000001329000008","flvHost":"192.168.1.38:18088","flvProxy":"/api/lab/wvp/flv-stream?camId=34020000001329000008&labWvp=…","path":"flv-stream-token-auth-v1"}
+2026-07-21 10:53:26.782 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"pin-open","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:28.083 +08:00 [Media] INFO voice intercom telemetry | {"camId":"34020000001329000008","phase":"invite-failed","profile":"talk-duplex","device":{"recording":"1","encode":null,"video":null,"online":null,"callstate":"0","audio":"0"},"message":"Voice call failed (408)"}
+2026-07-21 10:53:30.842 +08:00 [Media] INFO stop-video from dashboard | {"camId":"34020000001329000008","surface":"ops","socketId":"KphUnlaqE2MV5YpnAAAD","remainingViewers":0,"remainingOps":0,"remainingCommandWall":0,"remainingAnalyticsFr":0,"remainingMatrixPopout":0,"remainingLivePopout":0,"remainingConference":0,"countForCam":0,"socketsWithRefs":0}
+2026-07-21 10:53:30.844 +08:00 [Media] INFO wvp video handoff soft-stop scheduled | {"camId":"34020000001329000008","graceMs":4000,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:33.689 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"pin-open","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:33.739 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:33.744 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:33.746 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:33.750 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:33.823 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:33.831 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:33.871 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:33.879 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:35.548 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:35.553 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:35.557 +08:00 [SIP] INFO fast status poll started | {"camId":"34020000001329000008","reason":"start-video","intervalMs":2000,"windowMs":180000}
+2026-07-21 10:53:35.562 +08:00 [Media] INFO invite skipped | {"reason":"wvp_video_handoff","camId":"34020000001329000008","surface":"ops","path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:37.090 +08:00 [Media] INFO voice call outbound-intercom | {"camId":"34020000001329000008","profile":"talk-duplex","label":"Talk duplex (§8 y/f, sendrecv)","fallback":false}
+2026-07-21 10:53:37.091 +08:00 [Media] INFO voice intercom telemetry | {"camId":"34020000001329000008","phase":"pre-invite","profile":"talk-duplex","device":{"recording":"1","encode":null,"video":null,"online":null,"callstate":"0","audio":"0"}}
+2026-07-21 10:53:37.096 +08:00 [Media] INFO invite sending | {"camId":"34020000001329000008","mode":"audio","transport":"tcp","sessionName":"Talk","voicePhone":false,"intercomProfile":"talk-duplex","useTalkSubject":true,"useVoicePhoneSubject":false,"includeTalkExtensions":true,"audioDirection":"both","subject":"34020000001329000008:0100000001,34020000002000000001:0","audioOnly":true,"hasVideoMline":false,"hasYline":true,"hasFline":true}
+2026-07-21 10:53:41.358 +08:00 [Media] INFO stop-video from dashboard | {"camId":"34020000001329000008","surface":"ops","socketId":"KphUnlaqE2MV5YpnAAAD","remainingViewers":0,"remainingOps":0,"remainingCommandWall":0,"remainingAnalyticsFr":0,"remainingMatrixPopout":0,"remainingLivePopout":0,"remainingConference":0,"countForCam":0,"socketsWithRefs":0}
+2026-07-21 10:53:41.363 +08:00 [Media] INFO wvp video handoff soft-stop scheduled | {"camId":"34020000001329000008","graceMs":4000,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:53:45.401 +08:00 [Media] INFO wvp video handoff hard-stop | {"camId":"34020000001329000008","ok":true,"path":"backend-video-handoff-stable-v1"}
+2026-07-21 10:54:09.108 +08:00 [Media] INFO voice intercom telemetry | {"camId":"34020000001329000008","phase":"invite-failed","profile":"talk-duplex","device":{"recording":"1","encode":null,"video":null,"online":null,"callstate":"0","audio":"0"},"message":"Voice call failed (408)"}
+2026-07-21 10:54:29.517 +08:00 [Web] INFO dashboard connected | {"user":"global"}

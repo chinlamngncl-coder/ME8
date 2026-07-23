@@ -1,6 +1,6 @@
 # MOB DISC — Investigation holds need disposition (close / clear / delete) + how to mark them
 
-**Status:** DISC only — **no APPLY**  
+**Status:** APPLIED — `FR-HOLDS-DISPOSITION-STATUS-V1` (2026-07-22)  
 **Date:** 2026-07-13  
 **Trigger:** Investigation holds UI has Open / Copy ID only — no close, cancel, or delete. “How can investigation have no close?” What to log? Color? Number? Think harder.  
 **Search:** investigation holds, disposition, close hold, clear FR keep, fr-kept lifecycle  

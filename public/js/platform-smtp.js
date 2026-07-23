@@ -1,5 +1,5 @@
 /**
- * Platform SMTP settings — Dashboard Auth tab (super admin only).
+ * Platform SMTP settings \u2014 Dashboard Auth tab (super admin only).
  */
 (function (global) {
     function tr(key, params) {
@@ -79,7 +79,7 @@
             testEl.innerHTML = '<span class="ev-st-badge ev-st-ok">' + esc(tr('smtp.lastTestOk', { time: formatTestTime(s.lastTestAt) })) + '</span>';
             return;
         }
-        const errHint = s.lastTestError ? ' — ' + s.lastTestError : '';
+        const errHint = s.lastTestError ? ' \u2014 ' + s.lastTestError : '';
         testEl.innerHTML = '<span class="ev-st-badge ev-st-bad" title="' + esc(s.lastTestError || '') + '">'
             + esc(tr('smtp.lastTestFail', { time: formatTestTime(s.lastTestAt) })) + esc(errHint) + '</span>';
     }

@@ -1,5 +1,5 @@
 /**
- * Evidence & docking — top nav tab (FTP dock settings + evidence catalog).
+ * Evidence & docking \u2014 top nav tab (FTP dock settings + evidence catalog).
  */
 (function (global) {
     let canEvidenceDownload = false;
@@ -38,7 +38,7 @@
     }
 
     function fmtTime(iso) {
-        if (!iso) return '—';
+        if (!iso) return '\u2014';
         try {
             return new Date(iso).toLocaleString();
         } catch (_) {
@@ -137,7 +137,7 @@
             if (nasEl) nasEl.value = ev.nasMountPath || '';
             if (noteEl) noteEl.value = ev.dockFtpTargetNote || '';
             if (primaryEl) primaryEl.value = ev.archivePrimary === 'nas' ? 'nas' : 'local';
-            if (folderEl) folderEl.textContent = data.liveCaptureLabel || '—';
+            if (folderEl) folderEl.textContent = data.liveCaptureLabel || '\u2014';
             await renderPathValidation(data.pathValidation, data.installerNote);
         } catch (_) { /* ignore */ }
         if (saveBtn) {
@@ -205,11 +205,11 @@
         const meta = document.getElementById('evidence-meta');
         if (!tbody) return;
         if (!canEvidenceDownload) {
-            tbody.innerHTML = '<tr><td colspan="6" class="hint">—</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="hint">\u2014</td></tr>';
             if (meta) meta.textContent = '';
             return;
         }
-        tbody.innerHTML = '<tr><td colspan="6" class="hint">Loading…</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="hint">Loading\u2026</td></tr>';
         try {
             const res = await fetch('/api/evidence/catalog?limit=200');
             const data = await res.json();
@@ -217,14 +217,14 @@
             const files = data.files || [];
             if (meta) meta.textContent = files.length ? (files.length + ' file(s)') : '';
             if (!files.length) {
-                tbody.innerHTML = '<tr><td colspan="6" class="hint">—</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="hint">\u2014</td></tr>';
                 return;
             }
             tbody.innerHTML = files.map(function (f) {
                 return '<tr data-file-id="' + esc(f.id) + '">'
                     + '<td><code>' + esc(f.id) + '</code></td>'
                     + '<td>' + esc(f.fileName) + '<br><span class="hint">' + fmtBytes(f.byteSize) + '</span></td>'
-                    + '<td>' + esc(f.operatorName || '—') + '</td>'
+                    + '<td>' + esc(f.operatorName || '\u2014') + '</td>'
                     + '<td>' + esc(fmtTime(f.uploadedAt)) + '</td>'
                     + '<td>' + esc(f.storageTier || f.source || 'local') + '</td>'
                     + '<td><button type="button" class="btn btn-action btn-sm evidence-dl-btn" data-file-id="' + esc(f.id) + '">Download</button></td>'
@@ -266,7 +266,7 @@
         return TabLifecycle.shouldLoad(tab);
     }
 
-    /** mob-ops-map-resize-after-tab — refill Leaflet after hidden Ops / SOS strip height change */
+    /** mob-ops-map-resize-after-tab \u2014 refill Leaflet after hidden Ops / SOS strip height change */
     function invalidateOpsMapOnce() {
         try {
             if (global.FleetUi && FleetUi.refreshLayout) FleetUi.refreshLayout();
@@ -346,6 +346,9 @@
         const navTools = document.getElementById('video-wall-nav-tools');
         if (navTools) navTools.hidden = tab !== 'ops';
         onEvidenceView = tab === 'evidence';
+        if (tab !== 'evidence') {
+            try { document.documentElement.classList.remove('ev-storage-scroll-unlock'); } catch (_) { /* ignore */ }
+        }
         if (ops) ops.hidden = tab !== 'ops';
         if (ev) ev.hidden = tab !== 'evidence';
         if (ax) ax.hidden = tab !== 'analytics';
@@ -429,7 +432,7 @@
             const ws = document.getElementById('server-config-workspace');
             if (ws && !ws.hidden) ServerSetup.closeConfig();
         }
-        /* mob-ops-map-resize-after-tab — Leaflet keeps stale size after Analytics/SOS chrome */
+        /* mob-ops-map-resize-after-tab \u2014 Leaflet keeps stale size after Analytics/SOS chrome */
         if (tab === 'ops') scheduleOpsMapResize();
         if (tab === 'ops' && loadData && global.OpsCwAwareness && OpsCwAwareness.refresh) {
             OpsCwAwareness.refresh();

@@ -1,5 +1,5 @@
 /**
- * Friendly labels for BWCs — nickname + unit code for ops; wire deviceId stays internal.
+ * Friendly labels for BWCs \u2014 nickname + unit code for ops; wire deviceId stays internal.
  */
 (function (global) {
     function tr(key, params) {
@@ -22,7 +22,7 @@
         if (rec && (rec.operatorName || rec.unitCode)) return true;
         if (global.FleetUi && FleetUi.getDeviceName) {
             var n = FleetUi.getDeviceName(camId);
-            if (n && n !== camId && n.indexOf('BWC …') !== 0 && n.indexOf('BWC #') !== 0 && n.indexOf('Unnamed') !== 0) {
+            if (n && n !== camId && n.indexOf('BWC \u2026') !== 0 && n.indexOf('BWC #') !== 0 && n.indexOf('Unnamed') !== 0) {
                 return true;
             }
         }
@@ -44,7 +44,7 @@
         return tr('fleet.bwcWithId', { id: camId });
     }
 
-    /** Unit / badge line under nickname in fleet list — never the long wire ID. */
+    /** Unit / badge line under nickname in fleet list \u2014 never the long wire ID. */
     function operationalSubLabel(camId) {
         const rec = getDeviceRecord(camId);
         const nick = rec && rec.operatorName ? String(rec.operatorName).trim() : '';
@@ -69,10 +69,10 @@
         return parts.join(' ').toLowerCase();
     }
 
-    /** Short technical hint — admin / install only; hidden from operator sub-labels. */
+    /** Short technical hint \u2014 admin / install only; hidden from operator sub-labels. */
     function shortTechnicalId(camId) {
         if (!camId || camId.length <= 10) return camId || '';
-        return camId.slice(0, 4) + '…' + camId.slice(-4);
+        return camId.slice(0, 4) + '\u2026' + camId.slice(-4);
     }
 
     function setCamLabel(el, camId) {

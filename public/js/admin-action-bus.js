@@ -1,6 +1,6 @@
 /**
- * Single in-flight lock for Settings → Server Config / lifecycle admin opens.
- * Shows Opening… / Loading… — does not touch server auth or API load paths.
+ * Single in-flight lock for Settings \u2192 Server Config / lifecycle admin opens.
+ * Shows Opening\u2026 / Loading\u2026 \u2014 does not touch server auth or API load paths.
  */
 (function (global) {
     'use strict';

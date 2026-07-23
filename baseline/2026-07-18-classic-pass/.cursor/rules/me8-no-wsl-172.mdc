@@ -1,0 +1,13 @@
+---
+description: Never recommend or auto-open WSL/Docker 172.x as Mobility server IP
+alwaysApply: true
+---
+
+# Never 172 WSL/Docker as server IP
+
+**Disc:** `docs/MOB-DISC-NO-WSL-172-AS-SERVER-IP.md`
+
+- Never tell user to use `172.17`–`172.31` for dashboard / SIP / PTT
+- Real Wi‑Fi/Ethernet only (lab example: `192.168.1.38`)
+- Auto IP detect must use `Get-UbitronPreferredLanIPv4.ps1` (skip WSL/vEthernet/Docker)
+- If unsure → ask which Wi‑Fi IP — do **not** guess 172

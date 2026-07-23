@@ -67,17 +67,8 @@ baseline/**
 !baseline/**/CREATE-ME8-POC-DEMO.ps1
 !baseline/**/RESTORE-ME8-POC-DEMO.ps1
 !baseline/**/VERIFY-ME8-POC-DEMO.ps1
-!baseline/**/CREATE-ME8-CLASSIC-PASS.ps1
-!baseline/**/RESTORE-ME8-CLASSIC-PASS.ps1
-!baseline/**/VERIFY-ME8-CLASSIC-PASS.ps1
-!baseline/**/CREATE-ME8-PRE-GATE-C.ps1
-!baseline/**/RESTORE-ME8-PRE-GATE-C.ps1
-!baseline/**/VERIFY-ME8-PRE-GATE-C.ps1
 !baseline/**/MANIFEST.json
 !baseline/**/HASHES.json
-# Never track snapshot secrets even if nested under baseline/
-baseline/**/.env
-baseline/**/storage/secrets/
 
 # ---- Runtime / build output ----
 evidence/

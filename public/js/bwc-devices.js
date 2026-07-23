@@ -1,6 +1,6 @@
 /**
- * All BWCs (unlimited) — operator name, map group, credentials.
- * Video wall (Ch 1–6) only picks which device ID plays on each panel.
+ * All BWCs (unlimited) \u2014 operator name, map group, credentials.
+ * Video wall (Ch 1\u20136) only picks which device ID plays on each panel.
  */
 (function (global) {
     function tr(key, params) {
@@ -279,7 +279,7 @@
                 '</select></td>' +
                 '<td><span class="ss-bwc-status ' + esc(st) + '">' + esc(deviceStatusLabel(d)) + '</span></td>' +
                 '<td>' + lifecycleActionHtml(d) + '</td>' +
-                '<td><button type="button" class="ss-bwc-del" data-action="del" aria-label="Remove">×</button></td>' +
+                '<td><button type="button" class="ss-bwc-del" data-action="del" aria-label="Remove">\u00D7</button></td>' +
                 '</tr>';
         }).join('');
     }

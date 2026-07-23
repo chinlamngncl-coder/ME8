@@ -1,5 +1,5 @@
 /**
- * Wall Map popout — Phase 3 display-only mirror.
+ * Wall Map popout \u2014 Phase 3 display-only mirror.
  * Main dashboard owns all control; TV popout follows via BroadcastChannel (same PC/browser).
  */
 (function (global) {

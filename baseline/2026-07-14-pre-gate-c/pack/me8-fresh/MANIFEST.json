@@ -1,0 +1,23 @@
+{
+  "profile": "me8-fresh-v1",
+  "description": "Factory storage template — no lab BWCs, GPS cache, or operator accounts",
+  "requiredFiles": [
+    "bwc-devices.json",
+    "dispatch-groups.json",
+    "dock-registry.json",
+    "server-settings.json",
+    "tenant-profile.json"
+  ],
+  "forbiddenInFreshStorage": [
+    "last-gps.json",
+    "last-sip-contact.json",
+    "fleet.log",
+    "dashboard-users.json"
+  ],
+  "emptyDirs": [
+    "ftp-uploads",
+    "secrets",
+    "sos-incidents",
+    "evidence/live-capture"
+  ]
+}

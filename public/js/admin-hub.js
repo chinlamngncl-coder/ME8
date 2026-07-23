@@ -1,5 +1,5 @@
 /**
- * Settings administration hub — fleet table, health tiles, embedded Server Config panels.
+ * Settings administration hub \u2014 fleet table, health tiles, embedded Server Config panels.
  */
 (function (global) {
     'use strict';
@@ -69,7 +69,7 @@
 
     function formatLastSeen(ts) {
         var n = Number(ts) || 0;
-        if (!n) return '—';
+        if (!n) return '\u2014';
         var sec = Math.floor((Date.now() - n) / 1000);
         if (sec < 15) return tr('adminHub.lastSeenNow');
         if (sec < 60) return tr('adminHub.lastSeenSecAgo', { n: sec });
@@ -179,8 +179,8 @@
             return '<tr>' +
                 '<td><span class="admin-fleet-dot' + (on ? ' on' : '') + '" title="' + esc(on ? tr('fleet.statusOnline') : tr('fleet.statusOffline')) + '"></span></td>' +
                 '<td><span class="admin-fleet-group-swatch" style="background:' + esc(color) + '" title="' + esc(group || tr('fleet.groupUngrouped')) + '"></span></td>' +
-                '<td><strong>' + esc(d.operatorName || meta.name || '—') + '</strong><br><span class="admin-fleet-id">' + esc(id) + '</span></td>' +
-                '<td>' + esc(group || '—') + '</td>' +
+                '<td><strong>' + esc(d.operatorName || meta.name || '\u2014') + '</strong><br><span class="admin-fleet-id">' + esc(id) + '</span></td>' +
+                '<td>' + esc(group || '\u2014') + '</td>' +
                 '<td class="admin-fleet-last">' + esc(formatLastSeen(lastSeen)) + '</td>' +
                 '</tr>';
         }).join('');

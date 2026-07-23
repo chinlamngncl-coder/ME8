@@ -3,7 +3,11 @@
 # Images:
 #   zlmediakit/zlmediakit:master  — current ZLM
 #   gemcjz/wvp-pro:latest         — WVP 2.7.3 (Java only; external ZLM)
-#   postgres:15 + redis:7
+#   postgres:15-alpine + valkey/valkey:8-alpine (BSD-3-Clause)
+#
+# ENTERPRISE-REDIS-IMAGE-LEGAL-PIN-V1 — Valkey replaces redis:7-alpine.
+# Container DNS name stays me8-wvp-redis for WVP env compatibility.
+# Do NOT swap back to redis:* (SSPL/RSAL/AGPL risk on floating tags).
 #
 # Fossil all-in-one (2021): docker-compose.wvp-fossil.yml (648540858/wvp_pro)
 #
@@ -15,10 +19,10 @@
 services:
 
   wvp-redis:
-    image: redis:7-alpine
+    image: valkey/valkey:8-alpine
     container_name: me8-wvp-redis
     restart: unless-stopped
-    command: redis-server --requirepass root
+    command: ["valkey-server", "--requirepass", "root"]
     environment:
       TZ: Asia/Singapore
 

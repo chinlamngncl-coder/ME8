@@ -62,7 +62,7 @@
         focus: { count: 8, cols: 4, rows: 4, focus: true },
     };
 
-    /** VB-style 1+7: main 3×3 top-left, 3 right column, 4 bottom row */
+    /** VB-style 1+7: main 3\u00D73 top-left, 3 right column, 4 bottom row */
     const FOCUS_GRID = [
         { col: '1 / 4', row: '1 / 4' },
         { col: '4', row: '1' },
@@ -139,7 +139,7 @@
     function openCommandWallPopout() {
         const features = 'width=1920,height=1080,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no';
         const wallUrl = '/command-wall.html?panel=live';
-        // Unique name — avoid reusing a named window stuck on "/" or mid-reload.
+        // Unique name \u2014 avoid reusing a named window stuck on "/" or mid-reload.
         popoutWin = window.open(wallUrl, 'mobility-wall-' + String(Date.now()), features);
         if (popoutWin) {
             try { popoutWin.focus(); } catch (_) { /* ignore */ }
@@ -568,7 +568,7 @@
             slots[i] = null;
             if (i < count) {
                 setCellName(i, 'Panel ' + (i + 1));
-                setCellStatus(i, '—', '');
+                setCellStatus(i, '\u2014', '');
                 showStageHint(i, true);
                 showConnecting(i, false);
                 updateCellControls(i);
@@ -789,7 +789,7 @@
             meta.textContent = tr('commandWall.metaSlots', { online: online, slots: slotsN });
         }
         if (deckEntries.length && !(rotateIntervalMs && !rotatePaused)) {
-            meta.textContent += ' · +' + deckEntries.length + ' deck';
+            meta.textContent += ' \u00B7 +' + deckEntries.length + ' deck';
         }
         if (rotatePaused && rotateIntervalMs) {
             meta.textContent += tr('commandWall.metaRotatePaused');
@@ -807,7 +807,7 @@
             cell.innerHTML =
                 '<div class="' + c('cell-head') + '">' +
                 '<span class="' + c('cell-name') + '">Panel ' + (i + 1) + '</span>' +
-                '<span class="' + c('cell-status') + '">—</span>' +
+                '<span class="' + c('cell-status') + '">\u2014</span>' +
                 '<div class="' + c('cell-actions') + '">' +
                 '<button type="button" class="' + c('btn-sm') + ' btn-spotlight-exit" hidden>' + gridIconSvg() + '</button>' +
                 '<button type="button" class="' + c('btn-sm') + ' btn-play" title="' + tr('video.play') + '" disabled>▶</button>' +
@@ -817,7 +817,7 @@
                 '<div class="' + c('cell-stage') + '">' +
                 '<span class="' + c('cell-drop-hint') + '">Drop device here</span>' +
                 '<span class="' + c('cell-empty') + '" hidden>' + tr('video.stoppedShort') + '</span>' +
-                '<div class="' + c('cell-streaming-label') + '" hidden>Connecting…</div>' +
+                '<div class="' + c('cell-streaming-label') + '" hidden>Connecting\u2026</div>' +
                 '<div class="' + c('cell-offline-overlay') + '" hidden>OFFLINE</div>' +
                 '</div>';
             wall.appendChild(cell);
@@ -932,13 +932,13 @@
             '<div class="' + c('ptz-camera') + '">Select a fixed camera panel</div>' +
             '<div class="' + c('ptz-pad') + '">' +
             '<button type="button" data-ptz="up" aria-label="Tilt up">▲</button>' +
-            '<button type="button" data-ptz="left" aria-label="Pan left">◀</button>' +
+            '<button type="button" data-ptz="left" aria-label="Pan left">\u25C0</button>' +
             '<button type="button" data-ptz="home" aria-label="Home">●</button>' +
             '<button type="button" data-ptz="right" aria-label="Pan right">▶</button>' +
             '<button type="button" data-ptz="down" aria-label="Tilt down">▼</button>' +
             '</div>' +
             '<div class="' + c('ptz-zoom') + '">' +
-            '<button type="button" data-ptz="zoom-out">− Zoom</button>' +
+            '<button type="button" data-ptz="zoom-out">\u2212 Zoom</button>' +
             '<button type="button" data-ptz="zoom-in">+ Zoom</button>' +
             '</div>' +
             '<div class="' + c('ptz-status') + '">PTZ is available for registered ONVIF PTZ cameras.</div>';
@@ -974,7 +974,7 @@
         const name = panel.querySelector('.' + c('ptz-camera'));
         if (name) {
             name.textContent = camera
-                ? ((camera.name || camera.id) + (enabled ? '' : ' — PTZ unavailable'))
+                ? ((camera.name || camera.id) + (enabled ? '' : ' \u2014 PTZ unavailable'))
                 : 'Select a fixed camera panel';
         }
         panel.querySelectorAll('[data-ptz]').forEach(function (button) {
@@ -1011,7 +1011,7 @@
         if (empty) empty.hidden = true;
     }
 
-    /** Stop with keepAssignment — device still assigned; do not show empty drop zone. */
+    /** Stop with keepAssignment \u2014 device still assigned; do not show empty drop zone. */
     function showStageStopped(slot, show) {
         const cell = getCell(slot);
         if (!cell) return;
@@ -1021,7 +1021,7 @@
         if (empty) {
             empty.hidden = !show;
             if (show) {
-                empty.textContent = tr('video.stoppedShort') + ' — ' + tr('video.play');
+                empty.textContent = tr('video.stoppedShort') + ' \u2014 ' + tr('video.play');
             }
         }
     }
@@ -1194,7 +1194,7 @@
         if (emptyEl) emptyEl.hidden = true;
         connectingSlots.add(slot);
         showConnecting(slot, true);
-        setCellStatus(slot, 'Connecting…', '');
+        setCellStatus(slot, 'Connecting\u2026', '');
         wvpHandoffSlotInflight.set(slot, { camId: camId, flvUrl: flvUrl, at: Date.now() });
         console.log('[me8-flv] cw attach once', { slot: slot, camId: camId, url: flvUrl });
         const handle = global.Me8LivePlayerFactory.attachFlvPrimary(stage, flvUrl, {
@@ -1281,7 +1281,7 @@
             if (!cell) return true;
             const st = cellQuery(cell, 'cell-status');
             const label = (st && st.textContent) || '';
-            if (label === '—' || label === 'Idle' || label === 'Stopped' || label === 'Offline') continue;
+            if (label === '\u2014' || label === 'Idle' || label === 'Stopped' || label === 'Offline') continue;
             return true;
         }
         return false;
@@ -1531,7 +1531,7 @@
             pttCommCamId = null;
         }
         setCellName(slot, 'Panel ' + (slot + 1));
-        setCellStatus(slot, '—', '');
+        setCellStatus(slot, '\u2014', '');
         showStageHint(slot, true);
         showConnecting(slot, false);
         updateCellControls(slot);
@@ -1583,7 +1583,7 @@
         const cameraId = fixedCameraId(camId);
         connectingSlots.add(slot);
         showConnecting(slot, true);
-        setCellStatus(slot, 'Connecting…', '');
+        setCellStatus(slot, 'Connecting\u2026', '');
         updateCellControls(slot);
         return fetch('/api/fixed-cams/' + encodeURIComponent(cameraId) + '/zlm/start', {
             method: 'POST',
@@ -1625,7 +1625,7 @@
         if (emptyEl) emptyEl.hidden = true;
         connectingSlots.add(slot);
         showConnecting(slot, true);
-        setCellStatus(slot, 'Connecting…', '');
+        setCellStatus(slot, 'Connecting\u2026', '');
         const canvas = document.createElement('canvas');
         stage.appendChild(canvas);
         try {
@@ -1734,7 +1734,7 @@
             socket.emit('start-video', { camId: camId, mode: 'video', surface: CW_VIEWER_SURFACE });
             connectingSlots.add(slot);
             showConnecting(slot, true);
-            setCellStatus(slot, 'Connecting…', '');
+            setCellStatus(slot, 'Connecting\u2026', '');
             updateCellControls(slot);
             return;
         }
@@ -1772,7 +1772,7 @@
             const empty = cellQuery(cell, 'cell-empty');
             if (empty) empty.hidden = true;
         }
-        setCellStatus(slot, keepAssignment ? 'Stopped' : '—', '');
+        setCellStatus(slot, keepAssignment ? 'Stopped' : '\u2014', '');
         if (keepAssignment) showStageStopped(slot, true);
         else showStageHint(slot, true);
         updateCellControls(slot);
@@ -2042,7 +2042,7 @@
             if (r.status === 401 || r.status === 403) {
                 throw new Error('Sign-in required (HTTP ' + r.status + '). Close this window and open again from Control room while signed in.');
             }
-            if (!r.ok) throw new Error(url + ' → HTTP ' + r.status);
+            if (!r.ok) throw new Error(url + ' \u2192 HTTP ' + r.status);
             return r.json().then(function (data) {
                 if (data && data.ok === false && data.error) {
                     throw new Error(String(data.error));
@@ -2238,7 +2238,7 @@
                     const empty = cellQuery(cell, 'cell-empty');
                     if (empty) empty.hidden = true;
                 }
-                setCellStatus(slot, slots[slot] ? 'Stopped' : '—', '');
+                setCellStatus(slot, slots[slot] ? 'Stopped' : '\u2014', '');
                 if (slots[slot]) showStageHint(slot, true);
                 updateCellControls(slot);
             } else if (slots[slot]) {
@@ -2276,7 +2276,7 @@
         const launchPanel = new URLSearchParams(window.location.search).get('panel');
         if (launchPanel === 'live' || launchPanel === 'display') showCwPanel(launchPanel);
 
-        // Roster FIRST — must not depend on socket / optional globals (pop-out was stuck on Loading).
+        // Roster FIRST \u2014 must not depend on socket / optional globals (pop-out was stuck on Loading).
         loadRoster();
         setTimeout(function () {
             const body = el('roster-body');
@@ -2355,7 +2355,7 @@
     if (EMBEDDED) {
         window.CommandWall = commandWallApi;
     } else {
-        // Server already gated this HTML. Do NOT redirect to login here — that caused
+        // Server already gated this HTML. Do NOT redirect to login here \u2014 that caused
         // wall ↔ login blink loops when session JSON lagged the cookie.
         startApp();
     }

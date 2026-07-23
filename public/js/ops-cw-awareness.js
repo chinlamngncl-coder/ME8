@@ -1,5 +1,5 @@
 /**
- * Operations — ambient ticker when embedded Command Wall has live/connecting video.
+ * Operations \u2014 ambient ticker when embedded Command Wall has live/connecting video.
  */
 (function (global) {
     var pollTimer = null;
@@ -30,7 +30,7 @@
             var hint = tr('ops.cwAwareness.connecting');
             return s.name + ' (' + hint + ')';
         });
-        return tr('ops.cwAwareness.live', { list: names.join(' · '), count: slots.length });
+        return tr('ops.cwAwareness.live', { list: names.join(' \u00B7 '), count: slots.length });
     }
 
     function update() {

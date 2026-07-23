@@ -42,7 +42,7 @@ flowchart TB
 | Valkey + Postgres (enterprise cache/catalog) | **Docker** | `docker/docker-compose.enterprise.yml` |
 | Video conference MCU (LiveKit + egress + ingress) | **Docker** | `docker/livekit.compose.yaml` |
 
-**Important:** LiveKit ships its **own** Redis container (internal to the LiveKit stack). Enterprise **Valkey** is a separate service for future Fleet wiring — do not assume they are shared today.
+**Important:** LiveKit uses its **own** Valkey container (service DNS name still `redis` for config compatibility; image `valkey/valkey:8-alpine`). Enterprise **Fleet Valkey** (`mobility-valkey`) is a separate service — do not assume they are shared.
 
 ---
 
@@ -77,7 +77,7 @@ flowchart TB
 | **50000–50100** | UDP | WebRTC media (published range) |
 | **1935** | TCP | RTMP ingress (BWC share path) |
 
-LiveKit **redis** has **no host port** — only `redis:6379` inside the compose network.
+LiveKit **Valkey** (compose service name `redis`) has **no host port** — only `redis:6379` inside the compose network.
 
 ---
 

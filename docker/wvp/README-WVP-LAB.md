@@ -7,7 +7,7 @@
 |------|--------|
 | WVP 2.7.3 | `gemcjz/wvp-pro:latest` |
 | ZLM (current) | `zlmediakit/zlmediakit:master` |
-| Postgres / Redis | `postgres:15-alpine` / `redis:7-alpine` |
+| Postgres / Valkey | `postgres:15-alpine` / `valkey/valkey:8-alpine` (Redis-compatible; BSD-3-Clause) |
 
 Fleet wall / PTT SIP **5060** are **not** changed. WVP SIP on host = **5061**.
 

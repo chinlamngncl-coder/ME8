@@ -1,5 +1,5 @@
 /**
- * Evidence & Docking hub — docks (1 / 8 / 24-bay 6×4), catalog, detail, trim export.
+ * Evidence & Docking hub \u2014 docks (1 / 8 / 24-bay 6\u00D74), catalog, detail, trim export.
  * Isolated from live SOS / video paths.
  */
 (function (global) {
@@ -26,7 +26,7 @@
     let selectedDockId = null;
     const panelLoadedAt = Object.create(null);
     let panelLoadedDetailId = null;
-    /* mob-evidence-save-meta-dirty-hint-v1 — snapshot at detail open */
+    /* mob-evidence-save-meta-dirty-hint-v1 \u2014 snapshot at detail open */
     let detailMetaBaseline = null;
 
     function staleMs() {
@@ -79,7 +79,7 @@
     }
 
     function fmtTime(iso) {
-        if (!iso) return '—';
+        if (!iso) return '\u2014';
         try { return new Date(iso).toLocaleString(); } catch (_) { return iso; }
     }
 
@@ -250,14 +250,14 @@
         if (d.model === 'desk') return tr('evidenceHub.dockModelDesk');
         if (d.model === 'wall') return tr('evidenceHub.dockModelWall');
         if (d.bayPreset) return d.bayPreset + '-bay';
-        return '—';
+        return '\u2014';
     }
 
     function fmtLastAuth(d) {
         if (d.lastAuthOfficer && d.lastAuthAt) {
             return esc(d.lastAuthOfficer) + '<br><span class="hint">' + esc(fmtTime(d.lastAuthAt)) + '</span>';
         }
-        return '—';
+        return '\u2014';
     }
 
     function renderIndexBanner(indexData) {
@@ -292,8 +292,8 @@
                 : tr('evidenceHub.unavailable');
             const uploadLabel = d.baysUploading > 0
                 ? esc(tr('evidenceHub.dockUploadActive', { n: d.baysUploading }))
-                : '—';
-            const loc = d.location || d.branchCode || '—';
+                : '\u2014';
+            const loc = d.location || d.branchCode || '\u2014';
             return '<tr>'
                 + '<td><strong>' + esc(d.displayName) + '</strong>'
                 + (d.branchCode ? '<br><span class="hint">' + esc(d.branchCode) + '</span>' : '') + '</td>'
@@ -388,11 +388,15 @@
             evPanel.classList.toggle('ev-detail-active', name === 'detail');
             evPanel.classList.toggle('ev-redact-active', name === 'redact');
         }
+        /* DESTROY-SCROLL-LOCK-V1 \u2014 Storage needs document scroll to Evidence Index */
+        try {
+            document.documentElement.classList.toggle('ev-storage-scroll-unlock', name === 'settings');
+        } catch (_) { /* ignore */ }
         document.querySelectorAll('.evidence-hub-panel').forEach(function (p) {
             p.hidden = p.id !== 'ev-panel-' + name;
         });
         document.querySelectorAll('.evidence-hub-nav-btn').forEach(function (btn) {
-            /* redact has no nav chip — clear active like detail */
+            /* redact has no nav chip \u2014 clear active like detail */
             btn.classList.toggle('active', btn.dataset.panel === name);
         });
         if (name === 'redact') {
@@ -428,9 +432,11 @@
             if (global.RouteTrace && RouteTrace.onShow) RouteTrace.onShow({ force: true });
             markPanelLoaded('route-trace');
         } else if (currentPanel === 'case-files') {
-            if (panelWarm('case-files', force)) return;
-            if (global.CaseFilesUi && CaseFilesUi.onShow) CaseFilesUi.onShow({ force: true });
-            markPanelLoaded('case-files');
+            const warm = panelWarm('case-files', force);
+            if (global.CaseFilesUi && CaseFilesUi.onShow) {
+                CaseFilesUi.onShow({ force: !!force, warm: warm });
+            }
+            if (!warm) markPanelLoaded('case-files');
         } else if (currentPanel === 'investigation-holds') {
             if (panelWarm('investigation-holds', force)) return;
             if (global.FrKeptUi && FrKeptUi.onShow) FrKeptUi.onShow({ force: true });
@@ -503,7 +509,7 @@
             const dbBytes = catalog.available && catalog.dbBytes != null ? catalog.dbBytes : null;
             const evBytes = catalog.available && catalog.evidenceBytes != null ? catalog.evidenceBytes : null;
             const archiveHealthy = catalog.available && !!catalog.engine && val.ftp !== false;
-            const fileKpi = fileN != null ? String(fileN) : '—';
+            const fileKpi = fileN != null ? String(fileN) : '\u2014';
             const pendingKpi = pendingExports > 0 && dashboardRole === 'super_admin'
                 ? '<button type="button" class="ev-kpi ev-kpi-clickable ev-kpi-warn" data-ev-panel="catalog" data-ev-focus="export-queue">'
                     + '<span class="ev-kpi-n">' + pendingExports + '</span>'
@@ -514,7 +520,7 @@
                 + '<div class="ev-kpi"><span class="ev-kpi-n">' + (totals.sites || 0) + '</span><span class="ev-kpi-l">' + tr('evidenceHub.kpiDocks') + '</span></div>'
                 + '<div class="ev-kpi' + (totals.sitesOffline > 0 ? ' ev-kpi-warn' : '') + '"><span class="ev-kpi-n">' + (totals.sitesOnline || 0) + '/' + (totals.sites || 0) + '</span><span class="ev-kpi-l">' + tr('evidenceHub.kpiDockSitesUp') + '</span></div>'
                 + '<div class="ev-kpi"><span class="ev-kpi-n">' + (fleet.online || 0) + '/' + (fleet.registered || 0) + '</span><span class="ev-kpi-l">' + tr('evidenceHub.kpiBwcOnline') + '</span></div>'
-                + '<div class="ev-kpi"><span class="ev-kpi-n">' + (catalog.available ? (totals.baysOccupied || 0) : '—') + '</span><span class="ev-kpi-l">' + tr('evidenceHub.kpiBaysOccupied') + '</span></div>'
+                + '<div class="ev-kpi"><span class="ev-kpi-n">' + (catalog.available ? (totals.baysOccupied || 0) : '\u2014') + '</span><span class="ev-kpi-l">' + tr('evidenceHub.kpiBaysOccupied') + '</span></div>'
                 + '<div class="ev-kpi' + (catalogDown ? ' ev-kpi-warn' : '') + '"><span class="ev-kpi-n">' + esc(fileKpi) + '</span><span class="ev-kpi-l">' + tr('evidenceHub.kpiFiles') + '</span></div>'
                 + '<div class="ev-kpi' + (archiveHealthy ? '' : ' ev-kpi-warn') + '"><span class="ev-kpi-n">' + esc(archiveHealthy ? tr('evidenceHub.archiveOk') : tr('evidenceHub.archiveWarn')) + '</span><span class="ev-kpi-l">' + tr('evidenceHub.kpiArchive') + '</span></div>'
                 + pendingKpi
@@ -525,12 +531,12 @@
                 + healthRow(tr('evidenceHub.storageCatalog'), catalog.available
                     ? esc(tr('evidenceHub.storageOk'))
                     : '<span class="ev-path-bad">' + esc(tr('evidenceHub.indexUnavailableShort')) + '</span>')
-                + healthRow(tr('evidenceHub.storageDbSize'), catalog.available && dbBytes != null ? esc(fmtBytes(dbBytes)) : '—')
-                + healthRow(tr('evidenceHub.storageEvidenceBytes'), catalog.available && evBytes != null ? esc(fmtBytes(evBytes)) : '—')
+                + healthRow(tr('evidenceHub.storageDbSize'), catalog.available && dbBytes != null ? esc(fmtBytes(dbBytes)) : '\u2014')
+                + healthRow(tr('evidenceHub.storageEvidenceBytes'), catalog.available && evBytes != null ? esc(fmtBytes(evBytes)) : '\u2014')
                 + healthRow(tr('evidenceHub.storageArchive'), esc(val.networkArchive ? tr('evidence.archiveNetwork') : tr('evidence.archiveLocal')))
-                + healthRow(tr('evidenceHub.storageFtpPath'), esc(paths.ftpLabel || '—') + ' · ' + pathStatusHtml(val.ftp))
-                + healthRow(tr('evidenceHub.storageNasPath'), esc(paths.nasMountPath || '—') + ' · ' + pathStatusHtml(val.nas))
-                + healthRow(tr('evidenceHub.storageBackups'), esc(String(backups.count || 0)) + (backups.latest ? ' · ' + esc(backups.latest) : ''))
+                + healthRow(tr('evidenceHub.storageFtpPath'), esc(paths.ftpLabel || '\u2014') + ' \u00B7 ' + pathStatusHtml(val.ftp))
+                + healthRow(tr('evidenceHub.storageNasPath'), esc(paths.nasMountPath || '\u2014') + ' \u00B7 ' + pathStatusHtml(val.nas))
+                + healthRow(tr('evidenceHub.storageBackups'), esc(String(backups.count || 0)) + (backups.latest ? ' \u00B7 ' + esc(backups.latest) : ''))
                 + '</div>';
             if ((!archiveHealthy || catalogDown) && dashboardRole === 'super_admin') {
                 html += '<p class="ev-health-foot"><button type="button" class="ev-health-foot-link" data-ev-panel="settings">'
@@ -605,7 +611,7 @@
                 + esc(tr('evidenceHub.myExports')) + '</strong>'
                 + '<ul class="ev-attach-list" style="margin:6px 0 0">'
                 + rows.map(function (r) {
-                    let line = esc(r.requestId) + ' · ' + esc(r.evidenceFileId) + ' · ' + esc(exportStatusLabel(r.status));
+                    let line = esc(r.requestId) + ' \u00B7 ' + esc(r.evidenceFileId) + ' \u00B7 ' + esc(exportStatusLabel(r.status));
                     if (r.status === 'approved' && !r.consumedAt) {
                         line += ' <a href="/api/evidence/secure-export/stream/' + encodeURIComponent(r.requestId) + '">' + tr('evidenceHub.download') + '</a>';
                     }
@@ -638,7 +644,7 @@
                 const loc = [d.city, d.province, d.country].filter(Boolean).join(', ');
                 return '<button type="button" class="ev-dock-row' + (selectedDockId === d.id ? ' active' : '') + '" data-dock-id="' + esc(d.id) + '">'
                     + '<strong>' + esc(d.displayName) + '</strong>'
-                    + '<span class="hint">' + esc(d.branchCode) + ' · ' + esc(d.bayPreset) + '-bay</span>'
+                    + '<span class="hint">' + esc(d.branchCode) + ' \u00B7 ' + esc(d.bayPreset) + '-bay</span>'
                     + (loc ? '<span class="hint">' + esc(loc) + '</span>' : '')
                     + '</button>';
             }).join('');
@@ -668,8 +674,8 @@
             grid.style.gridTemplateRows = 'repeat(' + layout.rows + ', 1fr)';
             grid.innerHTML = layout.bays.map(function (bay) {
                 const cls = 'ev-bay-card state-' + (bay.state || 'empty');
-                let sub = bay.state === 'empty' ? tr('evidenceHub.bayEmpty') : esc(bay.serial || '—');
-                if (bay.state === 'uploading' && bay.progress != null) sub += ' · ' + bay.progress + '%';
+                let sub = bay.state === 'empty' ? tr('evidenceHub.bayEmpty') : esc(bay.serial || '\u2014');
+                if (bay.state === 'uploading' && bay.progress != null) sub += ' \u00B7 ' + bay.progress + '%';
                 if (bay.assignee) sub += '<br><span class="hint">' + esc(bay.assignee) + '</span>';
                 return '<div class="' + cls + '" data-bay="' + bay.bay + '">'
                     + '<span class="ev-bay-n">' + tr('evidenceHub.bayN', { n: bay.bay }) + '</span>'
@@ -801,6 +807,14 @@
         return tr('evidenceHub.redactPendingNote');
     }
 
+    function setRedactedExportsLayout(fewRows, count) {
+        const wrap = document.getElementById('ev-rx-table-wrap');
+        const panel = document.getElementById('ev-panel-redacted-exports');
+        const few = !!fewRows && count > 0;
+        if (wrap) wrap.classList.toggle('ev-rx-few-rows', few);
+        if (panel) panel.classList.toggle('ev-rx-few-rows', few);
+    }
+
     async function loadRedactedExports(force) {
         const tbody = document.getElementById('ev-rx-tbody');
         const meta = document.getElementById('ev-rx-meta');
@@ -844,34 +858,41 @@
             }
             if (!rows.length) {
                 tbody.innerHTML = '<tr><td colspan="7" class="hint">' + esc(tr('evidenceHub.redactedExportsEmpty')) + '</td></tr>';
+                setRedactedExportsLayout(false, 0);
             } else {
                 tbody.innerHTML = rows.map(function (e) {
                     const st = e.status || (e.meta && e.meta.status) || 'pending';
-                    const canDl = perms.export && st === 'finalized';
+                    const canDl = (perms.export || perms.superAdmin) && st === 'finalized';
                     const dl = canDl
-                        ? '<a class="btn btn-action btn-sm" href="/api/evidence/export-stream/'
+                        ? '<a class="ev-rx-action-link" href="/api/evidence/export-stream/'
                             + encodeURIComponent(e.exportId) + '">' + esc(tr('evidenceHub.download')) + '</a>'
                         : '';
                     const open = e.evidenceFileId
-                        ? '<button type="button" class="btn btn-ghost btn-sm ev-rx-open" data-file-id="'
+                        ? '<button type="button" class="ev-rx-action-link ev-rx-open" data-file-id="'
                             + esc(e.evidenceFileId) + '">' + esc(tr('evidenceHub.redactedExportsOpenSource')) + '</button>'
                         : '';
-                    const officer = e.sourceOfficer || '—';
-                    const device = e.sourceDeviceId ? (' · ' + e.sourceDeviceId) : '';
+                    /* REDACTED-DETAIL-FULL-ROW-LINE-V1 \u2014 flex inside wrapper; td keeps full-width line */
+                    const actions = '<div class="ev-rx-actions-inner">' + dl + open + '</div>';
+                    const officer = e.sourceOfficer || '\u2014';
+                    const device = e.sourceDeviceId ? (' \u00B7 ' + e.sourceDeviceId) : '';
                     const tags = (e.sourceTags && e.sourceTags.length)
                         ? '<br><span class="hint">' + esc(e.sourceTags.join(', ')) + '</span>'
                         : '';
+                    const fileName = e.fileName || '\u2014';
+                    const sourceName = e.sourceFileName || '\u2014';
                     return '<tr>'
                         + '<td><span class="hint">[' + esc(tr('evidenceHub.redactType')) + ']</span> '
-                        + esc(e.fileName || '—') + '</td>'
+                        + '<span class="ev-rx-name" title="' + esc(fileName) + '">' + esc(fileName) + '</span></td>'
                         + '<td>' + esc(fmtBytes(e.byteSize)) + '</td>'
                         + '<td>' + esc(rxStatusLabel(st)) + '</td>'
-                        + '<td>' + esc(e.sourceFileName || '—') + tags + '</td>'
+                        + '<td><span class="ev-rx-source" title="' + esc(sourceName) + '">' + esc(sourceName) + '</span>'
+                        + tags + '</td>'
                         + '<td>' + esc(officer) + esc(device) + '</td>'
                         + '<td class="mono">' + esc(fmtTime(e.whenAt || e.createdAt)) + '</td>'
-                        + '<td class="ev-rx-actions">' + dl + (dl && open ? ' ' : '') + open + '</td>'
+                        + '<td class="ev-rx-actions">' + actions + '</td>'
                         + '</tr>';
                 }).join('');
+                setRedactedExportsLayout(rows.length <= 12, rows.length);
             }
             markPanelLoaded('redacted-exports');
         } catch (err) {
@@ -888,7 +909,7 @@
         if (!tbody) return;
         if (!perms.view) {
             showCatalogTable(true);
-            tbody.innerHTML = '<tr><td colspan="7" class="hint">—</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="hint">\u2014</td></tr>';
             renderCatalogExportQueue(null);
             updateCatalogPager(1, 1, 0);
             return;
@@ -945,7 +966,7 @@
                 return '<tr data-file-id="' + esc(f.id) + '">'
                     + '<td><code>' + esc(f.id) + '</code></td>'
                     + '<td>' + esc(f.fileName) + '<br><span class="hint">' + fmtBytes(f.byteSize) + '</span>' + tagsHtml + '</td>'
-                    + '<td>' + esc(f.operatorName || '—') + '</td>'
+                    + '<td>' + esc(f.operatorName || '\u2014') + '</td>'
                     + '<td>' + esc(fmtTime(f.uploadedAt)) + '</td>'
                     + '<td>' + esc(f.storageTier || f.source || 'local') + '</td>'
                     + '<td><button type="button" class="btn btn-ghost btn-sm ev-open-detail" data-file-id="' + esc(f.id) + '">' + tr('evidenceHub.open') + '</button><br><span class="hint">' + esc(statusText) + '</span></td>'
@@ -953,7 +974,7 @@
                         ? (perms.superAdmin || !secureExportEnabled
                             ? '<button type="button" class="btn btn-action btn-sm evidence-dl-btn" data-file-id="' + esc(f.id) + '">' + tr('evidenceHub.download') + '</button>'
                             : '<button type="button" class="btn btn-action btn-sm evidence-secure-btn" data-file-id="' + esc(f.id) + '">' + tr('evidenceHub.requestSecure') + '</button>')
-                        : '—') + '</td>'
+                        : '\u2014') + '</td>'
                     + '</tr>';
             }).join('');
             focusCatalogExportQueueIfNeeded();
@@ -1087,16 +1108,21 @@
         return '<div class="ev-catalog-empty-inner">' + body + actions + '</div>';
     }
 
-    async function loadDetail(fileId, force) {
+    async function loadDetail(fileId, force, opts) {
+        opts = opts || {};
+        /* quiet: refresh detail DOM without switching away from redact/Finalize panel */
+        const quiet = !!opts.quiet;
         currentDetailId = fileId;
         const wrap = document.getElementById('ev-detail-body');
         if (!wrap) return;
         if (panelWarm('detail', force, fileId)) {
-            showPanel('detail', { skipRefresh: true });
+            if (!quiet) showPanel('detail', { skipRefresh: true });
             return;
         }
-        wrap.innerHTML = '<p class="hint">' + tr('evidenceHub.loading') + '</p>';
-        showPanel('detail', { skipRefresh: true });
+        if (!quiet) {
+            wrap.innerHTML = '<p class="hint">' + tr('evidenceHub.loading') + '</p>';
+            showPanel('detail', { skipRefresh: true });
+        }
         try {
             const res = await fetch('/api/evidence/detail/' + encodeURIComponent(fileId), { credentials: 'same-origin' });
             const data = await res.json();
@@ -1133,7 +1159,7 @@
                 + '<div class="ev-detail-grid">'
                 + '<div class="ev-detail-video">' + previewBlock + trimBar + '</div>'
                 + '<div class="ev-detail-side">'
-                + '<dl class="ss-dock-ro"><dt>' + tr('evidence.colOfficer') + '</dt><dd>' + esc(f.operatorName || '—') + '</dd>'
+                + '<dl class="ss-dock-ro"><dt>' + tr('evidence.colOfficer') + '</dt><dd>' + esc(f.operatorName || '\u2014') + '</dd>'
                 + '<dt>' + tr('evidence.colUploaded') + '</dt><dd>' + esc(fmtTime(f.uploadedAt)) + '</dd>'
                 + '<dt>' + tr('evidenceHub.size') + '</dt><dd>' + fmtBytes(f.byteSize) + '</dd>'
                 + '<dt>SHA-256</dt><dd><code>' + esc(f.sha256 || tr('evidenceHub.hashLegacyPending')) + '</code></dd>'
@@ -1141,7 +1167,7 @@
                 + ' <span class="ev-crypto-chip ' + esc(d.cryptoStatus || 'missing') + '">' + esc(cryptoStatusLabel(d.cryptoStatus)) + '</span>'
                 + (d.archived ? (' <span class="ev-crypto-chip missing">' + esc(tr('evidenceHub.archivedBadge')) + '</span>') : '')
                 + '</dd></dl>'
-                /* mob-evidence-redact-action-top-v1 — Redact with top actions, not after custody */
+                /* mob-evidence-redact-action-top-v1 \u2014 Redact with top actions, not after custody */
                 + (function () {
                     const redactTop = perms.superAdmin
                         ? ('<button type="button" class="btn btn-action btn-sm" id="ev-detail-redact">' + tr('evidenceHub.openRedact') + '</button>')
@@ -1176,9 +1202,10 @@
                         : '');
                 }())
                 + renderAttachments(d.attachments)
+                + renderRedactPendingBanner(fileId, d.exports)
                 + renderExports(d.exports)
                 + renderCustodyLog(d.custodyLog, d.storageAvailable === false, !!d.custodyUnavailable)
-                /* mob-evidence-detail-hide-original-download-v1 — no bottom original Download (use library / Prior exports). */
+                /* mob-evidence-detail-hide-original-download-v1 \u2014 no bottom original Download (use library / Prior exports). */
                 + (perms.download && secureExportEnabled && !perms.superAdmin ? (
                     '<div class="ev-export-actions">'
                     + '<button type="button" class="btn btn-action btn-sm" id="ev-detail-secure">' + tr('evidenceHub.requestSecure') + '</button>'
@@ -1192,8 +1219,13 @@
             bindDetailActions(fileId, f, d.previewUrl, d.storageAvailable !== false);
             captureDetailMetaBaseline();
             markPanelLoaded('detail', fileId);
+            if (!quiet) {
+                /* already on detail */
+            }
         } catch (err) {
-            wrap.innerHTML = '<p class="hint">' + esc(tr('evidenceHub.detailLoadFailed')) + '</p>';
+            if (!quiet) {
+                wrap.innerHTML = '<p class="hint">' + esc(tr('evidenceHub.detailLoadFailed')) + '</p>';
+            }
         }
     }
 
@@ -1213,8 +1245,8 @@
             const summary = row.summary ? '<span class="ev-custody-summary">' + esc(row.summary) + '</span>' : '';
             return '<li class="ev-custody-row">'
                 + '<span class="ev-custody-time mono">' + esc(fmtTime(row.ts)) + '</span>'
-                + '<span class="ev-custody-actor">' + esc(row.actor || '—') + '</span>'
-                + '<span class="ev-custody-action">' + esc(row.label || row.action || '—') + '</span>'
+                + '<span class="ev-custody-actor">' + esc(row.actor || '\u2014') + '</span>'
+                + '<span class="ev-custody-action">' + esc(row.label || row.action || '\u2014') + '</span>'
                 + summary
                 + '</li>';
         }).join('') + '</ul></div>';
@@ -1228,39 +1260,164 @@
         }).join('') + '</ul>';
     }
 
+    function renderRedactPendingBanner(fileId, exports) {
+        const pendingList = listPendingRedactExports(exports);
+        const pendingRow = newestPendingRedactExport(exports);
+        const session = getRedactPending(fileId);
+        if (!pendingRow && !session) return '';
+        const exportId = (pendingRow && pendingRow.exportId) || (session && session.exportId) || '';
+        if (!exportId) return '';
+        if (pendingRow && (pendingRow.meta || {}).status === 'finalized') {
+            clearRedactPending(fileId);
+            return '';
+        }
+        const extra = pendingList.length > 1
+            ? (' <span class="hint">(' + esc(tr('evidenceHub.redactPendingCount', { n: pendingList.length })) + ')</span>')
+            : '';
+        const cleanBtn = (perms.superAdmin && pendingList.length >= 2)
+            ? ('<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-clean-drafts-banner">'
+                + esc(tr('evidenceHub.exportCleanDrafts')) + '</button>')
+            : '';
+        return '<div class="ev-redact-pending-banner" id="ev-redact-pending-banner" role="status">'
+            + '<div class="ev-redact-pending-main">'
+            + '<p class="ev-redact-pending-text">' + esc(tr('evidenceHub.redactPendingBanner')) + extra + '</p>'
+            + '<p class="hint">' + esc(tr('evidenceHub.redactWhereDownloadShort')) + '</p>'
+            + '<p class="hint">' + esc(tr('evidenceHub.redactDismissPendingHint')) + '</p>'
+            + '<p class="hint ev-redact-cleanup-err" id="ev-redact-cleanup-err" hidden></p>'
+            + '</div>'
+            + '<div class="ev-redact-pending-actions">'
+            + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-finish-banner" data-export-id="'
+            + esc(exportId) + '">' + esc(tr('evidenceHub.redactFinishFinalize')) + '</button>'
+            + cleanBtn
+            + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-dismiss-banner" title="'
+            + esc(tr('evidenceHub.redactDismissPendingHint')) + '">'
+            + esc(tr('evidenceHub.redactDismissPending')) + '</button>'
+            + '</div></div>';
+    }
+
+    function canDownloadExport() {
+        return !!(perms.export || perms.superAdmin);
+    }
+
+    function exportBurnWhen(e) {
+        const meta = (e && e.meta) || {};
+        return meta.finalizedAt || e.createdAt || null;
+    }
+
     function renderExports(list) {
         if (!list || !list.length) return '';
-        return '<h4 id="ev-prior-exports">' + tr('evidenceHub.priorExports') + '</h4><ul class="ev-attach-list">' + list.map(function (e) {
+        const all = Array.isArray(list) ? list.slice() : [];
+        const finalized = [];
+        const pending = [];
+        const other = [];
+        all.forEach(function (e) {
+            if (!e) return;
+            if (e.exportType !== 'redact') {
+                other.push(e);
+                return;
+            }
+            const st = (e.meta && e.meta.status) || '';
+            if (st === 'finalized') finalized.push(e);
+            else pending.push(e);
+        });
+        const PENDING_SHOW = 5;
+        const pendingShown = pending.slice(0, PENDING_SHOW);
+        const pendingHidden = Math.max(0, pending.length - PENDING_SHOW);
+
+        function rowHtml(e) {
             const isRedact = e.exportType === 'redact';
             const meta = e.meta || {};
+            let statusCls = 'ev-export-status';
             let status = '';
             if (isRedact) {
-                if (meta.status === 'finalized') status = ' · ' + tr('evidenceHub.redactFinalized');
-                else if (meta.status === 'draft') status = ' · ' + tr('evidenceHub.redactDraft');
-                else status = ' · ' + tr('evidenceHub.redactPendingNote');
+                if (meta.status === 'finalized') {
+                    status = tr('evidenceHub.redactFinalized');
+                    statusCls += ' is-finalized';
+                } else if (meta.status === 'draft') {
+                    status = tr('evidenceHub.redactDraft');
+                    statusCls += ' is-pending';
+                } else {
+                    status = tr('evidenceHub.redactPendingNote');
+                    statusCls += ' is-pending';
+                }
             }
-            let noteBtn = '';
+            let actions = '';
+            if (canDownloadExport() && (!isRedact || meta.status === 'finalized')) {
+                actions += '<a class="btn btn-ghost btn-sm ev-export-dl-btn" href="/api/evidence/export-stream/'
+                    + encodeURIComponent(e.exportId) + '">' + esc(tr('evidenceHub.download')) + '</a>';
+            }
             if (isRedact && (perms.edit || perms.superAdmin) && meta.status !== 'finalized') {
-                noteBtn = ' <button type="button" class="btn btn-ghost btn-sm ev-redact-note-btn" data-export-id="'
-                    + esc(e.exportId) + '">' + tr('evidenceHub.redactEditNote') + '</button>';
+                actions += '<button type="button" class="btn btn-ghost btn-sm ev-redact-note-btn" data-export-id="'
+                    + esc(e.exportId) + '">' + esc(tr('evidenceHub.redactFinishFinalize')) + '</button>';
+            }
+            if (isRedact && perms.superAdmin && meta.status !== 'finalized') {
+                actions += '<button type="button" class="btn btn-ghost btn-sm ev-export-remove-btn" data-export-id="'
+                    + esc(e.exportId) + '">' + esc(tr('evidenceHub.exportRemoveDraft')) + '</button>';
+            }
+            if (isRedact && perms.superAdmin && meta.status === 'finalized') {
+                actions += '<button type="button" class="btn btn-ghost btn-sm ev-export-remove-finalized-btn" data-export-id="'
+                    + esc(e.exportId) + '">' + esc(tr('evidenceHub.exportRemoveFinalized')) + '</button>';
             }
             const typeLabel = isRedact ? ('[' + tr('evidenceHub.redactType') + '] ') : '';
-            const dl = (perms.export && (!isRedact || meta.status === 'finalized'))
-                ? ' <a href="/api/evidence/export-stream/' + encodeURIComponent(e.exportId) + '">' + tr('evidenceHub.download') + '</a>'
+            const when = exportBurnWhen(e);
+            const whenLabel = when
+                ? ('<span class="ev-export-when hint">' + esc(tr('evidenceHub.exportBurnedAt', { t: fmtTime(when) })) + '</span>')
                 : '';
-            return '<li>' + typeLabel + esc(e.fileName) + ' · ' + fmtBytes(e.byteSize) + status + dl + noteBtn + '</li>';
-        }).join('') + '</ul>';
+            const idHint = e.exportId
+                ? ('<span class="ev-export-id hint mono">' + esc(String(e.exportId)) + '</span>')
+                : '';
+            return '<li class="ev-export-row' + (isRedact ? ' ev-export-row-redact' : '') + '">'
+                + '<div class="ev-export-meta">'
+                + '<span class="ev-export-name">' + typeLabel + esc(e.fileName) + '</span>'
+                + '<span class="ev-export-size hint">' + fmtBytes(e.byteSize) + '</span>'
+                + (status ? ('<span class="' + statusCls + '">' + esc(status) + '</span>') : '')
+                + whenLabel
+                + idHint
+                + '</div>'
+                + (actions ? ('<div class="ev-export-actions-col">' + actions + '</div>') : '')
+                + '</li>';
+        }
+
+        let html = '<h4 id="ev-prior-exports">' + tr('evidenceHub.priorExports') + '</h4>'
+            + '<p class="hint" id="ev-prior-exports-hint">' + esc(tr('evidenceHub.priorExportsHint')) + '</p>'
+            + '<p class="hint ev-redact-cleanup-err" id="ev-export-cleanup-err" hidden></p>';
+        if (finalized.length) {
+            html += '<p class="ev-export-section">' + esc(tr('evidenceHub.exportSectionFinalized'));
+            if (perms.superAdmin && finalized.length >= 2) {
+                html += ' <button type="button" class="btn btn-ghost btn-sm" id="ev-export-clean-finalized">'
+                    + esc(tr('evidenceHub.exportClearFinalizedN', { n: finalized.length })) + '</button>';
+            }
+            html += '</p>'
+                + '<ul class="ev-attach-list ev-export-list">' + finalized.map(rowHtml).join('') + '</ul>';
+        }
+        if (pendingShown.length) {
+            html += '<p class="ev-export-section">' + esc(tr('evidenceHub.exportSectionPending'));
+            if (perms.superAdmin && pending.length >= 2) {
+                html += ' <button type="button" class="btn btn-ghost btn-sm" id="ev-export-clean-drafts">'
+                    + esc(tr('evidenceHub.exportCleanDraftsN', { n: pending.length })) + '</button>';
+            }
+            html += '</p>'
+                + '<ul class="ev-attach-list ev-export-list">' + pendingShown.map(rowHtml).join('') + '</ul>';
+            if (pendingHidden > 0) {
+                html += '<p class="hint ev-export-pending-more">'
+                    + esc(tr('evidenceHub.exportPendingHidden', { n: pendingHidden })) + '</p>';
+            }
+        }
+        if (other.length) {
+            html += '<ul class="ev-attach-list ev-export-list">' + other.map(rowHtml).join('') + '</ul>';
+        }
+        return html;
     }
 
     async function fetchSosOptions(deviceId) {
-        let html = '<option value="">— ' + tr('evidenceHub.noSosLink') + ' —</option>';
+        let html = '<option value="">\u2014 ' + tr('evidenceHub.noSosLink') + ' \u2014</option>';
         try {
             const res = await fetch('/api/evidence/sos-incidents?days=180&limit=100', { credentials: 'same-origin' });
             const data = await res.json();
             const inc = (data.incidents && data.incidents.entries) ? data.incidents.entries : [];
             inc.forEach(function (e) {
                 if (deviceId && e.cameraId && e.cameraId !== deviceId) return;
-                html += '<option value="' + esc(e.id) + '">' + esc(fmtTime(e.at)) + ' · ' + esc(e.operatorName || e.cameraId || e.id) + '</option>';
+                html += '<option value="' + esc(e.id) + '">' + esc(fmtTime(e.at)) + ' \u00B7 ' + esc(e.operatorName || e.cameraId || e.id) + '</option>';
             });
         } catch (_) { /* ignore */ }
         return html;
@@ -1312,6 +1469,259 @@
                 openRedactNoteDialog(btn.getAttribute('data-export-id'), fileId, null);
             });
         });
+        document.querySelectorAll('.ev-export-remove-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                removeRedactExportDraftUi(btn.getAttribute('data-export-id'), fileId);
+            });
+        });
+        document.querySelectorAll('.ev-export-remove-finalized-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                removeRedactExportFinalizedUi(btn.getAttribute('data-export-id'), fileId);
+            });
+        });
+        const cleanDrafts = document.getElementById('ev-export-clean-drafts');
+        if (cleanDrafts) {
+            cleanDrafts.addEventListener('click', function () { cleanRedactDraftsUi(fileId); });
+        }
+        const cleanFinalized = document.getElementById('ev-export-clean-finalized');
+        if (cleanFinalized) {
+            cleanFinalized.addEventListener('click', function () { cleanRedactFinalizedUi(fileId); });
+        }
+        const cleanBanner = document.getElementById('ev-redact-clean-drafts-banner');
+        if (cleanBanner) {
+            cleanBanner.addEventListener('click', function () { cleanRedactDraftsUi(fileId); });
+        }
+        const finishBanner = document.getElementById('ev-redact-finish-banner');
+        if (finishBanner) {
+            finishBanner.addEventListener('click', function () {
+                openRedactNoteDialog(finishBanner.getAttribute('data-export-id'), fileId, null);
+            });
+        }
+        const dismissBanner = document.getElementById('ev-redact-dismiss-banner');
+        if (dismissBanner) {
+            dismissBanner.addEventListener('click', function () {
+                clearRedactPending(fileId);
+                const banner = document.getElementById('ev-redact-pending-banner');
+                if (banner) banner.remove();
+            });
+        }
+    }
+
+    async function removeRedactExportDraftUi(exportId, fileId) {
+        const id = String(exportId || '').trim();
+        if (!id || !perms.superAdmin) return;
+        const ok = global.confirm(tr('evidenceHub.exportRemoveDraftConfirm'));
+        if (!ok) return;
+        showRedactCleanupErr('');
+        try {
+            const res = await fetch('/api/evidence/redact/' + encodeURIComponent(id), {
+                method: 'DELETE',
+                credentials: 'same-origin',
+            });
+            const parsed = await readJsonSafe(res);
+            if (!parsed.okJson) {
+                showRedactCleanupErr(redactCleanupFailMsg(res, parsed.data, parsed.parseErr));
+                return;
+            }
+            const data = parsed.data;
+            if (!res.ok || !data.ok) {
+                showRedactCleanupErr(redactCleanupFailMsg(res, data, null));
+                return;
+            }
+            clearRedactPending(fileId);
+            await loadDetail(fileId, true);
+            scrollToPriorExports();
+        } catch (err) {
+            showRedactCleanupErr(redactCleanupFailMsg(null, err && (err.opPayload || err.catalogPayload), err));
+        }
+    }
+
+    async function removeRedactExportFinalizedUi(exportId, fileId) {
+        const id = String(exportId || '').trim();
+        if (!id || !perms.superAdmin) return;
+        const ok = global.confirm(tr('evidenceHub.exportRemoveFinalizedConfirm'));
+        if (!ok) return;
+        showRedactCleanupErr('');
+        try {
+            const res = await fetch('/api/evidence/redact/' + encodeURIComponent(id) + '?finalized=1', {
+                method: 'DELETE',
+                credentials: 'same-origin',
+            });
+            const parsed = await readJsonSafe(res);
+            if (!parsed.okJson) {
+                showRedactCleanupErr(redactFinalizedCleanupFailMsg(res, parsed.data, parsed.parseErr));
+                return;
+            }
+            const data = parsed.data;
+            if (!res.ok || !data.ok) {
+                showRedactCleanupErr(redactFinalizedCleanupFailMsg(res, data, null));
+                return;
+            }
+            await loadDetail(fileId, true);
+            scrollToPriorExports();
+        } catch (err) {
+            showRedactCleanupErr(redactFinalizedCleanupFailMsg(null, err && (err.opPayload || err.catalogPayload), err));
+        }
+    }
+
+    async function cleanRedactDraftsUi(fileId) {
+        const id = String(fileId || '').trim();
+        if (!id || !perms.superAdmin) {
+            showRedactCleanupErr(tr('evidenceHub.exportCleanupNeedSuperAdmin'));
+            return;
+        }
+        const ok = global.confirm(tr('evidenceHub.exportCleanDraftsConfirm'));
+        if (!ok) return;
+        showRedactCleanupErr('');
+        try {
+            const res = await fetch('/api/evidence/detail/' + encodeURIComponent(id) + '/redact/cleanup-drafts', {
+                method: 'POST',
+                credentials: 'same-origin',
+            });
+            const parsed = await readJsonSafe(res);
+            if (!parsed.okJson) {
+                showRedactCleanupErr(redactCleanupFailMsg(res, parsed.data, parsed.parseErr));
+                return;
+            }
+            const data = parsed.data;
+            if (!res.ok || !data.ok) {
+                showRedactCleanupErr(redactCleanupFailMsg(res, data, null));
+                return;
+            }
+            clearRedactPending(fileId);
+            await loadDetail(fileId, true);
+            scrollToPriorExports();
+        } catch (err) {
+            showRedactCleanupErr(redactCleanupFailMsg(null, err && (err.opPayload || err.catalogPayload), err));
+        }
+    }
+
+    async function cleanRedactFinalizedUi(fileId) {
+        const id = String(fileId || '').trim();
+        if (!id || !perms.superAdmin) {
+            showRedactCleanupErr(tr('evidenceHub.exportCleanupNeedSuperAdmin'));
+            return;
+        }
+        const typed = global.prompt(tr('evidenceHub.exportClearFinalizedConfirm'), '');
+        if (typed == null) return;
+        if (String(typed).trim() !== 'DELETE') {
+            showRedactCleanupErr(tr('evidenceHub.exportClearFinalizedNeedConfirm'));
+            return;
+        }
+        showRedactCleanupErr('');
+        try {
+            const res = await fetch('/api/evidence/detail/' + encodeURIComponent(id) + '/redact/cleanup-finalized', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ confirm: 'DELETE' }),
+            });
+            const parsed = await readJsonSafe(res);
+            if (!parsed.okJson) {
+                showRedactCleanupErr(redactFinalizedCleanupFailMsg(res, parsed.data, parsed.parseErr));
+                return;
+            }
+            const data = parsed.data;
+            if (!res.ok || !data.ok) {
+                showRedactCleanupErr(redactFinalizedCleanupFailMsg(res, data, null));
+                return;
+            }
+            await loadDetail(fileId, true);
+            scrollToPriorExports();
+        } catch (err) {
+            showRedactCleanupErr(redactFinalizedCleanupFailMsg(null, err && (err.opPayload || err.catalogPayload), err));
+        }
+    }
+
+    /** REDACT-CLEAN-DRAFTS-HONEST-ERROR-V1 \u2014 never bag into “contact IT” for Super admin cleanup. */
+    async function readJsonSafe(res) {
+        let text = '';
+        try { text = await res.text(); } catch (err) {
+            return { okJson: false, data: null, parseErr: err };
+        }
+        const raw = String(text || '').trim();
+        if (!raw) {
+            return {
+                okJson: false,
+                data: { ok: false, errorKey: 'evidenceHub.exportCleanupNeedRestart' },
+                parseErr: null,
+            };
+        }
+        try {
+            return { okJson: true, data: JSON.parse(raw), parseErr: null };
+        } catch (err) {
+            return {
+                okJson: false,
+                data: { ok: false, errorKey: 'evidenceHub.exportCleanupNeedRestart' },
+                parseErr: err,
+            };
+        }
+    }
+
+    function redactCleanupFailMsg(res, data, err) {
+        if (data && data.errorKey) {
+            const keyed = tr(data.errorKey);
+            if (keyed && keyed !== data.errorKey) return keyed;
+        }
+        if (data && data.error && typeof data.error === 'string') {
+            const e = data.error.trim();
+            if (e && !/contact your IT|stack|ECONN|ENOENT|at\s+\S+\s*\(/i.test(e) && e.length < 220) {
+                return e;
+            }
+        }
+        const status = res && res.status;
+        if (status === 401 || status === 403) return tr('evidenceHub.exportCleanupNeedSuperAdmin');
+        if (status === 404 || status === 405 || status === 501 || status === 502) {
+            return tr('evidenceHub.exportCleanupNeedRestart');
+        }
+        if (err && /JSON|Unexpected token|Failed to fetch|NetworkError/i.test(String(err.message || err))) {
+            return tr('evidenceHub.exportCleanupNeedRestart');
+        }
+        return tr('evidenceHub.exportCleanupFailed');
+    }
+
+    function redactFinalizedCleanupFailMsg(res, data, err) {
+        if (data && data.errorKey) {
+            const keyed = tr(data.errorKey);
+            if (keyed && keyed !== data.errorKey) return keyed;
+        }
+        if (data && data.error && typeof data.error === 'string') {
+            const e = data.error.trim();
+            if (e && !/contact your IT|stack|ECONN|ENOENT|at\s+\S+\s*\(/i.test(e) && e.length < 220) {
+                return e;
+            }
+        }
+        const status = res && res.status;
+        if (status === 401 || status === 403) return tr('evidenceHub.exportCleanupNeedSuperAdmin');
+        if (status === 404 || status === 405 || status === 501 || status === 502) {
+            return tr('evidenceHub.exportCleanupNeedRestart');
+        }
+        if (err && /JSON|Unexpected token|Failed to fetch|NetworkError/i.test(String(err.message || err))) {
+            return tr('evidenceHub.exportCleanupNeedRestart');
+        }
+        return tr('evidenceHub.exportFinalizedCleanupFailed');
+    }
+
+    function showRedactCleanupErr(msg) {
+        const text = String(msg || '').trim();
+        const ids = ['ev-redact-cleanup-err', 'ev-export-cleanup-err'];
+        let painted = false;
+        ids.forEach(function (id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            painted = true;
+            if (!text) {
+                el.hidden = true;
+                el.textContent = '';
+                return;
+            }
+            el.hidden = false;
+            el.textContent = text;
+        });
+        if (text && !painted) {
+            /* last resort \u2014 still honest text, not errors.generic */
+            try { global.alert(text); } catch (_) { /* ignore */ }
+        }
     }
 
     function ensureRedactDialog() {
@@ -1329,11 +1739,17 @@
         }
         let shell = document.getElementById('ev-redact-shell');
         if (shell && shell.getAttribute('data-redact-shell') === 'inline-v1'
+            && shell.getAttribute('data-redact-handoff') === 'v4'
             && shell.querySelector('#ev-redact-mark-panel')
             && shell.querySelector('#ev-redact-note-panel')
+            && shell.querySelector('#ev-redact-done-panel')
             && shell.querySelector('#ev-redact-mark-footer')
             && shell.querySelector('#ev-redact-save-progress')
             && shell.querySelector('#ev-redact-draft-details')
+            && shell.querySelector('#ev-redact-open-prior')
+            && shell.querySelector('#ev-redact-where-dl')
+            && shell.querySelector('#ev-redact-finalize-err')
+            && shell.querySelector('#ev-redact-done-download')
             && shell.querySelector('#ev-redact-back')) {
             const mark = shell.querySelector('#ev-redact-mark-panel');
             const note = shell.querySelector('#ev-redact-note-panel');
@@ -1347,7 +1763,7 @@
             panel.appendChild(shell);
         }
         shell.setAttribute('data-redact-shell', 'inline-v1');
-        shell.setAttribute('data-redact-handoff', 'v1');
+        shell.setAttribute('data-redact-handoff', 'v4');
         shell.innerHTML =
             '<div class="ev-redact-dialog-inner" role="region" aria-label="' + esc(tr('evidenceHub.redactTitle')) + '">'
             + '<div id="ev-redact-mark-panel">'
@@ -1398,6 +1814,7 @@
             + '</div></div>'
             + '<div id="ev-redact-note-panel" hidden>'
             + '<p class="hint ev-redact-note-ready" id="ev-redact-note-ready" hidden></p>'
+            + '<p class="hint ev-redact-where-dl" id="ev-redact-where-dl"></p>'
             + '<h4 id="ev-redact-note-title"></h4>'
             + '<p class="hint" id="ev-redact-note-hint"></p>'
             + '<div class="ev-redact-note-scroll">'
@@ -1412,33 +1829,187 @@
             + '<label class="full"><span id="ev-redact-lbl-incident"></span>'
             + '<textarea id="ev-redact-incident" rows="3" maxlength="2000"></textarea></label>'
             + '</div></div>'
+            + '<p class="hint" id="ev-redact-finalize-gate" hidden></p>'
+            + '<p class="hint ev-redact-finalize-err" id="ev-redact-finalize-err" hidden></p>'
             + '<div class="ev-dock-dialog-actions ev-redact-note-actions-sticky">'
-            + '<button type="button" class="btn btn-action btn-sm" id="ev-redact-save-note"></button>'
             + '<button type="button" class="btn btn-action btn-sm" id="ev-redact-finalize"></button>'
+            + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-save-note"></button>'
+            + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-open-prior"></button>'
             + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-note-close">' + esc(tr('common.close')) + '</button>'
+            + '</div></div>'
+            + '<div id="ev-redact-done-panel" hidden>'
+            + '<p class="hint ev-redact-done-ready" id="ev-redact-done-ready"></p>'
+            + '<p class="hint" id="ev-redact-done-hint"></p>'
+            + '<div class="ev-dock-dialog-actions ev-redact-done-actions">'
+            + '<a class="btn btn-action btn-sm" id="ev-redact-done-download" href="#" download></a>'
+            + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-done-prior"></button>'
+            + '<button type="button" class="btn btn-ghost btn-sm" id="ev-redact-done-close">' + esc(tr('common.close')) + '</button>'
             + '</div></div>'
             + '</div>';
         return shell;
     }
 
-    /** Mark + Save footer vs note/Finalize — siblings (handoff-v1). */
+    /** Mark + Save footer vs note/Finalize \u2014 siblings (handoff-v1 / finish-loop-v1). */
     function showRedactMarkPhase() {
         const mark = document.getElementById('ev-redact-mark-panel');
         const footer = document.getElementById('ev-redact-mark-footer');
         const note = document.getElementById('ev-redact-note-panel');
+        const done = document.getElementById('ev-redact-done-panel');
         if (mark) mark.hidden = false;
         if (footer) footer.hidden = false;
         if (note) note.hidden = true;
+        if (done) done.hidden = true;
         redactState.saveSucceeded = false;
+    }
+
+    function notePanelLooksVisible() {
+        const note = document.getElementById('ev-redact-note-panel');
+        if (!note || note.hidden) return false;
+        const mark = document.getElementById('ev-redact-mark-panel');
+        if (mark && mark.contains(note) && mark.hidden) return false;
+        try {
+            const st = global.getComputedStyle(note);
+            if (st && st.display === 'none') return false;
+        } catch (_) { /* ignore */ }
+        return true;
     }
 
     function showRedactNotePhase() {
         const mark = document.getElementById('ev-redact-mark-panel');
         const footer = document.getElementById('ev-redact-mark-footer');
         const note = document.getElementById('ev-redact-note-panel');
+        const done = document.getElementById('ev-redact-done-panel');
         if (mark) mark.hidden = true;
         if (footer) footer.hidden = true;
         if (note) note.hidden = false;
+        if (done) done.hidden = true;
+    }
+
+    function showRedactDonePhase(exportId, fileId, opts) {
+        opts = opts || {};
+        ensureRedactDialog();
+        const mark = document.getElementById('ev-redact-mark-panel');
+        const footer = document.getElementById('ev-redact-mark-footer');
+        const note = document.getElementById('ev-redact-note-panel');
+        const done = document.getElementById('ev-redact-done-panel');
+        if (mark) mark.hidden = true;
+        if (footer) footer.hidden = true;
+        if (note) note.hidden = true;
+        if (done) done.hidden = false;
+        showPanel('redact', { skipRefresh: true });
+        const ready = document.getElementById('ev-redact-done-ready');
+        if (ready) ready.textContent = tr('evidenceHub.redactDoneReady');
+        const hint = document.getElementById('ev-redact-done-hint');
+        if (hint) hint.textContent = tr('evidenceHub.redactDoneHint');
+        const dl = document.getElementById('ev-redact-done-download');
+        const url = opts.downloadUrl
+            || ('/api/evidence/export-stream/' + encodeURIComponent(exportId));
+        if (dl) {
+            dl.href = url;
+            dl.textContent = tr('evidenceHub.redactDoneDownload');
+            dl.hidden = !(perms.export || perms.superAdmin);
+        }
+        const prior = document.getElementById('ev-redact-done-prior');
+        if (prior) {
+            prior.textContent = tr('evidenceHub.redactOpenPriorExports');
+            prior.onclick = function () { goDetailPriorExports(fileId); };
+        }
+        const closeBtn = document.getElementById('ev-redact-done-close');
+        if (closeBtn) {
+            closeBtn.onclick = function () { goDetailPriorExports(fileId); };
+        }
+    }
+
+    const REDACT_PENDING_KEY = 'me8.redactPendingFinalize';
+
+    function readRedactPendingMap() {
+        try {
+            const raw = global.sessionStorage && sessionStorage.getItem(REDACT_PENDING_KEY);
+            if (!raw) return {};
+            const parsed = JSON.parse(raw);
+            return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (_) {
+            return {};
+        }
+    }
+
+    function writeRedactPendingMap(map) {
+        try {
+            if (global.sessionStorage) sessionStorage.setItem(REDACT_PENDING_KEY, JSON.stringify(map || {}));
+        } catch (_) { /* ignore */ }
+    }
+
+    function setRedactPending(fileId, exportId) {
+        const id = String(fileId || '').trim();
+        const ex = String(exportId || '').trim();
+        if (!id || !ex) return;
+        const map = readRedactPendingMap();
+        map[id] = { exportId: ex, at: Date.now() };
+        writeRedactPendingMap(map);
+    }
+
+    function clearRedactPending(fileId) {
+        const id = String(fileId || '').trim();
+        if (!id) return;
+        const map = readRedactPendingMap();
+        if (!map[id]) return;
+        delete map[id];
+        writeRedactPendingMap(map);
+    }
+
+    function getRedactPending(fileId) {
+        const id = String(fileId || '').trim();
+        if (!id) return null;
+        const row = readRedactPendingMap()[id];
+        if (!row || !row.exportId) return null;
+        return row;
+    }
+
+    function listPendingRedactExports(exports) {
+        const list = Array.isArray(exports) ? exports : [];
+        const out = [];
+        for (let i = 0; i < list.length; i++) {
+            const e = list[i];
+            if (!e || e.exportType !== 'redact') continue;
+            const st = (e.meta && e.meta.status) || '';
+            if (st !== 'finalized') out.push(e);
+        }
+        return out;
+    }
+
+    /** Prefer newest pending burn (last in list). */
+    function newestPendingRedactExport(exports) {
+        const pending = listPendingRedactExports(exports);
+        if (!pending.length) return null;
+        return pending[pending.length - 1];
+    }
+
+    function firstPendingRedactExport(exports) {
+        return newestPendingRedactExport(exports);
+    }
+
+    function highlightPriorExports() {
+        const el = document.getElementById('ev-prior-exports');
+        if (!el) return;
+        el.classList.add('ev-prior-exports-flash');
+        setTimeout(function () {
+            try { el.classList.remove('ev-prior-exports-flash'); } catch (_) { /* ignore */ }
+        }, 1800);
+    }
+
+    function showRedactFinalizeErr(msg) {
+        const el = document.getElementById('ev-redact-finalize-err');
+        if (!el) {
+            if (msg) alert(msg);
+            return;
+        }
+        if (!msg) {
+            el.hidden = true;
+            el.textContent = '';
+            return;
+        }
+        el.hidden = false;
+        el.textContent = msg;
     }
 
     const redactState = {
@@ -1455,7 +2026,7 @@
         saveSucceeded: false,
     };
 
-    /** Client soft cap — under server face-follow exec timeout (~15m). */
+    /** Client soft cap \u2014 under server face-follow exec timeout (~15m). */
     const REDACT_SAVE_CLIENT_TIMEOUT_MS = 12 * 60 * 1000;
     let redactSaveCtl = null;
     let redactSaveTimer = null;
@@ -1474,7 +2045,7 @@
         }
     }
 
-    /** Calm inline hint next to Save (no alert pop) — mob-evidence-save-meta-dirty-hint-v1 */
+    /** Calm inline hint next to Save (no alert pop) \u2014 mob-evidence-save-meta-dirty-hint-v1 */
     function showRedactSaveHint(msg, asError) {
         const prog = document.getElementById('ev-redact-save-progress');
         if (!prog) return;
@@ -1503,8 +2074,19 @@
 
     function closeRedactDialog(opts) {
         opts = opts || {};
-        abortRedactSaveInFlight();
+        if (redactState.saving && !opts.forceAbortSave && !opts.skipLeaveConfirm) {
+            const ok = global.confirm(tr('evidenceHub.redactLeaveWhileSaving'));
+            if (!ok) return;
+            abortRedactSaveInFlight();
+            opts.leftDuringSave = true;
+        }
         const returnId = redactState.fileId;
+        const exportId = redactState.exportId;
+        const saveOk = !!redactState.saveSucceeded;
+        if (saveOk && returnId && exportId) {
+            setRedactPending(returnId, exportId);
+        }
+        abortRedactSaveInFlight();
         const vid = document.getElementById('ev-redact-video');
         if (vid) {
             vid.pause();
@@ -1520,18 +2102,42 @@
         showRedactMarkPhase();
         if (opts.skipReturn) return;
         if (returnId) {
-            loadDetail(returnId, !!opts.force);
+            loadDetail(returnId, !!opts.force).then(function () {
+                scrollToPriorExports();
+            }).catch(function () {
+                scrollToPriorExports();
+            });
         } else {
             showPanel('catalog');
         }
     }
 
     function scrollToPriorExports() {
-        const el = document.getElementById('ev-prior-exports');
+        const el = document.getElementById('ev-prior-exports') || document.getElementById('ev-redact-pending-banner');
         if (el && el.scrollIntoView) {
             try { el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_) {
                 try { el.scrollIntoView(true); } catch (__) { /* ignore */ }
             }
+        }
+        highlightPriorExports();
+    }
+
+    function goDetailPriorExports(fileId) {
+        const id = String(fileId || '').trim();
+        /* Already on this clip's detail \u2014 do not no-op; scroll + flash Prior exports. */
+        if (currentPanel === 'detail' && id && currentDetailId === id) {
+            const panel = document.getElementById('ev-panel-redact');
+            if (panel) panel.hidden = true;
+            scrollToPriorExports();
+            return;
+        }
+        closeRedactDialog({ skipReturn: true, skipLeaveConfirm: true });
+        if (id) {
+            loadDetail(id, true).then(function () { scrollToPriorExports(); }).catch(function () {
+                scrollToPriorExports();
+            });
+        } else {
+            showPanel('catalog');
         }
     }
 
@@ -1574,7 +2180,7 @@
             list.innerHTML = '<li class="hint">' + esc(tr('evidenceHub.redactNoRegions')) + '</li>';
             return;
         }
-        /* mob-evidence-redact-auto-preview-slim-v1 — Auto rows: tag + delete only. */
+        /* mob-evidence-redact-auto-preview-slim-v1 \u2014 Auto rows: tag + delete only. */
         list.innerHTML = redactState.regions.map(function (r, i) {
             const auto = isAutoPreviewRegion(r, i);
             let html = '<li class="ev-redact-region-row' + (auto ? ' ev-redact-region-auto' : '') + '">'
@@ -1672,7 +2278,7 @@
             const el = document.getElementById(id);
             if (el) el.textContent = tr(key);
         };
-        /* mob-evidence-redact-details-before-or-with-save-v1 — draft on mark panel */
+        /* mob-evidence-redact-details-before-or-with-save-v1 \u2014 draft on mark panel */
         set('ev-redact-draft-hint', 'evidenceHub.redactDraftHint');
         set('ev-redact-draft-lbl-reason', 'evidenceHub.redactReason');
         set('ev-redact-draft-lbl-visible', 'evidenceHub.redactVisible');
@@ -1686,11 +2292,13 @@
         set('ev-redact-note-title', 'evidenceHub.redactNoteTitle');
         set('ev-redact-note-hint', 'evidenceHub.redactNoteHint');
         set('ev-redact-note-ready', 'evidenceHub.redactSaveReady');
+        set('ev-redact-where-dl', 'evidenceHub.redactWhereDownload');
         set('ev-redact-lbl-reason', 'evidenceHub.redactReason');
         set('ev-redact-lbl-visible', 'evidenceHub.redactVisible');
         set('ev-redact-lbl-incident', 'evidenceHub.redactIncident');
         set('ev-redact-save-note', 'evidenceHub.redactSaveNote');
         set('ev-redact-finalize', 'evidenceHub.redactFinalize');
+        set('ev-redact-open-prior', 'evidenceHub.redactOpenPriorExports');
         fillReasonOptions('ev-redact-reason');
         const vis = document.getElementById('ev-redact-visible');
         if (vis) vis.placeholder = tr('evidenceHub.redactVisiblePh');
@@ -1866,8 +2474,16 @@
         }
 
         if (saveBtn) saveBtn.onclick = function () {
-            /* mob-evidence-redact-save-progress-v1 — elapsed + cancel/timeout, no forever freeze */
+            /* mob-evidence-redact-save-progress-v1 \u2014 elapsed + cancel/timeout, no forever freeze */
             if (redactState.saving) return;
+            const pending = getRedactPending(fileId);
+            if (pending && pending.exportId) {
+                const resume = global.confirm(tr('evidenceHub.redactResumeOrBurnAgain'));
+                if (resume) {
+                    openRedactNoteDialog(pending.exportId, fileId, null);
+                    return;
+                }
+            }
             const faceFollow = !!redactState.faceFollow;
             const manualRegions = faceFollow
                 ? redactState.regions.slice(redactState.autoRegionCount || 0)
@@ -1952,9 +2568,11 @@
                     redactState.saving = false;
                     redactState.saveSucceeded = true;
                     redactSaveCtl = null;
+                    setRedactPending(fileId, exportId);
                     const savedMeta = (res.data.export && res.data.export.meta) || readRedactDraftDetails();
                     openRedactNoteDialog(exportId, fileId, savedMeta);
-                    loadDetail(fileId, true);
+                    /* Refresh Prior exports behind the scenes \u2014 do NOT steal Finalize panel. */
+                    loadDetail(fileId, true, { quiet: true }).catch(function () { /* ignore */ });
                 })
                 .catch(function (err) {
                     redactState.saveSucceeded = false;
@@ -1984,7 +2602,7 @@
                     }
                     redactState.saving = false;
                     redactSaveCtl = null;
-                    /* After success: stay on Finalize screen — do not re-arm Save (double-burn loop). */
+                    /* After success: stay on Finalize screen \u2014 do not re-arm Save (double-burn loop). */
                     if (!redactState.saveSucceeded) {
                         saveBtn.disabled = false;
                         saveBtn.textContent = tr('evidenceHub.redactSave');
@@ -1999,14 +2617,18 @@
         redactState.exportId = exportId;
         redactState.fileId = fileId;
         redactState.saveSucceeded = true;
+        setRedactPending(fileId, exportId);
         showRedactNotePhase();
         showPanel('redact', { skipRefresh: true });
+        showRedactFinalizeErr('');
         meta = meta || {};
         const ready = document.getElementById('ev-redact-note-ready');
         if (ready) {
             ready.hidden = false;
             ready.textContent = tr('evidenceHub.redactSaveReady');
         }
+        const where = document.getElementById('ev-redact-where-dl');
+        if (where) where.textContent = tr('evidenceHub.redactWhereDownload');
         const reason = document.getElementById('ev-redact-reason');
         const vis = document.getElementById('ev-redact-visible');
         const inc = document.getElementById('ev-redact-incident');
@@ -2014,24 +2636,30 @@
         if (vis) vis.value = meta.visibleDescription || '';
         if (inc) inc.value = meta.incidentNote || '';
         const fin = document.getElementById('ev-redact-finalize');
-        if (fin) fin.hidden = !perms.superAdmin;
+        const gate = document.getElementById('ev-redact-finalize-gate');
+        if (fin) {
+            fin.hidden = !perms.superAdmin;
+            fin.onclick = function () { finalizeRedactNote(exportId, fileId); };
+        }
+        if (gate) {
+            gate.hidden = !!perms.superAdmin;
+            gate.textContent = tr('evidenceHub.redactFinalizeNeedSuperAdmin');
+        }
 
         const saveNote = document.getElementById('ev-redact-save-note');
         const closeBtn = document.getElementById('ev-redact-note-close');
-        if (saveNote) saveNote.onclick = function () { saveRedactNote(exportId, fileId); };
-        if (fin) fin.onclick = function () { finalizeRedactNote(exportId, fileId); };
+        const openPrior = document.getElementById('ev-redact-open-prior');
+        if (saveNote) saveNote.onclick = function () {
+            showRedactFinalizeErr('');
+            saveRedactNote(exportId, fileId).catch(function (err) {
+                showRedactFinalizeErr(catalogMsg(err.opPayload || err.catalogPayload, err));
+            });
+        };
+        if (openPrior) openPrior.onclick = function () { goDetailPriorExports(fileId); };
         if (closeBtn) {
-            closeBtn.onclick = function () {
-                closeRedactDialog({ skipReturn: true });
-                if (fileId) {
-                    loadDetail(fileId, true).then(function () { scrollToPriorExports(); }).catch(function () {
-                        scrollToPriorExports();
-                    });
-                } else {
-                    showPanel('catalog');
-                }
-            };
+            closeBtn.onclick = function () { goDetailPriorExports(fileId); };
         }
+        /* Stay on note panel \u2014 do NOT auto-bounce to detail (dead-loop fix). */
     }
 
     async function saveRedactNote(exportId, fileId) {
@@ -2048,14 +2676,26 @@
         });
         const data = await res.json();
         if (!res.ok || !data.ok) throwCatalogErr(data);
-        if (fileId) loadDetail(fileId, true);
+        if (fileId) loadDetail(fileId, true, { quiet: true });
     }
 
     async function finalizeRedactNote(exportId, fileId) {
+        showRedactFinalizeErr('');
+        const reason = String((document.getElementById('ev-redact-reason') || {}).value || '').trim();
+        const vis = String((document.getElementById('ev-redact-visible') || {}).value || '').trim();
+        const inc = String((document.getElementById('ev-redact-incident') || {}).value || '').trim();
+        if (!reason) {
+            showRedactFinalizeErr(tr('evidenceHub.redactNeedReason'));
+            return;
+        }
+        if (!vis && !inc) {
+            showRedactFinalizeErr(tr('evidenceHub.redactFinalizeNeedNote'));
+            return;
+        }
         try {
             await saveRedactNote(exportId, fileId);
         } catch (err) {
-            alert(catalogMsg(err.opPayload || err.catalogPayload, err));
+            showRedactFinalizeErr(catalogMsg(err.opPayload || err.catalogPayload, err));
             return;
         }
         const res = await fetch('/api/evidence/redact/' + encodeURIComponent(exportId) + '/finalize', {
@@ -2064,17 +2704,16 @@
         });
         const data = await res.json();
         if (!res.ok || !data.ok) {
-            alert(catalogMsg(data));
+            showRedactFinalizeErr(catalogMsg(data));
             return;
         }
-        closeRedactDialog({ skipReturn: true });
+        clearRedactPending(fileId);
+        const out = data.export || {};
+        const downloadUrl = out.downloadUrl
+            || ('/api/evidence/export-stream/' + encodeURIComponent(exportId));
+        showRedactDonePhase(exportId, fileId, { downloadUrl: downloadUrl });
         if (fileId) {
-            try {
-                await loadDetail(fileId, true);
-            } catch (_) { /* ignore */ }
-            scrollToPriorExports();
-        } else {
-            showPanel('catalog');
+            loadDetail(fileId, true, { quiet: true }).catch(function () { /* ignore */ });
         }
     }
 
@@ -2113,6 +2752,14 @@
 
     function openRedactWorkspace(fileId) {
         if (!perms.superAdmin) return;
+        const pending = getRedactPending(fileId);
+        if (pending && pending.exportId) {
+            const resume = global.confirm(tr('evidenceHub.redactResumePending'));
+            if (resume) {
+                openRedactNoteDialog(pending.exportId, fileId, null);
+                return;
+            }
+        }
         ensureRedactDialog();
         fillRedactNoteLabels();
         resetRedactDraftDetails();
@@ -2129,7 +2776,6 @@
         if (backBtn) {
             backBtn.textContent = tr('evidenceHub.redactBack');
             backBtn.onclick = function () {
-                if (redactState.saving) return;
                 closeRedactDialog();
             };
         }
@@ -2166,14 +2812,14 @@
         if (status === 'approved') return tr('evidenceHub.statusApproved');
         if (status === 'denied') return tr('evidenceHub.statusDenied');
         if (status === 'consumed') return tr('evidenceHub.statusDownloaded');
-        return status || '—';
+        return status || '\u2014';
     }
 
     function renderApprovalCards(rows) {
         return rows.map(function (r) {
             return '<div class="ev-approval-card" data-request-id="' + esc(r.requestId) + '">'
                 + '<strong>' + esc(r.requestId) + '</strong>'
-                + '<p>' + tr('evidenceHub.requestedBy') + ': ' + esc(r.requestedBy || '—') + ' · ' + fmtTime(r.requestedAt) + '</p>'
+                + '<p>' + tr('evidenceHub.requestedBy') + ': ' + esc(r.requestedBy || '\u2014') + ' \u00B7 ' + fmtTime(r.requestedAt) + '</p>'
                 + '<p>' + tr('evidenceHub.fileId') + ': <code>' + esc(r.evidenceFileId) + '</code></p>'
                 + (r.reason ? '<p>' + tr('evidenceHub.reason') + ': ' + esc(r.reason) + '</p>' : '')
                 + '<label class="full"><span>' + tr('server.users.adminConfirm') + '</span>'

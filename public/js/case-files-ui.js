@@ -1,5 +1,5 @@
 /**
- * Case Files — field report workspace + linked evidence (phase 1).
+ * Case Files \u2014 field report workspace + linked evidence (phase 1).
  */
 (function (global) {
     var perms = { view: false, edit: false, superAdmin: false };
@@ -34,7 +34,7 @@
     }
 
     function fmtTime(iso) {
-        if (!iso) return '—';
+        if (!iso) return '\u2014';
         try { return new Date(iso).toLocaleString(); } catch (_) { return iso; }
     }
 
@@ -42,12 +42,65 @@
         return document.getElementById('ev-panel-case-files');
     }
 
+    const CF_FEW_ROWS_MAX = 12;
+
+    /** CASE-FILES-EMPTY-COMPACT-V2 \u2014 hide table shell when list has no rows. */
+    function setCaseListEmptyState(isEmpty) {
+        const panel = panelRoot();
+        const tableWrap = document.getElementById('cf-table-wrap');
+        const listWrap = document.getElementById('cf-list-wrap');
+        const emptyState = document.getElementById('cf-empty-state');
+        const evPanel = document.getElementById('evidence-panel');
+        [panel, tableWrap, listWrap].forEach(function (el) {
+            if (!el) return;
+            if (isEmpty) el.classList.add('cf-list-empty');
+            else el.classList.remove('cf-list-empty');
+        });
+        if (emptyState) emptyState.hidden = !isEmpty;
+        if (isEmpty) setCaseListFewRows(0);
+        if (evPanel) {
+            const onCaseFiles = panel && !panel.hidden && !currentId;
+            evPanel.classList.toggle('ev-case-files-empty', !!(onCaseFiles && isEmpty));
+        }
+    }
+
+    /** CASE-FILES-LIST-SCROLL-WHEN-FULL-V1 \u2014 compact when few rows; scroll only when many. */
+    function setCaseListFewRows(count) {
+        const panel = panelRoot();
+        const tableWrap = document.getElementById('cf-table-wrap');
+        const listWrap = document.getElementById('cf-list-wrap');
+        const evPanel = document.getElementById('evidence-panel');
+        const n = parseInt(count, 10) || 0;
+        const few = n > 0 && n <= CF_FEW_ROWS_MAX;
+        [panel, tableWrap, listWrap].forEach(function (el) {
+            if (!el) return;
+            if (few) el.classList.add('cf-few-rows');
+            else el.classList.remove('cf-few-rows');
+        });
+        if (evPanel) {
+            const onCaseFiles = panel && !panel.hidden && !currentId;
+            evPanel.classList.toggle('ev-case-files-few-rows', !!(onCaseFiles && few));
+        }
+    }
+
+    function setCaseDetailActiveState(inDetail) {
+        const panel = panelRoot();
+        const evPanel = document.getElementById('evidence-panel');
+        if (panel) panel.classList.toggle('cf-detail-active', !!inDetail);
+        if (evPanel) {
+            const onCaseFiles = panel && !panel.hidden;
+            evPanel.classList.toggle('ev-case-files-detail', !!(onCaseFiles && inDetail));
+            if (inDetail) evPanel.classList.remove('ev-case-files-few-rows');
+        }
+    }
+
     function updateViewChrome() {
         const inDetail = !!currentId;
-        const hint = document.getElementById('cf-hint');
+        const hintBlock = document.getElementById('cf-hint-block');
         const listToolbar = document.getElementById('cf-list-toolbar');
-        if (hint) hint.hidden = inDetail;
+        if (hintBlock) hintBlock.hidden = inDetail;
         if (listToolbar) listToolbar.hidden = inDetail;
+        setCaseDetailActiveState(inDetail);
     }
 
     function showList() {
@@ -79,7 +132,7 @@
             entries.forEach(function (e) {
                 const id = e.id || e.incidentId;
                 if (!id) return;
-                const label = (e.operatorName || e.cameraId || '—') + ' · ' + (e.at ? e.at.slice(0, 16).replace('T', ' ') : id);
+                const label = (e.operatorName || e.cameraId || '\u2014') + ' \u00B7 ' + (e.at ? e.at.slice(0, 16).replace('T', ' ') : id);
                 html += '<option value="' + esc(id) + '"' + (selected === id ? ' selected' : '') + '>' + esc(label) + '</option>';
             });
             return html;
@@ -89,7 +142,17 @@
     }
 
     function listColspan() {
-        return perms.superAdmin ? 8 : 7;
+        return 7;
+    }
+
+    function renderListActions(cf) {
+        const open = '<button type="button" class="cf-list-action-link cf-open" data-case-id="' + esc(cf.id) + '">'
+            + esc(tr('evidenceHub.open')) + '</button>';
+        if (!perms.superAdmin) return open;
+        const del = '<button type="button" class="cf-list-action-link cf-list-action-danger cf-delete" data-case-id="'
+            + esc(cf.id) + '" data-case-title="' + esc(cf.title) + '" data-evidence-count="'
+            + esc(String(cf.evidenceCount || 0)) + '">' + esc(tr('caseFiles.deleteCase')) + '</button>';
+        return open + '<span class="cf-list-action-sep" aria-hidden="true">\u00B7</span>' + del;
     }
 
     function buildListUrl() {
@@ -107,13 +170,16 @@
     async function loadList() {
         const tbody = document.getElementById('cf-tbody');
         const meta = document.getElementById('cf-list-meta');
-        const delCol = document.getElementById('cf-col-delete');
-        if (delCol) delCol.hidden = !perms.superAdmin;
         if (!tbody) return;
+        const emptyTitle = document.querySelector('#cf-empty-state .cf-empty-title');
         if (!perms.view) {
-            tbody.innerHTML = '<tr><td colspan="' + listColspan() + '" class="hint">—</td></tr>';
+            if (emptyTitle) emptyTitle.textContent = tr('caseFiles.noCases');
+            tbody.innerHTML = '<tr class="cf-empty-row"><td colspan="' + listColspan() + '" class="hint cf-empty-cell">\u2014</td></tr>';
+            setCaseListEmptyState(true);
             return;
         }
+        if (emptyTitle) emptyTitle.textContent = tr('evidenceHub.loading');
+        setCaseListEmptyState(true);
         tbody.innerHTML = '<tr><td colspan="' + listColspan() + '" class="hint">' + tr('evidenceHub.loading') + '</td></tr>';
         try {
             const res = await fetch(buildListUrl(), { credentials: 'same-origin' });
@@ -122,32 +188,38 @@
             listCache = data.caseFiles || [];
             if (meta) meta.textContent = listCache.length ? (listCache.length + ' ' + tr('caseFiles.listCount')) : '';
             if (!listCache.length) {
-                tbody.innerHTML = '<tr><td colspan="' + listColspan() + '" class="hint">' + esc(tr('caseFiles.noCases')) + '</td></tr>';
+                if (emptyTitle) emptyTitle.textContent = tr('caseFiles.noCases');
+                tbody.innerHTML = '<tr class="cf-empty-row"><td colspan="' + listColspan() + '" class="hint cf-empty-cell">'
+                    + esc(tr('caseFiles.noCases')) + '</td></tr>';
+                setCaseListEmptyState(true);
                 return;
             }
+            if (emptyTitle) emptyTitle.textContent = tr('caseFiles.noCases');
+            setCaseListEmptyState(false);
+            setCaseListFewRows(listCache.length);
             tbody.innerHTML = listCache.map(function (cf) {
                 const st = cf.status === 'closed' ? tr('caseFiles.statusClosed') : tr('caseFiles.statusOpen');
                 return '<tr data-case-id="' + esc(cf.id) + '">'
-                    + '<td><code>' + esc(cf.id) + '</code></td>'
-                    + '<td>' + esc(cf.title) + '</td>'
-                    + '<td>' + esc(cf.officerName || '—') + '</td>'
+                    + '<td><code class="cf-list-id">' + esc(cf.id) + '</code></td>'
+                    + '<td><span class="cf-list-title" title="' + esc(cf.title) + '">' + esc(cf.title) + '</span></td>'
+                    + '<td>' + esc(cf.officerName || '\u2014') + '</td>'
                     + '<td>' + esc(st) + '</td>'
                     + '<td>' + esc(String(cf.evidenceCount != null ? cf.evidenceCount : 0)) + '</td>'
                     + '<td>' + esc(fmtTime(cf.updatedAt)) + '</td>'
-                    + '<td><button type="button" class="btn btn-ghost btn-sm cf-open" data-case-id="' + esc(cf.id) + '">' + tr('evidenceHub.open') + '</button></td>'
-                    + (perms.superAdmin
-                        ? '<td><button type="button" class="btn btn-ghost btn-sm cf-delete cf-delete-btn" data-case-id="' + esc(cf.id) + '" data-case-title="' + esc(cf.title) + '" data-evidence-count="' + esc(String(cf.evidenceCount || 0)) + '">' + tr('caseFiles.deleteCase') + '</button></td>'
-                        : '')
+                    + '<td class="cf-list-actions">' + renderListActions(cf) + '</td>'
                     + '</tr>';
             }).join('');
         } catch (err) {
-            tbody.innerHTML = '<tr><td colspan="' + listColspan() + '" class="hint">' + esc(msg(err.opPayload, err)) + '</td></tr>';
+            if (emptyTitle) emptyTitle.textContent = tr('caseFiles.noCases');
+            tbody.innerHTML = '<tr class="cf-empty-row"><td colspan="' + listColspan() + '" class="hint cf-empty-cell">'
+                + esc(msg(err.opPayload, err)) + '</td></tr>';
+            setCaseListEmptyState(true);
         }
     }
 
     function renderEvidenceTable(evidence) {
         if (!evidence || !evidence.length) {
-            return '<p class="hint">' + esc(tr('caseFiles.noLinkedEvidence')) + '</p>';
+            return '<p class="hint cf-ev-empty-msg">' + esc(tr('caseFiles.noLinkedEvidence')) + '</p>';
         }
         return '<table class="evidence-table cf-evidence-table"><thead><tr>'
             + '<th>' + esc(tr('evidence.colId')) + '</th>'
@@ -157,11 +229,11 @@
             + '<th></th>'
             + '</tr></thead><tbody>'
             + evidence.map(function (ev) {
-                const name = ev.fileName || (ev.missing ? tr('caseFiles.missingEvidence') : '—');
+                const name = ev.fileName || (ev.missing ? tr('caseFiles.missingEvidence') : '\u2014');
                 return '<tr>'
                     + '<td><code>' + esc(ev.evidenceFileId) + '</code></td>'
                     + '<td>' + esc(name) + '</td>'
-                    + '<td>' + esc(ev.operatorName || '—') + '</td>'
+                    + '<td>' + esc(ev.operatorName || '\u2014') + '</td>'
                     + '<td>' + esc(fmtTime(ev.uploadedAt)) + '</td>'
                     + '<td class="cf-ev-actions">'
                     + (ev.missing ? '' : '<button type="button" class="btn btn-ghost btn-sm cf-open-evidence" data-file-id="' + esc(ev.evidenceFileId) + '">' + tr('caseFiles.openEvidence') + '</button>')
@@ -184,8 +256,12 @@
             const sosOpts = await fetchSosOptions(cf.sosIncidentId);
             const statusOpen = cf.status !== 'closed';
             wrap.innerHTML =
-                '<div class="cf-detail-head">'
-                + '<button type="button" class="btn btn-ghost btn-sm" id="cf-back">← ' + tr('caseFiles.back') + '</button>'
+                '<div class="cf-detail-back-bar">'
+                + '<button type="button" class="cf-detail-back-btn" id="cf-back">'
+                + '<span class="cf-detail-back-arrow" aria-hidden="true">←</span>'
+                + '<span>' + esc(tr('caseFiles.back')) + '</span>'
+                + '</button></div>'
+                + '<div class="cf-detail-head">'
                 + '<div class="cf-detail-title-wrap">'
                 + '<span class="cf-detail-title">' + esc(cf.title) + '</span>'
                 + '<code>' + esc(cf.id) + '</code>'
@@ -203,34 +279,41 @@
                 + '<section class="cf-field-report">'
                 + '<h4>' + tr('caseFiles.fieldReport') + '</h4>'
                 + (perms.edit ? (
-                    '<div class="cf-meta-grid">'
-                    + '<label class="full cf-span-full"><span>' + tr('caseFiles.title') + '</span>'
+                    '<div class="cf-form-stack">'
+                    + '<label class="cf-form-field cf-form-field-full"><span class="cf-form-label">' + tr('caseFiles.title') + '</span>'
                     + '<input type="text" id="cf-title" value="' + esc(cf.title) + '"></label>'
-                    + '<label class="full"><span>' + tr('caseFiles.officer') + '</span>'
+                    + '<div class="cf-form-row-3">'
+                    + '<label class="cf-form-field"><span class="cf-form-label">' + tr('caseFiles.officer') + '</span>'
                     + '<input type="text" id="cf-officer" value="' + esc(cf.officerName || '') + '"></label>'
-                    + '<label class="full"><span>' + tr('caseFiles.device') + '</span>'
+                    + '<label class="cf-form-field"><span class="cf-form-label">' + tr('caseFiles.device') + '</span>'
                     + '<input type="text" id="cf-device" value="' + esc(cf.deviceId || '') + '"></label>'
-                    + '<label class="full"><span>' + tr('caseFiles.status') + '</span>'
+                    + '<label class="cf-form-field"><span class="cf-form-label">' + tr('caseFiles.status') + '</span>'
                     + '<select id="cf-status">'
                     + '<option value="open"' + (statusOpen ? ' selected' : '') + '>' + tr('caseFiles.statusOpen') + '</option>'
                     + '<option value="closed"' + (!statusOpen ? ' selected' : '') + '>' + tr('caseFiles.statusClosed') + '</option>'
                     + '</select></label>'
-                    + '<label class="full cf-span-full"><span>' + tr('caseFiles.sosLink') + '</span>'
-                    + '<select id="cf-sos">' + sosOpts + '</select></label>'
                     + '</div>'
-                    + '<label class="full cf-narrative-wrap"><span>' + tr('caseFiles.narrative') + '</span>'
-                    + '<textarea id="cf-narrative" rows="5">' + esc(cf.narrative || '') + '</textarea></label>'
+                    + '<label class="cf-form-field cf-form-field-full"><span class="cf-form-label">' + tr('caseFiles.sosLink') + '</span>'
+                    + '<select id="cf-sos">' + sosOpts + '</select></label>'
+                    + '<label class="cf-form-field cf-form-field-full cf-narrative-wrap"><span class="cf-form-label">' + tr('caseFiles.narrative') + '</span>'
+                    + '<textarea id="cf-narrative" rows="6">' + esc(cf.narrative || '') + '</textarea></label>'
+                    + '</div>'
                 ) : (
-                    '<div class="cf-meta-grid">'
-                    + '<dl class="ss-dock-ro cf-span-full" style="margin:0">'
-                    + '<dt>' + tr('caseFiles.officer') + '</dt><dd>' + esc(cf.officerName || '—') + '</dd>'
-                    + '<dt>' + tr('caseFiles.device') + '</dt><dd>' + esc(cf.deviceId || '—') + '</dd>'
-                    + '<dt>' + tr('caseFiles.sosLink') + '</dt><dd>' + esc(cf.sosIncidentId || '—') + '</dd>'
-                    + '</dl></div>'
-                    + '<div class="cf-narrative-read">' + esc(cf.narrative || '—') + '</div>'
+                    '<div class="cf-form-stack cf-form-readonly">'
+                    + '<div class="cf-form-row-3">'
+                    + '<div class="cf-form-field"><span class="cf-form-label">' + tr('caseFiles.officer') + '</span>'
+                    + '<div class="cf-readonly-val">' + esc(cf.officerName || '\u2014') + '</div></div>'
+                    + '<div class="cf-form-field"><span class="cf-form-label">' + tr('caseFiles.device') + '</span>'
+                    + '<div class="cf-readonly-val">' + esc(cf.deviceId || '\u2014') + '</div></div>'
+                    + '<div class="cf-form-field"><span class="cf-form-label">' + tr('caseFiles.sosLink') + '</span>'
+                    + '<div class="cf-readonly-val">' + esc(cf.sosIncidentId || '\u2014') + '</div></div>'
+                    + '</div>'
+                    + '<div class="cf-form-field cf-form-field-full"><span class="cf-form-label">' + tr('caseFiles.narrative') + '</span>'
+                    + '<div class="cf-narrative-read">' + esc(cf.narrative || '\u2014') + '</div></div>'
+                    + '</div>'
                 ))
                 + '<p class="hint cf-meta">' + tr('caseFiles.updated') + ': ' + esc(fmtTime(cf.updatedAt))
-                + (cf.createdBy ? ' · ' + esc(cf.createdBy) : '') + '</p>'
+                + (cf.createdBy ? ' \u00B7 ' + esc(cf.createdBy) : '') + '</p>'
                 + '</section>'
                 + '<section class="cf-linked-evidence">'
                 + '<h4>' + tr('caseFiles.linkedEvidence') + '</h4>'
@@ -249,6 +332,8 @@
                 pendingLinkEvidenceId = null;
             }
             bindDetailActions(id, cf.title, evidence.length);
+            const evScroll = document.getElementById('cf-evidence-table');
+            if (evScroll) evScroll.classList.toggle('cf-ev-empty', !evidence || !evidence.length);
         } catch (err) {
             wrap.innerHTML = '<p class="hint">' + esc(msg(err.opPayload, err)) + '</p>';
         }
@@ -617,15 +702,25 @@
         updateToolbar();
     }
 
-    function onShow() {
+    function onShow(opts) {
+        opts = opts || {};
         bindUi();
         updateToolbar();
         if (currentId) {
+            setCaseListEmptyState(false);
+            const evPanel = document.getElementById('evidence-panel');
+            if (evPanel) evPanel.classList.remove('ev-case-files-empty');
+            setCaseDetailActiveState(true);
             updateViewChrome();
             loadDetail(currentId);
         } else {
             showList();
-            loadList();
+            if (opts.warm && !opts.force) {
+                setCaseListEmptyState(!listCache.length);
+                if (listCache.length) setCaseListFewRows(listCache.length);
+            } else {
+                loadList();
+            }
         }
     }
 
@@ -671,7 +766,7 @@
             return;
         }
         const options = cases.map(function (cf) {
-            return cf.id + ' — ' + cf.title;
+            return cf.id + ' \u2014 ' + cf.title;
         });
         const pick = window.prompt(tr('caseFiles.selectCasePrompt') + '\n\n' + options.join('\n'), cases[0].id);
         if (!pick || !pick.trim()) return;

@@ -1,10 +1,14 @@
 # LiveKit MCU + egress recording for Mobility Video Conference
 # Usage: docker compose -f docker/livekit.compose.yaml up -d
 # Recordings land in ../storage/conference-recordings (same folder Mobility serves).
+#
+# ENTERPRISE-REDIS-IMAGE-LEGAL-PIN-V1 — service DNS name stays "redis" for LiveKit
+# config compatibility; image is Valkey (BSD-3-Clause). Do NOT swap back to redis:*.
 services:
   redis:
-    image: redis:7-alpine
+    image: valkey/valkey:8-alpine
     restart: unless-stopped
+    command: ["valkey-server"]
 
   livekit:
     image: livekit/livekit-server:v1.8.4

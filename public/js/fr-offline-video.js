@@ -1,5 +1,5 @@
 /**
- * Analytics Face — Load offline video → sample → crop rail (same probe path as live).
+ * Analytics Face \u2014 Load offline video \u2192 sample \u2192 crop rail (same probe path as live).
  */
 (function (global) {
     var pollTimer = null;
@@ -72,7 +72,7 @@
         if (job.framesTotal > 0) {
             prog = ' (' + (job.framesDone || 0) + '/' + job.framesTotal + ')';
         }
-        setStatus((job.message || tr('analytics.fr.offlineWorking', 'Processing video…')) + prog, '');
+        setStatus((job.message || tr('analytics.fr.offlineWorking', 'Processing video\u2026')) + prog, '');
     }
 
     function pollStatus() {
@@ -112,7 +112,7 @@
         var fd = new FormData();
         fd.append('video', file);
         setBusy(true);
-        setStatus(tr('analytics.fr.offlineUploading', 'Uploading video…'), '');
+        setStatus(tr('analytics.fr.offlineUploading', 'Uploading video\u2026'), '');
         fetch('/api/analytics/fr/offline-video', {
             method: 'POST',
             credentials: 'same-origin',

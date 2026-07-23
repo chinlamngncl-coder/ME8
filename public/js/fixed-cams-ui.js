@@ -1,4 +1,4 @@
-// TRANSLATION PENDING — all user-facing strings in this file need locale keys
+// TRANSLATION PENDING \u2014 all user-facing strings in this file need locale keys
 // added to public/locales/*.json after the fixed cam feature is fully complete
 // (map pins + SOS wall + PTZ UI). Do not translate until mob-fixed-cam-map-icons
 // checkpoint passes. Strings marked // i18n: <key-suggestion>
@@ -31,7 +31,7 @@
                        'fc-onvif-user-row','fc-onvif-pass-row','fc-onvif-path-row','fc-onvif-tp-row'];
     const rtspRow   = document.getElementById('fc-rtsp-row');
 
-    if (!dlg || !openBtn) return; // guard — page may not have the dialog
+    if (!dlg || !openBtn) return; // guard \u2014 page may not have the dialog
 
     // ── State ─────────────────────────────────────────────────────────────────
     let editingId = null;
@@ -43,7 +43,7 @@
             .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    function showToast(msg, type) { // i18n: inline messages — mark for translation
+    function showToast(msg, type) { // i18n: inline messages \u2014 mark for translation
         toast.textContent = msg;
         toast.className   = 'show ' + (type || 'ok');
         clearTimeout(toast._t);
@@ -69,11 +69,11 @@
 
     function mapIconLabel(value) {
         const icons = {
-            fixed: '▣ Fixed',
-            dome: '◒ Dome',
-            ptz: '✥ PTZ',
-            traffic: '◆ Traffic',
-            building: '▦ Building',
+            fixed: '\u25A3 Fixed',
+            dome: '\u25D2 Dome',
+            ptz: '\u2725 PTZ',
+            traffic: '\u25C6 Traffic',
+            building: '\u25A6 Building',
         };
         return icons[value] || icons.fixed;
     }
@@ -94,10 +94,10 @@
             <tr>
               <td><strong>${esc(c.name)}</strong>${c.notes ? '<br><span style="font-size:10px;color:#64748b">' + esc(c.notes) + '</span>' : ''}</td>
               <td>${esc(mapIconLabel(c.mapIcon))}</td>
-              <td>${esc(c.zone) || '—'}</td>
+              <td>${esc(c.zone) || '\u2014'}</td>
               <td class="fc-mono">${Number(c.lat).toFixed(6)},&thinsp;${Number(c.lng).toFixed(6)}</td>
               <td>${sourceBadge(c.streamSource)}</td>
-              <td>${c.ptzEnabled ? badge('PTZ ✓', 'onvif') : '—'}</td>  <!-- i18n: fixedCam.ptz.yes -->
+              <td>${c.ptzEnabled ? badge('PTZ ✓', 'onvif') : '\u2014'}</td>  <!-- i18n: fixedCam.ptz.yes -->
               <td>${c.enabled ? badge('Enabled', 'on') : badge('Disabled', 'off')}</td>  <!-- i18n: fixedCam.status.enabled / disabled -->
               <td>
                 <button class="fc-act-btn" onclick="fcEdit('${esc(c.id)}')">Edit</button>  <!-- i18n: common.edit -->
@@ -190,7 +190,7 @@
         document.getElementById('fc-f-enabled').value = String(cam.enabled);
         document.getElementById('fc-f-notes').value   = cam.notes;
         onSourceChange();
-        showForm('Edit camera — ' + cam.name); // i18n: fixedCam.form.editTitle
+        showForm('Edit camera \u2014 ' + cam.name); // i18n: fixedCam.form.editTitle
     };
 
     window.fcDel = async function (id, name) {

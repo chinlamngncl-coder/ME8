@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Live — Mobility Axiom</title>
+    <title>Live &mdash; Mobility Axiom</title>
     <style>
         body { margin: 0; background: #000; color: #e2e8f0; font-family: Inter, system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; }
         .header { padding: 8px 14px; background: #1e293b; display: flex; justify-content: space-between; align-items: center; gap: 10px; border-bottom: 1px solid #334155; }
@@ -29,7 +29,7 @@
 </head>
 <body>
     <div class="header">
-        <span id="camTitle">Connecting…</span>
+        <span id="camTitle">Connecting&hellip;</span>
         <div class="controls">
             <button type="button" id="btn-play" title="Play">▶</button>
             <button type="button" id="btn-stop" title="Stop">■</button>
@@ -40,7 +40,7 @@
     </div>
     <div class="stage" id="stage">
         <canvas id="canvas"></canvas>
-        <div id="status">Connecting…</div>
+        <div id="status">Connecting&hellip;</div>
     </div>
     <script>
         (function () {
@@ -70,7 +70,7 @@
             var muteBtn = document.getElementById('btn-mute');
             var callBtn = document.getElementById('btn-call');
 
-            titleEl.textContent = camId ? ('LIVE · ' + camId) : 'No camera';
+            titleEl.textContent = camId ? ('LIVE \u00B7 ' + camId) : 'No camera';
 
             function wsVideoUrl() {
                 return 'ws://' + window.location.hostname + ':' + videoWsPort + '/?camId=' + encodeURIComponent(camId);
@@ -170,7 +170,7 @@
                 if (handoffInflight && cachedFlvUrl === flvUrl && player) return true;
                 destroyPlayer();
                 cachedFlvUrl = String(flvUrl);
-                setStatus('Connecting…');
+                setStatus('Connecting\u2026');
                 if (canvas) canvas.style.display = 'none';
                 handoffInflight = true;
                 console.log('[me8-flv] live-popout attach once', { camId: camId, url: flvUrl });
@@ -210,7 +210,7 @@
             function startClassicPlayer() {
                 if (!camId) return;
                 destroyPlayer();
-                setStatus('Connecting…');
+                setStatus('Connecting\u2026');
                 if (canvas) canvas.style.display = '';
                 try {
                     player = new JSMpeg.Player(wsVideoUrl(), {
@@ -271,7 +271,7 @@
 
             function requestLiveStart() {
                 if (!socket || !camId) return;
-                setStatus('Connecting…');
+                setStatus('Connecting\u2026');
                 socket.emit('start-video', { camId: camId, mode: 'video', surface: SURFACE });
                 viewerRefHeld = true;
             }

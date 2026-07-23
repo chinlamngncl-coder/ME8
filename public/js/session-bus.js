@@ -1,5 +1,5 @@
 /**
- * Single session + settings warm cache — one fetch per dashboard load.
+ * Single session + settings warm cache \u2014 one fetch per dashboard load.
  */
 (function (global) {
     'use strict';

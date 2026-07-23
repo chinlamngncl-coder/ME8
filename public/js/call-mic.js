@@ -1,5 +1,5 @@
 /**
- * Operator mic for SIP voice intercom (Fleet ☎) — PCMA to BWC via call-audio.
+ * Operator mic for SIP voice intercom (Fleet ☎) \u2014 PCMA to BWC via call-audio.
  * Phone path: echo cancellation on (PTT hold-to-talk stays in ptt-mic.js).
  */
 (function (global) {

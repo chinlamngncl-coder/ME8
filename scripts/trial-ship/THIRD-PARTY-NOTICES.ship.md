@@ -42,6 +42,8 @@ This product includes open-source software. The tables below list components for
 
 | ftp-srv | MIT | Patrick Silva |
 
+| @webpod/ip | MIT | webpod contributors; maintained replacement for the abandoned `ip` package |
+
 | livekit-server-sdk | Apache-2.0 | LiveKit, Inc. |
 
 | node-llama-cpp | MIT | withcatai / llama.cpp authors |
@@ -50,6 +52,8 @@ This product includes open-source software. The tables below list components for
 
 | pg 8.22.0 (node-postgres) | MIT | Copyright (c) 2010 - 2021 Brian Carlson |
 | pg dependency family (`pg-connection-string`, `pg-pool`, `pg-protocol`, `pg-types`, `pgpass`, `postgres-*`, `split2`, `xtend`) | MIT; `pg-int8` is ISC | Versions and license files are included with the packaged npm modules |
+| ioredis | MIT | Zihua Li / Redis clients |
+| Valkey 8 (optional Docker service) | BSD-3-Clause | Valkey project |
 
 | ffmpeg-static | GPL-3.0-or-later | FFmpeg project (bundled binary) |
 

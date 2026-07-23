@@ -1,6 +1,6 @@
 /**
- * Analytics Face — Live watch (6 tiles + ≤32 rotate).
- * Video only — face detect/match is a later MOB (server frame-grab).
+ * Analytics Face \u2014 Live watch (6 tiles + ≤32 rotate).
+ * Video only \u2014 face detect/match is a later MOB (server frame-grab).
  * Pattern mirrors command-wall socket + FLV handoff / JSMpeg fallback; surface: analytics-fr.
  */
 (function (global) {
@@ -17,7 +17,7 @@
     var streamingCams = Object.create(null);
     var wvpHandoffFlvByCam = Object.create(null);
     var wvpHandoffSlotInflight = Object.create(null);
-    var focusedSlot = -1; // mob-fr-stop-video-selected — tile click target for Stop video
+    var focusedSlot = -1; // mob-fr-stop-video-selected \u2014 tile click target for Stop video
     var rotateTimer = null;
     var rotateCursor = 0;
     var fleetById = Object.create(null);
@@ -48,7 +48,7 @@
 
     var tileSignalTimers = [null, null, null, null, null, null];
     var tileSignalRetried = Object.create(null);
-    /** mob-fr-tile-sos-badge — camId -> 'sos' | 'fall' (active alarms only) */
+    /** mob-fr-tile-sos-badge \u2014 camId -> 'sos' | 'fall' (active alarms only) */
     var sosKindByCam = Object.create(null);
 
     function tr(key, fallback) {
@@ -98,7 +98,7 @@
         }
         var s = String(camId || '');
         if (s.length <= 8) return s;
-        return '…' + s.slice(-4);
+        return '\u2026' + s.slice(-4);
     }
 
     function rosterNameHtml(d, id) {
@@ -190,7 +190,7 @@
             return '<span class="ax-fr-roster-badge is-rotate">' +
                 esc(tr('analytics.fr.rotateBadge', 'Rotate')) + '</span>';
         }
-        return '<span class="ax-fr-roster-badge is-idle">—</span>';
+        return '<span class="ax-fr-roster-badge is-idle">\u2014</span>';
     }
 
     function groupOnlineCounts(devices) {
@@ -334,19 +334,19 @@
             case TILE_STATE.WAITING:
                 return tr('analytics.fr.tileWaiting', 'Waiting for slot');
             case TILE_STATE.CONNECTING:
-                return tr('analytics.fr.tileConnecting', 'Connecting…');
+                return tr('analytics.fr.tileConnecting', 'Connecting\u2026');
             case TILE_STATE.OFFLINE:
                 return tr('analytics.fr.tileOffline', 'BWC offline');
             case TILE_STATE.NO_SIGNAL:
                 return tr('analytics.fr.tileNoSignal', 'No video signal');
             case TILE_STATE.SIGNAL_LOST:
-                return tr('analytics.fr.tileSignalLost', 'Signal lost — retrying…');
+                return tr('analytics.fr.tileSignalLost', 'Signal lost \u2014 retrying\u2026');
             case TILE_STATE.STREAM_ERROR:
                 return tr('analytics.fr.tileStreamError', 'Stream error');
             case TILE_STATE.INVITE_FAILED:
                 return tr('analytics.fr.tileInviteFailed', 'Could not start live');
             case TILE_STATE.LIVE_CAP:
-                return tr('analytics.fr.tileLiveCap', 'Server live limit — pause other views');
+                return tr('analytics.fr.tileLiveCap', 'Server live limit \u2014 pause other views');
             case TILE_STATE.PLAYER_ERROR:
                 return tr('analytics.fr.tilePlayerError', 'Player unavailable');
             default:
@@ -421,7 +421,7 @@
         var name = camId ? deviceName(camId) : '';
         if (label) {
             if (camId) {
-                label.textContent = String(slot + 1) + ' · ' + name + ' · ' + shortCamId(camId);
+                label.textContent = String(slot + 1) + ' \u00B7 ' + name + ' \u00B7 ' + shortCamId(camId);
                 label.title = String(camId);
             } else {
                 label.textContent = String(slot + 1);
@@ -950,7 +950,7 @@
         if (stopAllBtn) stopAllBtn.disabled = !watching && selected.length === 0;
         if (clearBtn) clearBtn.disabled = selected.length === 0;
         if (meta) {
-            meta.textContent = tr('analytics.fr.rosterMeta', '{n}/{max} selected · {live}/{slots} live')
+            meta.textContent = tr('analytics.fr.rosterMeta', '{n}/{max} selected \u00B7 {live}/{slots} live')
                 .replace('{n}', String(selected.length))
                 .replace('{max}', String(MAX_WATCH))
                 .replace('{live}', String(activeSlotCams().length))
@@ -1041,7 +1041,7 @@
             .replace('{online}', String(cnt.online))
             .replace('{total}', String(cnt.total));
         if (inWatch > 0) {
-            meta += ' · ' + tr('analytics.fr.groupInWatch', '{n} in watch').replace('{n}', String(inWatch));
+            meta += ' \u00B7 ' + tr('analytics.fr.groupInWatch', '{n} in watch').replace('{n}', String(inWatch));
         }
         return '<div class="ax-fr-roster-card-head" data-group="' + esc(gName) + '">' +
             '<div class="ax-fr-roster-group-label">' +
@@ -1111,16 +1111,16 @@
             esc(tr('analytics.fr.clearWatch', 'Clear')) + '</button>' +
             '</div>' +
             '<span id="ax-fr-watch-meta" class="hint ax-fr-roster-summary">' +
-            esc(tr('analytics.fr.rosterMeta', '{n}/{max} selected · {live}/{slots} live')
+            esc(tr('analytics.fr.rosterMeta', '{n}/{max} selected \u00B7 {live}/{slots} live')
                 .replace('{n}', String(selected.length))
                 .replace('{max}', String(MAX_WATCH))
                 .replace('{live}', String(activeSlotCams().length))
                 .replace('{slots}', String(LIVE_SLOTS))) +
-            (groupCount ? (' · ' + esc(String(groupCount)) + ' ' + esc(tr('analytics.fr.rosterGroups', 'groups'))) : '') +
+            (groupCount ? (' \u00B7 ' + esc(String(groupCount)) + ' ' + esc(tr('analytics.fr.rosterGroups', 'groups'))) : '') +
             '</span>' +
             '<div class="ax-fr-roster-tools">' +
             '<input type="search" id="ax-fr-roster-search" class="ax-fr-roster-search" autocomplete="off" ' +
-            'placeholder="' + esc(tr('analytics.fr.rosterSearch', 'Search officers…')) + '" value="' + esc(rosterSearch) + '">' +
+            'placeholder="' + esc(tr('analytics.fr.rosterSearch', 'Search officers\u2026')) + '" value="' + esc(rosterSearch) + '">' +
             '<select id="ax-fr-roster-filter" class="ax-fr-roster-filter">' +
             '<option value="all"' + (rosterFilter === 'all' ? ' selected' : '') + '>' +
             esc(tr('analytics.fr.rosterFilterAll', 'All')) + '</option>' +
@@ -1359,7 +1359,7 @@
                 }
             }
         });
-        /* mob-fr-tile-sos-badge — chip on FR tile for active SOS/FALL cam */
+        /* mob-fr-tile-sos-badge \u2014 chip on FR tile for active SOS/FALL cam */
         sock.on('sos-alarm', function (data) {
             if (!data || !data.cameraId) return;
             var id = normalizeFrCamId(data.cameraId);

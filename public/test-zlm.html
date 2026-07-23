@@ -54,13 +54,13 @@
 
     <h1>ME8 ZLM test bench (Gate B) <span id="modeBadge" class="badge idle">idle</span></h1>
 
-    <p>Isolated lab page — not connected to Command Wall or map pins. Requires <code>FM_LAB_ZLM=1</code> and ZLM sidecar.</p>
+    <p>Isolated lab page &mdash; not connected to Command Wall or map pins. Requires <code>FM_LAB_ZLM=1</code> and ZLM sidecar.</p>
 
     <ol>
 
         <li>Start live on the <strong>dashboard wall</strong> for this cam ID.</li>
 
-        <li>Click <strong>Play</strong> — relay subscribes to pool WS and publishes to ZLM.</li>
+        <li>Click <strong>Play</strong> &mdash; relay subscribes to pool WS and publishes to ZLM.</li>
 
         <li>Video plays here via ZLM FLV (<strong>dashboard proxy</strong>, not :8080), or FFmpeg WS fallback if ZLM is down.</li>
 
@@ -124,7 +124,7 @@
 
     function log(msg) {
 
-        var line = new Date().toLocaleTimeString() + ' — ' + msg;
+        var line = new Date().toLocaleTimeString() + ' \u2014 ' + msg;
 
         logEl.textContent = line + '\n' + logEl.textContent;
 
@@ -218,7 +218,7 @@
 
         flvPlayer.on(mpegts.Events.ERROR, function () {
 
-            log('ZLM FLV player error — try Refresh status or FFmpeg fallback');
+            log('ZLM FLV player error \u2014 try Refresh status or FFmpeg fallback');
 
         });
 
@@ -312,7 +312,7 @@
 
         try {
 
-            log('Starting lab relay…');
+            log('Starting lab relay\u2026');
 
             var startRes = await fetch('/api/lab/relay/start', {
 
@@ -384,7 +384,7 @@
 
             setMode('idle');
 
-            log(data.hint || data.reason || 'No active stream — start live on dashboard first.');
+            log(data.hint || data.reason || 'No active stream \u2014 start live on dashboard first.');
 
         } catch (e) {
 

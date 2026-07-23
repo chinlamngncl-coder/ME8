@@ -1,5 +1,5 @@
 /**
- * Mobility C2 i18n — curated locale packs (dispatch / CCTV terminology).
+ * Mobility C2 i18n \u2014 curated locale packs (dispatch / CCTV terminology).
  * Locales: en, fil (Filipino), id (Indonesian), th (Thai), ko (Korean), zh (Chinese).
  */
 (function (global) {

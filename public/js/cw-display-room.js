@@ -1,6 +1,6 @@
 /**
 
- * Command Wall — Display Room presets (multi-monitor SOS ops layout).
+ * Command Wall \u2014 Display Room presets (multi-monitor SOS ops layout).
 
  * Isolated launcher only; does not change SOS / live wall / map engines.
 
@@ -56,13 +56,13 @@
         try {
             if (!win || !win.location) return false;
             const path = win.location.pathname || '';
-            // Already on Command Wall — never reload (reload = blink + stuck Loading roster).
+            // Already on Command Wall \u2014 never reload (reload = blink + stuck Loading roster).
             if (path === '/command-wall.html') return false;
             if (path === '/' || path === '/index.html' || path.indexOf('/login') === 0) return true;
             const want = new URL(url, window.location.origin);
             return path !== want.pathname;
         } catch (_) {
-            // about:blank / not readable yet — window.open already has the URL; do not assign again.
+            // about:blank / not readable yet \u2014 window.open already has the URL; do not assign again.
             return false;
         }
     }
@@ -80,7 +80,7 @@
         }
         win = window.open(url, winName, POPOUT_FEATURES);
         if (win) tracked[winName] = win;
-        // Do not set location.href after open — aborts first navigation and causes blink loop.
+        // Do not set location.href after open \u2014 aborts first navigation and causes blink loop.
         try { if (win) win.focus(); } catch (_) { /* ignore */ }
         return win;
     }
@@ -164,7 +164,7 @@
 
 
     function openCommandWallPopout(url, winName) {
-        // Fresh unique name each time — named reuse caused blink / reload / repeat INVITE storms.
+        // Fresh unique name each time \u2014 named reuse caused blink / reload / repeat INVITE storms.
         const target = url || '/command-wall.html?panel=live';
         const name = winName === '_blank' || !winName
             ? ('mobility-wall-' + String(Date.now()))
@@ -173,7 +173,7 @@
     }
 
     function openMapPopout() {
-        // Always main app map URL — never command-wall.html?popout=map (broken if opened from CW Control room).
+        // Always main app map URL \u2014 never command-wall.html?popout=map (broken if opened from CW Control room).
         const url = '/?popout=map';
         const win = openWindow(url, 'mobility-map-' + String(Date.now()));
         if (global.MapPopoutSync) {
@@ -412,7 +412,7 @@
         }
 
         function finishPlaceFailed(reason) {
-            // Amber/false — never leave sticky green "opened" when place was requested and failed.
+            // Amber/false \u2014 never leave sticky green "opened" when place was requested and failed.
             setStatus(placeFailMessage(reason, monitorTitleKey), false);
             scrollStatusIntoView();
             try { win.focus(); } catch (_) {}
@@ -473,7 +473,7 @@
         try {
             details = await window.getScreenDetails();
         } catch (_) {
-            // Permission denied or transient activation failure — not a silent green success.
+            // Permission denied or transient activation failure \u2014 not a silent green success.
             return { ok: false, reason: 'denied' };
         }
 
@@ -578,7 +578,7 @@
 
             const root = el('dr-groups');
 
-            if (root) root.innerHTML = '<p class="dr-groups-empty">—</p>';
+            if (root) root.innerHTML = '<p class="dr-groups-empty">\u2014</p>';
 
         }
 
@@ -587,7 +587,7 @@
 
 
     async function applySosRoomPreset() {
-        // Same as Monitor 2 + 3 + 4 — convenience open only. No autofill, no auto INVITE, no layout-1 shrink.
+        // Same as Monitor 2 + 3 + 4 \u2014 convenience open only. No autofill, no auto INVITE, no layout-1 shrink.
         await fetchDisplayMonitor3Profile();
         setStatus(tr('displayRoom.launching'), true);
         goOperationsTab();
@@ -680,7 +680,7 @@
         });
 
         if (m2Btn) m2Btn.addEventListener('click', function () {
-            // Empty wall only — no autofill. Same rule as Open all monitors.
+            // Empty wall only \u2014 no autofill. Same rule as Open all monitors.
             openWithFeedback(function () {
                 return openCommandWallPopout('/command-wall.html?panel=live', '_blank');
             }, 'displayRoom.popupOpenedWall', 'displayRoom.monitor2Title', 1);

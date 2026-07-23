@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video matrix — Mobility C2</title>
+    <title>Video matrix &mdash; Mobility C2</title>
     <style>
         * { box-sizing: border-box; }
         html, body {
@@ -113,11 +113,11 @@
                 }
             } catch (_) { /* ignore */ }
             var fallbacks = {
-                'matrix.documentTitle': 'Video matrix — Mobility C2',
+                'matrix.documentTitle': 'Video matrix \u2014 Mobility C2',
                 'matrix.title': 'Video matrix',
                 'matrix.meta': '{n} panel(s)',
                 'matrix.noVideo': 'No live video on this panel',
-                'matrix.openerClosed': 'Dashboard window closed — close this matrix.',
+                'matrix.openerClosed': 'Dashboard window closed \u2014 close this matrix.',
                 'common.close': 'Close',
                 'video.panel': 'Panel {n}',
                 'video.listenWhenLive': 'Listen when live',
@@ -226,7 +226,7 @@
             cell.className = 'matrix-cell';
             cell.dataset.slot = String(slotIndex);
             var panelLabel = tr('video.panel', { n: info.panelNum || (slotIndex + 1) });
-            var camLabel = info.label || info.camId || '—';
+            var camLabel = info.label || info.camId || '\u2014';
             cell.innerHTML =
                 '<div class="matrix-cell-head">' +
                 '<span class="panel">' + panelLabel + '</span>' +
@@ -316,7 +316,7 @@
                 onFail: function () {
                     cell.openerFlvFailed = flvUrl;
                     destroyCellPlayer(cell);
-                    /* Opener URL miss / dual-play fail → own start-video (popout surface). */
+                    /* Opener URL miss / dual-play fail \u2192 own start-video (popout surface). */
                     if (socket && socket.connected && cell.camId && !cell.startRequested) {
                         requestCellStart(cell);
                     }
@@ -443,7 +443,7 @@
                     return;
                 }
                 if (data.wvpVideoHandoff) {
-                    /* Ready without URL — wait for opener cache or retry start once. */
+                    /* Ready without URL \u2014 wait for opener cache or retry start once. */
                     if (!cell.startRequested) requestCellStart(cell);
                     return;
                 }

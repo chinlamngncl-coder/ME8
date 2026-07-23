@@ -1,5 +1,5 @@
 /**
- * Map pin layer — Leaflet marker clustering + batched GPS map updates (Phase B scale prep).
+ * Map pin layer \u2014 Leaflet marker clustering + batched GPS map updates (Phase B scale prep).
  * SOS / fall alarms stay on the map layer (never clustered).
  * Viewport culling skips DOM work for off-screen patrol pins (SOS/selected always update).
  */
@@ -218,6 +218,15 @@
         if (callback) callback();
     }
 
+    function refreshClusters() {
+        if (!clusterGroup) return;
+        try {
+            if (typeof clusterGroup.refreshClusters === 'function') {
+                clusterGroup.refreshClusters();
+            }
+        } catch (_) { /* ignore */ }
+    }
+
     global.MapPinLayer = {
         init: init,
         attachMarker: attachMarker,
@@ -228,6 +237,7 @@
         setSelectedCamIds: setSelectedCamIds,
         setPopupOpenCamId: setPopupOpenCamId,
         revealMarker: revealMarker,
+        refreshClusters: refreshClusters,
         isClusterEnabled: function () { return clusterEnabled; },
         isViewportCullEnabled: function () { return viewportCullEnabled; },
     };

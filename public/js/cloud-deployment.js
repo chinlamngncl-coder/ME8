@@ -1,5 +1,5 @@
 /**
- * Cloud Deployment — site profile, entitlements, public access, central verification.
+ * Cloud Deployment \u2014 site profile, entitlements, public access, central verification.
  * Super-admin only. Does not touch live video, SOS, or PTT paths.
  */
 (function (global) {
@@ -58,14 +58,14 @@
             '<span class="cd-entitlement-badge">' + esc(statusText) + '</span></div>' +
             '<p class="setup-hint" style="margin:6px 0">' +
             (lic.licenseId ? (tr('cloud.entitlement.reference') + ': <code>' + esc(lic.licenseId) + '</code>') : tr('cloud.entitlement.installNote')) +
-            (lic.expiresAt ? (' · ' + tr('cloud.entitlement.validUntil') + ' ' + esc(String(lic.expiresAt).slice(0, 10))) : '') +
+            (lic.expiresAt ? (' \u00B7 ' + tr('cloud.entitlement.validUntil') + ' ' + esc(String(lic.expiresAt).slice(0, 10))) : '') +
             '</p>' +
             '<div class="cd-meter"><span>' + tr('cloud.entitlement.cameras') + '</span>' +
             '<div class="cd-meter-bar"><span style="width:' + bwcPct + '%"></span></div>' +
-            '<span class="cd-meter-val">' + esc(usage.bwcDevices || 0) + ' / ' + esc(limits.maxBwcDevices || '—') + '</span></div>' +
+            '<span class="cd-meter-val">' + esc(usage.bwcDevices || 0) + ' / ' + esc(limits.maxBwcDevices || '\u2014') + '</span></div>' +
             '<div class="cd-meter"><span>' + tr('cloud.entitlement.operators') + '</span>' +
             '<div class="cd-meter-bar"><span style="width:' + userPct + '%"></span></div>' +
-            '<span class="cd-meter-val">' + esc(usage.dashboardUsers || 0) + ' / ' + esc(limits.maxDashboardUsers || '—') + '</span></div>' +
+            '<span class="cd-meter-val">' + esc(usage.dashboardUsers || 0) + ' / ' + esc(limits.maxDashboardUsers || '\u2014') + '</span></div>' +
             '</div>';
     }
 
@@ -78,7 +78,7 @@
             const title = tr(titleKey);
             rows +=
                 '<div class="cd-program-phase ' + esc(p.status) + '">' +
-                '<span class="cd-program-badge">' + esc(tr('cloud.program.phase') + ' ' + p.id + ' · ' + p.label) + '</span>' +
+                '<span class="cd-program-badge">' + esc(tr('cloud.program.phase') + ' ' + p.id + ' \u00B7 ' + p.label) + '</span>' +
                 '<div><strong>' + esc(title !== titleKey ? title : ('Phase ' + p.id)) + '</strong>' +
                 '<p class="setup-hint" style="margin:2px 0 0">' + esc(p.detail) + '</p></div></div>';
         });
@@ -129,12 +129,12 @@
         }
         const ok = hb.ok === true;
         el.innerHTML =
-            '<div class="cd-verify-row"><span>' + tr('cloud.verification.endpoint') + '</span><code>' + esc(hb.url || '—') + '</code></div>' +
+            '<div class="cd-verify-row"><span>' + tr('cloud.verification.endpoint') + '</span><code>' + esc(hb.url || '\u2014') + '</code></div>' +
             '<div class="cd-verify-row"><span>' + tr('cloud.verification.lastCheck') + '</span><span>' +
-            esc(hb.lastAttemptAt ? String(hb.lastAttemptAt).slice(0, 19).replace('T', ' ') : '—') + '</span></div>' +
+            esc(hb.lastAttemptAt ? String(hb.lastAttemptAt).slice(0, 19).replace('T', ' ') : '\u2014') + '</span></div>' +
             '<div class="cd-verify-row"><span>' + tr('cloud.verification.lastSuccess') + '</span><span class="' + (ok ? 'lab-ok' : 'lab-err') + '">' +
             esc(hb.lastSuccessAt ? String(hb.lastSuccessAt).slice(0, 19).replace('T', ' ') : tr('cloud.verification.never')) +
-            (hb.revoked ? (' · ' + tr('cloud.verification.revoked')) : '') +
+            (hb.revoked ? (' \u00B7 ' + tr('cloud.verification.revoked')) : '') +
             '</span></div>' +
             (hb.message ? ('<p class="setup-hint">' + esc(hb.message) + '</p>') : '');
     }
@@ -143,7 +143,7 @@
         const el = document.getElementById('cd-firewall');
         if (!el) return;
         if (!rows || !rows.length) {
-            el.innerHTML = '<p class="setup-hint">—</p>';
+            el.innerHTML = '<p class="setup-hint">\u2014</p>';
             return;
         }
         el.innerHTML = '<table class="cd-firewall-table"><thead><tr><th>' + tr('cloud.firewall.service') +

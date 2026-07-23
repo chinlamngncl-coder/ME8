@@ -1,5 +1,5 @@
 /**
- * Command-room USB maintenance — super admin, Server config tab.
+ * Command-room USB maintenance \u2014 super admin, Server config tab.
  */
 (function (global) {
     function tr(key, params) {
@@ -37,7 +37,7 @@
             if (st.clearMediaConfigured) parts.push(tr('usbMaint.clearConfigured'));
             else parts.push(tr('usbMaint.clearNotConfigured'));
         }
-        el.textContent = parts.join(' · ');
+        el.textContent = parts.join(' \u00B7 ');
         if (clearBtn) {
             clearBtn.disabled = !st.clearMediaConfigured;
             clearBtn.title = st.clearMediaConfigured ? '' : tr('usbMaint.clearNotConfigured');

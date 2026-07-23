@@ -1,5 +1,5 @@
 /**
- * Dashboard Auth — dispatch group management (super admin).
+ * Dashboard Auth \u2014 dispatch group management (super admin).
  */
 (function (global) {
     function tr(key, params) {
@@ -44,7 +44,7 @@
     function bwcPickOptionsHtml(selectedId) {
         var opts = '<option value="">' + esc(tr('groups.pickBwc')) + '</option>';
         registeredBwcs().forEach(function (d) {
-            // Show officer name only — device ID in title tooltip to keep the select narrow.
+            // Show officer name only \u2014 device ID in title tooltip to keep the select narrow.
             var label = d.operatorName ? d.operatorName : d.deviceId.slice(-6);
             opts += '<option value="' + esc(d.deviceId) + '" data-name="' + esc(d.operatorName || '') + '"'
                 + ' title="' + esc(d.deviceId) + '"'
@@ -99,7 +99,7 @@
             + '<input type="text" class="ss-gm-nick" value="' + esc(m.nickname || '') + '" placeholder="' + esc(tr('groups.nickname')) + '"></td>'
             + '<td><input type="text" class="ss-gm-device" value="' + esc(m.deviceId || '') + '" placeholder="' + esc(tr('groups.deviceId')) + '"></td>'
             + '<td><input type="text" class="ss-gm-user" value="' + esc(m.dashboardUsername || '') + '" placeholder="' + esc(tr('groups.dashUserOptional')) + '"></td>'
-            + '<td><button type="button" class="ss-gm-rm" title="Remove">×</button></td>'
+            + '<td><button type="button" class="ss-gm-rm" title="Remove">\u00D7</button></td>'
             + '</tr>';
     }
 
@@ -239,7 +239,7 @@
             + (g.members || []).map(function (m) {
                 const st = m.online ? tr('groups.online') : tr('groups.offline');
                 return '<li><span class="ss-group-dot" style="background:' + esc(g.color) + '"></span>'
-                    + '<strong>' + esc(m.nickname || '—') + '</strong>'
+                    + '<strong>' + esc(m.nickname || '\u2014') + '</strong>'
                     + (m.deviceId ? ' <code>' + esc(m.deviceId) + '</code>' : '')
                     + ' <span class="hint">(' + st + ')</span></li>';
             }).join('') + '</ul>';

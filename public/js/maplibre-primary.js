@@ -1,5 +1,5 @@
 /**
- * MapLibre primary basemap (lab) — offline LAN style or online OpenFreeMap.
+ * MapLibre primary basemap (lab) \u2014 offline LAN style or online OpenFreeMap.
  * Leaflet stays on top for pins/geofence; tiles come from MapLibre only.
  */
 (function (global) {
@@ -72,12 +72,12 @@
         if (mapMode === 'offline') {
             html = tr(
                 'map.attribution.offline',
-                '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors · Carto · offline tiles (local)'
+                '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors \u00B7 Carto \u00B7 offline tiles (local)'
             );
         } else {
             html = tr(
                 'map.attribution.online',
-                '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> · <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a>'
+                '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> \u00B7 <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a>'
             );
         }
         strip.innerHTML = html;

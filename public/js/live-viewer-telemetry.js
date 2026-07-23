@@ -1,5 +1,5 @@
 /**
- * Live viewer telemetry — read-only table for super-admin / tech diagnostics.
+ * Live viewer telemetry \u2014 read-only table for super-admin / tech diagnostics.
  */
 (function (global) {
     'use strict';
@@ -16,7 +16,7 @@
     }
 
     function watcherSummary(watchers) {
-        if (!watchers || !watchers.length) return '—';
+        if (!watchers || !watchers.length) return '\u2014';
         return watchers.map(function (w) {
             const who = w.username || tr('tech.liveViewers.anon');
             const surfaces = [];

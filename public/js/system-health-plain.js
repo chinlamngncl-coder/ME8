@@ -1,4 +1,4 @@
-// mob-health-plain — simple System OK / Not OK in header (polls /api/health)
+// mob-health-plain \u2014 simple System OK / Not OK in header (polls /api/health)
 (function () {
     'use strict';
 
@@ -46,7 +46,7 @@
         var plain = reasons.map(reasonPlain).filter(Boolean).join(', ');
         el.classList.add('bad');
         el.textContent = plain
-            ? tr('healthPlain.notOkReason', 'System not OK — {reason}', { reason: plain })
+            ? tr('healthPlain.notOkReason', 'System not OK \u2014 {reason}', { reason: plain })
             : tr('healthPlain.notOk', 'System not OK');
         el.title = tr('healthPlain.notOkTitle', 'Something core is down. Check Settings or restart lab Start.');
     }

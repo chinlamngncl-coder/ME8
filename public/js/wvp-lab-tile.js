@@ -1,9 +1,9 @@
 /**
- * mob-track-b2-two-wvp-tiles — two independent WVP live tiles (lab only).
+ * mob-track-b2-two-wvp-tiles \u2014 two independent WVP live tiles (lab only).
  * Same B1 lessons: absolute FLV URL, allowlist token path, hasAudio:false (G.711).
  * Does not touch command wall / Open All / pool FFmpeg.
  *
- * mob-wvp-lab-mpegts-live-chase — soft live-edge (playbackRate), emergency jump >10s,
+ * mob-wvp-lab-mpegts-live-chase \u2014 soft live-edge (playbackRate), emergency jump >10s,
  * focus snap. Bundled mpegts has no liveSync; do not turn liveBufferLatencyChasing on.
  */
 (function (global) {
@@ -34,7 +34,7 @@
         var el = $('me8-wvp-lab-log');
         if (!el) return;
         var t = new Date().toLocaleTimeString();
-        el.textContent = t + ' — ' + msg + '\n' + el.textContent;
+        el.textContent = t + ' \u2014 ' + msg + '\n' + el.textContent;
     }
 
     function setBadge(text, ok) {
@@ -49,7 +49,7 @@
         var trimmed = (text || '').trim();
         if (!trimmed) throw new Error('Empty API reply (HTTP ' + res.status + ')');
         if (trimmed.charAt(0) === '<' || /login\.html/i.test(trimmed)) {
-            throw new Error('Session lost — refresh dashboard and sign in again');
+            throw new Error('Session lost \u2014 refresh dashboard and sign in again');
         }
         try {
             return JSON.parse(trimmed);
@@ -228,7 +228,7 @@
             try {
                 if (video.paused) video.play().catch(function () {});
             } catch (_) {}
-            /* mob-wvp-tile-auto-reopen — frozen currentTime while session still wanted */
+            /* mob-wvp-tile-auto-reopen \u2014 frozen currentTime while session still wanted */
             if (slot.autoReopen) {
                 var ct = video.currentTime || 0;
                 if (slot._lastCt == null) {
@@ -279,7 +279,7 @@
         } catch (_) {}
         var video = document.createElement('video');
         video.controls = true;
-        /* mob-wvp-tile-nomute-stall — hard mute lets Chromium/Opera pause live FLV;
+        /* mob-wvp-tile-nomute-stall \u2014 hard mute lets Chromium/Opera pause live FLV;
          * Play click is a gesture so tiny volume is allowed; hasAudio stays false (G.711). */
         video.muted = false;
         try { video.volume = 0.01; } catch (_) {}
@@ -298,7 +298,7 @@
             lazyLoad: false,
             enableStashBuffer: false,
             stashInitialSize: 128,
-            /* Hard mpegts chase OFF — soft rate + emergency >10s in chaseLiveEdge */
+            /* Hard mpegts chase OFF \u2014 soft rate + emergency >10s in chaseLiveEdge */
             liveBufferLatencyChasing: false,
         });
         player.attachMediaElement(video);
@@ -325,7 +325,7 @@
                 var idx = typeof opts._chainIdx === 'number' ? opts._chainIdx : -1;
                 if (chain && idx >= 0 && idx < chain.length) {
                     var next = chain[idx];
-                    log('Tile ' + key.toUpperCase() + ': ' + (opts.via || 'play') + ' failed → ' + next.via);
+                    log('Tile ' + key.toUpperCase() + ': ' + (opts.via || 'play') + ' failed \u2192 ' + next.via);
                     playFlv(key, next.url, {
                         via: next.via,
                         _chain: chain,
@@ -336,7 +336,7 @@
                 }
                 if (opts.fallbackUrl && !opts._fellBack) {
                     opts._fellBack = true;
-                    log('Tile ' + key.toUpperCase() + ': fallback → proxy');
+                    log('Tile ' + key.toUpperCase() + ': fallback \u2192 proxy');
                     playFlv(key, opts.fallbackUrl, { via: 'proxy-fallback', autoReopen: opts.autoReopen });
                     return;
                 }
@@ -346,7 +346,7 @@
     }
 
     function startPlayback(key, data) {
-        /* Order: ws_flv (WVP class) → HTTP direct → Fleet proxy. Reopen stays safety only. */
+        /* Order: ws_flv (WVP class) \u2192 HTTP direct \u2192 Fleet proxy. Reopen stays safety only. */
         var preferWs = data.preferWs !== false;
         var preferDirect = data.preferDirect !== false;
         var ws = data.wsFlv || null;
@@ -375,7 +375,7 @@
         if (!sel) return;
         sel.innerHTML = '';
         if (!deviceList.length) {
-            sel.innerHTML = '<option value="">(none — cam on SIP 5061?)</option>';
+            sel.innerHTML = '<option value="">(none \u2014 cam on SIP 5061?)</option>';
             return;
         }
         deviceList.forEach(function (d) {
@@ -424,7 +424,7 @@
                 setBadge('fail', false);
                 return;
             }
-            log('WVP ok · pick cam A and cam B');
+            log('WVP ok \u00B7 pick cam A and cam B');
             var res = await fetch('/api/lab/wvp/devices', { credentials: 'same-origin' });
             var data = await readJson(res);
             if (!res.ok) {
@@ -464,7 +464,7 @@
         slots[key].reopenCount = 0;
         clearReopenTimer(key);
         try {
-            log('Tile ' + key.toUpperCase() + ': starting WVP play…');
+            log('Tile ' + key.toUpperCase() + ': starting WVP play\u2026');
             var res = await fetch('/api/lab/wvp/play', {
                 method: 'POST',
                 credentials: 'same-origin',

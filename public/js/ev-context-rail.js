@@ -1,5 +1,5 @@
 /**
- * Evidence hub — shared context rail (status + quick nav) per panel.
+ * Evidence hub \u2014 shared context rail (status + quick nav) per panel.
  */
 (function (global) {
     var RAIL_BODIES = {
@@ -32,7 +32,7 @@
     function pathStatusHtml(ok) {
         if (ok === true) return '<span class="ev-path-ok">✓</span>';
         if (ok === false) return '<span class="ev-path-bad">✗</span>';
-        return '—';
+        return '\u2014';
     }
 
     function catalogMsg(data, err, fallbackKey) {
@@ -95,7 +95,7 @@
             ? '<span class="ev-path-ok">' + esc(tr('evidenceHub.archiveOk')) + '</span>'
             : '<span class="ev-path-bad">' + esc(tr('evidenceHub.archiveWarn')) + '</span>');
         if (opts.ftpSvc != null) {
-            html += railRow(tr('server.dock.status'), esc(String(opts.ftpSvc).trim() || '—'));
+            html += railRow(tr('server.dock.status'), esc(String(opts.ftpSvc).trim() || '\u2014'));
         }
         if (opts.showPaths) {
             html += railRow(tr('evidenceHub.storageFtpPath'), pathStatusHtml(val.ftp));
@@ -104,7 +104,7 @@
             }
         }
         html += railRow(tr('evidenceHub.kpiDocks'), esc(String(totals.sites || 0))
-            + ' · ' + esc(String(totals.sitesOnline || 0)) + '/' + esc(String(totals.sites || 0))
+            + ' \u00B7 ' + esc(String(totals.sitesOnline || 0)) + '/' + esc(String(totals.sites || 0))
             + ' ' + esc(tr('evidenceHub.storageRailOnline')));
         html += railRow(tr('evidenceHub.kpiBwcOnline'), esc(String(fleet.online || 0)) + '/' + esc(String(fleet.registered || 0)));
         if (catalog.available && totals.baysOccupied != null) {
@@ -112,7 +112,7 @@
         }
         if (opts.showBackups) {
             html += railRow(tr('evidenceHub.storageBackups'), esc(String(backups.count || 0))
-                + (backups.latest ? ' · ' + esc(backups.latest) : ''));
+                + (backups.latest ? ' \u00B7 ' + esc(backups.latest) : ''));
         }
         if (bundle.pendingExports > 0) {
             html += railRow(tr('evidenceHub.kpiPendingExports'), '<span class="ev-path-bad">' + esc(String(bundle.pendingExports)) + '</span>');
@@ -123,7 +123,7 @@
     function renderSettingsRail(el, bundle, opts) {
         var html = '<div class="ev-rail-rows">';
         html += overviewRows(bundle, {
-            ftpSvc: opts && opts.ftpSvc != null ? opts.ftpSvc : '—',
+            ftpSvc: opts && opts.ftpSvc != null ? opts.ftpSvc : '\u2014',
             showPaths: true,
             showBackups: true,
         });

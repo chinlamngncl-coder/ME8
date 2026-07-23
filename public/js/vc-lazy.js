@@ -1,12 +1,12 @@
 /**
- * ME8 — load LiveKit + conference hub only when VC tab is opened.
+ * ME8 \u2014 load LiveKit + conference hub only when VC tab is opened.
  */
 (function (global) {
     'use strict';
 
     const VENDOR = '/vendor/livekit-client.umd.min.js?v=20260701-vc-bwc-remove';
     const LAYOUT = '/js/conference-layout.js?v=20260721-vc-fixed-camera-ingress-v1';
-    const HUB = '/js/conference-hub.js?v=20260721-vc-fixed-camera-ingress-v1';
+    const HUB = '/js/conference-hub.js?v=20260723-enterprise-ds-v1';
 
     let loadPromise = null;
 

@@ -1,5 +1,5 @@
 /**
- * Video conference stage — fixed layouts for up to 8 participants, no scroll.
+ * Video conference stage \u2014 fixed layouts for up to 8 participants, no scroll.
  */
 (function (global) {
     const MAX_PEOPLE = 8;
@@ -497,7 +497,7 @@
         syncViewBtns();
     }
 
-    /** Fixed grid for 1–4 share tiles in spotlight pane. */
+    /** Fixed grid for 1\u20134 share tiles in spotlight pane. */
     function fitShareGridDims(count) {
         const n = Math.max(0, Math.min(MAX_SHARE_TILES, count));
         if (n <= 0) return { cols: 1, rows: 1 };
@@ -529,7 +529,7 @@
         innerEl.style.overflow = 'hidden';
     }
 
-    /** Fixed grid for 1–8 tiles — fills pane, no scroll. */
+    /** Fixed grid for 1\u20138 tiles \u2014 fills pane, no scroll. */
     function fitGridDims(count) {
         const n = Math.max(0, Math.min(MAX_PEOPLE, count));
         if (n <= 0) return { cols: 1, rows: 1 };

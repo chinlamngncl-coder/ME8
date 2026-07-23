@@ -1,5 +1,5 @@
 /**
- * Evidence hub — Route trace: GPS breadcrumb map + evidence video scrubber (Axon-style).
+ * Evidence hub \u2014 Route trace: GPS breadcrumb map + evidence video scrubber (Axon-style).
  */
 (function (global) {
     var map = null;
@@ -29,7 +29,7 @@
     }
 
     function fmtLocal(iso) {
-        if (!iso) return '—';
+        if (!iso) return '\u2014';
         try { return new Date(iso).toLocaleString(); } catch (_) { return iso; }
     }
 
@@ -127,7 +127,7 @@
         activeVideo = vid;
         vid.onloadedmetadata = function () {
             var meta = document.getElementById('rt-video-meta');
-            if (meta) meta.textContent = tr('routeTrace.videoReady', 'Video ready — playback syncs with route scrubber.');
+            if (meta) meta.textContent = tr('routeTrace.videoReady', 'Video ready \u2014 playback syncs with route scrubber.');
         };
         vid.ontimeupdate = function () {
             if (scrubbing || !points.length) return;
@@ -151,7 +151,7 @@
         wrap.hidden = false;
         vid.src = '/api/evidence/preview/' + encodeURIComponent(file.id);
         if (meta) {
-            meta.textContent = esc(file.fileName) + ' · ' + fmtLocal(file.uploadedAt);
+            meta.textContent = esc(file.fileName) + ' \u00B7 ' + fmtLocal(file.uploadedAt);
         }
         bindVideoSync();
     }
@@ -236,7 +236,7 @@
         var stat = document.getElementById('rt-stat');
         if (stat) {
             stat.textContent = points.length + ' ' + tr('routeTrace.points', 'points')
-                + (evidenceFiles.length ? (' · ' + evidenceFiles.length + ' ' + tr('routeTrace.evidenceFiles', 'evidence file(s)')) : '');
+                + (evidenceFiles.length ? (' \u00B7 ' + evidenceFiles.length + ' ' + tr('routeTrace.evidenceFiles', 'evidence file(s)')) : '');
         }
     }
 
@@ -247,7 +247,7 @@
             var res = await fetch('/api/bwc-devices', { credentials: 'same-origin' });
             var data = await res.json();
             var devices = (data && data.devices) ? data.devices : [];
-            sel.innerHTML = '<option value="">' + tr('routeTrace.selectBwc', 'Select BWC…') + '</option>'
+            sel.innerHTML = '<option value="">' + tr('routeTrace.selectBwc', 'Select BWC\u2026') + '</option>'
                 + devices.map(function (d) {
                     var label = (d.operatorName || d.deviceId) + ' (' + d.deviceId + ')';
                     return '<option value="' + esc(d.deviceId) + '">' + esc(label) + '</option>';
@@ -266,7 +266,7 @@
             return;
         }
         var bounds = dayBounds(date, fromT, toT);
-        if (msg) msg.textContent = tr('routeTrace.loading', 'Loading…');
+        if (msg) msg.textContent = tr('routeTrace.loading', 'Loading\u2026');
         try {
             var url = '/api/gps-track/route?deviceId=' + encodeURIComponent(deviceId)
                 + '&from=' + encodeURIComponent(bounds.from)
@@ -321,7 +321,7 @@
             return tail + ' (' + reasons + ')';
         });
         el.textContent = tr('routeTrace.highResActive', 'High-res GPS tracking active') + ': ' + labels.join(', ')
-            + ' — ' + tr('routeTrace.highResNote', '~15 s fixes while active.');
+            + ' \u2014 ' + tr('routeTrace.highResNote', '~15 s fixes while active.');
         el.hidden = false;
     }
 

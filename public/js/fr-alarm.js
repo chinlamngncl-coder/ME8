@@ -1,10 +1,10 @@
 /**
- * FR blacklist alarm — crop rail + popup + chime + HQ global bar (all pages).
+ * FR blacklist alarm \u2014 crop rail + popup + chime + HQ global bar (all pages).
  * mob-fr-hq-global-alert-bar: sticky strip until Ack/Dismiss.
  * mob-fr-rail-alert-shell: match rail card overlay + non-blocking alert drawer (layout only).
- * mob-fr-alert-drawer-shell: full drawer layout — video stub, compare photos, meta grid, actions.
- * mob-fr-red-toast-shell: non-blocking red hit toast — lab preview + shell on real hits.
- * mob-fr-hit-go-ops: on hit → auto Operations when not on ops surface; map pan when on Ops + GPS.
+ * mob-fr-alert-drawer-shell: full drawer layout \u2014 video stub, compare photos, meta grid, actions.
+ * mob-fr-red-toast-shell: non-blocking red hit toast \u2014 lab preview + shell on real hits.
+ * mob-fr-hit-go-ops: on hit \u2192 auto Operations when not on ops surface; map pan when on Ops + GPS.
  * mob-fr-go-ops-freeze-fix: safe map invalidateSize after tab switch; lazy toast button bind; Go to map.
  * mob-fr-alert-drawer-info-first: compare/meta above fold; video collapsed footer; sticky actions.
  * mob-fr-alert-drawer-expand: header expand toggle; larger dispatch review mode; session persist.
@@ -21,11 +21,11 @@
  * mob-fr-map-auto-gate: auto dispatch only when score >= FM_FR_MAP_AUTO_SCORE_MIN (default 80).
  * mob-fr-hq-go-map: HQ bar Go to map; Open renamed Open detail.
  * mob-fr-toast-map-always: toast Go to map enabled when camId (any score; fleet GPS fallback).
- * mob-fr-toast-alert-field: toast Alert field — one tap BWC beep (same path as drawer).
+ * mob-fr-toast-alert-field: toast Alert field \u2014 one tap BWC beep (same path as drawer).
  * mob-fr-drawer-map-fallback: drawer Go to map + fleet last-known; enable when camId present.
- * mob-fr-snap-lightbox-float: floating snap card — drag, minimize (Analytics open).
- * mob-fr-snap-map-anchor-card: Show on map → Ops + GPS popup card (no corner keep tab).
- * mob-fr-snap-keep-evidence-pack: Keep → storage/fr-kept + toast hint only (no second UI).
+ * mob-fr-snap-lightbox-float: floating snap card \u2014 drag, minimize (Analytics open).
+ * mob-fr-snap-map-anchor-card: Show on map \u2192 Ops + GPS popup card (no corner keep tab).
+ * mob-fr-snap-keep-evidence-pack: Keep \u2192 storage/fr-kept + toast hint only (no second UI).
  * Speech via VoiceAlerts when available.
  */
 (function (global) {
@@ -76,16 +76,16 @@
             '<span class="fr-red-toast-queue" id="fr-red-toast-queue" hidden></span>' +
             '<button type="button" class="fr-red-toast-minimize" id="fr-red-toast-minimize" ' +
             'title="' + esc(tr('analytics.fr.redToastMinimize', 'Minimize to bar')) + '" aria-label="' +
-            esc(tr('analytics.fr.redToastMinimize', 'Minimize to bar')) + '">−</button>' +
+            esc(tr('analytics.fr.redToastMinimize', 'Minimize to bar')) + '">\u2212</button>' +
             '</div>' +
             '<div class="fr-red-toast-body">' +
             '<div class="fr-red-toast-thumb-wrap">' +
             '<img id="fr-red-toast-thumb" alt="" hidden>' +
-            '<span class="fr-red-toast-thumb-ph" id="fr-red-toast-thumb-ph">—</span>' +
+            '<span class="fr-red-toast-thumb-ph" id="fr-red-toast-thumb-ph">\u2014</span>' +
             '</div>' +
             '<div class="fr-red-toast-text">' +
-            '<p class="fr-red-toast-line1" id="fr-red-toast-line1">—</p>' +
-            '<p class="fr-red-toast-line2" id="fr-red-toast-line2">—</p>' +
+            '<p class="fr-red-toast-line1" id="fr-red-toast-line1">\u2014</p>' +
+            '<p class="fr-red-toast-line2" id="fr-red-toast-line2">\u2014</p>' +
             '</div></div>' +
             '<div class="fr-red-toast-actions">' +
             '<button type="button" class="btn btn-action btn-sm" id="fr-red-toast-map">' +
@@ -165,7 +165,7 @@
         if (!hitCanGoToMap(hit)) {
             btn.disabled = true;
             if (hit && hit._labPreview) {
-                btn.title = tr('analytics.fr.previewDrawerLabHint', 'Layout preview only — not a real match');
+                btn.title = tr('analytics.fr.previewDrawerLabHint', 'Layout preview only \u2014 not a real match');
             } else {
                 btn.title = tr('analytics.fr.mapNoLocation', 'No location for this unit');
             }
@@ -185,7 +185,7 @@
         if (!hit || !hit.camId || hit._labPreview) {
             btn.disabled = true;
             if (hit && hit._labPreview) {
-                btn.title = tr('analytics.fr.previewDrawerLabHint', 'Layout preview only — not a real match');
+                btn.title = tr('analytics.fr.previewDrawerLabHint', 'Layout preview only \u2014 not a real match');
             } else {
                 btn.removeAttribute('title');
             }
@@ -217,17 +217,17 @@
         var line2 = document.getElementById('fr-red-toast-line2');
         var thumb = document.getElementById('fr-red-toast-thumb');
         var thumbPh = document.getElementById('fr-red-toast-thumb-ph');
-        var displayName = hit.displayName || hit.blacklistId || '—';
-        var score = hit.scorePct != null ? String(hit.scorePct) : '—';
+        var displayName = hit.displayName || hit.blacklistId || '\u2014';
+        var score = hit.scorePct != null ? String(hit.scorePct) : '\u2014';
         var device = hit.deviceLabel || friendlyCamName(hit.camId);
         if (line1) {
-            line1.textContent = tr('analytics.fr.redToastLine1', '{name} · {score}%', {
+            line1.textContent = tr('analytics.fr.redToastLine1', '{name} \u00B7 {score}%', {
                 name: displayName,
                 score: score,
             });
         }
         if (line2) {
-            line2.textContent = tr('analytics.fr.redToastLine2', 'BWC {device} · {cam}', {
+            line2.textContent = tr('analytics.fr.redToastLine2', 'BWC {device} \u00B7 {cam}', {
                 device: device,
                 cam: shortCamId(hit.camId),
             });
@@ -313,7 +313,7 @@
         return score >= mapAutoScoreMin();
     }
 
-    /** Auto map/tab on hit — grade tier + score >= mapAutoScoreMin (default 80). */
+    /** Auto map/tab on hit \u2014 grade tier + score >= mapAutoScoreMin (default 80). */
     function shouldAutoMapForHit(hit) {
         if (!hit || hit._labPreview) return false;
         if (!frAutoMapEnabled()) return false;
@@ -327,13 +327,13 @@
         return tier === 'medium' || tier === 'high';
     }
 
-    /** Auto tab/pan on hit — master switch + shouldAutoMapForHit. */
+    /** Auto tab/pan on hit \u2014 master switch + shouldAutoMapForHit. */
     function shouldAutoGoOpsForHit(hit) {
         if (!frAutoGoOpsEnabled()) return false;
         return shouldAutoMapForHit(hit);
     }
 
-    /** Ops, command wall, or conference — do not auto-switch away on hit. */
+    /** Ops, command wall, or conference \u2014 do not auto-switch away on hit. */
     function isOperationalSurface() {
         return viewVisible('app-view-ops')
             || viewVisible('app-view-command-wall')
@@ -576,7 +576,7 @@
         if (!hit) return;
         if (hit._labPreview) {
             if (opts.explicit) {
-                showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only — not a real match'), 5000);
+                showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only \u2014 not a real match'), 5000);
             }
             return;
         }
@@ -635,7 +635,7 @@
             b.classList.toggle('fr-standby-ptt-active', active);
             b.setAttribute('aria-pressed', active ? 'true' : 'false');
             if (active) {
-                b.textContent = tr('analytics.fr.standbyPttTeamOnBtn', 'Standby PTT · ON');
+                b.textContent = tr('analytics.fr.standbyPttTeamOnBtn', 'Standby PTT \u00B7 ON');
             } else {
                 b.textContent = tr('analytics.fr.standbyPttTeam', 'Standby PTT team');
             }
@@ -645,7 +645,7 @@
             if (active) {
                 var labels = activeStandbyTeam.map(friendlyCamName).join(', ');
                 status.hidden = false;
-                status.textContent = tr('analytics.fr.standbyPttTeamOn', 'Standby PTT ON — {n} unit(s): {names}. Hold PTT on map or wall.', {
+                status.textContent = tr('analytics.fr.standbyPttTeamOn', 'Standby PTT ON \u2014 {n} unit(s): {names}. Hold PTT on map or wall.', {
                     n: activeStandbyTeam.length,
                     names: labels,
                 });
@@ -663,7 +663,7 @@
         global.activeFrStandbyPttTeam = activeStandbyTeam;
         syncStandbyPttUi();
         var names = activeStandbyTeam.map(friendlyCamName).join(' + ');
-        showStandbyToast(tr('analytics.fr.standbyPttTeamOk', 'Standby PTT ON — {names} ({n} units). Hold PTT to talk.', {
+        showStandbyToast(tr('analytics.fr.standbyPttTeamOk', 'Standby PTT ON \u2014 {names} ({n} units). Hold PTT to talk.', {
             names: names,
             n: activeStandbyTeam.length,
         }), 14000);
@@ -676,7 +676,7 @@
             return;
         }
         if (current._labPreview) {
-            showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only — not a real match'), 5000);
+            showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only \u2014 not a real match'), 5000);
             return;
         }
         var btn = document.getElementById('fr-alarm-standby-ptt');
@@ -686,7 +686,7 @@
         if (btn) btn.disabled = true;
         if (hqBtn) hqBtn.disabled = true;
         if (drawerBtn) drawerBtn.disabled = true;
-        showStandbyToast(tr('analytics.fr.standbyPttPushing', 'Pushing standby PTT team…'), 8000);
+        showStandbyToast(tr('analytics.fr.standbyPttPushing', 'Pushing standby PTT team\u2026'), 8000);
 
         var camId = current.camId;
         var helpers = [];
@@ -786,9 +786,9 @@
 
     function makeEmptyCropCard() {
         var card = document.createElement('div');
-        card.className = 'ax-fr-crop-card is-empty';
+        card.className = 'ax-fr-crop-card is-empty ax-fr-sidebar-placeholder';
         card.dataset.cropUrl = '';
-        card.innerHTML = '<div class="ax-fr-crop-ph">—</div>';
+        card.innerHTML = '<div class="ax-fr-crop-ph">\u2014</div>';
         return card;
     }
 
@@ -843,7 +843,7 @@
             delete card.dataset.gpsAt;
         }
         if (t.scorePct != null && Number.isFinite(Number(t.scorePct))) {
-            /* mob-fr-snap-hide-zero-score — rolling path sends 0; do not store fake scores */
+            /* mob-fr-snap-hide-zero-score \u2014 rolling path sends 0; do not store fake scores */
             if (Number(t.scorePct) > 0 || t.match) {
                 card.dataset.scorePct = String(t.scorePct);
             } else {
@@ -956,8 +956,8 @@
             inner += '<span class="ax-fr-crop-match-badge">' +
                 esc(tr('analytics.fr.railMatchBadge', 'MATCH')) + '</span>';
             inner += '<div class="ax-fr-crop-match-meta">';
-            inner += '<span class="ax-fr-crop-match-name">' + esc(name || '—') + '</span>';
-            inner += '<span class="ax-fr-crop-match-score">' + esc(score || '—') + '</span>';
+            inner += '<span class="ax-fr-crop-match-name">' + esc(name || '\u2014') + '</span>';
+            inner += '<span class="ax-fr-crop-match-score">' + esc(score || '\u2014') + '</span>';
             inner += '</div>';
             return inner;
         }
@@ -986,7 +986,7 @@
             clearCropSlotMeta(card);
         }
         card.className = 'ax-fr-crop-card'
-            + (url ? (isMatch ? ' is-match' : '') : ' is-empty')
+            + (url ? (isMatch ? ' is-match' : '') : ' is-empty ax-fr-sidebar-placeholder')
             + (hasNearScore ? ' is-near-score' : '');
         if (url && isMatch && grade) {
             card.classList.add('is-grade-' + grade);
@@ -1003,7 +1003,7 @@
             };
             card.ondblclick = card.onclick;
         } else {
-            card.innerHTML = '<div class="ax-fr-crop-ph">—</div>';
+            card.innerHTML = '<div class="ax-fr-crop-ph">\u2014</div>';
             card.onclick = null;
             card.ondblclick = null;
         }
@@ -1023,7 +1023,7 @@
     }
 
     /**
-     * mob-fr-matches-chip-snap-size — Matches chips match one Recent snap cell size.
+     * mob-fr-matches-chip-snap-size \u2014 Matches chips match one Recent snap cell size.
      */
     function syncHitsChipSizeToSnap() {
         var list = document.getElementById('ax-fr-hits-list');
@@ -1073,7 +1073,7 @@
         }
         syncHitsOverflowBadge();
         bindHitsChipResize();
-        /* After rail layout paints — measure real snap cell */
+        /* After rail layout paints \u2014 measure real snap cell */
         if (typeof requestAnimationFrame === 'function') {
             requestAnimationFrame(function () {
                 syncHitsChipSizeToSnap();
@@ -1128,12 +1128,12 @@
 
     function pushCrop(tick) {
         if (!tick) return;
-        /* mob-fr-hits-toolbar-chips — known-subject matches → Known subjects bar */
+        /* mob-fr-hits-toolbar-chips \u2014 known-subject matches \u2192 Known subjects bar */
         if (tick.match && tick.cropUrl) {
             pushSubjectMatch(tick);
             return;
         }
-        /* mob-fr-rail-scored-only — ignore unscored rolling twins on Recent */
+        /* mob-fr-rail-scored-only \u2014 ignore unscored rolling twins on Recent */
         if (tick.rolling) return;
         var scoreNum = tick.scorePct != null && Number.isFinite(Number(tick.scorePct))
             ? Number(tick.scorePct) : 0;
@@ -1178,7 +1178,7 @@
     }
 
     function formatSnapTime(iso) {
-        if (!iso) return '—';
+        if (!iso) return '\u2014';
         try {
             var d = new Date(iso);
             if (isNaN(d.getTime())) return String(iso);
@@ -1196,7 +1196,7 @@
         if (!snapHasGps(slot)) return tr('analytics.fr.snapNoGps', 'No GPS');
         var s = slot.lat.toFixed(6) + ', ' + slot.lon.toFixed(6);
         if (slot.gpsAt) {
-            s += ' · ' + tr('analytics.fr.snapGpsAt', 'GPS {time}', { time: formatSnapTime(slot.gpsAt) });
+            s += ' \u00B7 ' + tr('analytics.fr.snapGpsAt', 'GPS {time}', { time: formatSnapTime(slot.gpsAt) });
         }
         return s;
     }
@@ -1237,7 +1237,7 @@
             return;
         }
         var ok = false;
-        /* mob-fr-snap-map-anchor-card — prefer map-anchored popup over corner float */
+        /* mob-fr-snap-map-anchor-card \u2014 prefer map-anchored popup over corner float */
         if (typeof global.openFrSnapMapAnchorCard === 'function') {
             ok = !!global.openFrSnapMapAnchorCard(slot);
         } else if (typeof global.showFrSnapOnMap === 'function') {
@@ -1261,7 +1261,7 @@
         el.classList.toggle('is-minimized', !!minimized);
         var minBtn = el.querySelector('.fr-snap-float-min');
         if (minBtn) {
-            minBtn.textContent = minimized ? '□' : '−';
+            minBtn.textContent = minimized ? '□' : '\u2212';
             minBtn.setAttribute('aria-label', minimized
                 ? tr('analytics.fr.snapExpand', 'Expand')
                 : tr('analytics.fr.snapMinimize', 'Minimize'));
@@ -1274,10 +1274,10 @@
         el._tick = slot;
         var img = el.querySelector('img');
         if (img) img.src = slot.cropUrl || '';
-        var name = slot.deviceLabel || (slot.camId ? friendlyCamName(slot.camId) : '—');
+        var name = slot.deviceLabel || (slot.camId ? friendlyCamName(slot.camId) : '\u2014');
         var titleEl = el.querySelector('.fr-snap-float-title');
         if (titleEl) {
-            titleEl.textContent = tr('analytics.fr.snapFloatTitleNamed', 'Snapshot · {name}', {
+            titleEl.textContent = tr('analytics.fr.snapFloatTitleNamed', 'Snapshot \u00B7 {name}', {
                 name: name,
             });
         }
@@ -1286,9 +1286,9 @@
         var gpsEl = el.querySelector('.fr-snap-meta-gps');
         var scoreEl = el.querySelector('.fr-snap-meta-score');
         if (bwcEl) {
-            bwcEl.textContent = tr('analytics.fr.snapMetaBwc', '{name} · {cam}', {
+            bwcEl.textContent = tr('analytics.fr.snapMetaBwc', '{name} \u00B7 {cam}', {
                 name: name,
-                cam: slot.camId || '—',
+                cam: slot.camId || '\u2014',
             });
         }
         if (timeEl) {
@@ -1298,7 +1298,7 @@
         }
         if (gpsEl) gpsEl.textContent = formatSnapGps(slot);
         if (scoreEl) {
-            /* mob-fr-snap-hide-zero-score — 0% from rolling is not a real gallery score */
+            /* mob-fr-snap-hide-zero-score \u2014 0% from rolling is not a real gallery score */
             var showScore = slot.scorePct != null && Number.isFinite(slot.scorePct)
                 && (slot.match || Number(slot.scorePct) > 0);
             if (showScore) {
@@ -1330,9 +1330,9 @@
             '<span class="fr-snap-float-title">' +
             esc(tr('analytics.fr.snapFloatTitle', 'Snapshot')) + '</span>' +
             '<button type="button" class="fr-snap-float-btn fr-snap-float-min" aria-label="' +
-            esc(tr('analytics.fr.snapMinimize', 'Minimize')) + '">−</button>' +
+            esc(tr('analytics.fr.snapMinimize', 'Minimize')) + '">\u2212</button>' +
             '<button type="button" class="fr-snap-float-btn fr-snap-float-close" aria-label="' +
-            esc(tr('common.close', 'Close')) + '">×</button>' +
+            esc(tr('common.close', 'Close')) + '">\u00D7</button>' +
             '</div>' +
             '<div class="fr-snap-lightbox-body">' +
             '<div class="fr-snap-lightbox-inner">' +
@@ -1404,7 +1404,7 @@
         bindSnapFloatDrag(el);
     }
 
-    /** mob-fr-offline-crop-play-at — investigation Play (match not required) */
+    /** mob-fr-offline-crop-play-at \u2014 investigation Play (match not required) */
     function openOfflineCropPlay(slot) {
         if (!slot || !slot.playUrl || !slot.jobId) {
             showStandbyToast(tr('analytics.fr.snapPlayGone', 'Video no longer available. Load the file again.'), 4000);
@@ -1436,7 +1436,7 @@
         var title = dlg.querySelector('.fr-offline-play-title');
         var video = dlg.querySelector('video');
         if (title) {
-            title.textContent = tr('analytics.fr.snapPlayTitle', 'Play · {name} @ {t}s', {
+            title.textContent = tr('analytics.fr.snapPlayTitle', 'Play \u00B7 {name} @ {t}s', {
                 name: slot.deviceLabel || slot.camId || 'video',
                 t: tSec,
             });
@@ -1471,18 +1471,18 @@
     }
 
     /**
-     * mob-fr-snap-keep-evidence-pack — disk only + toast; no second floating tab
-     * mob-fr-map-keep-require-crop — refuse without cropUrl; clearer fail toasts
+     * mob-fr-snap-keep-evidence-pack \u2014 disk only + toast; no second floating tab
+     * mob-fr-map-keep-require-crop \u2014 refuse without cropUrl; clearer fail toasts
      */
     function keepEvidencePack(slot) {
         if (!slot || !slot.cropUrl) {
             showStandbyToast(tr(
                 'analytics.fr.snapKeepNoCrop',
-                'No face crop for this pin — open the snap again to Keep'
+                'No face crop for this pin \u2014 open the snap again to Keep'
             ), 4000);
             return;
         }
-        showStandbyToast(tr('analytics.fr.snapKeeping', 'Saving for investigation…'), 4000);
+        showStandbyToast(tr('analytics.fr.snapKeeping', 'Saving for investigation\u2026'), 4000);
         fetch(slot.cropUrl, { credentials: 'same-origin' })
             .then(function (r) {
                 if (!r.ok) {
@@ -1520,7 +1520,7 @@
                     if (pack.status === 403) {
                         showStandbyToast(tr(
                             'analytics.fr.snapKeepNotLicensed',
-                            'Face recognition is not licensed — cannot Keep'
+                            'Face recognition is not licensed \u2014 cannot Keep'
                         ), 4500);
                     } else {
                         showStandbyToast(tr(
@@ -1543,7 +1543,7 @@
                 if (err && err.code === 'crop_fetch') {
                     showStandbyToast(tr(
                         'analytics.fr.snapKeepCropGone',
-                        'Crop expired — open the snap again, then Keep'
+                        'Crop expired \u2014 open the snap again, then Keep'
                     ), 4500);
                     return;
                 }
@@ -1648,10 +1648,10 @@
             '<div class="fr-alert-drawer-header">' +
             '<h3 class="fr-alert-drawer-title" id="fr-alert-drawer-title">' +
             esc(tr('analytics.fr.alertDrawerTitle', 'Face match alert')) + '</h3>' +
-            '<span class="fr-alert-drawer-score-pill" id="fr-alert-drawer-score-pill">—</span>' +
+            '<span class="fr-alert-drawer-score-pill" id="fr-alert-drawer-score-pill">\u2014</span>' +
             '<button type="button" class="fr-alert-drawer-expand" id="fr-alert-drawer-expand" ' +
             'aria-pressed="false" aria-label="' + esc(tr('analytics.fr.alertDrawerExpand', 'Expand')) + '">⤢</button>' +
-            '<button type="button" class="fr-alert-drawer-close" id="fr-alert-drawer-close" aria-label="Close">×</button>' +
+            '<button type="button" class="fr-alert-drawer-close" id="fr-alert-drawer-close" aria-label="Close">\u00D7</button>' +
             '</div>' +
             '<div class="fr-alert-drawer-body">' +
             '<div class="fr-alert-drawer-compare">' +
@@ -1669,18 +1669,18 @@
             esc(tr('analytics.fr.alertDrawerNoPhoto', 'No photo')) + '</span></div></div></div>' +
             '<div class="fr-alert-drawer-meta-grid">' +
             '<span class="fr-alert-drawer-meta-k">' + esc(tr('analytics.fr.alertDrawerMetaName', 'Name')) + '</span>' +
-            '<span class="fr-alert-drawer-meta-v" id="fr-alert-drawer-meta-name">—</span>' +
+            '<span class="fr-alert-drawer-meta-v" id="fr-alert-drawer-meta-name">\u2014</span>' +
             '<span class="fr-alert-drawer-meta-k">' + esc(tr('analytics.fr.alertDrawerMetaScore', 'Match')) + '</span>' +
-            '<span class="fr-alert-drawer-meta-v" id="fr-alert-drawer-meta-score">—</span>' +
+            '<span class="fr-alert-drawer-meta-v" id="fr-alert-drawer-meta-score">\u2014</span>' +
             '<span class="fr-alert-drawer-meta-k">' + esc(tr('analytics.fr.alertDrawerMetaBwc', 'BWC')) + '</span>' +
-            '<span class="fr-alert-drawer-meta-v" id="fr-alert-drawer-meta-bwc">—</span>' +
+            '<span class="fr-alert-drawer-meta-v" id="fr-alert-drawer-meta-bwc">\u2014</span>' +
             '<span class="fr-alert-drawer-meta-k">' + esc(tr('analytics.fr.alertDrawerMetaTime', 'Time')) + '</span>' +
-            '<span class="fr-alert-drawer-meta-v" id="fr-alert-drawer-meta-time">—</span>' +
+            '<span class="fr-alert-drawer-meta-v" id="fr-alert-drawer-meta-time">\u2014</span>' +
             '<span class="fr-alert-drawer-meta-k">' + esc(tr('analytics.fr.alertDrawerMetaGps', 'GPS')) + '</span>' +
-            '<span class="fr-alert-drawer-meta-v" id="fr-alert-drawer-meta-gps">—</span></div>' +
+            '<span class="fr-alert-drawer-meta-v" id="fr-alert-drawer-meta-gps">\u2014</span></div>' +
             '<p class="fr-alert-drawer-grade" id="fr-alert-drawer-dossier" hidden>' +
-            '<span id="fr-alert-drawer-grade" class="ax-bl-grade">—</span> ' +
-            '<span id="fr-alert-drawer-reason">—</span></p>' +
+            '<span id="fr-alert-drawer-grade" class="ax-bl-grade">\u2014</span> ' +
+            '<span id="fr-alert-drawer-reason">\u2014</span></p>' +
             '<p class="fr-alert-drawer-field-status" id="fr-alert-drawer-field-status" hidden></p>' +
             '</div>' +
             '<div class="fr-alert-drawer-actions">' +
@@ -1854,20 +1854,20 @@
         var mapBtn = document.getElementById('fr-alert-drawer-map');
         var fieldStatus = document.getElementById('fr-alert-drawer-field-status');
         var videoSrc = document.getElementById('fr-alert-drawer-video-source');
-        var displayName = hit.displayName || hit.blacklistId || '—';
-        var scoreText = hit.scorePct != null ? String(hit.scorePct) + '%' : '—';
+        var displayName = hit.displayName || hit.blacklistId || '\u2014';
+        var scoreText = hit.scorePct != null ? String(hit.scorePct) + '%' : '\u2014';
         if (scorePill) scorePill.textContent = scoreText;
         if (videoSrc) videoSrc.textContent = hit.camId || tr('analytics.fr.alertDrawerVideoSource', 'BWC');
         if (nameEl) nameEl.textContent = displayName;
         if (scoreEl) scoreEl.textContent = scoreText;
         if (bwcEl) {
-            bwcEl.textContent = tr('analytics.fr.snapMetaBwc', '{name} · {cam}', {
+            bwcEl.textContent = tr('analytics.fr.snapMetaBwc', '{name} \u00B7 {cam}', {
                 name: hit.deviceLabel || displayName,
-                cam: hit.camId || '—',
+                cam: hit.camId || '\u2014',
             });
         }
         if (timeEl) {
-            timeEl.textContent = hit.at ? formatSnapTime(hit.at) : (hit.detectedAt ? formatSnapTime(hit.detectedAt) : '—');
+            timeEl.textContent = hit.at ? formatSnapTime(hit.at) : (hit.detectedAt ? formatSnapTime(hit.detectedAt) : '\u2014');
         }
         if (gpsEl) {
             gpsEl.textContent = drawerGpsLine(hit);
@@ -1934,10 +1934,10 @@
         var textEl = document.getElementById('fr-hq-alert-text');
         var pendEl = document.getElementById('fr-hq-alert-pending');
         if (textEl) {
-            textEl.textContent = tr('analytics.fr.hqBarText', '{name} · {cam} · {score}%', {
-                name: hit.displayName || hit.blacklistId || '—',
-                cam: hit.deviceLabel || hit.camId || '—',
-                score: hit.scorePct != null ? hit.scorePct : '—',
+            textEl.textContent = tr('analytics.fr.hqBarText', '{name} \u00B7 {cam} \u00B7 {score}%', {
+                name: hit.displayName || hit.blacklistId || '\u2014',
+                cam: hit.deviceLabel || hit.camId || '\u2014',
+                score: hit.scorePct != null ? hit.scorePct : '\u2014',
             });
         }
         if (pendEl) {
@@ -1963,9 +1963,9 @@
         var scoreEl = document.getElementById('fr-alarm-score');
         var cropEl = document.getElementById('fr-alarm-crop');
         var photoEl = document.getElementById('fr-alarm-photo');
-        if (nameEl) nameEl.textContent = hit.displayName || hit.blacklistId || '—';
-        if (camEl) camEl.textContent = (hit.deviceLabel || hit.camId || '—');
-        if (scoreEl) scoreEl.textContent = String(hit.scorePct != null ? hit.scorePct : '—') + '%';
+        if (nameEl) nameEl.textContent = hit.displayName || hit.blacklistId || '\u2014';
+        if (camEl) camEl.textContent = (hit.deviceLabel || hit.camId || '\u2014');
+        if (scoreEl) scoreEl.textContent = String(hit.scorePct != null ? hit.scorePct : '\u2014') + '%';
         var dossier = document.getElementById('fr-alarm-dossier');
         var gradeEl = document.getElementById('fr-alarm-grade');
         var reasonEl = document.getElementById('fr-alarm-reason');
@@ -2027,7 +2027,7 @@
     }
 
     function hideModal() {
-        /* Ack/Dismiss path — clear active + bar; may open next queued hit */
+        /* Ack/Dismiss path \u2014 clear active + bar; may open next queued hit */
         clearActive();
     }
 
@@ -2076,7 +2076,7 @@
     function onFrToastGoMap() {
         if (current) {
             if (current._labPreview) {
-                showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only — not a real match'), 5000);
+                showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only \u2014 not a real match'), 5000);
                 return;
             }
             goOpsOnHit(current, { explicit: true });
@@ -2136,7 +2136,7 @@
         if (!current || !current.camId) return;
         if (current._labPreview) {
             showDrawerFieldStatus(false, 'lab');
-            showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only — not a real match'), 5000);
+            showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only \u2014 not a real match'), 5000);
             return;
         }
         setFieldBtnBusy(true);
@@ -2151,11 +2151,11 @@
         if (ok) {
             el.textContent = tr('analytics.fr.alarmFieldOk', 'Field alert sent');
         } else if (err === 'lab') {
-            el.textContent = tr('analytics.fr.previewDrawerLabHint', 'Layout preview only — not a real match');
+            el.textContent = tr('analytics.fr.previewDrawerLabHint', 'Layout preview only \u2014 not a real match');
         } else if (err === 'cooldown') {
             el.textContent = tr('analytics.fr.alarmFieldCooldown', 'Wait a few seconds before alerting again');
         } else {
-            el.textContent = tr('analytics.fr.alarmFieldFail', 'Field alert failed — BWC not on PTT or no SIP contact');
+            el.textContent = tr('analytics.fr.alarmFieldFail', 'Field alert failed \u2014 BWC not on PTT or no SIP contact');
         }
     }
 
@@ -2174,7 +2174,7 @@
             } else if (err === 'cooldown') {
                 el.textContent = tr('analytics.fr.alarmFieldCooldown', 'Wait a few seconds before alerting again');
             } else {
-                el.textContent = tr('analytics.fr.alarmFieldFail', 'Field alert failed — BWC not on PTT or no SIP contact');
+                el.textContent = tr('analytics.fr.alarmFieldFail', 'Field alert failed \u2014 BWC not on PTT or no SIP contact');
             }
             meta.parentNode.insertBefore(el, meta.nextSibling);
         }
@@ -2184,7 +2184,7 @@
     function showHitOnMapFromCurrent() {
         if (!current) return;
         if (current._labPreview) {
-            showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only — not a real match'), 5000);
+            showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only \u2014 not a real match'), 5000);
             return;
         }
         goOpsOnHit(current, { explicit: true });
@@ -2200,7 +2200,7 @@
             hitId: 'lab-preview-' + Date.now(),
             camId: camId,
             deviceLabel: friendlyCamName(camId),
-            displayName: tr('analytics.fr.previewDrawerLabHint', 'Layout preview only — not a real match'),
+            displayName: tr('analytics.fr.previewDrawerLabHint', 'Layout preview only \u2014 not a real match'),
             blacklistId: 'lab-preview',
             scorePct: 87,
             cropUrl: '',
@@ -2216,14 +2216,14 @@
 
     function previewRedToastLab() {
         var hit = buildLabPreviewHit();
-        hit.displayName = tr('analytics.fr.previewDrawerLabHint', 'Layout preview only — not a real match');
+        hit.displayName = tr('analytics.fr.previewDrawerLabHint', 'Layout preview only \u2014 not a real match');
         showRedToast(hit);
-        showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only — not a real match'), 6000);
+        showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only \u2014 not a real match'), 6000);
     }
 
     function previewAlertDrawerLab() {
         if (current && !current._labPreview) {
-            showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only — not a real match'), 5000);
+            showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only \u2014 not a real match'), 5000);
             openAlertDrawerShell(current);
             return;
         }
@@ -2232,7 +2232,7 @@
         fillModal(hit);
         updateHqBar(hit);
         openAlertDrawerShell(hit);
-        showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only — not a real match'), 6000);
+        showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only \u2014 not a real match'), 6000);
     }
 
     function applyFrLabPreviewGate(enabled) {

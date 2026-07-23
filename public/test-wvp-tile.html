@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ME8 — one tile from WVP (lab)</title>
+    <title>ME8 &mdash; one tile from WVP (lab)</title>
     <style>
         * { box-sizing: border-box; }
         body { font-family: system-ui, sans-serif; margin: 0; padding: 1rem; background: #111; color: #eee; }
@@ -40,22 +40,22 @@
 </head>
 <body>
     <h1>One live tile from WVP <span id="badge" class="badge">idle</span></h1>
-    <p>Lab only — <strong>not</strong> the command wall. Same fast path as WVP Play, shown inside Fleet login.</p>
+    <p>Lab only &mdash; <strong>not</strong> the command wall. Same fast path as WVP Play, shown inside Fleet login.</p>
     <ol>
         <li>WVP lab up (<code>START-WVP-LAB.bat</code>). Host play port <strong>80</strong> mapped.</li>
         <li>Point <strong>one</strong> GB cam at LAN IP, SIP port <strong>5061</strong> (not Fleet 5060).</li>
-        <li>Refresh devices → select channel → <strong>Play</strong>.</li>
+        <li>Refresh devices &rarr; select channel &rarr; <strong>Play</strong>.</li>
         <li>When done, put the cam back on Fleet <strong>5060</strong>.</li>
     </ol>
 
     <div class="row">
         <div class="field">
             <label for="deviceSel">Device</label>
-            <select id="deviceSel"><option value="">— load devices —</option></select>
+            <select id="deviceSel"><option value="">&mdash; load devices &mdash;</option></select>
         </div>
         <div class="field">
             <label for="channelSel">Channel</label>
-            <select id="channelSel"><option value="">—</option></select>
+            <select id="channelSel"><option value="">&mdash;</option></select>
         </div>
     </div>
     <div class="row">
@@ -93,7 +93,7 @@
 
     function log(msg) {
         var t = new Date().toLocaleTimeString();
-        logEl.textContent = t + ' — ' + msg + '\n' + logEl.textContent;
+        logEl.textContent = t + ' \u2014 ' + msg + '\n' + logEl.textContent;
     }
 
     function setBadge(text, cls) {
@@ -106,10 +106,10 @@
         var text = await res.text();
         var trimmed = (text || '').trim();
         if (!trimmed) {
-            throw new Error('Empty reply (HTTP ' + res.status + ') — re-login Fleet on http://192.168.1.38:3988');
+            throw new Error('Empty reply (HTTP ' + res.status + ') \u2014 re-login Fleet on http://192.168.1.38:3988');
         }
         if (trimmed.charAt(0) === '<' || /login\.html/i.test(trimmed)) {
-            throw new Error('Got login page, not API — open Fleet login first, then this page again (same host 192.168.1.38)');
+            throw new Error('Got login page, not API \u2014 open Fleet login first, then this page again (same host 192.168.1.38)');
         }
         try {
             return JSON.parse(trimmed);
@@ -171,7 +171,7 @@
         player.attachMediaElement(video);
         player.load();
         var p = video.play();
-        if (p && p.catch) p.catch(function () { log('autoplay blocked — click video'); });
+        if (p && p.catch) p.catch(function () { log('autoplay blocked \u2014 click video'); });
         setBadge('playing', 'ok');
         log((opts.via || 'play') + ' ' + abs);
         try {
@@ -179,7 +179,7 @@
                 log('mpegts error: ' + errType + ' ' + (errDetail || ''));
                 if (opts.fallbackUrl && !opts._fellBack) {
                     opts._fellBack = true;
-                    log('direct failed → Fleet proxy');
+                    log('direct failed \u2192 Fleet proxy');
                     playFlv(opts.fallbackUrl, { via: 'proxy-fallback' });
                     return;
                 }
@@ -194,7 +194,7 @@
             var st = await fetch('/api/lab/wvp/status', { credentials: 'same-origin' });
             var stData = await readJson(st);
             if (!st.ok) {
-                log((stData && stData.error) || 'status failed — login to Fleet first? FM_LAB_WVP=1?');
+                log((stData && stData.error) || 'status failed \u2014 login to Fleet first? FM_LAB_WVP=1?');
                 setBadge('auth/status fail', 'bad');
                 return;
             }
@@ -209,7 +209,7 @@
             deviceSel.innerHTML = '';
             var list = data.list || [];
             if (!list.length) {
-                deviceSel.innerHTML = '<option value="">(no devices — register cam on SIP 5061)</option>';
+                deviceSel.innerHTML = '<option value="">(no devices \u2014 register cam on SIP 5061)</option>';
                 setBadge('no devices', 'bad');
                 log('No WVP devices. Point one cam at WVP port 5061.');
                 return;
@@ -217,7 +217,7 @@
             list.forEach(function (d) {
                 var opt = document.createElement('option');
                 opt.value = d.deviceId;
-                opt.textContent = (d.online ? '[ON] ' : '[off] ') + (d.name || d.deviceId) + ' — ' + d.deviceId;
+                opt.textContent = (d.online ? '[ON] ' : '[off] ') + (d.name || d.deviceId) + ' \u2014 ' + d.deviceId;
                 deviceSel.appendChild(opt);
             });
             deviceInput.value = list[0].deviceId;
@@ -230,7 +230,7 @@
     }
 
     async function loadChannels(deviceId) {
-        channelSel.innerHTML = '<option value="">…</option>';
+        channelSel.innerHTML = '<option value="">\u2026</option>';
         if (!deviceId) return;
         var res = await fetch('/api/lab/wvp/devices/' + encodeURIComponent(deviceId) + '/channels', { credentials: 'same-origin' });
         var data = await readJson(res);
@@ -242,7 +242,7 @@
         (data.list || []).forEach(function (ch) {
             var opt = document.createElement('option');
             opt.value = ch.channelId;
-            opt.textContent = (ch.name || ch.channelId) + ' — ' + ch.channelId;
+            opt.textContent = (ch.name || ch.channelId) + ' \u2014 ' + ch.channelId;
             channelSel.appendChild(opt);
         });
         if (data.list && data.list[0]) {
@@ -269,7 +269,7 @@
         }
         destroyPlayer();
         try {
-            log('Starting WVP play…');
+            log('Starting WVP play\u2026');
             var res = await fetch('/api/lab/wvp/play', {
                 method: 'POST',
                 credentials: 'same-origin',

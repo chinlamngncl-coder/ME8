@@ -1,6 +1,6 @@
 /**
 
- * Unified operator error display — use instead of raw err.message / data.error in the UI.
+ * Unified operator error display \u2014 use instead of raw err.message / data.error in the UI.
 
  */
 
@@ -104,7 +104,7 @@
 
 
 
-    /** Safe JSON fetch — never surfaces parse/HTML errors to operators. */
+    /** Safe JSON fetch \u2014 never surfaces parse/HTML errors to operators. */
 
     async function fetchOpJson(url, options, fallbackKey) {
 

@@ -1,5 +1,5 @@
 /**
- * Leaflet basemap — local offline tiles when data/gis/offline/tiles exists, else OSM.
+ * Leaflet basemap \u2014 local offline tiles when data/gis/offline/tiles exists, else OSM.
  * CN trial packs ship with offline tiles; APAC trial falls back to OSM.
  */
 (function (global) {
@@ -10,7 +10,7 @@
         attribution: '© OpenStreetMap contributors',
     };
 
-    var OFFLINE_ATTR = '© OpenStreetMap · offline tiles (local)';
+    var OFFLINE_ATTR = '© OpenStreetMap \u00B7 offline tiles (local)';
 
     function useOfflineTiles(cfg) {
         if (!cfg || !cfg.tilesExists || !cfg.tileUrlTemplate) return false;
@@ -48,7 +48,7 @@
                 var url = useOffline ? cfg.tileUrlTemplate : OSM.url;
                 var attribution = useOffline ? OFFLINE_ATTR : OSM.attribution;
                 if (offlineOnly() && !useOffline) {
-                    attribution = 'Offline map pack missing — run BUILD-CHINA-OFFLINE-TILES.ps1';
+                    attribution = 'Offline map pack missing \u2014 run BUILD-CHINA-OFFLINE-TILES.ps1';
                     url = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
                 }
                 var layer = L.tileLayer(url, Object.assign({}, baseOpts, { attribution: attribution }));

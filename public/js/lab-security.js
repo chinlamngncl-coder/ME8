@@ -1,5 +1,5 @@
 /**
- * Identity & monitoring tab — IdP/OIDC, metrics (engineer PIN).
+ * Identity & monitoring tab \u2014 IdP/OIDC, metrics (engineer PIN).
  */
 (function (global) {
     let loaded = false;
@@ -41,7 +41,7 @@
         document.getElementById('lab-oidc-client-id').value = pub.oidcClientId || 'mobility-dashboard';
         const secEl = document.getElementById('lab-oidc-client-secret');
         secEl.value = '';
-        secEl.placeholder = pub.oidcClientSecretSet ? '(saved — leave blank to keep)' : 'Client secret';
+        secEl.placeholder = pub.oidcClientSecretSet ? '(saved \u2014 leave blank to keep)' : 'Client secret';
         document.getElementById('lab-oidc-scopes').value = pub.oidcScopes || 'openid profile email groups';
         document.getElementById('lab-oidc-admin-groups').value = pub.oidcAdminGroups || '';
         document.getElementById('lab-oidc-operator-groups').value = pub.oidcOperatorGroups || '';
@@ -53,10 +53,10 @@
         document.getElementById('lab-metrics-enabled').checked = pub.metricsEnabled !== false;
         const mt = document.getElementById('lab-metrics-token');
         mt.value = '';
-        mt.placeholder = pub.metricsTokenSet ? '(saved — leave blank to keep)' : 'Bearer token for /api/metrics';
+        mt.placeholder = pub.metricsTokenSet ? '(saved \u2014 leave blank to keep)' : 'Bearer token for /api/metrics';
         const at = document.getElementById('lab-audit-token');
         at.value = '';
-        at.placeholder = pub.auditExportTokenSet ? '(saved — leave blank to keep)' : 'Optional SIEM export token';
+        at.placeholder = pub.auditExportTokenSet ? '(saved \u2014 leave blank to keep)' : 'Optional SIEM export token';
         document.getElementById('lab-notes').value = pub.notes || '';
     }
 
@@ -91,7 +91,7 @@
 
     async function loadSettings() {
         const status = document.getElementById('lab-status');
-        if (status) status.textContent = 'Loading…';
+        if (status) status.textContent = 'Loading\u2026';
         try {
             const res = await fetch('/api/lab-security/settings', { credentials: 'same-origin' });
             const data = await res.json();
@@ -107,7 +107,7 @@
 
     async function saveSettings() {
         const status = document.getElementById('lab-status');
-        if (status) status.textContent = 'Saving…';
+        if (status) status.textContent = 'Saving\u2026';
         try {
             const res = await fetch('/api/lab-security/settings', {
                 method: 'POST',
@@ -130,7 +130,7 @@
 
     async function testOidc() {
         const out = document.getElementById('lab-oidc-test-result');
-        if (out) out.textContent = 'Testing discovery…';
+        if (out) out.textContent = 'Testing discovery\u2026';
         try {
             const res = await fetch('/api/lab-security/test-oidc', {
                 method: 'POST',
@@ -164,7 +164,7 @@
         if (healthBtn) {
             healthBtn.addEventListener('click', async function () {
                 const el = document.getElementById('lab-probe-result');
-                if (el) el.textContent = '…';
+                if (el) el.textContent = '\u2026';
                 try {
                     const res = await fetch('/api/health');
                     const data = await res.json();

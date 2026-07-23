@@ -1,5 +1,5 @@
 /**
- * MapLibre + PMTiles 3D buildings overlay — synced with Leaflet pins (Lane B lab).
+ * MapLibre + PMTiles 3D buildings overlay \u2014 synced with Leaflet pins (Lane B lab).
  * Raster basemap stays on Leaflet (map-offline-tiles.js); vector buildings when .pmtiles exists.
  */
 (function (global) {
@@ -117,7 +117,7 @@
                         syncFromLeaflet();
                         resolve(glMap);
                     });
-                    glMap.on('error', function () { /* style tile miss — keep Leaflet */ });
+                    glMap.on('error', function () { /* style tile miss \u2014 keep Leaflet */ });
                 });
             });
     }
@@ -171,7 +171,7 @@
             parts.push(tr('map.offline.pmtilesAttr'));
         }
         parts.push('Leaflet');
-        strip.innerHTML = parts.join(' · ');
+        strip.innerHTML = parts.join(' \u00B7 ');
     }
 
     var tilesOffline = false;

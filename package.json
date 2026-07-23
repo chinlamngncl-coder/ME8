@@ -5,18 +5,28 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "verify": "node scripts/verify-install.js && node scripts/verify-postgres-catalog-retirement.js && node scripts/verify-startup-rollback-gate.js",
+    "verify": "node scripts/verify-install.js && node scripts/verify-postgres-catalog-retirement.js && node scripts/verify-startup-rollback-gate.js && node scripts/verify-fatal-process-policy.js && node scripts/verify-sip-crypto-identifiers.js && node scripts/verify-login-rate-lru.js && node scripts/verify-sos-ack-ends-group-call.js && node scripts/verify-ship-runjs-security-parity.js && node scripts/verify-valkey-fleet-runtime-state-degrade.js && node scripts/verify-enterprise-redis-image-legal-pin.js",
+    "verify:dependencies": "node scripts/verify-production-dependency-security.js",
+    "verify:fatal": "node scripts/verify-fatal-process-policy.js",
+    "verify:login-rate": "node scripts/verify-login-rate-lru.js",
+    "verify:redis-legal": "node scripts/verify-enterprise-redis-image-legal-pin.js",
+    "verify:runjs": "node scripts/verify-ship-runjs-security-parity.js",
+    "verify:sip-crypto": "node scripts/verify-sip-crypto-identifiers.js",
+    "verify:sos-ack-group-call": "node scripts/verify-sos-ack-ends-group-call.js && node scripts/verify-sos-group-sip-call.js",
     "verify:startup": "node scripts/verify-startup-rollback-gate.js",
+    "verify:valkey": "node scripts/verify-valkey-fleet-runtime-state-degrade.js",
+    "build:runjs": "node scripts/build-ship-runtime.js . run.js",
     "postinstall": "node scripts/verify-install.js --quiet && node scripts/verify-postgres-catalog-retirement.js && node scripts/verify-startup-rollback-gate.js"
   },
   "overrides": {
-    "ip": "^2.0.1",
+    "ip": "npm:@webpod/ip@0.6.1",
     "uuid": "^11.1.1"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "ftp-srv": "^4.6.3",
+    "ioredis": "^5.11.1",
     "livekit-server-sdk": "^2.9.7",
     "multer": "^2.2.0",
     "node-llama-cpp": "^3.18.1",

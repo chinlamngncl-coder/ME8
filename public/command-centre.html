@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Centre Summary — Mobility Axiom</title>
+    <title>Centre Summary &mdash; Mobility Axiom</title>
     <link rel="stylesheet" href="/css/centre-summary.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
         <div class="cs-head">
             <div>
                 <h1 data-i18n="centre.title">Centre Summary</h1>
-                <p class="cs-sub" id="generated-at" data-i18n="common.loading">Loading…</p>
+                <p class="cs-sub" id="generated-at" data-i18n="common.loading">Loading&hellip;</p>
             </div>
             <nav class="cs-nav">
                 <a href="/" data-i18n="centre.nav.dashboard">← Dashboard</a>
@@ -24,7 +24,7 @@
             <button type="button" class="cs-btn" id="btn-export-chart" data-i18n="centre.exportChart">Download chart PNG</button>
         </div>
         <div id="error" class="cs-err" hidden></div>
-        <div id="loading" class="cs-loading" data-i18n="centre.loading">Loading centre data…</div>
+        <div id="loading" class="cs-loading" data-i18n="centre.loading">Loading centre data&hellip;</div>
         <div id="content" hidden>
             <div class="cs-kpi-grid" id="stats-grid"></div>
             <div class="cs-trend-llm-row">
@@ -41,10 +41,10 @@
                 </div>
                 <div class="cs-llm-panel">
                     <h3 data-i18n="centre.llm.title">AI assistant</h3>
-                    <div class="cs-llm-status offline" id="llm-status" data-i18n="centre.llm.checking">Checking…</div>
+                    <div class="cs-llm-status offline" id="llm-status" data-i18n="centre.llm.checking">Checking&hellip;</div>
                     <div class="cs-llm-chat" id="llm-chat"></div>
                     <div class="cs-llm-input-row">
-                        <textarea class="cs-llm-input" id="llm-input" rows="2" data-i18n-placeholder="centre.llm.placeholder" placeholder="Ask about fleet, SOS, or storage…"></textarea>
+                        <textarea class="cs-llm-input" id="llm-input" rows="2" data-i18n-placeholder="centre.llm.placeholder" placeholder="Ask about fleet, SOS, or storage&hellip;"></textarea>
                         <button type="button" class="cs-btn cs-active" id="llm-ask" data-i18n="centre.llm.ask">Ask</button>
                     </div>
                     <div class="cs-sug-row" id="llm-suggestions"></div>
@@ -81,6 +81,6 @@
     <script src="/js/live-viewer-telemetry.js?v=20260709-live-viewer-telemetry"></script>
     <script src="/js/operator-error-voice.js?v=20260702-op-voice-standalone"></script>
     <script src="/js/operator-ui.js?v=20260702-op-voice-standalone"></script>
-    <script src="/js/command-centre.js?v=20260709-live-viewer-telemetry"></script>
+    <script src="/js/command-centre.js?v=20260722-centre-honest-load-v2"></script>
 </body>
 </html>

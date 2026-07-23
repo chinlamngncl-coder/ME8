@@ -1,7 +1,7 @@
 # ME8 enterprise environment profile
 
-**MOB:** `mob-env-enterprise` (Phase B Wave 0)  
-**Wiring:** Env parse only — Fleet **does not connect** to Valkey/Postgres until `mob-redis-client` / `mob-pg-adapter`.
+**MOB:** `mob-env-enterprise` (Phase B Wave 0) + `VALKEY-FLEET-RUNTIME-STATE-DEGRADE-V1`  
+**Wiring:** Valkey connects when `FM_REDIS_URL` is set (`lib/redisRuntime.js`). Unset = memory + JSON only. Catalog uses `FM_CATALOG_*` via `siteDb`.
 
 ---
 
@@ -24,7 +24,7 @@ docker compose -f docker/docker-compose.enterprise.yml up -d
 # Append enterprise vars to .env (edit passwords for production):
 #   copy from .env.enterprise.example
 node scripts/test-enterprise-env.js
-.\RESTART-FLEET.bat   # Fleet still uses JSON/SQLite until Wave 2–3 MOBs
+.\RESTART-FLEET.bat   # With FM_REDIS_URL set, Fleet dual-writes GPS/online/contact to Valkey
 ```
 
 Compose smoke: `.\SMOKE-COMPOSE.ps1 -LeaveRunning`
@@ -94,8 +94,8 @@ Checks URL shapes, `FM_CATALOG_MODE` enum, and `postgres_required` requires `FM_
 
 | MOB | What |
 |-----|------|
-| `mob-redis-client` | Connect when `FM_REDIS_URL` set |
-| `mob-pg-adapter` | Connect when `FM_CATALOG_DB_URL` set |
-| `mob-stability-debounce-default` | Ship profile for debounce flags |
+| ~~`mob-redis-client` / `VALKEY-FLEET-RUNTIME-STATE-DEGRADE-V1`~~ | **Done** — connect + dual-write + degrade |
+| Catalog HA / resync polish | As needed after degrade drills |
+| LiveKit Redis | Separate stack — do not replace with Fleet Valkey |
 
 See [ME8-ROADMAP.md](./ME8-ROADMAP.md) Phase B.
