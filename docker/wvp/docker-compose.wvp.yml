@@ -9,6 +9,10 @@
 # Container DNS name stays me8-wvp-redis for WVP env compatibility.
 # Do NOT swap back to redis:* (SSPL/RSAL/AGPL risk on floating tags).
 #
+# LAB-DEFAULT-CREDS-AND-IMAGE-PIN-V1 — WVP/DB/Valkey secrets from env
+# (lab fallbacks below; set WVP_* in root .env before customer expose).
+# START-WVP-LAB.ps1 exports them from .env before compose up.
+#
 # Fossil all-in-one (2021): docker-compose.wvp-fossil.yml (648540858/wvp_pro)
 #
 # Fleet BWC wall still uses me8-zlm (docker/zlm.compose.yml) + SIP 5060 — untouched.
@@ -22,7 +26,7 @@ services:
     image: valkey/valkey:8-alpine
     container_name: me8-wvp-redis
     restart: unless-stopped
-    command: ["valkey-server", "--requirepass", "root"]
+    command: ["valkey-server", "--requirepass", "${WVP_REDIS_PASSWORD:-root}"]
     environment:
       TZ: Asia/Singapore
 
@@ -32,14 +36,14 @@ services:
     restart: unless-stopped
     environment:
       TZ: Asia/Singapore
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: root123
+      POSTGRES_USER: ${WVP_DB_USER:-root}
+      POSTGRES_PASSWORD: ${WVP_DB_PASSWORD:-root123}
       POSTGRES_DB: wvp2
     volumes:
       # Official wvp-GB28181-pro 2.7.3 PostgreSQL schema + admin/admin (md5)
       - ./mysql-init/01-init-wvp2-pg.sql:/docker-entrypoint-initdb.d/01-init-wvp2.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U root -d wvp2"]
+      test: ["CMD-SHELL", "pg_isready -U ${WVP_DB_USER:-root} -d wvp2"]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -81,12 +85,14 @@ services:
       WVP_PORT: "5060"
       WVP_DOMAIN: "4401020049"
       WVP_ID: "44010200492000000001"
-      WVP_PWD: "admin123"
+      WVP_PWD: ${WVP_PWD:-admin123}
       ZLM_HOST: me8-wvp-zlm
       ZLM_PORT: "80"
       REDIS_HOST: me8-wvp-redis
       REDIS_PORT: "6379"
-      REDIS_PWD: root
+      REDIS_PWD: ${WVP_REDIS_PASSWORD:-root}
+      WVP_DB_USER: ${WVP_DB_USER:-root}
+      WVP_DB_PASSWORD: ${WVP_DB_PASSWORD:-root123}
     volumes:
       - ./wvp-config/application-modern.yml:/opt/wvp/config/application.yml:ro
     ports:

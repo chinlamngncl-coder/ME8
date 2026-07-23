@@ -92,7 +92,20 @@
     let fleetById = Object.create(null);
     let fixedCameraById = Object.create(null);
     let selectedPtzSlot = -1;
-    const fixedCameraOwner = 'command-wall:' + Math.random().toString(36).slice(2);
+    const fixedCameraOwner = 'command-wall:' + (function () {
+        /* SEC-NONSIP-ID-CRYPTO-RANDOM-V1 — browser crypto, not Math.random */
+        try {
+            var bytes = new Uint8Array(8);
+            (globalThis.crypto || window.crypto).getRandomValues(bytes);
+            var hex = '';
+            for (var i = 0; i < bytes.length; i++) {
+                hex += bytes[i].toString(16).padStart(2, '0');
+            }
+            return hex;
+        } catch (_) {
+            return Date.now().toString(36);
+        }
+    })();
     let rosterFilter = '';
     let voiceCallCamId = null;
     let voiceCallPending = false;

@@ -1,8 +1,7 @@
 # mob-wvp-zlm-modern-split — WVP 2.7.3 (gemcjz) → modern ZLM
 # Mounted at /opt/wvp/config/application.yml
 # SIP host 5061 → container 5060. Fleet PTT SIP 5060 untouched.
-# Camera platform defaults match lab cams: domain 4401020049 / id …0001 / pwd admin123
-
+# Camera platform defaults: set WVP_PWD in .env (lab fallback admin123 via compose/Spring)
 spring:
     servlet:
         multipart:
@@ -21,8 +20,8 @@ spring:
         # Official 2.7.3 schema is PostgreSQL dialect — use postgres in compose
         driver-class-name: org.postgresql.Driver
         url: jdbc:postgresql://me8-wvp-db:5432/wvp2
-        username: root
-        password: root123
+        username: ${WVP_DB_USER:root}
+        password: ${WVP_DB_PASSWORD:root123}
 
 server:
     port: 18080

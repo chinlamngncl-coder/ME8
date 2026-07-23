@@ -52,6 +52,35 @@ var require_sipCryptoIdentifiers = __commonJS({
   }
 });
 
+// lib/secureId.js
+var require_secureId = __commonJS({
+  "lib/secureId.js"(exports2, module2) {
+    "use strict";
+    var crypto2 = require("crypto");
+    function randomHex(byteLen) {
+      const n = Math.max(1, Math.min(32, Number(byteLen) || 4));
+      return crypto2.randomBytes(n).toString("hex");
+    }
+    function fixedCamId() {
+      return "fc-" + Date.now().toString(36) + randomHex(3);
+    }
+    function conferenceShareFileName(ext) {
+      const safeExt = String(ext || ".jpg");
+      return "share-" + Date.now() + "-" + randomHex(4) + safeExt;
+    }
+    function multerTempFileName2(safeOriginal) {
+      const safe = String(safeOriginal || "file").replace(/[^\w.\-]+/g, "_").slice(0, 80) || "file";
+      return Date.now() + "-" + randomHex(4) + "-" + safe;
+    }
+    module2.exports = {
+      randomHex,
+      fixedCamId,
+      conferenceShareFileName,
+      multerTempFileName: multerTempFileName2
+    };
+  }
+});
+
 // lib/siteTime.js
 var require_siteTime = __commonJS({
   "lib/siteTime.js"(exports2, module2) {
@@ -4203,6 +4232,8 @@ var require_mediaSession = __commonJS({
       attachLegacyStreamClient,
       setAudioWss,
       setAudioFocusCamId,
+      /** WALL-AUDIO-PATH-V1 — WVP handoff listen tee pushes PCM into same audio WSS */
+      pushListenPcm: broadcastAudioPcm,
       countActiveStreams,
       startRtspStream,
       VIDEO_UDP_PORT,
@@ -4985,6 +5016,171 @@ var require_wvpLabClient = __commonJS({
       issueFlvToken,
       takeFlvUpstream,
       md5
+    };
+  }
+});
+
+// lib/wvpWallListenAudio.js
+var require_wvpWallListenAudio = __commonJS({
+  "lib/wvpWallListenAudio.js"(exports2, module2) {
+    "use strict";
+    var { spawn: spawn2 } = require("child_process");
+    var { resolveFfmpegPath } = require_resolveFfmpeg();
+    var log2 = require_fleetLog();
+    var sessions = /* @__PURE__ */ new Map();
+    var focusCamId = null;
+    var pushPcm = null;
+    function setPushPcm(fn) {
+      pushPcm = typeof fn === "function" ? fn : null;
+    }
+    function setFocus(camId) {
+      const id = String(camId || "").trim() || null;
+      focusCamId = id;
+      if (id) {
+        sessions.forEach(function(_, other) {
+          if (other !== id) stopListen(other);
+        });
+      }
+    }
+    function getFocus() {
+      return focusCamId;
+    }
+    function localPullUrl(upstreamFlv) {
+      const raw = String(upstreamFlv || "").trim();
+      if (!raw || !/^https?:\/\//i.test(raw)) return null;
+      try {
+        const u = new URL(raw);
+        if (u.hostname === "localhost" || /^127\./.test(u.hostname) || /^192\.168\./.test(u.hostname) || /^10\./.test(u.hostname)) {
+          u.hostname = "127.0.0.1";
+        }
+        return u.toString();
+      } catch (_) {
+        return raw;
+      }
+    }
+    function stopListen(camId) {
+      const id = String(camId || "").trim();
+      if (!id) return;
+      const s = sessions.get(id);
+      if (!s) return;
+      sessions.delete(id);
+      try {
+        if (s.proc && !s.proc.killed) {
+          s.proc.kill("SIGTERM");
+        }
+      } catch (_) {
+      }
+      log2.media.info("wvp wall listen stop", { camId: id, path: "wall-audio-path-v1" });
+    }
+    function stopAll() {
+      Array.from(sessions.keys()).forEach(stopListen);
+    }
+    function ensureListen(camId, upstreamFlv) {
+      const id = String(camId || "").trim();
+      if (!id) return { ok: false, reason: "camId_required" };
+      const url = localPullUrl(upstreamFlv);
+      if (!url) return { ok: false, reason: "no_upstream_flv" };
+      focusCamId = id;
+      sessions.forEach(function(_, other) {
+        if (other !== id) stopListen(other);
+      });
+      const cur = sessions.get(id);
+      if (cur && cur.url === url && cur.proc && !cur.proc.killed) {
+        return { ok: true, reused: true };
+      }
+      if (cur) stopListen(id);
+      const ffmpegPath = resolveFfmpegPath();
+      const args = [
+        "-hide_banner",
+        "-loglevel",
+        "warning",
+        "-fflags",
+        "nobuffer",
+        "-flags",
+        "low_delay",
+        "-i",
+        url,
+        "-vn",
+        "-acodec",
+        "pcm_s16le",
+        "-ar",
+        "8000",
+        "-ac",
+        "1",
+        "-f",
+        "s16le",
+        "-"
+      ];
+      let proc;
+      try {
+        proc = spawn2(ffmpegPath, args, { windowsHide: true });
+      } catch (err) {
+        log2.media.warn("wvp wall listen spawn fail", {
+          camId: id,
+          message: err && err.message ? err.message : String(err),
+          path: "wall-audio-path-v1"
+        });
+        return { ok: false, reason: "ffmpeg_spawn_fail" };
+      }
+      sessions.set(id, { proc, url, bytes: 0 });
+      log2.media.info("wvp wall listen start", {
+        camId: id,
+        flvHost: (url.match(/^https?:\/\/([^/]+)/i) || [])[1] || null,
+        path: "wall-audio-path-v1"
+      });
+      proc.stdout.on("data", function(chunk) {
+        if (!chunk || !chunk.length) return;
+        if (focusCamId && focusCamId !== id) return;
+        const s = sessions.get(id);
+        if (!s) return;
+        s.bytes += chunk.length;
+        if (s.bytes === chunk.length) {
+          log2.media.info("wvp wall listen first pcm", {
+            camId: id,
+            bytes: chunk.length,
+            path: "wall-audio-path-v1"
+          });
+        }
+        if (pushPcm) {
+          try {
+            pushPcm(chunk);
+          } catch (_) {
+          }
+        }
+      });
+      let errBuf = "";
+      proc.stderr.on("data", function(c) {
+        errBuf += String(c);
+        if (errBuf.length > 800) errBuf = errBuf.slice(-800);
+      });
+      proc.on("error", function(err) {
+        log2.media.warn("wvp wall listen ffmpeg error", {
+          camId: id,
+          message: err && err.message ? err.message : String(err),
+          path: "wall-audio-path-v1"
+        });
+      });
+      proc.on("close", function(code) {
+        const still = sessions.get(id);
+        if (still && still.proc === proc) sessions.delete(id);
+        if (code && code !== 0) {
+          log2.media.warn("wvp wall listen ffmpeg exit", {
+            camId: id,
+            code,
+            stderr: errBuf.slice(0, 240),
+            path: "wall-audio-path-v1"
+          });
+        }
+      });
+      return { ok: true, reused: false };
+    }
+    module2.exports = {
+      setPushPcm,
+      setFocus,
+      getFocus,
+      ensureListen,
+      stopListen,
+      stopAll
     };
   }
 });
@@ -6893,6 +7089,10 @@ var require_wvpVideoHandoff = __commonJS({
       const id = String(camId || "").trim();
       cancelPendingStop(id);
       active.delete(id);
+      try {
+        require_wvpWallListenAudio().stopListen(id);
+      } catch (_) {
+      }
       if (!wvpLab.isEnabled()) return { ok: true, skipped: true };
       try {
         const r = await wvpLab.stopPlay(id, id);
@@ -7137,6 +7337,10 @@ var require_wvpVideoHandoff = __commonJS({
       const cur = active.get(String(camId || "").trim());
       return cur && cur.flvUrl ? cur.flvUrl : null;
     }
+    function getUpstreamFlv(camId) {
+      const cur = active.get(String(camId || "").trim());
+      return cur && cur.upstreamFlv ? cur.upstreamFlv : null;
+    }
     function isActive(camId) {
       return active.has(String(camId || "").trim());
     }
@@ -7147,6 +7351,7 @@ var require_wvpVideoHandoff = __commonJS({
       releaseForConference,
       stopPlay,
       getCachedFlv,
+      getUpstreamFlv,
       isActive,
       absolutizeFlv,
       sanitizeWvpMsg,
@@ -7771,6 +7976,9 @@ var require_liveViewers = __commonJS({
 // lib/deviceControl.js
 var require_deviceControl = __commonJS({
   "lib/deviceControl.js"(exports2, module2) {
+    "use strict";
+    var dgram = require("dgram");
+    var sipLib = require("sip");
     var {
       createSipCallId: createSipCallId2,
       createSipTag: createSipTag2,
@@ -7802,28 +8010,204 @@ var require_deviceControl = __commonJS({
 <RecordCmd>${recordCmd}</RecordCmd>
 </Control>`;
     }
-    function sendDeviceControl(sip2, opts) {
-      const { cameraContactUri: cameraContactUri2, deviceId, realm, serverId, recordCmd, log: log2 } = opts;
-      if (!cameraContactUri2 || !deviceId || !recordCmd) return false;
-      const content = buildControlXml(deviceId, String(recordCmd));
-      sip2.send({
+    function truncateContact(uri) {
+      const s = String(uri || "");
+      if (s.length <= 140) return s;
+      return s.slice(0, 137) + "...";
+    }
+    function ackTimeoutMs(opts) {
+      const raw = opts && opts.ackTimeoutMs != null ? opts.ackTimeoutMs : process.env.FM_DEVICE_CONTROL_ACK_MS || "8000";
+      const n = parseInt(String(raw), 10);
+      return Math.max(2e3, Number.isFinite(n) ? n : 8e3);
+    }
+    function useTxnRetransmit(opts) {
+      if (opts && opts.useTxn === true) return true;
+      if (opts && opts.useTxn === false) return false;
+      const flag = String(process.env.FM_DEVICE_CONTROL_SIP_TXN || "").trim();
+      return flag === "1" || /^true$/i.test(flag) || /^on$/i.test(flag);
+    }
+    function parseContactTarget(uri) {
+      const s = String(uri || "").trim();
+      const m = s.match(/^sip:[^@\s]+@([^:;>\s]+)(?::(\d+))?/i);
+      if (!m) return null;
+      const port = parseInt(m[2] || "5060", 10);
+      return {
+        host: m[1],
+        port: Number.isFinite(port) && port > 0 ? port : 5060
+      };
+    }
+    function buildMessageRequest(opts, content, callId) {
+      const {
+        cameraContactUri: cameraContactUri2,
+        deviceId,
+        realm,
+        serverId,
+        publicHost,
+        sipPort
+      } = opts;
+      const viaHost = String(publicHost || "").trim() || "0.0.0.0";
+      const viaPort = parseInt(String(sipPort != null ? sipPort : 5060), 10) || 5060;
+      const branch = typeof sipLib.generateBranch === "function" ? sipLib.generateBranch() : "z9hG4bK" + createSipCallId2("dc").replace(/-/g, "").slice(0, 16);
+      return {
         method: "MESSAGE",
         uri: cameraContactUri2,
         headers: {
+          via: [{
+            version: "2.0",
+            protocol: "UDP",
+            host: viaHost,
+            port: viaPort,
+            params: { branch, rport: null }
+          }],
           to: { uri: `sip:${deviceId}@${realm}` },
           from: { uri: `sip:${serverId}@${realm}`, params: { tag: createSipTag2() } },
-          "call-id": createSipCallId2(),
+          "call-id": callId,
           cseq: { method: "MESSAGE", seq: 1 },
+          "max-forwards": 70,
           "content-type": "Application/MANSCDP+xml",
-          "content-length": content.length
+          "content-length": Buffer.byteLength(content, "utf8")
         },
         content
-      }, () => {
-      });
-      if (log2) {
-        log2.sip.info("device control sent", { device: deviceId, recordCmd: String(recordCmd) });
+      };
+    }
+    function sendDeviceControlOnce(opts, content, callId, baseMeta, log2) {
+      const target = parseContactTarget(opts.cameraContactUri);
+      if (!target) {
+        if (log2) {
+          log2.sip.warn("device control once skipped \u2014 bad contact", baseMeta);
+        }
+        return false;
       }
+      let wire;
+      try {
+        const rq = buildMessageRequest(opts, content, callId);
+        wire = Buffer.from(sipLib.stringify(rq), "utf8");
+      } catch (err) {
+        if (log2) {
+          log2.sip.warn("device control once stringify failed", Object.assign({}, baseMeta, {
+            message: err && err.message ? String(err.message).slice(0, 120) : "fail"
+          }));
+        }
+        return false;
+      }
+      const sock = dgram.createSocket("udp4");
+      sock.send(wire, target.port, target.host, (err) => {
+        try {
+          sock.close();
+        } catch (_) {
+        }
+        if (err && log2) {
+          log2.sip.warn("device control once send failed", Object.assign({}, baseMeta, {
+            message: err && err.message ? String(err.message).slice(0, 120) : "fail",
+            targetHost: target.host,
+            targetPort: target.port
+          }));
+          return;
+        }
+        if (log2) {
+          log2.sip.info("device control once ok", Object.assign({}, baseMeta, {
+            targetHost: target.host,
+            targetPort: target.port,
+            bytes: wire.length
+          }));
+        }
+      });
       return true;
+    }
+    function sendDeviceControlTxn(sip2, opts, content, callId, baseMeta, log2) {
+      const sentAt = Date.now();
+      let settled = false;
+      let responseN = 0;
+      const waitMs = ackTimeoutMs(opts);
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        if (log2) {
+          log2.sip.warn("device control ack timeout", Object.assign({}, baseMeta, {
+            waitMs: Date.now() - sentAt,
+            responseN,
+            note: "txn path \u2014 UDP retransmit risk on cam"
+          }));
+        }
+      }, waitMs);
+      if (typeof timer.unref === "function") timer.unref();
+      sip2.send({
+        method: "MESSAGE",
+        uri: opts.cameraContactUri,
+        headers: {
+          to: { uri: `sip:${opts.deviceId}@${opts.realm}` },
+          from: { uri: `sip:${opts.serverId}@${opts.realm}`, params: { tag: createSipTag2() } },
+          "call-id": callId,
+          cseq: { method: "MESSAGE", seq: 1 },
+          "content-type": "Application/MANSCDP+xml",
+          "content-length": Buffer.byteLength(content, "utf8")
+        },
+        content
+      }, (response) => {
+        responseN += 1;
+        const status = response && response.status;
+        const elapsedMs = Date.now() - sentAt;
+        if (status >= 100 && status < 200) {
+          if (log2) {
+            log2.sip.info("device control provisional", Object.assign({}, baseMeta, {
+              status,
+              responseN,
+              elapsedMs
+            }));
+          }
+          return;
+        }
+        if (settled) {
+          if (log2) {
+            log2.sip.info("device control ack late", Object.assign({}, baseMeta, {
+              status,
+              responseN,
+              elapsedMs,
+              ok: status === 200
+            }));
+          }
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        if (log2) {
+          log2.sip.info("device control ack", Object.assign({}, baseMeta, {
+            status,
+            responseN,
+            elapsedMs,
+            ok: status === 200
+          }));
+        }
+      });
+      return true;
+    }
+    function sendDeviceControl(sip2, opts) {
+      const { cameraContactUri: cameraContactUri2, deviceId, realm, serverId, recordCmd, log: log2 } = opts || {};
+      if (!cameraContactUri2 || !deviceId || !recordCmd) return false;
+      const callId = createSipCallId2();
+      const sn = createGbSequenceNumber2();
+      const content = buildControlXml(deviceId, String(recordCmd), sn);
+      const mode = useTxnRetransmit(opts) ? "sip_txn" : "udp_once";
+      const baseMeta = {
+        device: deviceId,
+        recordCmd: String(recordCmd),
+        callId,
+        sn: String(sn),
+        contact: truncateContact(cameraContactUri2),
+        contactSource: opts.contactSource || null,
+        mode
+      };
+      if (log2) {
+        log2.sip.info("device control sent", baseMeta);
+      }
+      if (mode === "udp_once") {
+        return sendDeviceControlOnce(opts, content, callId, baseMeta, log2);
+      }
+      if (!sip2 || typeof sip2.send !== "function") {
+        if (log2) log2.sip.warn("device control txn skipped \u2014 no sip", baseMeta);
+        return false;
+      }
+      return sendDeviceControlTxn(sip2, opts, content, callId, baseMeta, log2);
     }
     function buildBroadcastXml(sourceId, targetId, sn) {
       const seq = sn != null ? sn : createGbSequenceNumber2();
@@ -7848,7 +8232,7 @@ var require_deviceControl = __commonJS({
           "call-id": createSipCallId2(),
           cseq: { method: "MESSAGE", seq: 1 },
           "content-type": "Application/MANSCDP+xml",
-          "content-length": content.length
+          "content-length": Buffer.byteLength(content, "utf8")
         },
         content
       }, () => {
@@ -7863,7 +8247,8 @@ var require_deviceControl = __commonJS({
       buildControlXml,
       sendDeviceControl,
       buildBroadcastXml,
-      sendVoiceBroadcastNotify
+      sendVoiceBroadcastNotify,
+      parseContactTarget
     };
   }
 });
@@ -8667,13 +9052,14 @@ var require_sipGroupCall = __commonJS({
         };
       }
       function snapshot() {
-        if (!active) return { active: false, phase: "idle", participants: [] };
+        if (!active) return { active: false, phase: "idle", kind: null, participants: [] };
         const participants = [...active.sessions.values()].map(publicSession);
         const connected = participants.filter((row) => row.state === "connected").length;
         const dialing = participants.filter((row) => row.state === "dialing").length;
         return {
           active: true,
           callId: active.id,
+          kind: active.kind || null,
           alarmCamId: active.alarmCamId,
           ownerSocketId: active.ownerSocketId,
           phase: connected > 0 ? "connected" : dialing > 0 ? "dialing" : "failed",
@@ -8748,8 +9134,9 @@ var require_sipGroupCall = __commonJS({
           session.state = "ended";
           closeSessionSocket(session);
         });
-        mediaLog("info", "SOS group call ended", {
+        mediaLog("info", "group call ended", {
           callId: call.id,
+          kind: call.kind,
           reason: reason || "ended",
           participants: call.sessions.size
         });
@@ -8897,13 +9284,14 @@ var require_sipGroupCall = __commonJS({
         session.remotePort = remote.port;
         session.state = "connected";
         session.error = null;
-        session.alertFrames = SOS_ALERT_FRAMES.map((frame) => Buffer.from(frame));
-        mediaLog("info", "SOS group call member connected", {
+        session.alertFrames = active && active.playAlertTone ? SOS_ALERT_FRAMES.map((frame) => Buffer.from(frame)) : [];
+        mediaLog("info", "group call member connected", {
           camId: session.camId,
+          kind: active && active.kind,
           localPort: session.localPort,
           remoteHost: session.remoteHost,
           remotePort: session.remotePort,
-          toneMs: SOS_ALERT_FRAMES.length * FRAME_MS
+          toneMs: session.alertFrames.length * FRAME_MS
         });
         emitState();
       }
@@ -9009,9 +9397,14 @@ var require_sipGroupCall = __commonJS({
         if (!camIds.length) throw new Error("No BWC selected for group call");
         const getContactUri = input.getContactUri;
         if (typeof getContactUri !== "function") throw new Error("Group call contact resolver missing");
+        const alarmCamId = String(input.alarmCamId || "").trim() || null;
+        const kind = String(input.kind || "").trim() || (alarmCamId ? "sos" : "dispatch");
+        const playAlertTone = input.playAlertTone != null ? !!input.playAlertTone : kind === "sos";
         const call = {
           id: "sgc-" + crypto2.randomBytes(6).toString("hex"),
-          alarmCamId: String(input.alarmCamId || "").trim() || null,
+          kind,
+          playAlertTone,
+          alarmCamId,
           ownerSocketId: String(input.ownerSocketId || "").trim() || null,
           startedAt: Date.now(),
           sessions: /* @__PURE__ */ new Map(),
@@ -9040,9 +9433,11 @@ var require_sipGroupCall = __commonJS({
         await Promise.all(callable.map((row, index) => openParticipantSocket(call, row.camId, index, row.contactUri)));
         if (active === call) {
           call.mixTimer = setInterval(mixTick, FRAME_MS);
-          mediaLog("info", "SOS group call started", {
+          mediaLog("info", "group call started", {
             callId: call.id,
+            kind: call.kind,
             alarmCamId: call.alarmCamId,
+            playAlertTone: call.playAlertTone,
             requested: camIds.length,
             callable: callable.length,
             rtpBase
@@ -10163,6 +10558,24 @@ var require_siteDb = __commonJS({
     async function deleteEvidenceExport(id) {
       return (await query("DELETE FROM evidence_exports WHERE export_id=$1", [String(id)])).rowCount > 0;
     }
+    async function listNonFinalizedRedactExports(evidenceFileId) {
+      if (!evidenceFileId) return [];
+      return (await query(`
+        SELECT * FROM evidence_exports
+        WHERE evidence_file_id=$1 AND export_type='redact'
+          AND COALESCE(NULLIF(meta_json,'')::jsonb->>'status','') <> 'finalized'
+        ORDER BY created_at DESC
+    `, [String(evidenceFileId)])).rows.map(mapExportRow);
+    }
+    async function listFinalizedRedactExports(evidenceFileId) {
+      if (!evidenceFileId) return [];
+      return (await query(`
+        SELECT * FROM evidence_exports
+        WHERE evidence_file_id=$1 AND export_type='redact'
+          AND COALESCE(NULLIF(meta_json,'')::jsonb->>'status','') = 'finalized'
+        ORDER BY created_at DESC
+    `, [String(evidenceFileId)])).rows.map(mapExportRow);
+    }
     async function listRedactedEvidenceExportsPage(opts) {
       opts = opts || {};
       const pageSize = Math.min(100, Math.max(1, parseInt(opts.pageSize, 10) || 50));
@@ -10605,6 +11018,8 @@ var require_siteDb = __commonJS({
       listRedactedEvidenceExportsPage,
       getEvidenceExport,
       deleteEvidenceExport,
+      listNonFinalizedRedactExports,
+      listFinalizedRedactExports,
       insertSecureExportRequest,
       getSecureExportRequest,
       listSecureExportRequests,
@@ -10906,6 +11321,7 @@ var require_fixedCamRegistry = __commonJS({
   "lib/fixedCamRegistry.js"(exports2, module2) {
     var fs2 = require("fs");
     var path2 = require("path");
+    var { fixedCamId } = require_secureId();
     var STORAGE_DIR2 = path2.join(__dirname, "..", "storage");
     function filePath() {
       return path2.join(STORAGE_DIR2, "fixed-cams.json");
@@ -10925,7 +11341,7 @@ var require_fixedCamRegistry = __commonJS({
       fs2.writeFileSync(filePath(), JSON.stringify(cams, null, 2), "utf8");
     }
     function makeId() {
-      return "fc-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      return fixedCamId();
     }
     var VALID_SOURCES = ["onvif", "rtsp", "none"];
     var VALID_MAP_ICONS = ["fixed", "dome", "ptz", "traffic", "building"];
@@ -15450,6 +15866,8 @@ var require_auditActionLabels = __commonJS({
       "sos.ptt_team": "SOS team call",
       "sos.group_call.start": "SOS group call started",
       "sos.group_call.end": "SOS group call ended",
+      "dispatch.call_group.start": "Call group started",
+      "dispatch.call_group.end": "Call group ended",
       "voice.call": "Voice call started",
       "voice.call.end": "Voice call ended",
       "voice.call.rx": "Inbound voice (BWC)",
@@ -15490,6 +15908,12 @@ var require_auditActionLabels = __commonJS({
       "evidence.redact_autoface": "Auto face redaction scanned",
       "evidence.redact_note_draft": "Redaction note saved",
       "evidence.redact_finalize": "Redacted copy finalized",
+      "evidence.redact_export_removed": "Redacted draft removed",
+      "evidence.redact_drafts_cleaned": "Redacted drafts cleaned",
+      "evidence.redact_finalized_removed": "Finalized redacted copy removed",
+      "evidence.redact_finalized_cleaned": "Finalized redacted copies cleared",
+      "analytics.fr_hold_cleared": "Investigation hold cleared",
+      "analytics.fr_hold_discarded": "Investigation hold discarded",
       "dock.create": "Dock station registered",
       "dock.update": "Dock station updated",
       "dock.delete": "Dock station removed",
@@ -15637,6 +16061,12 @@ var require_auditActionLabels = __commonJS({
       if (detail.status === "finalized" || action === "evidence.redact_finalize") {
         if (parts.indexOf("Finalized") < 0 && action === "evidence.redact_finalize") {
         }
+      }
+      if (action === "evidence.redact_export_removed" || action === "evidence.redact_drafts_cleaned" || action === "evidence.redact_finalized_removed" || action === "evidence.redact_finalized_cleaned") {
+        if (detail.count != null && Number.isFinite(Number(detail.count))) {
+          parts.push(Number(detail.count) === 1 ? "1 copy" : Number(detail.count) + " copies");
+        }
+        if (detail.status) parts.push("Was: " + String(detail.status));
       }
       return parts.join(" \xB7 ");
     }
@@ -15932,7 +16362,8 @@ var require_commandCentreReport = __commonJS({
       const store = deps.readSosStore ? deps.readSosStore() : { entries: [] };
       const entries = store.entries || [];
       const openAlarms = deps.getOpenAlarms ? deps.getOpenAlarms() : [];
-      const audit = deps.getAuditEntries ? deps.getAuditEntries(40) : [];
+      const auditRaw = deps.getAuditEntries ? deps.getAuditEntries(40) : [];
+      const audit = Array.isArray(auditRaw) ? auditRaw : [];
       const displayName = typeof deps.displayName === "function" ? deps.displayName : null;
       const todayStart = /* @__PURE__ */ new Date();
       todayStart.setHours(0, 0, 0, 0);
@@ -17573,6 +18004,361 @@ var require_bwcNetwork = __commonJS({
       normalizeBwcRegisterIp,
       assertBwcRegisterIp,
       networkAccessHints
+    };
+  }
+});
+
+// lib/enterpriseEnv.js
+var require_enterpriseEnv = __commonJS({
+  "lib/enterpriseEnv.js"(exports2, module2) {
+    var path2 = require("path");
+    var CATALOG_MODES = /* @__PURE__ */ new Set(["postgres_required", "sqlite_shadow", "off"]);
+    function trim(value) {
+      return value != null ? String(value).trim() : "";
+    }
+    function parseBool(value, defaultValue) {
+      if (value == null || String(value).trim() === "") return defaultValue;
+      const v = String(value).trim().toLowerCase();
+      if (v === "1" || v === "true" || v === "yes") return true;
+      if (v === "0" || v === "false" || v === "no") return false;
+      return defaultValue;
+    }
+    function parseIntBounded(value, fallback, min, max) {
+      const n = parseInt(String(value || ""), 10);
+      if (!Number.isFinite(n)) return fallback;
+      return Math.min(max, Math.max(min, n));
+    }
+    function normalizeCatalogMode(raw) {
+      const mode = trim(raw).toLowerCase() || "off";
+      return CATALOG_MODES.has(mode) ? mode : null;
+    }
+    function redisConfigured(env) {
+      return !!trim(env.FM_REDIS_URL);
+    }
+    function catalogConfigured(env) {
+      return !!trim(env.FM_CATALOG_DB_URL);
+    }
+    function loadEnterpriseEnv(env, baseDir) {
+      const source = env || process.env;
+      const catalogMode = normalizeCatalogMode(source.FM_CATALOG_MODE) || "off";
+      const redisUrl = trim(source.FM_REDIS_URL);
+      const catalogUrl = trim(source.FM_CATALOG_DB_URL);
+      const root = baseDir || path2.join(__dirname, "..");
+      const walRel = trim(source.FM_CATALOG_WAL_PATH) || "storage/catalog-sync-wal.jsonl";
+      return {
+        wired: true,
+        redis: {
+          url: redisUrl,
+          enabled: !!redisUrl,
+          connectTimeoutMs: parseIntBounded(source.FM_REDIS_CONNECT_TIMEOUT_MS, 5e3, 1e3, 6e4),
+          keyPrefix: trim(source.FM_REDIS_KEY_PREFIX) || "me8:"
+        },
+        catalog: {
+          dbUrl: catalogUrl,
+          enabled: !!catalogUrl && catalogMode !== "off",
+          mode: catalogMode,
+          allowSqliteQueue: parseBool(source.FM_CATALOG_ALLOW_SQLITE_QUEUE, false),
+          walPath: path2.isAbsolute(walRel) ? walRel : path2.join(root, walRel)
+        },
+        stability: {
+          cacheDebounce: parseBool(source.FM_USE_CACHE_DEBOUNCE, false),
+          gpsDebounceMs: parseIntBounded(source.FM_GPS_CACHE_DEBOUNCE_MS, 2e3, 250, 3e4),
+          contactDebounceMs: parseIntBounded(source.FM_CONTACT_CACHE_DEBOUNCE_MS, 2e3, 250, 3e4)
+        }
+      };
+    }
+    function validateEnterpriseEnv(env, baseDir) {
+      const source = env || process.env;
+      const errors = [];
+      const config = loadEnterpriseEnv(source, baseDir);
+      if (trim(source.FM_CATALOG_MODE) && !normalizeCatalogMode(source.FM_CATALOG_MODE)) {
+        errors.push("FM_CATALOG_MODE must be postgres_required, sqlite_shadow, or off");
+      }
+      if (config.catalog.mode === "postgres_required" && !config.catalog.dbUrl) {
+        errors.push("FM_CATALOG_MODE=postgres_required requires FM_CATALOG_DB_URL");
+      }
+      if (config.catalog.allowSqliteQueue && config.catalog.mode === "postgres_required") {
+      }
+      if (config.redis.url && !/^rediss?:\/\//i.test(config.redis.url)) {
+        errors.push("FM_REDIS_URL must start with redis:// or rediss://");
+      }
+      if (config.catalog.dbUrl && !/^postgres(ql)?:\/\//i.test(config.catalog.dbUrl)) {
+        errors.push("FM_CATALOG_DB_URL must start with postgresql:// or postgres://");
+      }
+      return { ok: errors.length === 0, errors, config };
+    }
+    function publicEnterpriseStatus(env, baseDir) {
+      const v = validateEnterpriseEnv(env, baseDir);
+      const c = v.config;
+      return {
+        wired: true,
+        redisConfigured: c.redis.enabled,
+        redisRuntime: true,
+        catalogConfigured: c.catalog.enabled,
+        catalogMode: c.catalog.mode,
+        allowSqliteQueue: c.catalog.allowSqliteQueue,
+        cacheDebounce: c.stability.cacheDebounce,
+        validationOk: v.ok,
+        validationErrors: v.errors
+      };
+    }
+    module2.exports = {
+      CATALOG_MODES,
+      loadEnterpriseEnv,
+      validateEnterpriseEnv,
+      publicEnterpriseStatus,
+      redisConfigured,
+      catalogConfigured
+    };
+  }
+});
+
+// lib/redisRuntime.js
+var require_redisRuntime = __commonJS({
+  "lib/redisRuntime.js"(exports2, module2) {
+    "use strict";
+    function nowTs() {
+      return Date.now();
+    }
+    function safeJsonParse(raw) {
+      try {
+        return JSON.parse(String(raw || ""));
+      } catch (_) {
+        return null;
+      }
+    }
+    function newestByTs(a, b) {
+      const aTs = a && a.at != null ? Number(a.at) : 0;
+      const bTs = b && b.at != null ? Number(b.at) : 0;
+      if (bTs > aTs) return b;
+      return a;
+    }
+    function createRedisRuntime2(options = {}) {
+      const url = String(options.url || "").trim();
+      const keyPrefix = String(options.keyPrefix || "me8:").trim() || "me8:";
+      const connectTimeoutMs = Number.isFinite(options.connectTimeoutMs) ? Math.max(1e3, options.connectTimeoutMs) : 5e3;
+      const log2 = options.log || null;
+      const RedisCtor2 = options.Redis || null;
+      let client = null;
+      let mode = url ? "connecting" : "off";
+      let lastError = null;
+      let started = false;
+      const keys = {
+        gps: keyPrefix + "gps",
+        online: keyPrefix + "online",
+        contact: keyPrefix + "contact"
+      };
+      function info(message, detail) {
+        try {
+          if (log2 && log2.web && typeof log2.web.info === "function") log2.web.info(message, detail || {});
+        } catch (_) {
+        }
+      }
+      function warn(message, detail) {
+        try {
+          if (log2 && log2.web && typeof log2.web.warn === "function") log2.web.warn(message, detail || {});
+        } catch (_) {
+        }
+      }
+      function markDegraded(err) {
+        if (!url) {
+          mode = "off";
+          return;
+        }
+        mode = "degraded";
+        lastError = err && err.message ? err.message : String(err || "cache_degraded");
+        warn("cache_degraded", { message: lastError });
+      }
+      function markReady() {
+        mode = "ready";
+        lastError = null;
+      }
+      function snapshot() {
+        return {
+          configured: !!url,
+          mode,
+          ready: mode === "ready",
+          degraded: mode === "degraded",
+          keyPrefix,
+          lastError
+        };
+      }
+      async function withClient(fn) {
+        if (!url || !client || typeof fn !== "function") return null;
+        try {
+          return await fn(client);
+        } catch (err) {
+          markDegraded(err);
+          return null;
+        }
+      }
+      function fireAndForget(fn) {
+        Promise.resolve().then(fn).catch((err) => markDegraded(err));
+      }
+      async function start() {
+        if (started) return snapshot();
+        started = true;
+        if (!url) {
+          mode = "off";
+          return snapshot();
+        }
+        if (!RedisCtor2) {
+          markDegraded(new Error("Redis client constructor unavailable"));
+          return snapshot();
+        }
+        try {
+          client = new RedisCtor2(url, {
+            connectTimeout: connectTimeoutMs,
+            maxRetriesPerRequest: 1,
+            enableOfflineQueue: false,
+            lazyConnect: true
+          });
+          client.on("error", (err) => markDegraded(err));
+          client.on("ready", () => markReady());
+          client.on("end", () => {
+            if (mode !== "off") markDegraded(new Error("connection ended"));
+          });
+          await client.connect();
+          const pong = await client.ping();
+          if (String(pong).toUpperCase() !== "PONG") {
+            throw new Error("unexpected PING response");
+          }
+          markReady();
+          info("valkey runtime cache ready", { keyPrefix });
+        } catch (err) {
+          markDegraded(err);
+          try {
+            if (client && typeof client.disconnect === "function") client.disconnect();
+          } catch (_) {
+          }
+          client = null;
+        }
+        return snapshot();
+      }
+      async function stop() {
+        const current = client;
+        client = null;
+        if (!current) return;
+        try {
+          if (typeof current.quit === "function") await current.quit();
+          else if (typeof current.disconnect === "function") current.disconnect();
+        } catch (_) {
+        }
+      }
+      function writeGps(camId, fix) {
+        const id = String(camId || "").trim();
+        if (!id || !fix || fix.lat == null || fix.lon == null) return;
+        const payload = {
+          lat: Number(fix.lat),
+          lon: Number(fix.lon),
+          at: fix.at != null ? Number(fix.at) : nowTs()
+        };
+        fireAndForget(() => withClient((c) => c.hset(keys.gps, id, JSON.stringify(payload))));
+      }
+      function writeContact(camId, uri) {
+        const id = String(camId || "").trim();
+        const contact = String(uri || "").trim();
+        if (!id || !contact) return;
+        const payload = { uri: contact, at: nowTs() };
+        fireAndForget(() => withClient((c) => c.hset(keys.contact, id, JSON.stringify(payload))));
+      }
+      function writeOnline(camId, patch) {
+        const id = String(camId || "").trim();
+        if (!id || !patch) return;
+        const payload = {
+          online: patch.online ? 1 : 0,
+          lastSeen: patch.lastSeen != null ? Number(patch.lastSeen) : nowTs(),
+          lastIp: patch.lastIp != null ? patch.lastIp : null,
+          pttOnline: patch.pttOnline ? 1 : 0,
+          at: nowTs()
+        };
+        fireAndForget(() => withClient((c) => c.hset(keys.online, id, JSON.stringify(payload))));
+      }
+      async function readHashMap(hashKey) {
+        const raw = await withClient((c) => c.hgetall(hashKey));
+        if (!raw || typeof raw !== "object") return {};
+        const out = {};
+        Object.keys(raw).forEach((id) => {
+          const parsed = safeJsonParse(raw[id]);
+          if (parsed) out[id] = parsed;
+        });
+        return out;
+      }
+      async function hydrateGps(memoryMap) {
+        if (!memoryMap || typeof memoryMap !== "object") return { merged: 0 };
+        const remote = await readHashMap(keys.gps);
+        let merged = 0;
+        Object.keys(remote).forEach((id) => {
+          const remoteFix = remote[id];
+          if (!remoteFix || remoteFix.lat == null || remoteFix.lon == null) return;
+          const current = memoryMap[id];
+          const winner = newestByTs(current, {
+            lat: Number(remoteFix.lat),
+            lon: Number(remoteFix.lon),
+            at: remoteFix.at != null ? Number(remoteFix.at) : 0
+          });
+          if (winner && winner !== current) {
+            memoryMap[id] = winner;
+            merged += 1;
+          }
+        });
+        return { merged };
+      }
+      async function hydrateContact(memoryMap) {
+        if (!memoryMap || typeof memoryMap !== "object") return { merged: 0 };
+        const remote = await readHashMap(keys.contact);
+        let merged = 0;
+        Object.keys(remote).forEach((id) => {
+          const row = remote[id];
+          const uri = row && row.uri ? String(row.uri).trim() : "";
+          if (!uri) return;
+          if (!memoryMap[id]) {
+            memoryMap[id] = uri;
+            merged += 1;
+          }
+        });
+        return { merged };
+      }
+      async function hydrateOnline(applyFn) {
+        if (typeof applyFn !== "function") return { merged: 0 };
+        const remote = await readHashMap(keys.online);
+        let merged = 0;
+        Object.keys(remote).forEach((id) => {
+          const row = remote[id];
+          if (!row) return;
+          applyFn(id, {
+            online: !!(row.online === 1 || row.online === true),
+            lastSeen: row.lastSeen != null ? Number(row.lastSeen) : row.at != null ? Number(row.at) : nowTs(),
+            lastIp: row.lastIp != null ? row.lastIp : null,
+            pttOnline: !!(row.pttOnline === 1 || row.pttOnline === true)
+          });
+          merged += 1;
+        });
+        return { merged };
+      }
+      return {
+        start,
+        stop,
+        snapshot,
+        writeGps,
+        writeContact,
+        writeOnline,
+        hydrateGps,
+        hydrateContact,
+        hydrateOnline,
+        newestByTs,
+        keys,
+        _markDegraded: markDegraded,
+        _setClientForTests(testClient) {
+          client = testClient;
+          started = true;
+          mode = testClient ? "ready" : url ? "degraded" : "off";
+        }
+      };
+    }
+    module2.exports = {
+      createRedisRuntime: createRedisRuntime2,
+      newestByTs
     };
   }
 });
@@ -19418,6 +20204,7 @@ var require_faceTrackSidecar = __commonJS({
         "--out",
         outPath
       ].concat(engineArgs(engine)).concat([
+        /* REDACT-HOLD-SMOOTH-V1 — hold 14→22 + coast in Python; pad stays 0.12 */
         "--score",
         String(opts.score != null ? opts.score : 0.72),
         "--pad",
@@ -19427,7 +20214,9 @@ var require_faceTrackSidecar = __commonJS({
         "--detect-every",
         String(opts.detectEvery != null ? opts.detectEvery : 1),
         "--hold-frames",
-        String(opts.holdFrames != null ? opts.holdFrames : 4)
+        String(opts.holdFrames != null ? opts.holdFrames : 22),
+        "--iou",
+        String(opts.iou != null ? opts.iou : 0.18)
       ]);
       if (opts.maxSeconds) args.push("--max-seconds", String(opts.maxSeconds));
       if (opts.timelineOut) args.push("--timeline-out", String(opts.timelineOut));
@@ -19945,10 +20734,12 @@ var require_evidenceWorkflow = __commonJS({
       try {
         const burn = await faceTrackSidecar2.burnFaceFollow(inputPath, burnedPath, {
           score: opts.score != null ? opts.score : 0.72,
+          /* pad stays tight — operator: bigger box covers body */
           pad: opts.pad != null ? opts.pad : 0.12,
           sigma: opts.sigma != null ? opts.sigma : 18,
           detectEvery: opts.detectEvery != null ? opts.detectEvery : 1,
-          holdFrames: opts.holdFrames != null ? opts.holdFrames : 4,
+          holdFrames: opts.holdFrames != null ? opts.holdFrames : 22,
+          iou: opts.iou != null ? opts.iou : 0.18,
           maxSeconds: opts.maxSeconds || 0,
           timeout: opts.timeout || 9e5
         });
@@ -20116,6 +20907,82 @@ var require_evidenceWorkflow = __commonJS({
       if (!abs || !fs2.existsSync(abs)) return null;
       return { row, fullPath: abs };
     }
+    async function removeRedactExportDraft(exportId) {
+      const row = await siteDb2.getEvidenceExport(exportId);
+      if (!row) throw new Error("Export not found");
+      if (row.exportType !== "redact") throw new Error("Only redacted draft exports can be removed");
+      const status = row.meta && row.meta.status || "";
+      if (status === "finalized") throw new Error("Finalized exports cannot be removed");
+      const abs = exportAbs(row.relativePath);
+      if (abs && fs2.existsSync(abs)) {
+        try {
+          fs2.unlinkSync(abs);
+        } catch (_) {
+        }
+      }
+      const ok = await siteDb2.deleteEvidenceExport(exportId);
+      if (!ok) throw new Error("Export not found");
+      return {
+        exportId: row.exportId,
+        evidenceFileId: row.evidenceFileId,
+        fileName: row.fileName,
+        status: status || "pending",
+        relativePath: row.relativePath || null
+      };
+    }
+    async function removeRedactExportDraftsForFile(fileId) {
+      const id = String(fileId || "").trim();
+      if (!id) throw new Error("Evidence file required");
+      const rows = await siteDb2.listNonFinalizedRedactExports(id);
+      const removed = [];
+      for (let i = 0; i < rows.length; i++) {
+        const out = await removeRedactExportDraft(rows[i].exportId);
+        removed.push(out);
+      }
+      return {
+        evidenceFileId: id,
+        count: removed.length,
+        removed
+      };
+    }
+    async function removeRedactExportFinalized(exportId) {
+      const row = await siteDb2.getEvidenceExport(exportId);
+      if (!row) throw new Error("Export not found");
+      if (row.exportType !== "redact") throw new Error("Only redacted exports can be removed");
+      const status = row.meta && row.meta.status || "";
+      if (status !== "finalized") throw new Error("Export is not finalized");
+      const abs = exportAbs(row.relativePath);
+      if (abs && fs2.existsSync(abs)) {
+        try {
+          fs2.unlinkSync(abs);
+        } catch (_) {
+        }
+      }
+      const ok = await siteDb2.deleteEvidenceExport(exportId);
+      if (!ok) throw new Error("Export not found");
+      return {
+        exportId: row.exportId,
+        evidenceFileId: row.evidenceFileId,
+        fileName: row.fileName,
+        status: "finalized",
+        relativePath: row.relativePath || null
+      };
+    }
+    async function removeRedactExportFinalizedForFile(fileId) {
+      const id = String(fileId || "").trim();
+      if (!id) throw new Error("Evidence file required");
+      const rows = await siteDb2.listFinalizedRedactExports(id);
+      const removed = [];
+      for (let i = 0; i < rows.length; i++) {
+        const out = await removeRedactExportFinalized(rows[i].exportId);
+        removed.push(out);
+      }
+      return {
+        evidenceFileId: id,
+        count: removed.length,
+        removed
+      };
+    }
     function exportPeriodBounds(period) {
       if (!period || period === "all") return { from: null, to: null };
       const now = /* @__PURE__ */ new Date();
@@ -20181,6 +21048,10 @@ var require_evidenceWorkflow = __commonJS({
       saveRedactNote,
       finalizeRedactExport,
       getRedactExport,
+      removeRedactExportDraft,
+      removeRedactExportDraftsForFile,
+      removeRedactExportFinalized,
+      removeRedactExportFinalizedForFile,
       resolveExportStream,
       listRedactedExports,
       resolvePreviewPath,
@@ -21170,6 +22041,123 @@ var require_frLiveProbe = __commonJS({
     var GRAB_MS = clampInt(process.env.FM_FR_GRAB_MS, 900, 400, 5e3);
     var EOF_MS = clampInt(process.env.FM_FR_GRAB_EOF_MS, 200, 80, 1200);
     var NO_DATA_MS = clampInt(process.env.FM_FR_GRAB_NO_DATA_MS, 800, 200, 4e3);
+    var FLV_GRAB_MS = clampInt(process.env.FM_FR_FLV_GRAB_MS, 1200, 800, 8e3);
+    function localPullUrl(upstreamFlv) {
+      const raw = String(upstreamFlv || "").trim();
+      if (!raw || !/^https?:\/\//i.test(raw)) return null;
+      try {
+        const u = new URL(raw);
+        if (u.hostname === "localhost" || /^127\./.test(u.hostname) || /^192\.168\./.test(u.hostname) || /^10\./.test(u.hostname)) {
+          u.hostname = "127.0.0.1";
+        }
+        return u.toString();
+      } catch (_) {
+        return raw;
+      }
+    }
+    function grabJpegFromFlv(flvUrl, opts) {
+      opts = opts || {};
+      const url = localPullUrl(flvUrl);
+      if (!url) {
+        return Promise.reject(new Error("fr grab flv: bad url"));
+      }
+      const t0 = Date.now();
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const chunks = [];
+        const ffmpegPath = resolveFfmpegPath();
+        let ff = null;
+        let timer = null;
+        const finish = (err, buf) => {
+          if (settled) return;
+          settled = true;
+          if (timer) clearTimeout(timer);
+          try {
+            if (ff) ff.kill("SIGKILL");
+          } catch (_) {
+          }
+          if (err) {
+            reject(err);
+            return;
+          }
+          try {
+            const log2 = require_fleetLog();
+            log2.media.info("fr flv grab ms", {
+              camId: opts.camId || null,
+              ms: Date.now() - t0,
+              bytes: buf && buf.length || 0,
+              budgetMs: FLV_GRAB_MS,
+              path: "fr-live-snap-faster-v1"
+            });
+          } catch (_) {
+          }
+          resolve(buf);
+        };
+        try {
+          ff = spawn2(ffmpegPath, [
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-rw_timeout",
+            String(Math.max(5e5, FLV_GRAB_MS * 1e3)),
+            "-fflags",
+            "+genpts+discardcorrupt+nobuffer",
+            "-flags",
+            "low_delay",
+            "-probesize",
+            "262144",
+            "-analyzeduration",
+            "500000",
+            "-i",
+            url,
+            "-an",
+            "-frames:v",
+            "1",
+            "-q:v",
+            "3",
+            "-f",
+            "image2",
+            "pipe:1"
+          ], {
+            windowsHide: true,
+            stdio: ["ignore", "pipe", "pipe"]
+          });
+        } catch (err) {
+          reject(err);
+          return;
+        }
+        ff.stdout.on("data", (d) => {
+          chunks.push(d);
+        });
+        let errTail = "";
+        ff.stderr.on("data", (d) => {
+          errTail = (errTail + String(d)).slice(-400);
+        });
+        ff.on("error", (err) => finish(err));
+        ff.on("close", () => {
+          const buf = Buffer.concat(chunks);
+          if (buf.length > 200) finish(null, buf);
+          else if (!settled) finish(new Error(errTail || "fr grab flv: no jpeg"));
+        });
+        timer = setTimeout(() => {
+          const buf = Buffer.concat(chunks);
+          if (buf.length > 200) finish(null, buf);
+          else finish(new Error("fr grab flv: timeout"));
+        }, FLV_GRAB_MS);
+      });
+    }
+    function grabJpegForFr(camId, videoWsPort) {
+      const id = String(camId || "").trim();
+      try {
+        const wvp = require_wvpVideoHandoff();
+        if (wvp.isHandoffEnabled && wvp.isHandoffEnabled() && wvp.isActive && wvp.isActive(id) && wvp.getUpstreamFlv) {
+          const up = wvp.getUpstreamFlv(id);
+          if (up) return grabJpegFromFlv(up, { camId: id });
+        }
+      } catch (_) {
+      }
+      return grabJpeg(id, videoWsPort);
+    }
     function grabJpeg(camId, videoWsPort) {
       const id = String(camId || "").trim();
       const port = parseInt(videoWsPort, 10);
@@ -21309,7 +22297,16 @@ var require_frLiveProbe = __commonJS({
         });
       });
     }
-    module2.exports = { grabJpeg, GRAB_MS, EOF_MS, NO_DATA_MS };
+    module2.exports = {
+      grabJpeg,
+      grabJpegFromFlv,
+      grabJpegForFr,
+      localPullUrl,
+      GRAB_MS,
+      EOF_MS,
+      NO_DATA_MS,
+      FLV_GRAB_MS
+    };
   }
 });
 
@@ -21626,9 +22623,13 @@ var require_frAlertTier = __commonJS({
     function shouldInterruptOperators(tier) {
       return tier === "medium" || tier === "high";
     }
+    function shouldNotifyOperators() {
+      return true;
+    }
     module2.exports = {
       alertTierFor,
       shouldInterruptOperators,
+      shouldNotifyOperators,
       TIER_BY_GRADE
     };
   }
@@ -21645,17 +22646,27 @@ var require_frLivePoller = __commonJS({
     var frSidecarClient2 = require_frSidecarClient();
     var frBlacklist2 = require_frBlacklist();
     var frSnapLedger2 = require_frSnapLedger();
-    var { alertTierFor, shouldInterruptOperators } = require_frAlertTier();
-    var POLL_SEC = Math.max(2, parseInt(process.env.FM_FR_POLL_SEC || "2", 10) || 2);
+    var { alertTierFor, shouldInterruptOperators, shouldNotifyOperators } = require_frAlertTier();
+    var POLL_SEC = Math.max(1, Math.min(10, parseInt(process.env.FM_FR_POLL_SEC || "1", 10) || 1));
     var LIVE_SLOTS = Math.max(1, Math.min(4, parseInt(process.env.FM_FR_LIVE_SLOTS || "4", 10) || 4));
     var MATCH_MIN = Math.max(70, Math.min(99, parseInt(process.env.FM_FR_MATCH_MIN || "75", 10) || 75));
     var HIT_DEDUPE_MS = parseInt(process.env.FM_FR_HIT_DEDUPE_MS || "45000", 10) || 45e3;
+    var AUTO_DISPATCH_SCORE_MIN = Math.max(70, Math.min(
+      99,
+      parseInt(process.env.FM_FR_MAP_AUTO_SCORE_MIN || process.env.FM_FR_MATCH_MIN || "75", 10) || 75
+    ));
     var BEST_FRAME_GRABS = Math.max(1, Math.min(5, parseInt(process.env.FM_FR_BEST_FRAME_GRABS || "2", 10) || 2));
+    var HANDOFF_BEST_FRAME_GRABS = Math.max(1, Math.min(5, parseInt(
+      process.env.FM_FR_HANDOFF_BEST_FRAME_GRABS != null && String(process.env.FM_FR_HANDOFF_BEST_FRAME_GRABS).trim() !== "" ? process.env.FM_FR_HANDOFF_BEST_FRAME_GRABS : "1",
+      10
+    ) || 1));
     var BEST_FRAME_GAP_MS = Math.max(100, Math.min(1e3, parseInt(process.env.FM_FR_BEST_FRAME_GAP_MS || "200", 10) || 200));
     var ROLLING_RAIL = process.env.FM_FR_ROLLING_RAIL !== "0";
     var RAIL_SCORED_ONLY = process.env.FM_FR_RAIL_SCORED_ONLY !== "0";
     var ALERT_TIER_ENABLED = process.env.FM_FR_ALERT_TIER !== "0";
     var BATCH_PROBE = process.env.FM_FR_BATCH_PROBE !== "0";
+    var skipLogAtByCam = /* @__PURE__ */ new Map();
+    var SKIP_LOG_MS = 3e4;
     var TRACK_BUFFER_MS = Math.max(1e3, Math.min(5e3, parseInt(process.env.FM_FR_TRACK_BUFFER_MS || "2200", 10) || 2200));
     var TRACK_BUFFER_MAX = Math.max(3, Math.min(20, parseInt(process.env.FM_FR_TRACK_BUFFER_MAX || "8", 10) || 8));
     var deps = null;
@@ -21663,10 +22674,34 @@ var require_frLivePoller = __commonJS({
     var busy = false;
     var watchBySocket = /* @__PURE__ */ new Map();
     var lastHitAt = /* @__PURE__ */ new Map();
+    var lastHitScoreByKey = /* @__PURE__ */ new Map();
     var trackBufferByCam = /* @__PURE__ */ new Map();
     var cropsDir = null;
     function sleep(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+    function isCamLiveForFr(camId) {
+      const id = String(camId || "").trim();
+      if (!id) return false;
+      const pool = deps && deps.liveStreamPool;
+      if (pool && pool.isStreamingForCam && pool.isStreamingForCam(id)) return true;
+      return isHandoffLiveForFr(id);
+    }
+    function isHandoffLiveForFr(camId) {
+      const id = String(camId || "").trim();
+      if (!id) return false;
+      try {
+        const wvp = require_wvpVideoHandoff();
+        if (wvp.isHandoffEnabled && wvp.isHandoffEnabled() && wvp.isActive && wvp.isActive(id) && wvp.getUpstreamFlv && wvp.getUpstreamFlv(id)) {
+          return true;
+        }
+      } catch (_) {
+      }
+      return false;
+    }
+    function grabsForCam(camId) {
+      if (isHandoffLiveForFr(camId)) return HANDOFF_BEST_FRAME_GRABS;
+      return BEST_FRAME_GRABS;
     }
     function init(options) {
       deps = options || {};
@@ -21858,14 +22893,13 @@ var require_frLivePoller = __commonJS({
       });
     }
     async function grabRepresent(camId) {
-      const pool = deps.liveStreamPool;
-      if (!pool || !pool.isStreamingForCam || !pool.isStreamingForCam(camId)) {
+      if (!isCamLiveForFr(camId)) {
         return { kind: "fail", camId };
       }
       const port = deps.videoWsPort;
       let jpeg;
       try {
-        jpeg = await frLiveProbe.grabJpeg(camId, port);
+        jpeg = await frLiveProbe.grabJpegForFr(camId, port);
       } catch (err) {
         if (deps.log) {
           try {
@@ -21888,8 +22922,7 @@ var require_frLivePoller = __commonJS({
       }
     }
     async function grabRepresentBatch(camId, grabCount) {
-      const pool = deps.liveStreamPool;
-      if (!pool || !pool.isStreamingForCam || !pool.isStreamingForCam(camId)) {
+      if (!isCamLiveForFr(camId)) {
         return [{ kind: "fail", camId }];
       }
       const port = deps.videoWsPort;
@@ -21899,7 +22932,7 @@ var require_frLivePoller = __commonJS({
           if (g > 0) await sleep(BEST_FRAME_GAP_MS);
           let jpeg;
           try {
-            jpeg = await frLiveProbe.grabJpeg(camId, port);
+            jpeg = await frLiveProbe.grabJpegForFr(camId, port);
           } catch (err) {
             if (deps.log) {
               try {
@@ -21954,8 +22987,15 @@ var require_frLivePoller = __commonJS({
     function emitHit(camId, matched, tick2) {
       const dedupeKey = camId + ":" + matched.match.id;
       const now = Date.now();
-      if (lastHitAt.has(dedupeKey) && now - lastHitAt.get(dedupeKey) < HIT_DEDUPE_MS) return null;
+      const scorePct = Number(matched.scorePct);
+      const score = Number.isFinite(scorePct) ? scorePct : 0;
+      const prevAt = lastHitAt.get(dedupeKey) || 0;
+      const prevScore = lastHitScoreByKey.has(dedupeKey) ? Number(lastHitScoreByKey.get(dedupeKey)) : null;
+      const withinDedupe = prevAt && now - prevAt < HIT_DEDUPE_MS;
+      const scoreUpgrade = withinDedupe && prevScore != null && Number.isFinite(prevScore) && prevScore < AUTO_DISPATCH_SCORE_MIN && score >= AUTO_DISPATCH_SCORE_MIN;
+      if (withinDedupe && !scoreUpgrade) return null;
       lastHitAt.set(dedupeKey, now);
+      lastHitScoreByKey.set(dedupeKey, score);
       const listStatus = matched.match.listStatus || "blacklist";
       const tier = ALERT_TIER_ENABLED ? alertTierFor(listStatus) : "high";
       const hit = {
@@ -21978,7 +23018,9 @@ var require_frLivePoller = __commonJS({
         photoUrl: "/api/analytics/fr/blacklist/" + encodeURIComponent(matched.match.id) + "/photo",
         at: tick2.at,
         source: "live",
-        sharpness: tick2.sharpness != null ? tick2.sharpness : null
+        sharpness: tick2.sharpness != null ? tick2.sharpness : null,
+        scoreUpgrade: !!scoreUpgrade,
+        prevScorePct: scoreUpgrade ? prevScore : null
       };
       Object.assign(hit, gpsFieldsForCam(camId));
       if (!shouldInterruptOperators(tier)) {
@@ -22012,9 +23054,23 @@ var require_frLivePoller = __commonJS({
           } catch (_) {
           }
         }
-        return hit;
       }
-      if (deps.emit) deps.emit("fr-blacklist-hit", hit, camId);
+      if (scoreUpgrade && deps.log) {
+        try {
+          deps.log.media.info("fr blacklist score upgrade dispatch", {
+            camId,
+            blacklistId: hit.blacklistId,
+            prevScorePct: prevScore,
+            scorePct: score,
+            autoMin: AUTO_DISPATCH_SCORE_MIN,
+            path: "fr-blacklist-score-upgrade-dispatch-v1"
+          });
+        } catch (_) {
+        }
+      }
+      if (shouldNotifyOperators(tier) && deps.emit) {
+        deps.emit("fr-blacklist-hit", hit, camId);
+      }
       if (deps.onHit) {
         try {
           deps.onHit(hit);
@@ -22045,23 +23101,39 @@ var require_frLivePoller = __commonJS({
         sharpness: one.sharpness,
         bestFrame: false,
         rolling: true,
-        windowGrabs: BEST_FRAME_GRABS
+        windowGrabs: grabsForCam(camId)
       }), camId);
     }
     async function probeOne(entry) {
       const camId = entry.camId;
-      const pool = deps.liveStreamPool;
-      if (!pool || !pool.isStreamingForCam || !pool.isStreamingForCam(camId)) {
+      if (!isCamLiveForFr(camId)) {
+        if (deps.log) {
+          const now = Date.now();
+          const last = skipLogAtByCam.get(camId) || 0;
+          if (now - last >= SKIP_LOG_MS) {
+            skipLogAtByCam.set(camId, now);
+            const handoffOn = String(process.env.FM_WVP_VIDEO_HANDOFF || "").trim() === "1";
+            try {
+              deps.log.media.warn("fr probe skip: cam not live for FR", {
+                camId,
+                wvpHandoff: handoffOn,
+                hint: handoffOn ? "wait for WVP/FLV handoff on FR tile (start watch), then grab uses ZLM" : "start-video / liveStreamPool not live for this cam"
+              });
+            } catch (_) {
+            }
+          }
+        }
         return null;
       }
+      const grabN = grabsForCam(camId);
       const candidates = [];
       let sawEmpty = false;
       let ones;
       if (BATCH_PROBE) {
-        ones = await grabRepresentBatch(camId, BEST_FRAME_GRABS);
+        ones = await grabRepresentBatch(camId, grabN);
       } else {
         ones = [];
-        for (let g = 0; g < BEST_FRAME_GRABS; g++) {
+        for (let g = 0; g < grabN; g++) {
           if (g > 0) await sleep(BEST_FRAME_GAP_MS);
           ones.push(await grabRepresent(camId));
         }
@@ -22088,7 +23160,7 @@ var require_frLivePoller = __commonJS({
             match: false
           }), camId);
         }
-        return { camId, faces: 0, windowGrabs: BEST_FRAME_GRABS, candidates: 0 };
+        return { camId, faces: 0, windowGrabs: grabN, candidates: 0 };
       }
       const rep = best.rep;
       const matched = frBlacklist2.matchProbe(rep.embedding, { minScorePct: entry.threshold });
@@ -22117,7 +23189,7 @@ var require_frLivePoller = __commonJS({
         alertTier: matched.match ? alertTierFor(matched.match.listStatus || "blacklist") : null,
         sharpness: best.sharpness,
         bestFrame: true,
-        windowGrabs: BEST_FRAME_GRABS,
+        windowGrabs: grabN,
         windowCandidates: candidates.length,
         trackBufferCandidates: buffered.bufferSize || candidates.length,
         trackBufferMs: TRACK_BUFFER_MS,
@@ -22170,6 +23242,8 @@ var require_frLivePoller = __commonJS({
       }
       watchBySocket.clear();
       trackBufferByCam.clear();
+      lastHitAt.clear();
+      lastHitScoreByKey.clear();
     }
     function cropAbsolutePath(fileName) {
       const fromLedger = frSnapLedger2.cropAbsolutePath(fileName);
@@ -22192,6 +23266,7 @@ var require_frLivePoller = __commonJS({
       LIVE_SLOTS,
       MATCH_MIN,
       BEST_FRAME_GRABS,
+      HANDOFF_BEST_FRAME_GRABS,
       BEST_FRAME_GAP_MS,
       ROLLING_RAIL,
       RAIL_SCORED_ONLY,
@@ -22211,9 +23286,13 @@ var require_frKeptEvidence = __commonJS({
     var crypto2 = require("crypto");
     var baseDir = null;
     var indexPath = null;
+    var dispositionLogPath = null;
+    var HOLD_STATUSES = ["open", "cleared", "linked", "discarded"];
+    var CLEAR_REASONS = ["false_positive", "known_cleared", "duplicate", "other"];
     function init(storageDir) {
       baseDir = path2.join(storageDir, "fr-kept");
       indexPath = path2.join(baseDir, "index.jsonl");
+      dispositionLogPath = path2.join(baseDir, "disposition.jsonl");
       try {
         fs2.mkdirSync(baseDir, { recursive: true });
       } catch (_) {
@@ -22285,7 +23364,8 @@ var require_frKeptEvidence = __commonJS({
         source: opts.source || "operator-keep",
         jpgFile,
         jsonFile,
-        folderHint: folderHint()
+        folderHint: folderHint(),
+        status: "open"
       };
       try {
         fs2.writeFileSync(path2.join(baseDir, jpgFile), buf);
@@ -22311,9 +23391,45 @@ var require_frKeptEvidence = __commonJS({
         meta
       };
     }
+    function normalizeStatus(row) {
+      const s = String(row && row.status || "open").toLowerCase();
+      return HOLD_STATUSES.includes(s) ? s : "open";
+    }
+    function readJsonMeta(id) {
+      if (!baseDir || !id) return null;
+      const jp = path2.join(baseDir, String(id) + ".json");
+      try {
+        if (fs2.existsSync(jp)) return JSON.parse(fs2.readFileSync(jp, "utf8"));
+      } catch (_) {
+      }
+      return null;
+    }
+    function writeJsonMeta(meta) {
+      if (!baseDir || !meta || !meta.id) return false;
+      try {
+        fs2.writeFileSync(path2.join(baseDir, meta.id + ".json"), JSON.stringify(meta, null, 2), "utf8");
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+    function appendDispositionLog(entry) {
+      if (!dispositionLogPath) return;
+      try {
+        fs2.appendFileSync(dispositionLogPath, JSON.stringify(entry) + "\n", "utf8");
+      } catch (_) {
+      }
+    }
+    function enrichRow(row) {
+      if (!row || !row.id) return row;
+      const disk = readJsonMeta(row.id);
+      const merged = Object.assign({}, row, disk || {});
+      merged.status = normalizeStatus(merged);
+      return merged;
+    }
     function readIndexEntries() {
-      const out = [];
-      if (!indexPath || !fs2.existsSync(indexPath)) return out;
+      const byId = /* @__PURE__ */ Object.create(null);
+      if (!indexPath || !fs2.existsSync(indexPath)) return [];
       try {
         const raw = fs2.readFileSync(indexPath, "utf8");
         const lines = raw.split(/\r?\n/);
@@ -22322,13 +23438,15 @@ var require_frKeptEvidence = __commonJS({
           if (!line) continue;
           try {
             const row = JSON.parse(line);
-            if (row && row.id) out.push(row);
+            if (row && row.id) byId[row.id] = row;
           } catch (_) {
           }
         }
       } catch (_) {
       }
-      return out;
+      return Object.keys(byId).map(function(id) {
+        return enrichRow(byId[id]);
+      });
     }
     function list(opts) {
       opts = opts || {};
@@ -22339,6 +23457,13 @@ var require_frKeptEvidence = __commonJS({
           return String(r.camId || "") === camFilter;
         });
       }
+      const statusRaw = String(opts.status || "open").toLowerCase();
+      const statusFilter = statusRaw === "all" ? "all" : HOLD_STATUSES.includes(statusRaw) ? statusRaw : "open";
+      if (statusFilter !== "all") {
+        rows = rows.filter(function(r) {
+          return normalizeStatus(r) === statusFilter;
+        });
+      }
       rows.sort(function(a, b) {
         const ta = Date.parse(a.keptAt || a.at || 0) || 0;
         const tb = Date.parse(b.keptAt || b.at || 0) || 0;
@@ -22347,6 +23472,7 @@ var require_frKeptEvidence = __commonJS({
       const limit = Math.max(1, Math.min(500, parseInt(opts.limit, 10) || 100));
       return rows.slice(0, limit).map(function(r) {
         return Object.assign({}, r, {
+          status: normalizeStatus(r),
           thumbUrl: r.id ? "/api/analytics/fr/kept/" + encodeURIComponent(r.id) + "/jpg" : null,
           folderHint: folderHint()
         });
@@ -22355,17 +23481,51 @@ var require_frKeptEvidence = __commonJS({
     function getById(id) {
       const want = String(id || "").trim();
       if (!want || !/^frk-[a-z0-9]+-[a-f0-9]+$/i.test(want)) return null;
+      const disk = readJsonMeta(want);
+      if (disk) return enrichRow(disk);
       const rows = readIndexEntries();
-      for (let i = rows.length - 1; i >= 0; i--) {
+      for (let i = 0; i < rows.length; i++) {
         if (rows[i] && rows[i].id === want) return rows[i];
       }
-      if (!baseDir) return null;
-      const jp = path2.join(baseDir, want + ".json");
-      try {
-        if (fs2.existsSync(jp)) return JSON.parse(fs2.readFileSync(jp, "utf8"));
-      } catch (_) {
-      }
       return null;
+    }
+    function setDisposition(id, opts) {
+      opts = opts || {};
+      const want = String(id || "").trim();
+      const nextStatus = String(opts.status || "").toLowerCase();
+      if (!HOLD_STATUSES.includes(nextStatus) || nextStatus === "open" || nextStatus === "linked") {
+        return { ok: false, error: "invalid_status" };
+      }
+      const row = getById(want);
+      if (!row) return { ok: false, error: "not_found" };
+      if (normalizeStatus(row) !== "open") {
+        return { ok: false, error: "not_open" };
+      }
+      const reason = String(opts.reason || "").trim();
+      if (nextStatus === "cleared" && !CLEAR_REASONS.includes(reason)) {
+        return { ok: false, error: "reason_required" };
+      }
+      const note = String(opts.note || "").trim().slice(0, 240);
+      const at = (/* @__PURE__ */ new Date()).toISOString();
+      const meta = Object.assign({}, row, {
+        status: nextStatus,
+        dispositionReason: reason || (nextStatus === "discarded" ? "discarded" : ""),
+        dispositionNote: note || null,
+        dispositionAt: at,
+        dispositionBy: opts.actor || null
+      });
+      if (!writeJsonMeta(meta)) return { ok: false, error: "write_failed" };
+      appendDispositionLog({
+        id: meta.id,
+        status: nextStatus,
+        reason: meta.dispositionReason,
+        note: meta.dispositionNote,
+        at,
+        actor: meta.dispositionBy,
+        camId: meta.camId || null,
+        displayName: meta.displayName || null
+      });
+      return { ok: true, hold: enrichRow(meta) };
     }
     function jpgAbsolutePath(idOrFile) {
       if (!baseDir) return null;
@@ -22386,9 +23546,13 @@ var require_frKeptEvidence = __commonJS({
       keep,
       list,
       getById,
+      setDisposition,
       jpgAbsolutePath,
       folderHint,
-      absoluteDir
+      absoluteDir,
+      CLEAR_REASONS,
+      HOLD_STATUSES,
+      normalizeStatus
     };
   }
 });
@@ -25443,6 +26607,7 @@ var require_conferenceModule = __commonJS({
     var wvpVideoHandoff = require_wvpVideoHandoff();
     var fixedCamRegistry2 = require_fixedCamRegistry();
     var fixedCamOnvif2 = require_fixedCamOnvif();
+    var { conferenceShareFileName } = require_secureId();
     var log2 = require_fleetLog();
     var dispatchGroups2 = null;
     var getOnlineCamIds = null;
@@ -26439,7 +27604,7 @@ var require_conferenceModule = __commonJS({
       if (buf.length > 6 * 1024 * 1024) throw new Error("Image too large (max 6 MB)");
       const mime = String(body && body.mime || "image/jpeg");
       const ext = mime.indexOf("png") >= 0 ? ".png" : ".jpg";
-      const id = "share-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ext;
+      const id = conferenceShareFileName(ext);
       const dir = path2.join(shareImagesDir(), roomId);
       fs2.mkdirSync(dir, { recursive: true });
       const filePath = path2.join(dir, id);
@@ -30821,13 +31986,19 @@ var require_package = __commonJS({
       main: "server.js",
       scripts: {
         start: "node server.js",
-        verify: "node scripts/verify-install.js && node scripts/verify-postgres-catalog-retirement.js && node scripts/verify-startup-rollback-gate.js && node scripts/verify-fatal-process-policy.js && node scripts/verify-sip-crypto-identifiers.js && node scripts/verify-login-rate-lru.js && node scripts/verify-sos-ack-ends-group-call.js",
+        verify: "node scripts/verify-install.js && node scripts/verify-postgres-catalog-retirement.js && node scripts/verify-startup-rollback-gate.js && node scripts/verify-fatal-process-policy.js && node scripts/verify-sip-crypto-identifiers.js && node scripts/verify-login-rate-lru.js && node scripts/verify-sos-ack-ends-group-call.js && node scripts/verify-ship-runjs-security-parity.js && node scripts/verify-valkey-fleet-runtime-state-degrade.js && node scripts/verify-enterprise-redis-image-legal-pin.js && node scripts/verify-lab-default-creds-and-image-pin.js && node scripts/verify-sec-nonsip-id-crypto-random.js",
         "verify:dependencies": "node scripts/verify-production-dependency-security.js",
         "verify:fatal": "node scripts/verify-fatal-process-policy.js",
+        "verify:lab-creds": "node scripts/verify-lab-default-creds-and-image-pin.js",
         "verify:login-rate": "node scripts/verify-login-rate-lru.js",
+        "verify:nonsip-id": "node scripts/verify-sec-nonsip-id-crypto-random.js",
+        "verify:redis-legal": "node scripts/verify-enterprise-redis-image-legal-pin.js",
+        "verify:runjs": "node scripts/verify-ship-runjs-security-parity.js",
         "verify:sip-crypto": "node scripts/verify-sip-crypto-identifiers.js",
         "verify:sos-ack-group-call": "node scripts/verify-sos-ack-ends-group-call.js && node scripts/verify-sos-group-sip-call.js",
         "verify:startup": "node scripts/verify-startup-rollback-gate.js",
+        "verify:valkey": "node scripts/verify-valkey-fleet-runtime-state-degrade.js",
+        "build:runjs": "node scripts/build-ship-runtime.js . run.js",
         postinstall: "node scripts/verify-install.js --quiet && node scripts/verify-postgres-catalog-retirement.js && node scripts/verify-startup-rollback-gate.js"
       },
       overrides: {
@@ -30838,6 +32009,7 @@ var require_package = __commonJS({
         dotenv: "^16.4.5",
         express: "^4.19.2",
         "ftp-srv": "^4.6.3",
+        ioredis: "^5.11.1",
         "livekit-server-sdk": "^2.9.7",
         multer: "^2.2.0",
         "node-llama-cpp": "^3.18.1",
@@ -31716,6 +32888,7 @@ var {
   createSipTag,
   createGbSequenceNumber
 } = require_sipCryptoIdentifiers();
+var { multerTempFileName } = require_secureId();
 var WebSocket = require("ws");
 var hdaMsg = require_hdaMessageProtocol();
 var mediaSession = require_mediaSession();
@@ -31782,6 +32955,32 @@ var platformLicense = require_platformLicense();
 var tenantProfile = require_tenantProfile();
 var bwcNetwork = require_bwcNetwork();
 var siteDb = require_siteDb();
+var enterpriseEnv = require_enterpriseEnv();
+var { createRedisRuntime } = require_redisRuntime();
+var RedisCtor = null;
+try {
+  RedisCtor = require("ioredis");
+} catch (_) {
+  RedisCtor = null;
+}
+var enterpriseCfg = enterpriseEnv.loadEnterpriseEnv(process.env, __dirname);
+var redisRuntime = createRedisRuntime({
+  url: enterpriseCfg.redis.url,
+  keyPrefix: enterpriseCfg.redis.keyPrefix,
+  connectTimeoutMs: enterpriseCfg.redis.connectTimeoutMs,
+  Redis: RedisCtor,
+  log
+});
+(function wireRedisOnlineDualWrite() {
+  const originalTouch = siteDb.touchRuntime.bind(siteDb);
+  siteDb.touchRuntime = function touchRuntimeWithCache(deviceId, patch) {
+    originalTouch(deviceId, patch);
+    try {
+      redisRuntime.writeOnline(deviceId, patch || {});
+    } catch (_) {
+    }
+  };
+})();
 var gpsTrack = require_gpsTrack();
 var smartGpsTrack = require_smartGpsTrack();
 var auditLog = require_auditLog();
@@ -32294,6 +33493,14 @@ audioWss.on("connection", () => {
 });
 mediaSession.setAudioWss(audioWss);
 liveStreamPool.setAudioWss(audioWss);
+try {
+  const wvpWallListenAudio = require_wvpWallListenAudio();
+  wvpWallListenAudio.setPushPcm(function(pcm) {
+    mediaSession.pushListenPcm(pcm);
+  });
+} catch (err) {
+  log.media.warn("wvp wall listen init skipped", { message: err && err.message ? err.message : String(err) });
+}
 liveStreamPool.setOnVideoDecode((camId) => {
   if (camId) {
     const sosPull = sosInviteQueue.wasSosPending(camId);
@@ -32645,6 +33852,7 @@ app.get("/api/health", async (req, res) => {
     }
     body.at = siteTime.formatEvidence(/* @__PURE__ */ new Date());
     body.displayMonitor3 = getDisplayMonitor3Profile();
+    body.cache = redisRuntime.snapshot();
     res.status(body.ok ? 200 : 503).json(body);
   } catch (err) {
     res.status(503).json({
@@ -33425,7 +34633,7 @@ app.post("/api/bwc-companion/telemetry", requireBwcCompanionToken, handleBwcComp
         emitToDashboardSockets("heartbeat", { cameraId: camId }, camId);
       },
       emitGpsUpdate: function(camId, lat, lon) {
-        lastGpsByCam[camId] = { lat, lon, at: Date.now() };
+        rememberGps(camId, lat, lon);
         emitToDashboardSockets("gps-update", { cameraId: camId, lat, lon }, camId);
       },
       emitDeviceStatusFromAcl: function(norm) {
@@ -34664,7 +35872,7 @@ app.post("/api/dispatch-ptt-group", (req, res) => {
       if (!roster.length) {
         return res.status(400).json(opErr("Group has no devices with IDs"));
       }
-      if (adhocCamIds.length >= 2) {
+      if (adhocCamIds.length >= 1) {
         const rosterSet = new Set(roster);
         camIds = adhocCamIds.filter((id) => rosterSet.has(id));
         if (camIds.length < 2) {
@@ -34726,12 +35934,10 @@ app.post("/api/dispatch-ptt-group", (req, res) => {
       teamSize: team.length,
       pushed: pushResult.pushed
     });
-    if (pushResult.pushed > 0) {
-      pttFieldGroupRelay.setDispatchTeam(resolvedGroupId || "adhoc", team, {
-        groupName,
-        adhoc
-      });
-    }
+    pttFieldGroupRelay.setDispatchTeam(resolvedGroupId || "adhoc", team, {
+      groupName,
+      adhoc
+    });
     auditLog.recordFromRequest(req, "ptt.dispatch_group", {
       target: auditTarget,
       detail: { groupId: resolvedGroupId, adhoc, team, pushed: pushResult.pushed }
@@ -37614,7 +38820,8 @@ app.post("/api/evidence/detail/:fileId/redact/autoface", dashboardAuth.requireSu
     const body = req.body || {};
     const detectOpts = {
       maxSeconds: Number(body.maxSeconds) > 0 ? Number(body.maxSeconds) : 0,
-      stride: Number(body.stride) > 0 ? Number(body.stride) : 3,
+      /* REDACT-HOLD-SMOOTH-V1 — denser Auto preview (3 → 2) */
+      stride: Number(body.stride) > 0 ? Number(body.stride) : 2,
       score: Number(body.score) > 0 ? Number(body.score) : 0.72,
       timeout: 3e5
     };
@@ -37684,6 +38891,80 @@ app.post("/api/evidence/redact/:exportId/finalize", dashboardAuth.requireSuperAd
     res.status(400).json(opErr(err));
   }
 });
+app.delete("/api/evidence/redact/:exportId", dashboardAuth.requireSuperAdmin, async (req, res) => {
+  try {
+    const allowFinalized = String(req.query.finalized || "") === "1" || String(req.body && req.body.finalized || "") === "1";
+    const out = allowFinalized ? await evidenceWorkflow.removeRedactExportFinalized(req.params.exportId) : await evidenceWorkflow.removeRedactExportDraft(req.params.exportId);
+    const auditAction = allowFinalized ? "evidence.redact_finalized_removed" : "evidence.redact_export_removed";
+    await auditLog.recordFromRequest(req, auditAction, {
+      target: out.evidenceFileId,
+      detail: {
+        fileId: out.evidenceFileId,
+        evidenceFileId: out.evidenceFileId,
+        exportId: out.exportId,
+        fileName: out.fileName,
+        status: out.status
+      }
+    });
+    res.json({ ok: true, removed: out });
+  } catch (err) {
+    const msg = String(err && err.message || "");
+    const code = msg.indexOf("Finalized") >= 0 || msg.indexOf("not finalized") >= 0 ? 409 : msg.indexOf("not found") >= 0 ? 404 : 400;
+    const errorKey = String(req.query.finalized || "") === "1" ? "evidenceHub.exportFinalizedCleanupFailed" : "evidenceHub.exportCleanupFailed";
+    res.status(code).json(Object.assign({ errorKey }, opErr(err)));
+  }
+});
+app.post("/api/evidence/detail/:fileId/redact/cleanup-drafts", dashboardAuth.requireSuperAdmin, async (req, res) => {
+  try {
+    const out = await evidenceWorkflow.removeRedactExportDraftsForFile(req.params.fileId);
+    await auditLog.recordFromRequest(req, "evidence.redact_drafts_cleaned", {
+      target: out.evidenceFileId,
+      detail: {
+        fileId: out.evidenceFileId,
+        evidenceFileId: out.evidenceFileId,
+        count: out.count,
+        exportIds: (out.removed || []).map(function(r) {
+          return r.exportId;
+        })
+      }
+    });
+    res.json({ ok: true, count: out.count, removed: out.removed });
+  } catch (err) {
+    res.status(400).json(Object.assign({
+      errorKey: "evidenceHub.exportCleanupFailed"
+    }, opErr(err)));
+  }
+});
+app.post("/api/evidence/detail/:fileId/redact/cleanup-finalized", dashboardAuth.requireSuperAdmin, async (req, res) => {
+  try {
+    const confirm = String(req.body && req.body.confirm || "").trim();
+    if (confirm !== "DELETE") {
+      return res.status(400).json({
+        ok: false,
+        error: "Type DELETE to confirm clearing Finalized redacted copies.",
+        errorKey: "evidenceHub.exportClearFinalizedNeedConfirm"
+      });
+    }
+    const out = await evidenceWorkflow.removeRedactExportFinalizedForFile(req.params.fileId);
+    await auditLog.recordFromRequest(req, "evidence.redact_finalized_cleaned", {
+      target: out.evidenceFileId,
+      detail: {
+        fileId: out.evidenceFileId,
+        evidenceFileId: out.evidenceFileId,
+        count: out.count,
+        exportIds: (out.removed || []).map(function(r) {
+          return r.exportId;
+        }),
+        status: "finalized"
+      }
+    });
+    res.json({ ok: true, count: out.count, removed: out.removed });
+  } catch (err) {
+    res.status(400).json(Object.assign({
+      errorKey: "evidenceHub.exportFinalizedCleanupFailed"
+    }, opErr(err)));
+  }
+});
 app.get("/api/evidence/redact/track-selfcheck", dashboardAuth.requireSuperAdmin, async (req, res) => {
   try {
     const report = await faceTrackSidecar.selfCheck();
@@ -37708,7 +38989,7 @@ var frVerifyUpload = multer({
     },
     filename: (_req, file, cb) => {
       const safe = String(file.originalname || "img").replace(/[^\w.\-]+/g, "_").slice(0, 80);
-      cb(null, Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "-" + safe);
+      cb(null, multerTempFileName(safe));
     }
   }),
   limits: { fileSize: 20 * 1024 * 1024 },
@@ -37804,7 +39085,7 @@ var frEnrollUpload = multer({
     },
     filename: (_req, file, cb) => {
       const safe = String(file.originalname || "img").replace(/[^\w.\-]+/g, "_").slice(0, 80);
-      cb(null, Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "-" + safe);
+      cb(null, multerTempFileName(safe));
     }
   }),
   limits: { fileSize: 20 * 1024 * 1024 },
@@ -38434,7 +39715,8 @@ app.get("/api/analytics/fr/kept", dashboardAuth.requireDashboardAuth, (req, res)
     const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
     let rows = frKeptEvidence.list({
       limit: req.query.limit,
-      camId: req.query.camId
+      camId: req.query.camId,
+      status: req.query.status
     });
     rows = rows.filter(function(r) {
       if (!r.camId) return true;
@@ -38474,6 +39756,50 @@ app.get("/api/analytics/fr/kept/:id/jpg", dashboardAuth.requireDashboardAuth, (r
     res.type("image/jpeg").sendFile(p);
   } catch (_) {
     res.status(500).end();
+  }
+});
+app.post("/api/analytics/fr/kept/:id/disposition", dashboardAuth.requireDashboardAuth, express.json({ limit: "32kb" }), (req, res) => {
+  if (!licenseFeatures.isFeatureEnabled("fr")) {
+    return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+  }
+  try {
+    const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+    const meta = frKeptEvidence.getById(req.params.id);
+    if (!meta) return res.status(404).json({ ok: false, error: "not_found" });
+    if (meta.camId) {
+      try {
+        assertSessionCanAccessCam(session, meta.camId);
+      } catch (_) {
+        return res.status(403).json({ ok: false, error: "forbidden" });
+      }
+    }
+    const body = req.body || {};
+    const result = frKeptEvidence.setDisposition(req.params.id, {
+      status: body.status,
+      reason: body.reason,
+      note: body.note,
+      actor: session && (session.username || session.user) || null
+    });
+    if (!result.ok) {
+      const code = result.error || "disposition_failed";
+      const status = code === "not_found" ? 404 : code === "not_open" ? 409 : 400;
+      return res.status(status).json({ ok: false, error: code });
+    }
+    const hold = result.hold || {};
+    const auditAction = String(body.status || "").toLowerCase() === "discarded" ? "analytics.fr_hold_discarded" : "analytics.fr_hold_cleared";
+    auditLog.recordFromRequest(req, auditAction, {
+      target: hold.id,
+      detail: {
+        status: hold.status,
+        reason: hold.dispositionReason || null,
+        note: hold.dispositionNote || null,
+        camId: hold.camId || null,
+        displayName: hold.displayName || null
+      }
+    });
+    res.json({ ok: true, hold });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err && err.message || err).slice(0, 120) });
   }
 });
 app.post("/api/analytics/fr/ptt-standby-team", dashboardAuth.requireDashboardAuth, (req, res) => {
@@ -38549,7 +39875,7 @@ var frOfflineUpload = multer({
     },
     filename: (_req, file, cb) => {
       const safe = String(file.originalname || "video").replace(/[^\w.\-]+/g, "_").slice(0, 80);
-      cb(null, Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "-" + safe);
+      cb(null, multerTempFileName(safe));
     }
   }),
   limits: { fileSize: frOfflineVideo.MAX_BYTES },
@@ -39577,6 +40903,10 @@ function restoreCameraContactForCam(camId, request, remote) {
       lastContactUriByCam[camId] = contactUri;
       recordCamIp(camId, contactUri);
       saveContactCache();
+      try {
+        redisRuntime.writeContact(camId, contactUri);
+      } catch (_) {
+      }
     }
     log.sip.info("contact restored from request contact", { camId, contact: contactUri });
     return contactUri;
@@ -39588,6 +40918,10 @@ function restoreCameraContactForCam(camId, request, remote) {
       lastContactUriByCam[camId] = remoteUri;
       recordCamIp(camId, remoteUri);
       saveContactCache();
+      try {
+        redisRuntime.writeContact(camId, remoteUri);
+      } catch (_) {
+      }
     }
     log.sip.info("contact restored from sip remote", { camId, contact: remoteUri });
     return remoteUri;
@@ -39604,6 +40938,10 @@ function restoreCameraContactForCam(camId, request, remote) {
       lastContactUriByCam[camId] = fromUri;
       recordCamIp(camId, fromUri);
       saveContactCache();
+      try {
+        redisRuntime.writeContact(camId, fromUri);
+      } catch (_) {
+      }
     }
     log.sip.info("contact restored from notify from", { camId, contact: fromUri });
     return cameraContactUri;
@@ -39691,15 +41029,17 @@ app.post("/api/admin/clear-cache", dashboardAuth.requireSuperAdmin, (req, res) =
     res.status(500).json(Object.assign({ success: false }, opErr(err)));
   }
 });
-function commandCentreDeps() {
+async function commandCentreDeps() {
   syncFleetDeviceMeta();
   const ftpRoot = currentFtpRoot();
   const limits = platformLimits.loadLimits();
   const bwcData = loadBwcDevices();
   let auditEntries = [];
   try {
-    auditEntries = auditLog.list({ limit: 50 }) || [];
+    const rows = await auditLog.list({ limit: 50 });
+    auditEntries = Array.isArray(rows) ? rows : [];
   } catch (_) {
+    auditEntries = [];
   }
   function resolveDeviceName(id) {
     const camId = String(id || "").trim();
@@ -39734,20 +41074,20 @@ function commandCentreDeps() {
     serviceStatus: adminServiceStatusSnapshot()
   };
 }
-app.get("/api/command-centre/summary", dashboardAuth.requireSuperAdmin, (req, res) => {
+app.get("/api/command-centre/summary", dashboardAuth.requireSuperAdmin, async (req, res) => {
   try {
-    res.json(commandCentreReport.buildSummary(commandCentreDeps()));
+    res.json(commandCentreReport.buildSummary(await commandCentreDeps()));
   } catch (err) {
     res.status(500).json(opErr(err));
   }
 });
-app.get("/api/command-centre/export", dashboardAuth.requireSuperAdmin, (req, res) => {
+app.get("/api/command-centre/export", dashboardAuth.requireSuperAdmin, async (req, res) => {
   try {
     const period = String(req.query && req.query.period || "weekly").toLowerCase();
     const format = String(req.query && req.query.format || "csv").toLowerCase();
     const allowed = ["daily", "weekly", "monthly", "yearly"];
     const p = allowed.indexOf(period) >= 0 ? period : "weekly";
-    const summary = commandCentreReport.buildSummary(commandCentreDeps());
+    const summary = commandCentreReport.buildSummary(await commandCentreDeps());
     const stamp = siteTime.formatEvidenceDate(/* @__PURE__ */ new Date());
     if (format === "json") {
       res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -39776,7 +41116,7 @@ app.post("/api/command-centre/ask", dashboardAuth.requireSuperAdmin, async (req,
   try {
     const question = req.body && req.body.question;
     const lang = req.body && req.body.lang;
-    const summary = commandCentreReport.buildSummary(commandCentreDeps());
+    const summary = commandCentreReport.buildSummary(await commandCentreDeps());
     const result = await centreLlm.ask(question, summary, lang);
     res.json(result);
   } catch (err) {
@@ -39784,18 +41124,31 @@ app.post("/api/command-centre/ask", dashboardAuth.requireSuperAdmin, async (req,
   }
 });
 var dashboardSelectedCamId = null;
-function getContactUriForCam(camId) {
+function resolveContactForCam(camId) {
   const id = camId || connectedCameraId;
-  if (!id) return cameraContactUri || null;
+  if (!id) {
+    if (cameraContactUri) return { uri: cameraContactUri, source: "legacy_connected" };
+    return null;
+  }
   try {
     const fleetPttContact = require_fleetPttContact();
     const resolved = fleetPttContact.resolveContactUri(id, lastContactUriByCam);
-    if (resolved && resolved.uri) return resolved.uri;
+    if (resolved && resolved.uri) {
+      return { uri: resolved.uri, source: resolved.source || "resolved" };
+    }
   } catch (_) {
   }
-  if (lastContactUriByCam[id]) return lastContactUriByCam[id];
-  if (connectedCameraId === id && cameraContactUri) return cameraContactUri;
+  if (lastContactUriByCam[id]) {
+    return { uri: lastContactUriByCam[id], source: "fleet_sip_cache" };
+  }
+  if (connectedCameraId === id && cameraContactUri) {
+    return { uri: cameraContactUri, source: "legacy_connected" };
+  }
   return null;
+}
+function getContactUriForCam(camId) {
+  const resolved = resolveContactForCam(camId);
+  return resolved ? resolved.uri : null;
 }
 conferenceConfig.init({ storageDir: STORAGE_DIR, baseDir: BASE_DIR });
 conferenceModule.init({
@@ -40249,8 +41602,13 @@ function rememberGps(camId, lat, lon) {
   const lo = parseGpsCoord(lon);
   if (!camId || Number.isNaN(la) || Number.isNaN(lo)) return;
   if (la < -90 || la > 90 || lo < -180 || lo > 180) return;
-  lastGpsByCam[camId] = { lat: la, lon: lo, at: Date.now() };
+  const fix = { lat: la, lon: lo, at: Date.now() };
+  lastGpsByCam[camId] = fix;
   saveGpsCache();
+  try {
+    redisRuntime.writeGps(camId, fix);
+  } catch (_) {
+  }
 }
 function ingestGpsFromSipContent(camIdHint, rawXml) {
   if (!rawXml || typeof rawXml !== "string") return;
@@ -40869,12 +42227,16 @@ function launchOutboundTalkCall(camId, socket) {
       tel.logPhase(id, "invite-200", profile.id);
       tel.requestStatus(id, "post-200", profile.id);
       if (profile.stopRecordOnConnect && profile.id !== "phone-channel0") {
+        const stopResolved = resolveContactForCam(id);
         deviceControl.sendDeviceControl(sip, {
-          cameraContactUri: contact,
+          cameraContactUri: stopResolved && stopResolved.uri || contact,
           deviceId: id,
           realm: REALM,
           serverId: SERVER_ID,
+          publicHost: HOST,
+          sipPort: SIP_PORT,
           recordCmd: "StopRecord",
+          contactSource: stopResolved && stopResolved.source || "voice_on_connect",
           log
         });
       }
@@ -41272,17 +42634,20 @@ io.on("connection", (socket) => {
       socket.emit("remote-control-denied", { error: reasonCheck.error });
       return;
     }
-    const contact = getContactUriForCam(camId);
-    if (!camId || !contact) {
-      log.sip.warn("remote-control blocked", { camId, hasContact: !!contact });
+    const resolved = resolveContactForCam(camId);
+    if (!camId || !resolved || !resolved.uri) {
+      log.sip.warn("remote-control blocked", { camId, hasContact: !!(resolved && resolved.uri) });
       return;
     }
     deviceControl.sendDeviceControl(sip, {
-      cameraContactUri: contact,
+      cameraContactUri: resolved.uri,
       deviceId: camId,
       realm: REALM,
       serverId: SERVER_ID,
+      publicHost: HOST,
+      sipPort: SIP_PORT,
       recordCmd: cmd,
+      contactSource: resolved.source,
       log
     });
     const auditDetail = { recordCmd: cmd };
@@ -41375,17 +42740,20 @@ io.on("connection", (socket) => {
       socket.emit("kill-switch-denied", { error: "A different operator must approve this request." });
       return;
     }
-    const contact = getContactUriForCam(req.camId);
-    if (!contact) {
+    const resolved = resolveContactForCam(req.camId);
+    if (!resolved || !resolved.uri) {
       socket.emit("kill-switch-denied", { error: "BWC is not reachable for remote control." });
       return;
     }
     deviceControl.sendDeviceControl(sip, {
-      cameraContactUri: contact,
+      cameraContactUri: resolved.uri,
       deviceId: req.camId,
       realm: REALM,
       serverId: SERVER_ID,
+      publicHost: HOST,
+      sipPort: SIP_PORT,
       recordCmd: req.recordCmd,
+      contactSource: resolved.source,
       log
     });
     const auditDetail = {
@@ -41510,8 +42878,24 @@ io.on("connection", (socket) => {
   socket.on("audio-focus", (payload) => {
     const camId = payload && payload.camId ? String(payload.camId).trim() : null;
     if (!camId) return;
-    if (dashboardVideo.isStreamingForCam(camId)) {
+    if (dashboardVideo.isStreamingForCam(camId) || liveStreamPool.isStreamingForCam(camId)) {
       liveStreamPool.setAudioFocusCamId(camId);
+      mediaSession.setAudioFocusCamId(camId);
+    }
+    try {
+      const handoff = require_wvpVideoHandoff();
+      const wallListen = require_wvpWallListenAudio();
+      wallListen.setFocus(camId);
+      if (handoff.isHandoffEnabled() && handoff.isActive(camId)) {
+        const upstream = handoff.getUpstreamFlv(camId);
+        wallListen.ensureListen(camId, upstream);
+      }
+    } catch (err) {
+      log.media.warn("audio-focus wall listen fail", {
+        camId,
+        message: err && err.message ? err.message : String(err),
+        path: "wall-audio-path-v1"
+      });
     }
   });
   socket.on("stop-video", (payload) => {
@@ -41678,6 +43062,8 @@ io.on("connection", (socket) => {
     }
     try {
       const state = await sosGroupCall.start({
+        kind: "sos",
+        playAlertTone: true,
         alarmCamId,
         camIds,
         ownerSocketId: socket.id,
@@ -41697,6 +43083,10 @@ io.on("connection", (socket) => {
   });
   socket.on("sos-group-call-stop", () => {
     const state = sosGroupCall.snapshot();
+    if (!state.active || state.kind && state.kind !== "sos") {
+      socket.emit("sos-group-call-result", { ok: false, error: "No active SOS group call" });
+      return;
+    }
     const canStop = state.active && (state.ownerSocketId === socket.id || session && dashboardAuth.roleCanManageServer(session.role));
     if (!canStop) {
       socket.emit("sos-group-call-result", { ok: false, error: "Only the calling operator can end this group call" });
@@ -41715,6 +43105,99 @@ io.on("connection", (socket) => {
     const frame = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     if (!frame.length) return;
     sosGroupCall.sendHqAlaw(frame);
+  });
+  socket.on("dispatch-call-group-start", async (payload) => {
+    const body = payload || {};
+    const camIds = sipGroupCallFactory.uniqueCamIds(body.camIds);
+    if (camIds.length < 2) {
+      socket.emit("dispatch-call-group-result", {
+        ok: false,
+        error: "Select at least 2 BWCs for a call group."
+      });
+      return;
+    }
+    if (sosGroupCall.isActive()) {
+      const snap = sosGroupCall.snapshot();
+      socket.emit("dispatch-call-group-result", {
+        ok: false,
+        error: snap.kind === "sos" ? "End the SOS group call first" : "A call group is already active"
+      });
+      return;
+    }
+    const denied = camIds.find((id) => !isBwcCameraId(id) || !sessionCanSeeCam(session, id));
+    if (denied) {
+      socket.emit("dispatch-call-group-result", {
+        ok: false,
+        error: "Device not authorized for this operator"
+      });
+      return;
+    }
+    const conferenceBusy = camIds.find((id) => conferenceModule.isBwcIngressActive(id));
+    if (conferenceBusy) {
+      socket.emit("dispatch-call-group-result", {
+        ok: false,
+        error: "A selected BWC is sharing to video conference",
+        camId: conferenceBusy
+      });
+      return;
+    }
+    if (mediaSession.isVoiceCallActive() || pttVoiceCallCamId) {
+      socket.emit("dispatch-call-group-result", {
+        ok: false,
+        error: "End the individual BWC call first"
+      });
+      return;
+    }
+    if (pttTalkTargetsBySocket.size > 0) {
+      socket.emit("dispatch-call-group-result", {
+        ok: false,
+        error: "Release HQ PTT before starting the call group"
+      });
+      return;
+    }
+    try {
+      const state = await sosGroupCall.start({
+        kind: "dispatch",
+        playAlertTone: false,
+        camIds,
+        ownerSocketId: socket.id,
+        getContactUri: getContactUriForCam
+      });
+      auditLog.record("dispatch.call_group.start", Object.assign({
+        target: camIds[0] || null,
+        detail: { camIds, callId: state.callId || null, kind: "dispatch" }
+      }, auditVoiceCallActor(socket)));
+      socket.emit("dispatch-call-group-result", { ok: true, state });
+    } catch (err) {
+      socket.emit("dispatch-call-group-result", {
+        ok: false,
+        error: err && err.message ? err.message : "Call group failed"
+      });
+    }
+  });
+  socket.on("dispatch-call-group-stop", () => {
+    const state = sosGroupCall.snapshot();
+    if (!state.active || state.kind !== "dispatch") {
+      socket.emit("dispatch-call-group-result", {
+        ok: false,
+        error: "No active call group"
+      });
+      return;
+    }
+    const canStop = state.ownerSocketId === socket.id || session && dashboardAuth.roleCanManageServer(session.role);
+    if (!canStop) {
+      socket.emit("dispatch-call-group-result", {
+        ok: false,
+        error: "Only the calling operator can end this call group"
+      });
+      return;
+    }
+    sosGroupCall.stop("operator_end");
+    auditLog.record("dispatch.call_group.end", Object.assign({
+      target: null,
+      detail: { callId: state.callId || null, kind: "dispatch" }
+    }, auditVoiceCallActor(socket)));
+    socket.emit("dispatch-call-group-result", { ok: true, ended: true });
   });
   socket.on("start-bwc-call", (payload) => startBwcVoiceCall(payload, socket));
   socket.on("end-bwc-call", (payload) => {
@@ -42715,6 +44198,10 @@ function startSipListener() {
           lastContactUriByCam[camId] = cameraContactUri;
           recordCamIp(camId, cameraContactUri);
           saveContactCache();
+          try {
+            redisRuntime.writeContact(camId, cameraContactUri);
+          } catch (_) {
+          }
           emitToDashboardSockets("heartbeat", { cameraId: camId }, camId);
           const lastGps = lastGpsByCam[camId];
           if (lastGps) {
@@ -42970,6 +44457,8 @@ async function closeCatalogForShutdown(signal) {
   ]).catch((err) => {
     log.web.warn("PostgreSQL dispatcher drain failed", { message: err.message });
   });
+  await redisRuntime.stop().catch(() => {
+  });
   await siteDb.close().catch((err) => {
     log.web.warn("PostgreSQL catalog close failed", { message: err.message });
   });
@@ -42988,6 +44477,27 @@ process.once("beforeExit", () => {
     platformLicense.assertReadyForStartup();
     await ffmpegRuntime.assertReady(log);
     await bootstrapSiteDatabase();
+    const cacheSnap = await redisRuntime.start();
+    log.web.info("valkey runtime cache status", cacheSnap);
+    try {
+      const gpsHydrate = await redisRuntime.hydrateGps(lastGpsByCam);
+      const contactHydrate = await redisRuntime.hydrateContact(lastContactUriByCam);
+      const onlineHydrate = await redisRuntime.hydrateOnline(function(id, patch) {
+        try {
+          siteDb.touchRuntime(id, patch);
+        } catch (_) {
+        }
+      });
+      if (gpsHydrate && gpsHydrate.merged || contactHydrate && contactHydrate.merged || onlineHydrate && onlineHydrate.merged) {
+        log.web.info("valkey hydrate merged", {
+          gps: gpsHydrate && gpsHydrate.merged,
+          contact: contactHydrate && contactHydrate.merged,
+          online: onlineHydrate && onlineHydrate.merged
+        });
+      }
+    } catch (err) {
+      log.web.warn("valkey hydrate skipped", { message: err && err.message ? err.message : String(err) });
+    }
     startSipListener();
   } catch (err) {
     const isLicense = /license/i.test(err.message);
@@ -43095,6 +44605,12 @@ process.once("beforeExit", () => {
             connectedCameraId = camId;
           }
           log.sip.info("device online from wvp presence", { camId });
+          const lastGps = lastGpsByCam[camId];
+          if (lastGps) {
+            emitToDashboardSockets("gps-update", { cameraId: camId, lat: lastGps.lat, lon: lastGps.lon }, camId);
+          } else {
+            maybeQueryGpsForDevice(camId);
+          }
           pushFleetRoster(camId, "66", true);
         },
         emitRoster: function() {

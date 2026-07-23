@@ -11,7 +11,7 @@
 
 | # | Google claim | Verified in tree? | Severity (honest) | Future MOB |
 |---|--------------|-------------------|-------------------|------------|
-| 1 | Multer path traversal via `originalname` | **Yes** — `filename: (_req, file, cb) => cb(null, file.originalname)` into `FTP_ROOT` | **Critical if token leaked / Insider** — still fix | `mob-sec-evidence-upload-safe-name` **P0** |
+| 1 | Multer path traversal via `originalname` | **Was yes** — now closed by `mob-sec-evidence-upload-safe-name` | **Critical if token leaked** — **APPLIED** | `MOB-APPLIED-SEC-EVIDENCE-UPLOAD-SAFE-NAME-V1-20260723.md` |
 | 2 | Login Map unbounded → OOM | **Yes** — `_loginAttempts` Map + 5‑min sweep | **Medium** — real but oversold for typical single-IP; spoofed flood still possible | `mob-sec-login-rate-lru` **P1** |
 | 3 | `uncaughtException` keeps process alive | **Yes** — log only, no `exit` | **High stability** — consensus is exit+restart; lab/Windows restart must be ready | `mob-sec-uncaught-exit` **P1** |
 | 4 | SIP `Math.random` for call-id / SN / tag | **Yes** in **`server.js`** GB invite helpers (~9512–9805) | **Medium harden** — “session hijack” is stronger than usual for on-LAN GB; crypto still correct | `mob-sec-sip-crypto-random` **P1** |

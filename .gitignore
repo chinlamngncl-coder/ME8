@@ -7,6 +7,9 @@
 !scripts/trial-ship/.env.example.ship
 keys/
 secrets/
+# LAB-DEFAULT-CREDS-AND-IMAGE-PIN-V1 — generated LiveKit config with real keys
+docker/livekit.runtime.yaml
+ship-build-test/customer-pack/docker/livekit.runtime.yaml
 redaction-track/models/
 redaction-track/.venv/
 redaction-track/__pycache__/

@@ -5576,6 +5576,116 @@ function handoffPlayerAttaching(player) {
         return !!findLiveCanvasForCam(camId);
     }
 
+    /**
+     * FR-BLACKLIST-MAP-PIN-TAKEOVER-V1 — put catching BWC on wall (steal unpinned slot if 8 full)
+     * + open/play map pin. Does not edit pin-mirror cores.
+     */
+    function pickFrBlacklistWallSlot(camId) {
+        const existing = findSlotByCamId(camId);
+        if (existing) {
+            return { slot: findSlotIndex(existing), stole: false, reused: true };
+        }
+        const free = freeWallSlotForCam(camId);
+        if (free != null && free >= 0) {
+            return { slot: free, stole: false, reused: false };
+        }
+        const pinned = Object.create(null);
+        try {
+            if (global.FleetUi && typeof FleetUi.getSelectedCamIds === 'function') {
+                FleetUi.getSelectedCamIds().forEach(function (id) {
+                    pinned[String(id || '').trim()] = true;
+                });
+            }
+        } catch (_) { /* ignore */ }
+        for (let i = PIN_SLOT_COUNT - 1; i >= 0; i -= 1) {
+            const el = getSlots()[i];
+            if (!el) continue;
+            if (el.classList.contains('alarm')) continue;
+            const bound = String(slotBoundCam(i) || el.dataset.camId || '').trim();
+            if (bound && pinned[bound]) continue;
+            return { slot: i, stole: true, victim: bound || null, pinnedBlock: false };
+        }
+        for (let i = PIN_SLOT_COUNT - 1; i >= 0; i -= 1) {
+            const el = getSlots()[i];
+            if (!el || el.classList.contains('alarm')) continue;
+            const bound = String(slotBoundCam(i) || el.dataset.camId || '').trim();
+            return { slot: i, stole: true, victim: bound || null, pinnedBlock: true };
+        }
+        return { slot: 0, stole: true, victim: null, pinnedBlock: true };
+    }
+
+    function openFrBlacklistMapPin(camId, slotIndex) {
+        try {
+            if (typeof global.clearMapPinPopupSuppression === 'function') {
+                global.clearMapPinPopupSuppression(camId);
+            }
+        } catch (_) { /* ignore */ }
+        try {
+            if (typeof global.selectFleetDevice === 'function') {
+                global.selectFleetDevice(camId, { addToMulti: true, keepMulti: true });
+            }
+        } catch (_) { /* ignore */ }
+        try {
+            const m = global.deviceMarkers && (global.deviceMarkers[camId]
+                || (typeof global.normalizeCamId === 'function'
+                    ? global.deviceMarkers[global.normalizeCamId(camId)] : null));
+            if (m && m.openPopup) m.openPopup();
+        } catch (_) { /* ignore */ }
+        try {
+            if (typeof global.enforceMaxOpenPinPopups === 'function') {
+                global.enforceMaxOpenPinPopups(camId);
+            }
+        } catch (_) { /* ignore */ }
+        playMapPinVideoIfPopupOpenWithSlot(camId, slotIndex, 0, {
+            forceLive: true,
+            frBlacklist: true,
+        });
+        setTimeout(function () {
+            try { syncMapPopupPlayer(camId); } catch (_) { /* ignore */ }
+        }, 350);
+    }
+
+    function promoteFrBlacklistLive(camId, opts) {
+        opts = opts || {};
+        const id = String(camId || '').trim();
+        if (!id) return { ok: false, reason: 'camId_required' };
+        const pick = pickFrBlacklistWallSlot(id);
+        if (pick.slot == null || pick.slot < 0) {
+            return { ok: false, reason: 'no_slot' };
+        }
+        ensureBankVisibleForSlot(pick.slot);
+        pendingWallSlots[pick.slot] = id;
+        const slotEl = getSlots()[pick.slot];
+        if (slotEl) {
+            slotEl.dataset.camId = id;
+            slotEl.classList.add('fr-blacklist-hit');
+            selectSlot(slotEl);
+        }
+        if (pick.reused && wallHasPlayerForCam(id)) {
+            openFrBlacklistMapPin(id, pick.slot);
+            return { ok: true, reused: true, slot: pick.slot };
+        }
+        assignCamToSlot(id, pick.slot, {
+            forceInvite: true,
+            forceReassign: true,
+            frBlacklist: true,
+            userPlay: true,
+        });
+        if (slotEl) slotEl.classList.add('fr-blacklist-hit');
+        openFrBlacklistMapPin(id, pick.slot);
+        if (pick.pinnedBlock && opts.onPinnedSteal) {
+            try { opts.onPinnedSteal(pick.victim); } catch (_) { /* ignore */ }
+        }
+        return {
+            ok: true,
+            reused: !!pick.reused,
+            stole: !!pick.stole,
+            slot: pick.slot,
+            victim: pick.victim || null,
+            pinnedBlock: !!pick.pinnedBlock,
+        };
+    }
+
     global.VideoWall = {
         SLOT_COUNT,
         BANK_A_COUNT,
@@ -5651,6 +5761,7 @@ function handoffPlayerAttaching(player) {
         syncFleetVoiceRows,
         toggleVoiceCall,
         isLiveCamId,
+        promoteFrBlacklistLive,
         syncPinVoiceUi,
         isPttReadyForCam,
         hasDashboardLiveForCam,

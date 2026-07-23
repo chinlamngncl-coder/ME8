@@ -288,8 +288,76 @@ def _blend_box(old, new, new_w=0.65):
     }
 
 
+def _shift_box(b, dx, dy):
+    """Translate box by velocity (px). Size unchanged — no pad growth."""
+    return {
+        "x": int(round(b["x"] + dx)),
+        "y": int(round(b["y"] + dy)),
+        "w": int(b["w"]),
+        "h": int(b["h"]),
+    }
+
+
+def _coast_track(tr, damp=0.92):
+    """REDACT-HOLD-SMOOTH-V1 — coast blur box along estimated motion during misses."""
+    vx = float(tr.get("vx", 0.0)) * float(damp)
+    vy = float(tr.get("vy", 0.0)) * float(damp)
+    tr["vx"] = vx
+    tr["vy"] = vy
+    if abs(vx) >= 0.05 or abs(vy) >= 0.05:
+        tr["box"] = _shift_box(tr["box"], vx, vy)
+
+
+def _load_exclude_boxes(path):
+    """REDACT-PREVIEW-CONTROLS-BURN-V1 — operator-deleted Auto preview seeds."""
+    if not path:
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except Exception:
+        return []
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        try:
+            w = int(round(float(item.get("w", 0))))
+            h = int(round(float(item.get("h", 0))))
+            x = int(round(float(item.get("x", 0))))
+            y = int(round(float(item.get("y", 0))))
+        except Exception:
+            continue
+        if w < 4 or h < 4:
+            continue
+        out.append({"x": max(0, x), "y": max(0, y), "w": w, "h": h})
+    return out
+
+
+def _box_excluded(box, excludes, iou_thresh=0.22):
+    """True if detection/track overlaps a deleted Auto preview seed."""
+    if not excludes or not box:
+        return False
+    for ex in excludes:
+        if _iou(box, ex) >= float(iou_thresh):
+            return True
+        # Nearby center (false-positive wall clock / wrong face near seed)
+        dist_lim = max(ex["w"], ex["h"]) * 0.9
+        if _center_dist(box, ex) <= dist_lim:
+            return True
+    return False
+
+
+def _filter_excluded(boxes, excludes):
+    if not excludes:
+        return boxes
+    return [b for b in boxes if not _box_excluded(b, excludes)]
+
+
 def _update_tracks(tracks, detections, iou_thresh, hold_frames, frame_idx):
-    """IoU match + nearby-center rematch for direction changes; hold last box across short misses."""
+    """IoU + nearby rematch; hold + velocity coast across detector dropouts."""
     assigned = set()
     for tr in tracks:
         best_i = -1
@@ -313,16 +381,25 @@ def _update_tracks(tracks, detections, iou_thresh, hold_frames, frame_idx):
                     best_d = d
                     best_i = i
         if best_i >= 0:
-            tr["box"] = _blend_box(tr["box"], detections[best_i], 0.65)
+            det = detections[best_i]
+            ox, oy = _center(tr["box"])
+            nx, ny = _center(det)
+            # EMA velocity so coast follows walking/turning face between hits
+            raw_vx = nx - ox
+            raw_vy = ny - oy
+            tr["vx"] = float(tr.get("vx", 0.0)) * 0.4 + raw_vx * 0.6
+            tr["vy"] = float(tr.get("vy", 0.0)) * 0.4 + raw_vy * 0.6
+            tr["box"] = _blend_box(tr["box"], det, 0.65)
             tr["last"] = frame_idx
             tr["miss"] = 0
             assigned.add(best_i)
         else:
             tr["miss"] += 1
+            _coast_track(tr)
     for i, det in enumerate(detections):
         if i in assigned:
             continue
-        tracks.append({"box": det, "last": frame_idx, "miss": 0})
+        tracks.append({"box": det, "last": frame_idx, "miss": 0, "vx": 0.0, "vy": 0.0})
     alive = []
     for tr in tracks:
         if tr["miss"] <= hold_frames:
@@ -482,6 +559,7 @@ def run_burn(args):
     hold_frames = max(0, int(args.hold_frames))
     pad = float(args.pad)
     sigma = float(args.sigma)
+    excludes = _load_exclude_boxes(getattr(args, "exclude_json", None))
     max_frames = total
     if args.max_seconds and args.max_seconds > 0:
         max_frames = min(total or 10 ** 9, int(args.max_seconds * fps))
@@ -497,6 +575,7 @@ def run_burn(args):
     idx = 0
     blurred_frames = 0
     face_hits = 0
+    excluded_hits = 0
     timeline_frames = []
 
     while True:
@@ -508,13 +587,25 @@ def run_burn(args):
 
         if idx % detect_every == 0:
             dets = detect_fn(frame)
+            before = len(dets)
+            dets = _filter_excluded(dets, excludes)
+            excluded_hits += max(0, before - len(dets))
             tracks = _update_tracks(tracks, dets, float(args.iou), hold_frames, idx)
+            # Drop tracks that coasted into an excluded seed
+            if excludes:
+                tracks = [tr for tr in tracks if not _box_excluded(tr["box"], excludes)]
             face_hits += len(dets)
             if args.timeline_out:
                 timeline_frames.append({
                     "t": round(idx / fps, 3),
                     "boxes": [dict(tr["box"]) for tr in tracks],
                 })
+        else:
+            # REDACT-HOLD-SMOOTH-V1 — coast between sparse detect samples
+            for tr in tracks:
+                _coast_track(tr)
+            if excludes:
+                tracks = [tr for tr in tracks if not _box_excluded(tr["box"], excludes)]
 
         active = [dict(tr["box"]) for tr in tracks]
         if active:
@@ -547,6 +638,8 @@ def run_burn(args):
         "detectEvery": detect_every,
         "holdFrames": hold_frames,
         "iou": float(args.iou),
+        "excludeCount": len(excludes),
+        "excludedHits": excluded_hits,
         "engine": engine,
         "detector": "seeta_face_detector" if engine == "seeta" else "yunet",
     }
@@ -582,7 +675,8 @@ def main(argv):
     dt.add_argument("--model", default=DEFAULT_MODEL)
     dt.add_argument("--engine", default="seeta")
     dt.add_argument("--max-seconds", type=float, default=0.0, dest="max_seconds")
-    dt.add_argument("--stride", type=int, default=3)
+    # REDACT-HOLD-SMOOTH-V1 — denser Auto preview (3 → 2)
+    dt.add_argument("--stride", type=int, default=2)
     dt.add_argument("--score", type=float, default=0.72)
 
     br = sub.add_parser("burn")
@@ -595,10 +689,12 @@ def main(argv):
     br.add_argument("--pad", type=float, default=0.12)
     br.add_argument("--sigma", type=float, default=18.0)
     br.add_argument("--detect-every", type=int, default=1, dest="detect_every")
-    # REDACT-FACE-QUALITY-KNOBS-V1 — longer hold bridges turn/dropouts; pad stays tight (no body cover)
-    br.add_argument("--hold-frames", type=int, default=14, dest="hold_frames")
+    # REDACT-HOLD-SMOOTH-V1 — hold 14→22 + velocity coast; pad stays 0.12 (no fat body box)
+    br.add_argument("--hold-frames", type=int, default=22, dest="hold_frames")
     br.add_argument("--iou", type=float, default=0.18)
     br.add_argument("--timeline-out", default=None, dest="timeline_out")
+    # REDACT-PREVIEW-CONTROLS-BURN-V1 — deleted Auto preview boxes
+    br.add_argument("--exclude-json", default=None, dest="exclude_json")
 
     args = parser.parse_args(argv)
     if args.mode == "selfcheck":

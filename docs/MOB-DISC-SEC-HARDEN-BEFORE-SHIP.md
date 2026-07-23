@@ -1,7 +1,7 @@
 # MOB DISC — Security four-pack: must harden before ship
 
 **Date:** 2026-07-15 ~01:31  
-**Status:** **LOCKED intent** — paper only; code when security genre `MOB-APPLY`  
+**Status:** **S0 APPLIED** — see `MOB-APPLIED-SEC-EVIDENCE-UPLOAD-SAFE-NAME-V1-20260723.md`. S1–S3 APPLIED earlier. Remaining ship-adjacent: lab default creds.  
 **Builds on:** `MOB-DISC-SEC-GOOGLE-FOUR-FINDINGS-PLAN.md`  
 **Operator:** Before ship, we must harden this.
 
@@ -21,10 +21,10 @@ This is **pack-time** reminder territory (same class as pre-ship checklist) — 
 
 | Pri | MOB | Job |
 |-----|-----|-----|
-| **S0** | `mob-sec-evidence-upload-safe-name` | No `originalname` path write to `FTP_ROOT` — UUID + safe ext |
-| **S1** | `mob-sec-uncaught-exit` | `uncaughtException` / rejection → log + `exit(1)` after restart path proved |
-| **S2** | `mob-sec-sip-crypto-random` | SIP call-id / tag / SN in `server.js` → `crypto.*` |
-| **S3** | `mob-sec-login-rate-lru` | Cap / LRU login attempt Map |
+| **S0** | `mob-sec-evidence-upload-safe-name` | **APPLIED** — UUID + safe ext; no `originalname` path write (`MOB-APPLIED-SEC-EVIDENCE-UPLOAD-SAFE-NAME-V1-20260723.md`) |
+| **S1** | `mob-sec-uncaught-exit` | **APPLIED** — fatal uncaught → exit(1) |
+| **S2** | `mob-sec-sip-crypto-random` | **APPLIED** — SIP call-id / tag / SN → `crypto.*` |
+| **S3** | `mob-sec-login-rate-lru` | **APPLIED** — cap / LRU login attempt Map |
 
 One APPLY at a time. Order above. Prove between each.
 

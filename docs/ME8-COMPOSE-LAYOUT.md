@@ -110,7 +110,7 @@ Stop for degrade tests: `docker stop mobility-valkey` or `mobility-postgres` —
 
 ### 3b Video conference — `docker/livekit.compose.yaml`
 
-Config: `docker/livekit.yaml` (`node_ip` and `rtmp_base_url` patched from `.env` `HOST` by `scripts/START-LIVEKIT.ps1`).
+Config: `docker/livekit.yaml` template → `scripts/START-LIVEKIT.ps1` writes `docker/livekit.runtime.yaml` (HOST + `FM_LIVEKIT_*` keys). Ingress pinned `v1.8.4`.
 
 ```powershell
 .\scripts\START-LIVEKIT.ps1
@@ -130,7 +130,7 @@ FM_LIVEKIT_API_KEY=devkey
 FM_LIVEKIT_API_SECRET=secret
 ```
 
-Then `.\RESTART-FLEET.bat`. Dev keys `devkey`/`secret` match `docker/livekit.yaml` — **change for production VC**.
+Then `.\RESTART-FLEET.bat`. Keys come from `.env` `FM_LIVEKIT_*` (lab fallback `devkey`/`secret` via START-LIVEKIT) — **set strong keys before customer expose**.
 
 ---
 

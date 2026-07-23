@@ -82,9 +82,11 @@ One recommendation: **start with knobs already in the engine**, prove on your wo
 |-------|----------|-----------------|------|----------------|
 | **1** | `REDACT-FACE-QUALITY-KNOBS-V1` | Larger pad, longer hold, optional IoU / face-count / Seeta score gates; wire knobs from Node → sidecar (some flags exist but are underused) | Low–med | Cheap; targets A–C without new models |
 | **2** | `REDACT-HOLD-SMOOTH-V1` | Longer hold + smooth/interpolate box between detects — kill blink gaps | Med | Fixes “missed frames” when detector flickers |
-| **3** | `REDACT-PREVIEW-CONTROLS-BURN-V1` | Deleted / kept Auto preview actually affects burn (exclude or keep list) | Med | Makes review honest |
+| **3** | `REDACT-PREVIEW-CONTROLS-BURN-V1` | Deleted Auto preview controls burn (exclude seeds) | Med | **APPLIED** 2026-07-23 |
 | **4** | `REDACT-TRACKER-UPGRADE-V1` | Stronger multi-object tracker (research path already in `MOB-DISC-REDACT-FACE-FOLLOW.md`) | Higher | Only after knobs prove insufficient |
 | **5** | `REDACT-PLATE-PERSON-V1` | Plate / full-person detectors for tender Tier-3 | Higher | Separate from face accuracy |
+
+**2026-07-23 operator refresh:** still missing movement/frames after Phase 1 → next APPLY named in `MOB-DISC-REDACT-MOTION-FRAME-GAPS-20260723.md` → **`REDACT-HOLD-SMOOTH-V1`**.
 
 ### Phase 1 detail (what “more accurate” means in code terms)
 

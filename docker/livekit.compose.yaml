@@ -1,9 +1,12 @@
 # LiveKit MCU + egress recording for Mobility Video Conference
-# Usage: docker compose -f docker/livekit.compose.yaml up -d
+# Usage: scripts/START-LIVEKIT.ps1  (preferred — builds livekit.runtime.yaml)
+#    or: docker compose -f docker/livekit.compose.yaml up -d  (needs runtime file + env)
 # Recordings land in ../storage/conference-recordings (same folder Mobility serves).
 #
 # ENTERPRISE-REDIS-IMAGE-LEGAL-PIN-V1 — service DNS name stays "redis" for LiveKit
 # config compatibility; image is Valkey (BSD-3-Clause). Do NOT swap back to redis:*.
+#
+# LAB-DEFAULT-CREDS-AND-IMAGE-PIN-V1 — keys from FM_LIVEKIT_* env; ingress pinned to v1.8.4.
 services:
   redis:
     image: valkey/valkey:8-alpine
@@ -22,7 +25,7 @@ services:
       # Windows may reserve UDP 50000-50459 (Hyper-V/WSL); use 51000-51100 on lab hosts.
       - "51000-51100:51000-51100/udp"
     volumes:
-      - ./livekit.yaml:/etc/livekit.yaml:ro
+      - ./livekit.runtime.yaml:/etc/livekit.yaml:ro
 
   egress:
     image: livekit/egress:v1.8.4
@@ -32,8 +35,8 @@ services:
       - redis
     environment:
       EGRESS_CONFIG_BODY: |
-        api_key: devkey
-        api_secret: secret
+        api_key: ${FM_LIVEKIT_API_KEY:-devkey}
+        api_secret: ${FM_LIVEKIT_API_SECRET:-secret}
         ws_url: ws://livekit:7880
         redis:
           address: redis:6379
@@ -42,7 +45,7 @@ services:
       - ../storage/conference-recordings:/recordings
 
   ingress:
-    image: livekit/ingress:latest
+    image: livekit/ingress:v1.8.4
     restart: unless-stopped
     depends_on:
       - livekit
@@ -51,8 +54,8 @@ services:
       - "1935:1935"
     environment:
       INGRESS_CONFIG_BODY: |
-        api_key: devkey
-        api_secret: secret
+        api_key: ${FM_LIVEKIT_API_KEY:-devkey}
+        api_secret: ${FM_LIVEKIT_API_SECRET:-secret}
         ws_url: ws://livekit:7880
         redis:
           address: redis:6379

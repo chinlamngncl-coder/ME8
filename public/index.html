@@ -303,15 +303,17 @@
         .ax-fr-offline-status { max-width: 420px; }
         .ax-fr-offline-status.is-err { color: #fca5a5; }
         .ax-fr-offline-status.is-ok { color: #86efac; }
+        /* FR main/left/grid/tile chrome: public/css/global.css (END-TO-END-UI-CONSOLIDATION-V1) */
         .ax-fr-main { flex: 1; min-height: 0; display: flex; gap: 10px; }
         .ax-fr-left {
             flex: 1; min-width: 0; min-height: 0;
             display: flex; flex-direction: column; gap: 8px;
             overflow: hidden;
         }
-        /* KILL-FR-GRID-SCROLLBAR-V1 — lock 3×2 to available height; no matrix scroll */
         .ax-fr-grid {
-            flex: 1 1 0;
+            flex-grow: 1;
+            flex-shrink: 1;
+            flex-basis: 0;
             min-height: 0;
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -334,7 +336,22 @@
             justify-content: center;
         }
         .ax-fr-tile.is-live { border-color: #2563eb; cursor: pointer; }
-        .ax-fr-tile.is-focused { box-shadow: inset 0 0 0 2px #38bdf8; }
+        .ax-fr-tile.is-focused {
+            box-shadow: inset 0 0 0 3px #38bdf8, 0 0 0 2px rgba(56, 189, 248, 0.55) !important;
+            border-color: #38bdf8 !important;
+        }
+        .ax-fr-tile.is-focused.is-fr-hit {
+            box-shadow: inset 0 0 0 3px #38bdf8, 0 0 0 2px rgba(220, 38, 38, 0.65) !important;
+        }
+        .ax-fr-tile.is-focused::after {
+            content: attr(data-fr-stop-target);
+            position: absolute; left: 6px; bottom: 6px; z-index: 4;
+            font-size: 9px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+            color: #0f172a; background: #38bdf8; padding: 2px 6px; border-radius: 4px;
+            pointer-events: none;
+        }
+        .ax-fr-tile.is-focused:not([data-fr-stop-target])::after,
+        .ax-fr-tile.is-focused[data-fr-stop-target=""]::after { content: "Stop target"; }
         .ax-fr-tile.is-tile-connecting { border-color: #2563eb; }
         .ax-fr-tile.is-tile-warn { border-color: #d97706; }
         .ax-fr-tile.is-tile-error { border-color: #dc2626; }
@@ -384,7 +401,7 @@
         .ax-fr-watch {
             flex: 0 0 auto;
             display: flex; flex-direction: column; overflow: hidden;
-            /* card chrome from .enterprise-card when combined */
+            /* card chrome: .enterprise-card + global.css consolidation */
             background: var(--bg-surface, #1e293b);
         }
         .ax-fr-watch.enterprise-card {
@@ -517,7 +534,13 @@
             display: inline-flex; align-items: center; justify-content: center;
         }
         .ax-fr-roster-pin-icon::before {
-            content: "ðŸ“Œ"; font-size: 11px; line-height: 1;
+            /* FR-ROSTER-PIN-ICON-ASCII-V1 — no emoji (encoding-safe) */
+            content: "PIN";
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            line-height: 1;
+            color: inherit;
         }
         .ax-fr-roster-pin.is-active { border-color: #ca8a04; color: #fde68a; background: rgba(202, 138, 4, 0.15); }
         .ax-fr-roster-badge { font-size: 9px; font-weight: 600; white-space: nowrap; }
@@ -528,9 +551,11 @@
         #ax-fr-watch-hint {
             position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%);
             z-index: 25850; max-width: min(420px, 92vw); padding: 8px 12px;
-            background: #1e293b; color: #fde68a; border: 1px solid #475569;
+            background: #1e293b; color: #e2e8f0; border: 1px solid #64748b;
             border-radius: 8px; font-size: 11px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);
         }
+        /* FR-STOP-VIDEO-SLOT-SELECT-TOAST-V1 — stay clear of FR HQ bar */
+        body.fr-hq-alert-active #ax-fr-watch-hint { bottom: 96px; z-index: 25900; }
         #ax-fr-watch-hint[hidden] { display: none !important; }
         .ax-fr-roster-focus { font-size: 10px !important; padding: 2px 6px !important; }
         .ax-fr-tile.is-fr-hit { border-color: #dc2626 !important; box-shadow: inset 0 0 0 2px #dc2626; }
@@ -1051,6 +1076,43 @@
             overflow: hidden;
             animation: fr-red-toast-pulse 2.4s ease-in-out infinite;
         }
+        /* FR-GRADE-COLOUR-TOAST-NO-JUMP-V1 — no amber (reserved elsewhere): slate / teal / violet / red */
+        #fr-red-toast.is-grade-poi .fr-red-toast-inner {
+            background: linear-gradient(145deg, #0f172a 0%, #1e293b 55%);
+            border-color: #64748b;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(148, 163, 184, 0.35);
+            animation: none;
+        }
+        #fr-red-toast.is-grade-poi .fr-red-toast-head {
+            background: linear-gradient(90deg, #334155 0%, #475569 100%);
+            border-bottom-color: #64748b;
+        }
+        #fr-red-toast.is-grade-poi .fr-red-toast-title { color: #e2e8f0; }
+        #fr-red-toast.is-grade-monitoring .fr-red-toast-inner {
+            background: linear-gradient(145deg, #042f2e 0%, #0f172a 55%);
+            border-color: #14b8a6;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(45, 212, 191, 0.35);
+            animation: none;
+        }
+        #fr-red-toast.is-grade-monitoring .fr-red-toast-head {
+            background: linear-gradient(90deg, #0f766e 0%, #0d9488 100%);
+            border-bottom-color: #14b8a6;
+        }
+        #fr-red-toast.is-grade-monitoring .fr-red-toast-title { color: #ccfbf1; }
+        #fr-red-toast.is-grade-suspect .fr-red-toast-inner {
+            background: linear-gradient(145deg, #1e1b4b 0%, #0f172a 55%);
+            border-color: #8b5cf6;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(167, 139, 250, 0.4);
+            animation: none;
+        }
+        #fr-red-toast.is-grade-suspect .fr-red-toast-head {
+            background: linear-gradient(90deg, #5b21b6 0%, #6d28d9 100%);
+            border-bottom-color: #8b5cf6;
+        }
+        #fr-red-toast.is-grade-suspect .fr-red-toast-title { color: #ede9fe; }
+        #fr-red-toast.is-grade-blacklist .fr-red-toast-inner {
+            border-color: #dc2626;
+        }
         @keyframes fr-red-toast-pulse {
             0%, 100% { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(248, 113, 113, 0.25); }
             50% { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 0 3px rgba(248, 113, 113, 0.55); }
@@ -1137,6 +1199,29 @@
             background: linear-gradient(90deg, #7f1d1d 0%, #991b1b 50%, #7f1d1d 100%);
             border-bottom: 1px solid #fca5a5; color: #fef2f2;
             box-shadow: 0 4px 18px rgba(127, 29, 29, 0.45);
+        }
+        /* FR-GRADE-COLOUR-TOAST-NO-JUMP-V1 — HQ bar colours (no amber) */
+        #fr-hq-alert-bar.is-grade-poi {
+            background: linear-gradient(90deg, #334155 0%, #475569 50%, #334155 100%);
+            border-bottom-color: #94a3b8; color: #f1f5f9;
+            box-shadow: 0 4px 18px rgba(51, 65, 85, 0.45);
+        }
+        #fr-hq-alert-bar.is-grade-poi .fr-hq-alert-label { color: #cbd5e1; }
+        #fr-hq-alert-bar.is-grade-monitoring {
+            background: linear-gradient(90deg, #0f766e 0%, #0d9488 50%, #0f766e 100%);
+            border-bottom-color: #5eead4; color: #f0fdfa;
+            box-shadow: 0 4px 18px rgba(15, 118, 110, 0.45);
+        }
+        #fr-hq-alert-bar.is-grade-monitoring .fr-hq-alert-label { color: #ccfbf1; }
+        #fr-hq-alert-bar.is-grade-suspect {
+            background: linear-gradient(90deg, #5b21b6 0%, #6d28d9 50%, #5b21b6 100%);
+            border-bottom-color: #c4b5fd; color: #f5f3ff;
+            box-shadow: 0 4px 18px rgba(91, 33, 182, 0.45);
+        }
+        #fr-hq-alert-bar.is-grade-suspect .fr-hq-alert-label { color: #ddd6fe; }
+        #fr-hq-alert-bar.is-grade-blacklist {
+            background: linear-gradient(90deg, #7f1d1d 0%, #991b1b 50%, #7f1d1d 100%);
+            border-bottom-color: #fca5a5; color: #fef2f2;
         }
         #fr-hq-alert-bar[hidden] { display: none !important; }
         #fr-hq-alert-bar .fr-hq-alert-label {
@@ -1435,8 +1520,8 @@
             font-weight: 600; letter-spacing: 0.02em; border: 1px solid #475569; background: #1e293b; color: #e2e8f0;
         }
         .ax-bl-grade.is-poi { border-color: #64748b; color: #cbd5e1; }
-        .ax-bl-grade.is-monitoring { border-color: #d97706; color: #fbbf24; background: rgba(217, 119, 6, 0.12); }
-        .ax-bl-grade.is-suspect { border-color: #ea580c; color: #fdba74; background: rgba(234, 88, 12, 0.12); }
+        .ax-bl-grade.is-monitoring { border-color: #14b8a6; color: #5eead4; background: rgba(20, 184, 166, 0.12); }
+        .ax-bl-grade.is-suspect { border-color: #8b5cf6; color: #c4b5fd; background: rgba(139, 92, 246, 0.15); }
         .ax-bl-grade.is-blacklist { border-color: #dc2626; color: #fca5a5; background: rgba(220, 38, 38, 0.15); }
         .ax-bl-name-btn {
             background: none; border: none; padding: 0; margin: 0; color: #93c5fd;
@@ -2510,6 +2595,10 @@
             flex: 0 1 auto;
             min-height: 0; max-height: none;
         }
+        /* REDACTED-EXPORTS-EMPTY-SCROLL-COMPACT-V1 — no outer page scroll into blank when few/empty */
+        #evidence-panel.ev-rx-few-rows {
+            overflow: hidden;
+        }
         #ev-panel-redacted-exports > .setup-hint,
         #ev-panel-redacted-exports > .evidence-toolbar,
         #ev-panel-redacted-exports > .cf-filter-toolbar {
@@ -3266,18 +3355,15 @@
             margin-bottom: 14px;
         }
         .ev-storage-card h4 { margin: 0 0 8px; font-size: 12px; color: #e2e8f0; text-transform: uppercase; letter-spacing: 0.04em; }
-        /* STORAGE-SETTINGS-COMPACT-ENTERPRISE-V1 — master 1fr + 350px; left stack only */
+        /* STORAGE — layout owned by .enterprise-layout-2col in global.css */
         #ev-panel-settings.ev-storage-panel { max-width: none; width: 100%; }
         .ev-hub-panel-rail { max-width: none; margin-inline: 0; width: 100%; }
         .ev-hub-layout {
             display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 252px);
             gap: 14px; align-items: start;
         }
-        #ev-panel-settings .ev-hub-layout {
-            display: grid;
-            grid-template-columns: 1fr 350px;
-            gap: var(--space-xl, 32px);
-            align-items: start;
+        #ev-panel-settings .ev-hub-layout.enterprise-layout-2col {
+            /* grid columns/gap from global.css .enterprise-layout-2col */
             width: 100%;
             overflow: visible;
             height: auto;
@@ -3287,7 +3373,15 @@
         .ev-hub-main { min-width: 0; overflow: visible; height: auto; max-height: none; }
         .ev-context-rail { position: sticky; top: 0; align-self: start; }
         .ev-context-rail-inner {
+            /* default rail; Storage uses .enterprise-card (global.css) */
             padding: 12px 14px; background: #0f172a; border: 1px solid #334155; border-radius: 10px;
+        }
+        .ev-context-rail-inner.enterprise-card {
+            padding: var(--space-md, 16px);
+            background: var(--bg-elevated, #111827);
+            border: 1px solid var(--border-subtle, rgba(51, 65, 85, 0.75));
+            border-radius: var(--radius-lg, 12px);
+            box-shadow: none;
         }
         .ev-context-rail-inner h4 {
             margin: 0 0 10px; font-size: 11px; font-weight: 600; text-transform: uppercase;
@@ -3310,7 +3404,7 @@
         .ev-rail-hint { margin: 10px 0 0; font-size: 10px; color: #64748b; line-height: 1.45; }
         @media (max-width: 1000px) {
             .ev-hub-layout,
-            #ev-panel-settings .ev-hub-layout { grid-template-columns: 1fr; gap: var(--space-md, 16px); }
+            #ev-panel-settings .ev-hub-layout.enterprise-layout-2col { grid-template-columns: 1fr; gap: var(--space-md, 16px); }
             .ev-context-rail { position: static; }
         }
         /* Left column: single stack — no inner 2-col that lets sections escape under the rail */
@@ -3398,7 +3492,7 @@
         @media (max-width: 720px) {
             /* stack via .enterprise-form-grid */
         }
-        /* Evidence → Storage: form fills card; no nested box / mid-section HR */
+        /* Evidence → Storage: form fields capped (global.css 400px); path rows slightly wider */
         #ev-panel-settings .ev-ftp-form-grid {
             max-width: 720px;
         }
@@ -3406,11 +3500,11 @@
         #ev-panel-settings .ev-ftp-form-grid select,
         #ev-panel-settings .ev-storage-layout input:not([type="checkbox"]):not([type="radio"]),
         #ev-panel-settings .ev-storage-layout select {
-            max-width: 480px;
+            max-width: 400px;
         }
         #ev-panel-settings .ev-ftp-form-grid label.full > input:not([type="checkbox"]),
         #ev-panel-settings .ev-ftp-form-grid label.full > select {
-            max-width: 480px;
+            max-width: 400px;
         }
         #ev-panel-settings .ev-ftp-pasv-row {
             max-width: 280px;
@@ -3438,10 +3532,10 @@
         }
         #ev-panel-settings .ev-path-row {
             display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-            max-width: 640px;
+            max-width: 560px;
         }
         #ev-panel-settings .ev-path-row input {
-            flex: 1 1 14rem; min-width: 0; max-width: 480px;
+            flex: 1 1 14rem; min-width: 0; max-width: 400px;
             width: auto; box-sizing: border-box;
         }
         /* Equal twin storage-tier cards */
@@ -3847,8 +3941,15 @@
             display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
         }
         .ev-export-section:first-of-type { margin-top: 8px; }
-        .ev-export-section .btn { font-weight: 500; }
+        .ev-export-section .btn {
+            font-weight: 500;
+            width: auto !important;
+            flex: 0 0 auto;
+            white-space: nowrap;
+            max-width: none;
+        }
         .ev-export-pending-more { margin: 6px 0 0; }
+        /* PRIOR-EXPORTS-ROW-COMPACT-UNIFY-V1 — meta left / actions right (no column tower). */
         .ev-export-row {
             display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
             gap: 6px 12px; padding: 8px 0; border-bottom: 1px solid #1e293b;
@@ -3866,10 +3967,20 @@
         .ev-export-status.is-finalized { color: #86efac; }
         .ev-export-status.is-pending { color: #fbbf24; }
         .ev-export-actions-col {
-            flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center;
+            flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center;
             justify-content: flex-end;
         }
-        .ev-export-dl-btn { min-width: 5.5rem; text-align: center; }
+        #ev-panel-detail .ev-export-actions-col .btn,
+        #ev-panel-detail .ev-export-actions-col a.btn {
+            width: auto !important;
+            flex: 0 0 auto;
+            white-space: nowrap;
+            max-width: none;
+        }
+        .ev-export-dl-btn { text-align: center; }
+        .ev-export-section #ev-export-clean-finalized,
+        .ev-export-section #ev-export-clean-drafts,
+        .ev-export-section #ev-export-clean-trims { margin-left: 0; }
         .ev-export-action {
             background: none; border: none; padding: 0; margin: 0;
             color: #93c5fd; font-size: 12px; cursor: pointer; text-decoration: underline;
@@ -4015,8 +4126,9 @@
         }
         .ev-trim-row { display: inline-flex; align-items: center; gap: 6px; }
         .ev-trim-row input { width: 90px; }
-        .ev-redact-span { font-size: 11px; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px; }
-        .ev-redact-span-sel { background: #0f172a; color: #e2e8f0; border: 1px solid #475569; border-radius: 6px; padding: 3px 6px; font-size: 11px; }
+        .ev-redact-span { font-size: 11px; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+        .ev-redact-span-sel { background: #0f172a; color: #e2e8f0; border: 1px solid #475569; border-radius: 6px; padding: 3px 6px; font-size: 11px; max-width: 100%; }
+        .ev-redact-span-hint { margin: 4px 0 0; font-size: 10px; line-height: 1.35; max-width: 280px; }
         .ev-redact-regions li.ev-redact-region-row { list-style: none; margin-left: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid #334155; }
         .ev-redact-region-tag { min-width: 92px; color: #93c5fd; }
         .ev-redact-time { display: inline-flex; align-items: center; gap: 3px; color: #94a3b8; }
@@ -4415,6 +4527,11 @@
         .video-slot.selected .video-slot-box { border-color: #2563eb; }
         .video-slot.alarm .video-slot-box { border-color: #ef4444; animation: alarm-blink 0.9s ease-in-out infinite; }
         .video-slot.alarm.video-slot-has-live .video-slot-box { animation: none; box-shadow: 0 0 8px 1px rgba(239, 68, 68, 0.45); }
+        /* FR-BLACKLIST-MAP-PIN-TAKEOVER-V1 — catching BWC wall panel */
+        .video-slot.fr-blacklist-hit .video-slot-box {
+            border-color: #dc2626 !important;
+            box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.55), 0 0 14px rgba(220, 38, 38, 0.35);
+        }
         @keyframes alarm-blink { 0%, 100% { border-color: #ef4444; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); } 50% { border-color: #fca5a5; box-shadow: 0 0 12px 2px rgba(239, 68, 68, 0.7); } }
         .video-slot-head { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 2px; padding: 2px 4px; background: rgba(30, 41, 59, 0.95); font-size: 9px; flex-wrap: nowrap; }
         .video-slot-id { color: #e2e8f0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 110px; }
@@ -6865,7 +6982,7 @@
         .sos-detail-actions button { flex: 1; min-width: 100px; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; background: #334155; color: #e2e8f0; }
         .sos-detail-actions .sos-detail-secondary { flex: 0 1 auto; background: transparent; color: #94a3b8; font-weight: 500; font-size: 11px; }
     </style>
-    <link rel="stylesheet" href="/css/global.css?v=20260723-destroy-scroll-lock-v1">
+    <link rel="stylesheet" href="/css/global.css?v=20260723-global-ui-rollout-v1">
 </head>
 <body>
 <script>
@@ -8113,7 +8230,7 @@
         </div>
     </div>
     </div>
-    <div id="app-view-audit-trail" hidden>
+    <div id="app-view-audit-trail" class="enterprise-scope" hidden>
         <div id="audit-trail-panel">
             <h2 id="at-page-title" data-i18n="auditTrail.title">Audit Trail</h2>
             <p class="at-intro" id="at-page-intro" data-i18n="auditTrail.intro">Compliance activity log &mdash; who did what, when, and from where. Append-only store; export for auditors.</p>
@@ -8181,7 +8298,7 @@
         </div>
     </div>
 
-    <div id="app-view-command-wall" hidden>
+    <div id="app-view-command-wall" class="enterprise-scope" hidden>
         <div class="cw-toolbar">
             <div>
                 <h2 data-i18n="commandWall.title">Command Wall</h2>
@@ -8269,7 +8386,7 @@
         </div>
     </div>
 
-    <div id="app-view-centre-summary" hidden>
+    <div id="app-view-centre-summary" class="enterprise-scope" hidden>
         <div class="cs-scroll">
             <div class="cs-head">
                 <div>
@@ -8418,7 +8535,7 @@
         </div>
     </div>
 
-    <div id="app-view-analytics" hidden>
+    <div id="app-view-analytics" class="enterprise-scope" hidden>
         <div id="analytics-panel" class="ax-hub">
             <div id="analytics-popout-bar">
                 <span data-i18n="analytics.popoutBarTitle">Ubitron Mobility C2 &mdash; Face watch</span>
@@ -8440,7 +8557,7 @@
                     <button type="button" class="ax-hub-nav-btn" data-panel="anpr" data-i18n="analytics.navAnpr" disabled>ANPR</button>
                     <button type="button" class="ax-hub-nav-btn" data-panel="weapon" data-i18n="analytics.navWeapon" disabled>Weapon detection</button>
                 </nav>
-                <div id="ax-panel-face" class="ax-hub-panel">
+                <div id="ax-panel-face" class="ax-hub-panel enterprise-scope">
                     <div class="ax-fr-toolbar">
                         <span class="hint" data-i18n="analytics.fr.layoutHint">6 live tiles Â&middot; up to 32 in watch set Â&middot; rotate ~20s</span>
                         <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-load-video" data-i18n="analytics.fr.loadVideo">Load video (offline)</button>
@@ -8667,7 +8784,7 @@
         </div>
     </div>
 
-    <div id="app-view-evidence" hidden>
+    <div id="app-view-evidence" class="enterprise-scope" hidden>
         <div id="evidence-panel" class="evidence-hub">
             <h2 data-i18n="nav.evidenceDocking">Evidence &amp; Docking</h2>
             <div id="evidence-perm-banner" class="evidence-perm-banner" hidden></div>
@@ -8742,7 +8859,7 @@
             </div>
 
             <div id="ev-panel-redacted-exports" class="evidence-hub-panel" hidden>
-                <p class="setup-hint" data-i18n="evidenceHub.redactedExportsHint">Find finalized redacted copies without opening each source clip. Download here; open source to return to the original evidence.</p>
+                <p class="setup-hint" data-i18n="evidenceHub.redactedExportsHint">Finalized redacted (blurred) downloads only — not trim cuts. Download here; Open source goes back to the original clip.</p>
                 <div class="evidence-toolbar">
                     <button type="button" class="btn btn-action btn-sm" id="ev-rx-refresh" data-i18n="evidence.refresh">Refresh</button>
                     <span id="ev-rx-meta" class="hint"></span>
@@ -8964,7 +9081,7 @@
             </div>
 
             <div id="ev-panel-settings" class="evidence-hub-panel ev-storage-panel ev-hub-panel-rail enterprise-scope" hidden>
-                <div class="ev-hub-layout">
+                <div class="ev-hub-layout enterprise-layout-2col">
                 <div class="ev-hub-main">
                 <div class="ev-storage-layout">
 
@@ -8998,7 +9115,7 @@
                     <p class="setup-hint" style="margin-top:0" data-i18n="evidence.storageSanHint">Your IP SAN appears here after IT connects the LUN (Windows: Disk Management &rarr; drive letter, e.g. <code>E:\MobilityEvidence</code>).</p>
                     <label class="full" for="ss-evidence-nas-path"><span data-i18n="evidence.nasMountPath">Mount path on this server</span>
                         <div class="ev-path-row">
-                            <input type="text" id="ss-evidence-nas-path" autocomplete="off" readonly>
+                            <input type="text" id="ss-evidence-nas-path" class="enterprise-form-control" autocomplete="off" readonly>
                             <button type="button" class="btn btn-ghost btn-sm ev-path-browse" data-target="ss-evidence-nas-path" data-start="nas" data-i18n="evidence.storageBrowse">Browse&hellip;</button>
                         </div>
                     </label>
@@ -9027,19 +9144,19 @@
                             </label>
                             <label class="full">
                                 <span data-i18n="server.dock.host">FTP host (for BWCs)</span>
-                                <input type="text" id="ss-ftp-host" readonly autocomplete="off">
+                                <input type="text" id="ss-ftp-host" class="enterprise-form-control" readonly autocomplete="off">
                             </label>
                             <label>
                                 <span data-i18n="server.dock.port">FTP port</span>
-                                <input type="number" id="ss-ftp-port" min="1" max="65535" step="1" autocomplete="off">
+                                <input type="number" id="ss-ftp-port" class="enterprise-form-control" min="1" max="65535" step="1" autocomplete="off">
                             </label>
                             <label>
                                 <span data-i18n="server.dock.user">FTP username</span>
-                                <input type="text" id="ss-ftp-user" autocomplete="off" spellcheck="false">
+                                <input type="text" id="ss-ftp-user" class="enterprise-form-control" autocomplete="off" spellcheck="false">
                             </label>
                             <label>
                                 <span data-i18n="evidence.ftpPassword">FTP password</span>
-                                <input type="password" id="ss-ftp-pass" autocomplete="new-password" data-i18n-placeholder="evidence.ftpPasswordPlaceholder" placeholder="Leave blank to keep current password">
+                                <input type="password" id="ss-ftp-pass" class="enterprise-form-control" autocomplete="new-password" data-i18n-placeholder="evidence.ftpPasswordPlaceholder" placeholder="Leave blank to keep current password">
                             </label>
                             <label>
                                 <span data-i18n="server.dock.pasv">Passive data ports</span>
@@ -9052,7 +9169,7 @@
                         </div>
                         <label class="full ev-ftp-upload-field" for="ss-ftp-upload-path"><span data-i18n="server.dock.uploadFolder">FTP upload folder</span>
                             <div class="ev-path-row">
-                                <input type="text" id="ss-ftp-upload-path" autocomplete="off" readonly>
+                                <input type="text" id="ss-ftp-upload-path" class="enterprise-form-control" autocomplete="off" readonly>
                                 <button type="button" class="btn btn-ghost btn-sm ev-path-browse" data-target="ss-ftp-upload-path" data-start="ftp" data-i18n="evidence.storageBrowse">Browse&hellip;</button>
                                 <button type="button" class="btn btn-ghost btn-sm ev-path-default" data-target="ss-ftp-upload-path" data-i18n="evidence.storageUseDefault">Use default</button>
                             </div>
@@ -9077,7 +9194,7 @@
                     </label>
                     <label class="full" for="ss-evidence-live-path"><span data-i18n="evidence.liveCapturePath">Live capture folder</span>
                         <div class="ev-path-row">
-                            <input type="text" id="ss-evidence-live-path" autocomplete="off" readonly>
+                            <input type="text" id="ss-evidence-live-path" class="enterprise-form-control" autocomplete="off" readonly>
                             <button type="button" class="btn btn-ghost btn-sm ev-path-browse" data-target="ss-evidence-live-path" data-start="live" data-i18n="evidence.storageBrowse">Browse&hellip;</button>
                             <button type="button" class="btn btn-ghost btn-sm ev-path-default" data-target="ss-evidence-live-path" data-i18n="evidence.storageUseDefault">Use default</button>
                         </div>
@@ -9105,7 +9222,7 @@
                 </div>
 
                 <aside class="ev-context-rail" id="ev-storage-context-rail" aria-labelledby="ev-storage-rail-title">
-                    <div class="ev-context-rail-inner">
+                    <div class="ev-context-rail-inner enterprise-card">
                         <h4 id="ev-storage-rail-title" data-i18n="evidenceHub.storageRailTitle">System status</h4>
                         <div id="ev-storage-rail-body"><p class="hint" data-i18n="evidenceHub.loading">Loading&hellip;</p></div>
                     </div>
@@ -9322,10 +9439,10 @@
     <script src="/js/ptt-rx.js?v=20260629-live-toast"></script>
     <script src="/js/audit-trail-hub.js?v=20260630-audit-preset-ux"></script>
     <script src="/js/license-features.js?v=20260707-license-gate"></script>
-    <script src="/js/fr-live-watch.js?v=20260720-fr-flv-handoff-v1"></script>
+    <script src="/js/fr-live-watch.js?v=20260723-fr-stop-video-slot-select-toast-v1"></script>
     <script src="/js/fr-offline-video.js?v=20260715-threshold-admin"></script>
     <script src="/js/fr-enroll-cropper.js?v=20260710-fr-cropper"></script>
-    <script src="/js/fr-alarm.js?v=20260723-dock-bay-title-encoding-v1"></script>
+    <script src="/js/fr-alarm.js?v=20260723-fr-blacklist-score-upgrade-dispatch-v1"></script>
     <script src="/js/wvp-lab-tile.js?v=20260716-hide-lab-ui"></script>
     <script src="/js/analytics-hub.js?v=20260723-dock-bay-title-encoding-v1"></script>
     <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>
@@ -9335,12 +9452,12 @@
     <script src="/js/route-trace.js?v=20260621-smart-gps"></script>
     <script src="/js/case-files-ui.js?v=20260722-cf-list-one-view-v5"></script>
     <script src="/js/fr-kept-ui.js?v=20260722-holds-disposition-v1"></script>
-    <script src="/js/evidence-hub.js?v=20260723-dock-bay-title-encoding-v1"></script>
+    <script src="/js/evidence-hub.js?v=20260723-redacted-exports-empty-hint-v1"></script>
     <script src="/js/system-health-plain.js?v=20260712-health-plain"></script>
     <script src="/js/missed-activity.js?v=20260712-alerts-copy"></script>
     <script src="/js/evidence-manager.js?v=20260723-destroy-scroll-lock-v1"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260723-dock-bay-title-encoding-v1"></script>
+    <script src="/js/video-wall.js?v=20260723-fr-blacklist-map-pin-takeover-v1"></script>
     <script src="/js/video-matrix.js?v=20260721-ops10-v1"></script>
     <script src="/js/fleet-ui.js?v=20260723-dock-bay-title-encoding-v1"></script>
     <script src="/js/map-popout-sync.js?v=20260612-mirror"></script>
@@ -9351,7 +9468,7 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/cw-display-room.js?v=20260712-launch-all-profile"></script>
     <script src="/js/live-surface-hint.js?v=20260709-duplicate-surface-warn"></script>
-    <script src="/js/command-wall.js?v=20260723-dock-bay-title-encoding-v1"></script>
+    <script src="/js/command-wall.js?v=20260723-sec-nonsip-id-crypto-v1"></script>
     <script src="/js/ops-cw-awareness.js?v=20260622-ops-cw-awareness"></script>
     <script src="/js/command-centre.js?v=20260722-centre-honest-load-v2"></script>
     <script>
@@ -12799,6 +12916,7 @@
             }
             assignColocatedPinPopupDocks('max-open-enforced');
         }
+        window.enforceMaxOpenPinPopups = enforceMaxOpenPinPopups;
 
         function repositionOpenPinPopupsLight() {
             getOpenPinCamIds().forEach(function (camId) {

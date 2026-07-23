@@ -19,6 +19,7 @@ const {
     createSipTag,
     createGbSequenceNumber,
 } = require('./lib/sipCryptoIdentifiers');
+const { multerTempFileName } = require('./lib/secureId');
 
 const WebSocket = require('ws');
 
@@ -6325,6 +6326,10 @@ app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin,
             }
             out = await evidenceWorkflow.applyFaceFollowRedaction(req.params.fileId, req.dashboardUser, {
                 manualRegions: Array.isArray(regions) ? regions : [],
+                /* REDACT-PREVIEW-CONTROLS-BURN-V1 — deleted Auto yellow boxes */
+                excludeRegions: Array.isArray(body.excludeRegions) ? body.excludeRegions : [],
+                /* REDACT-SECOND-PASS-ON-EXPORT-V1 */
+                parentExportId: body.parentExportId || null,
                 redactionReason: draftNote.redactionReason,
                 visibleDescription: draftNote.visibleDescription,
                 incidentNote: draftNote.incidentNote,
@@ -6334,7 +6339,9 @@ app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin,
                 req.params.fileId,
                 regions,
                 req.dashboardUser,
-                draftNote
+                Object.assign({}, draftNote, {
+                    parentExportId: body.parentExportId || null,
+                })
             );
         }
         await auditLog.recordFromRequest(req, 'evidence.redact_save', {
@@ -6343,6 +6350,8 @@ app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin,
                 exportId: out.exportId,
                 regionCount: out.regionCount,
                 mode: out.mode || (faceFollow ? 'face-follow' : 'static-regions'),
+                secondPass: !!out.secondPass,
+                parentExportId: out.parentExportId || null,
             },
         });
         res.json({ ok: true, export: out });
@@ -6358,15 +6367,16 @@ app.post('/api/evidence/detail/:fileId/redact/autoface', dashboardAuth.requireSu
         if (!licenseFeatures.isFeatureEnabled('fr')) {
             return res.status(403).json(opErr('Face detection module is not enabled on this license'));
         }
-        const file = await evidenceRegistry.getFile(req.params.fileId);
-        if (!file) return res.status(404).json(opErr('Evidence file not found'));
-        const inputPath = evidenceRegistry.resolveFilePath(file);
-        if (!inputPath) return res.status(404).json(opErr('Source file missing on storage'));
-
         const body = req.body || {};
+        const src = await evidenceWorkflow.resolveRedactInputPath(req.params.fileId, {
+            parentExportId: body.parentExportId || null,
+        });
+        const inputPath = src.inputPath;
+
         const detectOpts = {
             maxSeconds: Number(body.maxSeconds) > 0 ? Number(body.maxSeconds) : 0,
-            stride: Number(body.stride) > 0 ? Number(body.stride) : 3,
+            /* REDACT-HOLD-SMOOTH-V1 — denser Auto preview (3 → 2) */
+            stride: Number(body.stride) > 0 ? Number(body.stride) : 2,
             score: Number(body.score) > 0 ? Number(body.score) : 0.72,
             timeout: 300000,
         };
@@ -6390,6 +6400,8 @@ app.post('/api/evidence/detail/:fileId/redact/autoface', dashboardAuth.requireSu
                 faceFollow: true,
                 engine: engine,
                 detector: timeline.detector || null,
+                secondPass: !!src.secondPass,
+                parentExportId: src.parentExportId || null,
             },
         });
         res.json({
@@ -6406,6 +6418,8 @@ app.post('/api/evidence/detail/:fileId/redact/autoface', dashboardAuth.requireSu
                 faceFollow: true,
                 engine: engine,
                 detector: timeline.detector || null,
+                secondPass: !!src.secondPass,
+                parentExportId: src.parentExportId || null,
             },
         });
     } catch (err) {
@@ -6442,10 +6456,19 @@ app.post('/api/evidence/redact/:exportId/finalize', dashboardAuth.requireSuperAd
 
 /* REDACT-PRIOR-EXPORTS-CLEANUP-V1 — remove non-finalized redact copies (not custody). */
 /* REDACT-PRIOR-EXPORTS-CLEAR-FINALIZED-V1 — ?finalized=1 removes one Finalized copy. */
+/* REDACT-CLEAR-FINALIZED-PASSWORD-CONFIRM-V1 — Finalized destroy needs adminPassword. */
 app.delete('/api/evidence/redact/:exportId', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         const allowFinalized = String(req.query.finalized || '') === '1'
             || String((req.body && req.body.finalized) || '') === '1';
+        if (allowFinalized) {
+            const body = req.body || {};
+            if (!dashboardAuth.verifySessionPassword(req.dashboardUser, body.adminPassword)) {
+                return res.status(403).json(Object.assign({
+                    errorKey: 'evidenceHub.exportFinalizedNeedPassword',
+                }, opErr('Enter your password to remove this Finalized redacted copy.')));
+            }
+        }
         const out = allowFinalized
             ? await evidenceWorkflow.removeRedactExportFinalized(req.params.exportId)
             : await evidenceWorkflow.removeRedactExportDraft(req.params.exportId);
@@ -6460,6 +6483,8 @@ app.delete('/api/evidence/redact/:exportId', dashboardAuth.requireSuperAdmin, as
                 exportId: out.exportId,
                 fileName: out.fileName,
                 status: out.status,
+                passwordConfirmed: allowFinalized ? true : undefined,
+                actorUsername: (req.dashboardUser && req.dashboardUser.username) || null,
             },
         });
         res.json({ ok: true, removed: out });
@@ -6495,16 +6520,14 @@ app.post('/api/evidence/detail/:fileId/redact/cleanup-drafts', dashboardAuth.req
     }
 });
 
-/* REDACT-PRIOR-EXPORTS-CLEAR-FINALIZED-V1 — bulk clear Finalized for one clip (typed DELETE). */
+/* REDACT-CLEAR-FINALIZED-PASSWORD-CONFIRM-V1 — bulk clear Finalized (password, not DELETE). */
 app.post('/api/evidence/detail/:fileId/redact/cleanup-finalized', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
-        const confirm = String((req.body && req.body.confirm) || '').trim();
-        if (confirm !== 'DELETE') {
-            return res.status(400).json({
-                ok: false,
-                error: 'Type DELETE to confirm clearing Finalized redacted copies.',
-                errorKey: 'evidenceHub.exportClearFinalizedNeedConfirm',
-            });
+        const body = req.body || {};
+        if (!dashboardAuth.verifySessionPassword(req.dashboardUser, body.adminPassword)) {
+            return res.status(403).json(Object.assign({
+                errorKey: 'evidenceHub.exportFinalizedNeedPassword',
+            }, opErr('Enter your password to clear Finalized redacted copies.')));
         }
         const out = await evidenceWorkflow.removeRedactExportFinalizedForFile(req.params.fileId);
         await auditLog.recordFromRequest(req, 'evidence.redact_finalized_cleaned', {
@@ -6515,12 +6538,76 @@ app.post('/api/evidence/detail/:fileId/redact/cleanup-finalized', dashboardAuth.
                 count: out.count,
                 exportIds: (out.removed || []).map(function (r) { return r.exportId; }),
                 status: 'finalized',
+                passwordConfirmed: true,
+                actorUsername: (req.dashboardUser && req.dashboardUser.username) || null,
             },
         });
         res.json({ ok: true, count: out.count, removed: out.removed });
     } catch (err) {
         res.status(400).json(Object.assign({
             errorKey: 'evidenceHub.exportFinalizedCleanupFailed',
+        }, opErr(err)));
+    }
+});
+
+/* PRIOR-TRIM-LABEL-AND-REMOVE-V1 — remove one trim (password). */
+app.delete('/api/evidence/trim/:exportId', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        const body = req.body || {};
+        if (!dashboardAuth.verifySessionPassword(req.dashboardUser, body.adminPassword)) {
+            return res.status(403).json(Object.assign({
+                errorKey: 'evidenceHub.exportTrimNeedPassword',
+            }, opErr('Enter your password to remove this trim copy.')));
+        }
+        const out = await evidenceWorkflow.removeTrimExport(req.params.exportId);
+        await auditLog.recordFromRequest(req, 'evidence.trim_export_removed', {
+            target: out.evidenceFileId,
+            detail: {
+                fileId: out.evidenceFileId,
+                evidenceFileId: out.evidenceFileId,
+                exportId: out.exportId,
+                fileName: out.fileName,
+                exportType: 'trim',
+                passwordConfirmed: true,
+                actorUsername: (req.dashboardUser && req.dashboardUser.username) || null,
+            },
+        });
+        res.json({ ok: true, removed: out });
+    } catch (err) {
+        const msg = String(err && err.message || '');
+        const code = msg.indexOf('not found') >= 0 ? 404 : 400;
+        res.status(code).json(Object.assign({
+            errorKey: 'evidenceHub.exportTrimCleanupFailed',
+        }, opErr(err)));
+    }
+});
+
+/* PRIOR-TRIM-LABEL-AND-REMOVE-V1 — clear all trims for one clip (password). */
+app.post('/api/evidence/detail/:fileId/trim/cleanup', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        const body = req.body || {};
+        if (!dashboardAuth.verifySessionPassword(req.dashboardUser, body.adminPassword)) {
+            return res.status(403).json(Object.assign({
+                errorKey: 'evidenceHub.exportTrimNeedPassword',
+            }, opErr('Enter your password to clear trim copies for this clip.')));
+        }
+        const out = await evidenceWorkflow.removeTrimExportsForFile(req.params.fileId);
+        await auditLog.recordFromRequest(req, 'evidence.trim_exports_cleaned', {
+            target: out.evidenceFileId,
+            detail: {
+                fileId: out.evidenceFileId,
+                evidenceFileId: out.evidenceFileId,
+                count: out.count,
+                exportIds: (out.removed || []).map(function (r) { return r.exportId; }),
+                exportType: 'trim',
+                passwordConfirmed: true,
+                actorUsername: (req.dashboardUser && req.dashboardUser.username) || null,
+            },
+        });
+        res.json({ ok: true, count: out.count, removed: out.removed });
+    } catch (err) {
+        res.status(400).json(Object.assign({
+            errorKey: 'evidenceHub.exportTrimCleanupFailed',
         }, opErr(err)));
     }
 });
@@ -6549,7 +6636,7 @@ const frVerifyUpload = multer({
         },
         filename: (_req, file, cb) => {
             const safe = String(file.originalname || 'img').replace(/[^\w.\-]+/g, '_').slice(0, 80);
-            cb(null, Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '-' + safe);
+            cb(null, multerTempFileName(safe));
         },
     }),
     limits: { fileSize: 20 * 1024 * 1024 },
@@ -6642,7 +6729,7 @@ const frEnrollUpload = multer({
         },
         filename: (_req, file, cb) => {
             const safe = String(file.originalname || 'img').replace(/[^\w.\-]+/g, '_').slice(0, 80);
-            cb(null, Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '-' + safe);
+            cb(null, multerTempFileName(safe));
         },
     }),
     limits: { fileSize: 20 * 1024 * 1024 },
@@ -7452,7 +7539,7 @@ const frOfflineUpload = multer({
         },
         filename: (_req, file, cb) => {
             const safe = String(file.originalname || 'video').replace(/[^\w.\-]+/g, '_').slice(0, 80);
-            cb(null, Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '-' + safe);
+            cb(null, multerTempFileName(safe));
         },
     }),
     limits: { fileSize: frOfflineVideo.MAX_BYTES },
@@ -7574,6 +7661,49 @@ app.get('/api/evidence/export-stream/:exportId', requireEvidenceExport, async (r
         });
         res.setHeader('Content-Disposition', 'attachment; filename="' + String(resolved.row.fileName).replace(/"/g, '') + '"');
         return evidenceCrypto.pipeDecrypted(resolved.fullPath, res);
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+/* REDACT-SECOND-PASS-ON-EXPORT-V1 — inline seekable preview of a redacted export (not Download). */
+app.get('/api/evidence/export-preview/:exportId', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        const resolved = await evidenceWorkflow.resolveExportStream(req.params.exportId);
+        if (!resolved) return res.status(404).json(opErr('Export not found'));
+        if (resolved.row.exportType !== 'redact') {
+            return res.status(400).json(opErr('Only redacted exports can be previewed for second pass'));
+        }
+        const fullPath = resolved.fullPath;
+        await auditLog.recordFromRequest(req, 'evidence.export_preview', {
+            target: resolved.row.exportId,
+            detail: { fileId: resolved.row.evidenceFileId },
+        });
+        res.setHeader('Cache-Control', 'no-store, private');
+        res.setHeader('Content-Type', 'video/mp4');
+        if (!evidenceCrypto.isEncryptedFile(fullPath)) {
+            const total = fs.statSync(fullPath).size;
+            res.setHeader('Accept-Ranges', 'bytes');
+            const range = req.headers.range;
+            if (range) {
+                const m = /bytes=(\d*)-(\d*)/.exec(range);
+                let start = m && m[1] !== '' ? parseInt(m[1], 10) : 0;
+                let end = m && m[2] !== '' ? parseInt(m[2], 10) : total - 1;
+                if (Number.isNaN(start) || start < 0) start = 0;
+                if (Number.isNaN(end) || end >= total) end = total - 1;
+                if (start > end) {
+                    res.status(416).setHeader('Content-Range', 'bytes */' + total);
+                    return res.end();
+                }
+                res.status(206);
+                res.setHeader('Content-Range', 'bytes ' + start + '-' + end + '/' + total);
+                res.setHeader('Content-Length', (end - start) + 1);
+                return fs.createReadStream(fullPath, { start: start, end: end }).pipe(res);
+            }
+            res.setHeader('Content-Length', total);
+            return fs.createReadStream(fullPath).pipe(res);
+        }
+        return evidenceCrypto.pipeDecrypted(fullPath, res);
     } catch (err) {
         res.status(500).json(opErr(err));
     }

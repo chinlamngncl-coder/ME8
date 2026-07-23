@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-23  
 **Phrase (when ready):** `MOB-APPLY MOB-EXECUTE-END-TO-END-UI-CONSOLIDATION-V1`  
-**Status:** DISC only — **no code / no git until operator APPLY**
+**Status:** APPLIED — see `docs/MOB-APPLIED-END-TO-END-UI-CONSOLIDATION-V1-20260723.md`
 
 ## Operator pain (understood)
 

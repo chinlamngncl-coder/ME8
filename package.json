@@ -5,10 +5,12 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "verify": "node scripts/verify-install.js && node scripts/verify-postgres-catalog-retirement.js && node scripts/verify-startup-rollback-gate.js && node scripts/verify-fatal-process-policy.js && node scripts/verify-sip-crypto-identifiers.js && node scripts/verify-login-rate-lru.js && node scripts/verify-sos-ack-ends-group-call.js && node scripts/verify-ship-runjs-security-parity.js && node scripts/verify-valkey-fleet-runtime-state-degrade.js && node scripts/verify-enterprise-redis-image-legal-pin.js",
+    "verify": "node scripts/verify-install.js && node scripts/verify-postgres-catalog-retirement.js && node scripts/verify-startup-rollback-gate.js && node scripts/verify-fatal-process-policy.js && node scripts/verify-sip-crypto-identifiers.js && node scripts/verify-login-rate-lru.js && node scripts/verify-sos-ack-ends-group-call.js && node scripts/verify-ship-runjs-security-parity.js && node scripts/verify-valkey-fleet-runtime-state-degrade.js && node scripts/verify-enterprise-redis-image-legal-pin.js && node scripts/verify-lab-default-creds-and-image-pin.js && node scripts/verify-sec-nonsip-id-crypto-random.js",
     "verify:dependencies": "node scripts/verify-production-dependency-security.js",
     "verify:fatal": "node scripts/verify-fatal-process-policy.js",
+    "verify:lab-creds": "node scripts/verify-lab-default-creds-and-image-pin.js",
     "verify:login-rate": "node scripts/verify-login-rate-lru.js",
+    "verify:nonsip-id": "node scripts/verify-sec-nonsip-id-crypto-random.js",
     "verify:redis-legal": "node scripts/verify-enterprise-redis-image-legal-pin.js",
     "verify:runjs": "node scripts/verify-ship-runjs-security-parity.js",
     "verify:sip-crypto": "node scripts/verify-sip-crypto-identifiers.js",

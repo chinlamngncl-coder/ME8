@@ -1,37 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="enterprise-auth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="dark">
     <title>Recovery email &mdash; Ubitron Mobility C2</title>
-    <style>
-        * { box-sizing: border-box; }
-        html, body {
-            margin: 0; min-height: 100%;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(160deg, #0f172a 0%, #1e293b 45%, #0f172a 100%);
-            color: #e2e8f0; display: flex; align-items: center; justify-content: center; padding: 24px;
-        }
-        .login-card { width: 100%; max-width: 460px; background: rgba(30,41,59,.95); border: 1px solid #475569; border-radius: 12px; padding: 28px 24px; }
-        .setup-hint { font-size: 13px; color: #94a3b8; line-height: 1.5; margin: 0 0 14px; }
-        label { display: block; margin-bottom: 14px; font-size: 12px; color: #94a3b8; }
-        .login-input { display: block; width: 100%; margin-top: 6px; padding: 10px 12px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #e2e8f0; font-size: 14px; }
-        #recovery-error { display: none; margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; background: rgba(127,29,29,.35); border: 1px solid #b91c1c; color: #fecaca; font-size: 13px; }
-        #recovery-ok { display: none; margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; background: rgba(20,83,45,.35); border: 1px solid #16a34a; color: #bbf7d0; font-size: 13px; }
-        .btn-primary { width: 100%; margin-top: 8px; padding: 11px 16px; border: none; border-radius: 8px; background: #2563eb; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
-        .btn-secondary { width: 100%; margin-top: 8px; padding: 11px 16px; border: 1px solid #475569; border-radius: 8px; background: #334155; color: #e2e8f0; font-size: 14px; font-weight: 600; cursor: pointer; }
-        button:disabled { opacity: .6; cursor: wait; }
-        .logout-link { margin-top: 16px; text-align: center; font-size: 12px; }
-        .logout-link button { background: none; border: none; color: #60a5fa; cursor: pointer; font-size: 12px; }
-        .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-        .badge.ok { background: rgba(22,163,74,.25); color: #86efac; }
-        .badge.pending { background: rgba(234,179,8,.2); color: #fde047; }
-    </style>
+    <link rel="stylesheet" href="/css/global.css?v=20260723-global-ui-rollout-v1">
 </head>
-<body>
-    <div class="login-card">
-        <h1 style="margin:0 0 8px;font-size:18px" data-i18n="recoveryEmail.title">Recovery email</h1>
+<body class="enterprise-auth">
+    <div class="login-card enterprise-card login-card--wide">
+        <h1 class="auth-title" data-i18n="recoveryEmail.title">Recovery email</h1>
         <p class="setup-hint" data-i18n="recoveryEmail.setupHint">Add an email for password reset and lost-authenticator recovery. We send a one-time link to verify it.</p>
         <p id="recovery-error" role="alert"></p>
         <p id="recovery-ok" role="status"></p>
@@ -40,10 +18,10 @@
             <label><span data-i18n="recoveryEmail.address">Recovery email address</span>
                 <input type="email" id="recovery-email-input" class="login-input" autocomplete="email" required>
             </label>
-            <button type="submit" class="btn-primary" id="recovery-send-btn" data-i18n="recoveryEmail.sendVerify">Send verification email</button>
+            <button type="submit" class="btn-primary btn-block" id="recovery-send-btn" data-i18n="recoveryEmail.sendVerify">Send verification email</button>
         </form>
-        <button type="button" class="btn-secondary" id="recovery-resend-btn" hidden data-i18n="recoveryEmail.resend">Resend verification email</button>
-        <button type="button" class="btn-primary" id="recovery-continue-btn" hidden data-i18n="recoveryEmail.continueDashboard">Continue to dashboard</button>
+        <button type="button" class="btn-secondary btn-block" id="recovery-resend-btn" hidden data-i18n="recoveryEmail.resend">Resend verification email</button>
+        <button type="button" class="btn-primary btn-block" id="recovery-continue-btn" hidden data-i18n="recoveryEmail.continueDashboard">Continue to dashboard</button>
         <p class="logout-link"><button type="button" id="recovery-logout" data-i18n="mustChangePassword.logout">Sign out</button></p>
     </div>
     <script src="/js/i18n.js"></script>

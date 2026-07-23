@@ -1,3 +1,6 @@
+# LiveKit MCU config TEMPLATE — do not put real secrets here.
+# LAB-DEFAULT-CREDS-AND-IMAGE-PIN-V1: scripts/START-LIVEKIT.ps1 writes
+# docker/livekit.runtime.yaml (gitignored) with HOST + FM_LIVEKIT_* keys.
 port: 7880
 bind_addresses:
   - ""
@@ -6,11 +9,12 @@ rtc:
   # Match docker/livekit.compose.yaml UDP publish (avoid Windows excluded 50000-50459).
   port_range_start: 51000
   port_range_end: 51100
-  # Must be reachable from browsers/phones on the LAN — match Mobility HOST in .env
-  node_ip: 192.168.1.38
+  # Patched into runtime from .env HOST
+  node_ip: 127.0.0.1
   use_external_ip: false
 keys:
-  devkey: secret
+  # Placeholder only — replaced in livekit.runtime.yaml at start
+  PLACEHOLDER_KEY: PLACEHOLDER_SECRET
 redis:
   address: redis:6379
 logging:
@@ -19,4 +23,4 @@ room:
   empty_timeout: 600
   max_participants: 12
 ingress:
-  rtmp_base_url: rtmp://192.168.1.38:1935/x
+  rtmp_base_url: rtmp://127.0.0.1:1935/x

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Centre Summary &mdash; Mobility Axiom</title>
+    <link rel="stylesheet" href="/css/global.css?v=20260723-global-ui-rollout-v1">
     <link rel="stylesheet" href="/css/centre-summary.css">
 </head>
 <body>
@@ -18,23 +19,23 @@
             </nav>
         </div>
         <div class="cs-toolbar" style="margin-bottom:14px">
-            <button type="button" class="cs-btn" id="btn-refresh" data-i18n="centre.refresh">Refresh</button>
-            <button type="button" class="cs-btn" id="btn-export-csv" data-i18n="centre.exportCsv">Download CSV</button>
-            <button type="button" class="cs-btn" id="btn-view-local" data-i18n="centre.viewLocal">View local</button>
-            <button type="button" class="cs-btn" id="btn-export-chart" data-i18n="centre.exportChart">Download chart PNG</button>
+            <button type="button" class="cs-btn btn-secondary" id="btn-refresh" data-i18n="centre.refresh">Refresh</button>
+            <button type="button" class="cs-btn btn-secondary" id="btn-export-csv" data-i18n="centre.exportCsv">Download CSV</button>
+            <button type="button" class="cs-btn btn-secondary" id="btn-view-local" data-i18n="centre.viewLocal">View local</button>
+            <button type="button" class="cs-btn btn-secondary" id="btn-export-chart" data-i18n="centre.exportChart">Download chart PNG</button>
         </div>
         <div id="error" class="cs-err" hidden></div>
         <div id="loading" class="cs-loading" data-i18n="centre.loading">Loading centre data&hellip;</div>
         <div id="content" hidden>
             <div class="cs-kpi-grid" id="stats-grid"></div>
             <div class="cs-trend-llm-row">
-                <div class="cs-card cs-trend-card">
+                <div class="cs-card enterprise-card cs-trend-card">
                     <h3 data-i18n="centre.chart.title">SOS trend</h3>
                     <div class="cs-toolbar" style="margin-bottom:10px">
-                        <button type="button" class="cs-btn" data-period="daily" data-i18n="centre.period.daily">Daily</button>
-                        <button type="button" class="cs-btn cs-active" data-period="weekly" data-i18n="centre.period.weekly">Weekly</button>
-                        <button type="button" class="cs-btn" data-period="monthly" data-i18n="centre.period.monthly">Monthly</button>
-                        <button type="button" class="cs-btn" data-period="yearly" data-i18n="centre.period.yearly">Yearly</button>
+                        <button type="button" class="cs-btn btn-secondary" data-period="daily" data-i18n="centre.period.daily">Daily</button>
+                        <button type="button" class="cs-btn btn-primary cs-active" data-period="weekly" data-i18n="centre.period.weekly">Weekly</button>
+                        <button type="button" class="cs-btn btn-secondary" data-period="monthly" data-i18n="centre.period.monthly">Monthly</button>
+                        <button type="button" class="cs-btn btn-secondary" data-period="yearly" data-i18n="centre.period.yearly">Yearly</button>
                         <select id="year-month" class="cs-year-month" hidden aria-label="Month"></select>
                     </div>
                     <div class="cs-chart cs-chart-sm" id="trend-chart"></div>
@@ -45,33 +46,33 @@
                     <div class="cs-llm-chat" id="llm-chat"></div>
                     <div class="cs-llm-input-row">
                         <textarea class="cs-llm-input" id="llm-input" rows="2" data-i18n-placeholder="centre.llm.placeholder" placeholder="Ask about fleet, SOS, or storage&hellip;"></textarea>
-                        <button type="button" class="cs-btn cs-active" id="llm-ask" data-i18n="centre.llm.ask">Ask</button>
+                        <button type="button" class="cs-btn btn-primary cs-active" id="llm-ask" data-i18n="centre.llm.ask">Ask</button>
                     </div>
                     <div class="cs-sug-row" id="llm-suggestions"></div>
                 </div>
             </div>
             <div class="cs-mid-row">
-                <div class="cs-card cs-ring-card"><h3 data-i18n="centre.ring.deviceOnline">Device online</h3><div id="fleet-ring"></div></div>
-                <div class="cs-card cs-ring-card"><h3 data-i18n="centre.kpi.storage">Storage used</h3><div id="storage-ring"></div></div>
-                <div class="cs-card cs-health-card">
+                <div class="cs-card enterprise-card cs-ring-card"><h3 data-i18n="centre.ring.deviceOnline">Device online</h3><div id="fleet-ring"></div></div>
+                <div class="cs-card enterprise-card cs-ring-card"><h3 data-i18n="centre.kpi.storage">Storage used</h3><div id="storage-ring"></div></div>
+                <div class="cs-card enterprise-card cs-health-card">
                     <h3 data-i18n="centre.svc.title">System health</h3>
                     <div class="cs-svc-grid" id="services-grid"></div>
                 </div>
             </div>
             <div class="cs-lower-grid">
-                <div class="cs-card">
+                <div class="cs-card enterprise-card">
                     <h3 data-i18n="centre.storage.title">Storage breakdown</h3>
                     <table class="cs-table" id="storage-table"><thead><tr><th data-i18n="centre.storage.area">Area</th><th data-i18n="centre.storage.size">Size</th><th data-i18n="centre.storage.share">Share</th></tr></thead><tbody></tbody></table>
                 </div>
-                <div class="cs-card">
+                <div class="cs-card enterprise-card">
                     <h3 data-i18n="centre.activity.title">Recent activity</h3>
                     <table class="cs-table" id="activity-table"><thead><tr><th data-i18n="centre.activity.time">Time</th><th data-i18n="centre.activity.action">Action</th><th data-i18n="centre.activity.name">Name</th><th data-i18n="centre.activity.user">User</th></tr></thead><tbody></tbody></table>
                 </div>
             </div>
-            <div class="cs-card" id="live-viewers-card">
+            <div class="cs-card enterprise-card" id="live-viewers-card">
                 <div class="cs-toolbar" style="margin-bottom:8px;justify-content:space-between">
                     <h3 style="margin:0" data-i18n="centre.liveViewers.title">Live viewers</h3>
-                    <button type="button" class="cs-btn" id="btn-live-viewers-refresh" data-i18n="common.refresh">Refresh</button>
+                    <button type="button" class="cs-btn btn-secondary" id="btn-live-viewers-refresh" data-i18n="common.refresh">Refresh</button>
                 </div>
                 <div id="live-viewers-table"></div>
             </div>

@@ -27,6 +27,20 @@ $hostIp = Read-DotEnvValue 'HOST'
 if (-not $hostIp) { $hostIp = Read-DotEnvValue 'FM_GB28181_PUBLIC_HOST' }
 if (-not $hostIp -or $hostIp -eq 'YOUR_LAN_IP') { $hostIp = '192.168.1.38' }
 $env:WVP_HOST_IP = $hostIp
+
+# LAB-DEFAULT-CREDS-AND-IMAGE-PIN-V1 — secrets from .env (lab fallbacks match prior bench)
+$wvpPwd = Read-DotEnvValue 'WVP_PWD'
+if (-not $wvpPwd) { $wvpPwd = Read-DotEnvValue 'FM_WVP_DEVICE_PASSWORD' }
+if (-not $wvpPwd) { $wvpPwd = 'admin123' }
+$env:WVP_PWD = $wvpPwd
+
+$dbUser = Read-DotEnvValue 'WVP_DB_USER'; if (-not $dbUser) { $dbUser = 'root' }
+$dbPass = Read-DotEnvValue 'WVP_DB_PASSWORD'; if (-not $dbPass) { $dbPass = 'root123' }
+$redisPass = Read-DotEnvValue 'WVP_REDIS_PASSWORD'; if (-not $redisPass) { $redisPass = 'root' }
+$env:WVP_DB_USER = $dbUser
+$env:WVP_DB_PASSWORD = $dbPass
+$env:WVP_REDIS_PASSWORD = $redisPass
+
 Write-Host ("WVP_HOST / camera SIP target: {0}" -f $hostIp)
 
 $dockerExe = 'C:\Program Files\Docker\Docker\Docker Desktop.exe'
@@ -96,10 +110,11 @@ Write-Host ""
 Write-Host ("UI:     http://{0}:18080   (or http://127.0.0.1:18080)" -f $hostIp)
 Write-Host "Login:  admin / admin"
 Write-Host ("Camera SIP: {0}  port 5061  (Fleet PTT stays on 5060)" -f $hostIp)
-Write-Host "Platform: domain 4401020049  id 44010200492000000001  pwd admin123"
+Write-Host ("Platform: domain 4401020049  id 44010200492000000001  pwd (WVP_PWD from .env)")
 Write-Host "Modern ZLM HTTP: http://127.0.0.1:80  (and :18088) - Track B play"
 Write-Host "BWC / Fleet ZLM stays on :8080 (me8-zlm) - separate"
 Write-Host "Stack: me8-wvp + me8-wvp-zlm + me8-wvp-db + me8-wvp-redis"
+Write-Host "Ship/customer: set WVP_PWD / WVP_DB_* / WVP_REDIS_PASSWORD before expose."
 Write-Host "Fossil rollback: docker compose -p me8-wvp -f docker\wvp\docker-compose.wvp-fossil.yml up -d"
 Write-Host ""
 Write-Host "Proof: dashboard Lab tiles Play A+B, or WVP UI Devices after cams re-register on 5061."

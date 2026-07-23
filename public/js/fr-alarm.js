@@ -18,14 +18,10 @@
  * mob-fr-map-focus-pin: Ops map pan + pin popup; fleet last-known fallback; explicit Map/Go to map.
  * mob-fr-map-focus-pin-v2: cluster reveal, skip Ops tab when already there, normalize camId, fuchsia pin pulse.
  * mob-fr-go-ops-by-tier: auto Ops/map only suspect+blacklist; explicit Go to map always.
- * mob-fr-map-auto-gate: auto dispatch only when score >= FM_FR_MAP_AUTO_SCORE_MIN (default 80).
- * mob-fr-hq-go-map: HQ bar Go to map; Open renamed Open detail.
- * mob-fr-toast-map-always: toast Go to map enabled when camId (any score; fleet GPS fallback).
- * mob-fr-toast-alert-field: toast Alert field \u2014 one tap BWC beep (same path as drawer).
- * mob-fr-drawer-map-fallback: drawer Go to map + fleet last-known; enable when camId present.
- * mob-fr-snap-lightbox-float: floating snap card \u2014 drag, minimize (Analytics open).
- * mob-fr-snap-map-anchor-card: Show on map \u2192 Ops + GPS popup card (no corner keep tab).
- * mob-fr-snap-keep-evidence-pack: Keep \u2192 storage/fr-kept + toast hint only (no second UI).
+ * mob-fr-map-auto-gate: auto dispatch when score >= FM_FR_MAP_AUTO_SCORE_MIN.
+ * FR-BLACKLIST-AUTO-DISPATCH-V1: default gate **75** (same as match); Blacklist only auto.
+ * FR-BLACKLIST-MAP-PIN-TAKEOVER-V1: blacklist go-ops \u2192 zoom pin + promote wall/pin live.
+ * FR-BLACKLIST-SCORE-UPGRADE-DISPATCH-V1: weak hit then \u226575% \u2192 re-dispatch / go-ops.
  * Speech via VoiceAlerts when available.
  */
 (function (global) {
@@ -256,10 +252,28 @@
         updateRedToastQueueBadge(0);
     }
 
+    /** Analytics \u2192 Face recognition (desk or popout) \u2014 Known/Recent + HQ bar are enough. */
+    function isOnAnalyticsFaceSurface() {
+        if (isAnalyticsPopoutMode()) {
+            var facePop = document.getElementById('ax-panel-face');
+            if (facePop) return !facePop.hidden;
+            return viewVisible('app-view-analytics');
+        }
+        if (!viewVisible('app-view-analytics')) return false;
+        var face = document.getElementById('ax-panel-face');
+        return !!(face && !face.hidden);
+    }
+
     function showRedToast(hit) {
         if (!hit) return;
+        /* FR-HIT-TOAST-SUPPRESS-ALL-ON-FACE-V1 — HQ bar carries grade colour; no float over Known/Recent */
+        if (!hit._labPreview && isOnAnalyticsFaceSurface()) {
+            minimizeRedToast();
+            return;
+        }
         ensureRedToast();
         fillRedToast(hit);
+        applyGradeChrome(hit);
         var el = redToastEl();
         if (el) el.hidden = false;
         clearRedToastTimer();
@@ -281,11 +295,12 @@
         return true;
     }
 
+    /** FR-BLACKLIST-AUTO-DISPATCH-V1 — default 75 (aligned with FM_FR_MATCH_MIN). */
     function mapAutoScoreMin() {
         var raw = global.FM_FR_MAP_AUTO_SCORE_MIN;
-        if (raw === undefined || raw === null || raw === '') return 80;
+        if (raw === undefined || raw === null || raw === '') return 75;
         var n = parseInt(raw, 10);
-        if (!Number.isFinite(n)) return 80;
+        if (!Number.isFinite(n)) return 75;
         return Math.max(70, Math.min(99, n));
     }
 
@@ -313,18 +328,16 @@
         return score >= mapAutoScoreMin();
     }
 
-    /** Auto map/tab on hit \u2014 grade tier + score >= mapAutoScoreMin (default 80). */
+    /**
+     * Auto map/tab — Blacklist only; score >= mapAutoScoreMin (default 75).
+     * FR-BLACKLIST-AUTO-DISPATCH-V1 + FR-GRADE-COLOUR-TOAST-NO-JUMP-V1.
+     */
     function shouldAutoMapForHit(hit) {
         if (!hit || hit._labPreview) return false;
         if (!frAutoMapEnabled()) return false;
+        if (alertTierForHit(hit) !== 'high') return false;
         if (!hitMeetsAutoScore(hit)) return false;
-        if (global.FM_FR_ALERT_TIER === '0' || global.FM_FR_ALERT_TIER === false) {
-            return true;
-        }
-        var tier = alertTierForHit(hit);
-        if (tier === 'silent' || tier === 'low') return false;
-        if (tier === 'medium' && !suspectAutoDispatchEnabled()) return false;
-        return tier === 'medium' || tier === 'high';
+        return true;
     }
 
     /** Auto tab/pan on hit \u2014 master switch + shouldAutoMapForHit. */
@@ -548,8 +561,9 @@
         }
         try {
             var targetZoom = 17;
+            if (opts.blacklistZoom) targetZoom = 18;
             if (typeof global.map !== 'undefined' && global.map && global.map.getZoom) {
-                targetZoom = Math.max(global.map.getZoom() || 14, 17);
+                targetZoom = Math.max(global.map.getZoom() || 14, targetZoom);
             }
             if (typeof global.map !== 'undefined' && global.map && global.map.setView) {
                 global.map.setView([loc.lat, loc.lon], targetZoom, { animate: true });
@@ -594,7 +608,25 @@
             focusHitOnMap(hit, {
                 toastLastKnown: !!opts.explicit,
                 toastOnFail: opts.explicit !== false,
+                blacklistZoom: alertTierForHit(hit) === 'high',
             });
+            /* FR-BLACKLIST-MAP-PIN-TAKEOVER-V1 — wall/pin live for catching BWC */
+            if (alertTierForHit(hit) === 'high' && hit.camId) {
+                setTimeout(function () {
+                    try {
+                        if (global.VideoWall && typeof VideoWall.promoteFrBlacklistLive === 'function') {
+                            VideoWall.promoteFrBlacklistLive(hit.camId, {
+                                onPinnedSteal: function () {
+                                    showStandbyToast(tr(
+                                        'analytics.fr.blacklistPinStealPinned',
+                                        'FR blacklist took a pinned live slot \u2014 review wall panels.'
+                                    ), 7000);
+                                },
+                            });
+                        }
+                    } catch (_) { /* ignore */ }
+                }, 480);
+            }
         }
 
         if (!onOpSurface) {
@@ -782,6 +814,78 @@
             o.start(t);
             o.stop(t + 0.3);
         } catch (_) { /* ignore */ }
+    }
+
+    /** Soft grades: quiet or soft beep; blacklist keeps strong chime. */
+    function playChimeForHit(hit) {
+        var tier = alertTierForHit(hit);
+        if (tier === 'silent' || tier === 'low') return;
+        if (tier === 'medium') {
+            try {
+                var Ctx = global.AudioContext || global.webkitAudioContext;
+                if (!Ctx) return;
+                var ctx = playChime._ctx || (playChime._ctx = new Ctx());
+                var o = ctx.createOscillator();
+                var g = ctx.createGain();
+                o.type = 'sine';
+                o.frequency.value = 620;
+                g.gain.value = 0.0001;
+                o.connect(g);
+                g.connect(ctx.destination);
+                var t = ctx.currentTime;
+                g.gain.exponentialRampToValueAtTime(0.08, t + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+                o.start(t);
+                o.stop(t + 0.18);
+            } catch (_) { /* ignore */ }
+            return;
+        }
+        playChime();
+    }
+
+    function gradeKeyForHit(hit) {
+        var s = String((hit && hit.listStatus) || 'blacklist').trim().toLowerCase().replace(/[^a-z]/g, '');
+        if (s === 'poi' || s === 'monitoring' || s === 'suspect' || s === 'blacklist') return s;
+        return 'blacklist';
+    }
+
+    function applyGradeChrome(hit) {
+        var grade = gradeKeyForHit(hit);
+        var grades = ['poi', 'monitoring', 'suspect', 'blacklist'];
+        var bar = hqBar();
+        var toast = redToastEl();
+        if (bar) {
+            grades.forEach(function (g) { bar.classList.remove('is-grade-' + g); });
+            bar.classList.add('is-grade-' + grade);
+        }
+        if (toast) {
+            grades.forEach(function (g) { toast.classList.remove('is-grade-' + g); });
+            toast.classList.add('is-grade-' + grade);
+        }
+        var label = bar && bar.querySelector('.fr-hq-alert-label');
+        if (label) {
+            if (grade === 'poi') {
+                label.textContent = tr('analytics.fr.hqBarLabelPoi', 'FR POI');
+            } else if (grade === 'monitoring') {
+                label.textContent = tr('analytics.fr.hqBarLabelMonitoring', 'FR watch');
+            } else if (grade === 'suspect') {
+                label.textContent = tr('analytics.fr.hqBarLabelSuspect', 'FR suspect');
+            } else {
+                label.textContent = tr('analytics.fr.hqBarLabel', 'FR hit');
+            }
+        }
+        var title = document.getElementById('fr-red-toast-title');
+        if (title) {
+            if (grade === 'poi') {
+                title.textContent = tr('analytics.fr.redToastTitlePoi', 'Person of interest');
+            } else if (grade === 'monitoring') {
+                title.textContent = tr('analytics.fr.redToastTitleMonitoring', 'On monitoring');
+            } else if (grade === 'suspect') {
+                title.textContent = tr('analytics.fr.redToastTitleSuspect', 'Suspect match');
+            } else {
+                title.textContent = tr('analytics.fr.redToastTitle', 'Face match');
+            }
+        }
     }
 
     function makeEmptyCropCard() {
@@ -1929,6 +2033,9 @@
         if (!hit) {
             bar.hidden = true;
             document.body.classList.remove('fr-hq-alert-active');
+            ['poi', 'monitoring', 'suspect', 'blacklist'].forEach(function (g) {
+                bar.classList.remove('is-grade-' + g);
+            });
             return;
         }
         var textEl = document.getElementById('fr-hq-alert-text');
@@ -1952,6 +2059,7 @@
         if (hqMap) {
             hqMap.disabled = !!(hit._labPreview) || !hit.camId;
         }
+        applyGradeChrome(hit);
         bar.hidden = false;
         document.body.classList.add('fr-hq-alert-active');
     }
@@ -2000,7 +2108,7 @@
         showRedToast(hit);
         goOpsOnHit(hit);
         markRailAlertActive(hit);
-        playChime();
+        playChimeForHit(hit);
         if (global.FrLiveWatch && FrLiveWatch.flashCam) {
             FrLiveWatch.flashCam(hit.camId);
         }
@@ -2085,6 +2193,29 @@
         switchToOpsTab(function () {});
     }
 
+    function sameWatchlistSubject(a, b) {
+        if (!a || !b) return false;
+        var aBl = String(a.blacklistId || '').trim();
+        var bBl = String(b.blacklistId || '').trim();
+        if (!aBl || !bBl || aBl !== bBl) return false;
+        return normalizeHitCamId(a.camId) === normalizeHitCamId(b.camId);
+    }
+
+    function applyScoreUpgradeHit(hit) {
+        if (!hit) return;
+        current = hit;
+        fillModal(hit);
+        updateHqBar(hit);
+        showRedToast(hit);
+        markRailAlertActive(hit);
+        /* Soft chime once on upgrade — full siren only if blacklist high */
+        playChimeForHit(hit);
+        goOpsOnHit(hit);
+        if (global.FrLiveWatch && FrLiveWatch.flashCam) {
+            FrLiveWatch.flashCam(hit.camId);
+        }
+    }
+
     function onHit(hit) {
         if (!hit || !hit.hitId) return;
         pushSubjectMatch({
@@ -2103,6 +2234,35 @@
             lon: hit.lon,
             gpsAt: hit.gpsAt,
         });
+        /*
+         * FR-BLACKLIST-SCORE-UPGRADE-DISPATCH-V1 — bar already open on weak hit;
+         * upgrade must not sit in queue (that skipped go-ops).
+         */
+        if (hit.scoreUpgrade && current && sameWatchlistSubject(current, hit)) {
+            applyScoreUpgradeHit(hit);
+            return;
+        }
+        if (hit.scoreUpgrade && !current) {
+            showHit(hit);
+            return;
+        }
+        if (current && sameWatchlistSubject(current, hit)) {
+            var curScore = Number(current.scorePct);
+            var nextScore = Number(hit.scorePct);
+            if (Number.isFinite(nextScore)
+                && (!Number.isFinite(curScore) || nextScore > curScore)) {
+                var crossed = (!Number.isFinite(curScore) || curScore < mapAutoScoreMin())
+                    && nextScore >= mapAutoScoreMin()
+                    && alertTierForHit(hit) === 'high';
+                current = hit;
+                updateHqBar(hit);
+                if (crossed) {
+                    goOpsOnHit(hit);
+                    playChimeForHit(hit);
+                }
+            }
+            return;
+        }
         if (current) {
             queue.push(hit);
             if (queue.length > 8) queue.shift();

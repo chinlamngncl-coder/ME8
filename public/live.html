@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Live &mdash; Mobility Axiom</title>
+    <link rel="stylesheet" href="/css/global.css?v=20260723-global-ui-rollout-v1">
     <style>
         body { margin: 0; background: #000; color: #e2e8f0; font-family: Inter, system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; }
         .header { padding: 8px 14px; background: #1e293b; display: flex; justify-content: space-between; align-items: center; gap: 10px; border-bottom: 1px solid #334155; }
@@ -31,11 +32,11 @@
     <div class="header">
         <span id="camTitle">Connecting&hellip;</span>
         <div class="controls">
-            <button type="button" id="btn-play" title="Play">▶</button>
-            <button type="button" id="btn-stop" title="Stop">■</button>
-            <button type="button" id="btn-mute" title="Listen">🔇</button>
-            <button type="button" id="btn-call" title="Call BWC (when live)" hidden disabled>📞</button>
-            <button type="button" id="btn-close">Close</button>
+            <button type="button" id="btn-play" class="btn-secondary" title="Play">▶</button>
+            <button type="button" id="btn-stop" class="btn-secondary" title="Stop">■</button>
+            <button type="button" id="btn-mute" class="btn-secondary" title="Listen">🔇</button>
+            <button type="button" id="btn-call" class="btn-secondary" title="Call BWC (when live)" hidden disabled>📞</button>
+            <button type="button" id="btn-close" class="btn-primary">Close</button>
         </div>
     </div>
     <div class="stage" id="stage">

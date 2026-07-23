@@ -83,15 +83,15 @@ Expected: `npm audit` **0** vulns; `npm run verify` **PASS**; active `docker/` h
 
 Reviewer: these are **not** claimed fixed.
 
-### B1 — Lab / default credentials (HIGH if shipped as-is)
+### B1 — Lab / default credentials
 
-| Item | Where | Risk |
-|------|-------|------|
-| LiveKit `devkey` / `secret` | `docker/livekit.compose.yaml`, egress/ingress env, lab `.env` keys | Trivial takeover of VC stack if exposed |
-| WVP `admin123`, DB `root`/`root123`, Valkey password `root` | `docker/wvp/docker-compose.wvp.yml` | Lab-only intended — **do not ship** without credential MOB |
-| `ingress:latest` floating tag | LiveKit compose | Supply-chain drift — pin version next |
+| Item | Status |
+|------|--------|
+| LiveKit keys / ingress pin / WVP env secrets | **APPLIED** — `MOB-APPLIED-LAB-DEFAULT-CREDS-AND-IMAGE-PIN-V1-20260723.md` |
+| Pack discipline | Still set **strong** `FM_LIVEKIT_*` + `WVP_*` in customer `.env` (lab fallbacks remain for bench only) |
 
-**Suggested next MOB:** `LAB-DEFAULT-CREDS-AND-IMAGE-PIN-V1` (LiveKit keys from env only; WVP secrets from env; pin ingress image).
+**Was:** LiveKit `devkey`/`secret`, bare WVP passwords, `ingress:latest`.  
+**Now:** env-driven + pinned ingress; verify `npm run verify:lab-creds`.
 
 ### B2 — Auth / ship gates (ops discipline)
 
@@ -100,16 +100,13 @@ Reviewer: these are **not** claimed fixed.
 | `FM_TOTP_SUSPENDED` | Lab `.env` may be `1` | 2FA bypass on bench — **must be off for customer ship** (remind only at pack time) |
 | Login factory hint | Gated — OK | Do not re-enable always-visible `global123` |
 
-### B3 — Non-SIP `Math.random` leftovers (LOW–MED)
+### B3 — Non-SIP ID generators
 
-| Location | Use | Note |
-|----------|-----|------|
-| `lib/fixedCamRegistry.js` | fixed-cam IDs | Not SIP Call-ID — still not crypto-strong |
-| `lib/conferenceModule.js` | share file ids | Same |
-| `server.js` multer filename suffixes | upload names | Same |
-| `public/js/command-wall.js` | client owner token | Browser-side |
+| Location | Status |
+|----------|--------|
+| fixed cams / conference shares / FR multer / command-wall owner | **APPLIED** — `MOB-APPLIED-SEC-NONSIP-ID-CRYPTO-RANDOM-V1-20260723.md` |
 
-**Suggested MOB (optional):** `SEC-NONSIP-ID-CRYPTO-RANDOM-V1` — use `crypto.randomBytes` for server-side IDs.
+Verify: `npm run verify:nonsip-id`.
 
 ### B4 — Product UX / evidence (not crypto, but daily ops)
 
@@ -137,7 +134,7 @@ Reviewer: these are **not** claimed fixed.
 | `gemcjz/wvp-pro:latest` | floating | Lab |
 | `zlmediakit/zlmediakit:master` | floating | Lab |
 | LiveKit server/egress | pinned `v1.8.4` | Better |
-| LiveKit ingress | `latest` | Pin needed |
+| LiveKit ingress | `v1.8.4` | **Pinned** — `LAB-DEFAULT-CREDS-AND-IMAGE-PIN-V1` |
 
 ---
 
@@ -160,7 +157,7 @@ Recommended order (agent pick — one MOB at a time):
 |---|-----|-----|
 | **1** | `REDACT-FINISH-LOOP-HANDOFF-V1` | Operator pain now — blank/no Finalize/leave lost |
 | **2** | `LAB-DEFAULT-CREDS-AND-IMAGE-PIN-V1` | Kill LiveKit/WVP default secrets + pin `ingress:latest` before any customer-facing pack |
-| **3** | Optional `SEC-NONSIP-ID-CRYPTO-RANDOM-V1` | Close remaining Math.random ID generators |
+| **3** | `SEC-NONSIP-ID-CRYPTO-RANDOM-V1` | **APPLIED** — remaining Math.random ID generators closed |
 | **4** | Genre git push only when user says `lab-git-push-…` | Do not auto-push |
 
 Do **not** park WVP handoff or turn off video base to “fix” security.

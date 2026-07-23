@@ -2,6 +2,7 @@
  * Analytics Face \u2014 Live watch (6 tiles + ≤32 rotate).
  * Video only \u2014 face detect/match is a later MOB (server frame-grab).
  * Pattern mirrors command-wall socket + FLV handoff / JSMpeg fallback; surface: analytics-fr.
+ * FR-STOP-VIDEO-SLOT-SELECT-TOAST-V1: toast + stronger focus when selecting tile for Stop video.
  */
 (function (global) {
     var SURFACE = 'analytics-fr';
@@ -789,13 +790,26 @@
         }
     }
 
-    function setFocusedSlot(slot) {
+    function setFocusedSlot(slot, opts) {
+        opts = opts || {};
+        var prev = focusedSlot;
         if (typeof slot !== 'number' || isNaN(slot) || slot < 0 || slot >= LIVE_SLOTS) {
             focusedSlot = -1;
         } else {
             focusedSlot = slot;
         }
         syncTileFocusUi();
+        /* FR-STOP-VIDEO-SLOT-SELECT-TOAST-V1 — confirm select for Stop video */
+        if (opts.silent) return;
+        if (focusedSlot < 0) return;
+        if (focusedSlot === prev && !opts.forceToast) return;
+        var camId = slotCam[focusedSlot];
+        if (!camId) return;
+        var name = deviceName(camId) || String(camId);
+        showWatchHint(tr('analytics.fr.stopVideoSlotSelected',
+            'Selected slot {n} — {name}. Press Stop video.')
+            .replace('{n}', String(focusedSlot + 1))
+            .replace('{name}', name), 4500);
     }
 
     function endWatchSession() {

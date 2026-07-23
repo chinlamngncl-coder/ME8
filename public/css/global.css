@@ -1,8 +1,10 @@
 /**
  * ME8 Enterprise Design System
- * MOB-EXECUTE-ESTABLISH-GLOBAL-ENTERPRISE-DESIGN-SYSTEM-V1
+ * ESTABLISH-GLOBAL-ENTERPRISE-DESIGN-SYSTEM-V1
+ * + MOB-EXECUTE-END-TO-END-UI-CONSOLIDATION-V1 (FR matrix + Storage 2-col)
+ * + MOB-EXECUTE-GLOBAL-UI-ROLLOUT-V1 (auth shells + remaining pages + button bridge)
  *
- * Scope: tokens + reusable layout/form/button classes for Settings, VC, Evidence Storage.
+ * Scope: tokens + reusable layout/form/button classes for Settings, VC, Evidence Storage, FR face panel, auth pages.
  * Map / Video Wall keep their own constraints — do not hang map UI off these grids.
  */
 
@@ -81,6 +83,26 @@
     }
 }
 
+/** Storage / hub: main config left, fixed status rail right */
+.enterprise-layout-2col {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: var(--space-xl);
+    align-items: start;
+    width: 100%;
+    overflow: visible;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+}
+
+@media (max-width: 1000px) {
+    .enterprise-layout-2col {
+        grid-template-columns: 1fr;
+        gap: var(--space-md);
+    }
+}
+
 .enterprise-card {
     margin: 0;
     padding: var(--space-md);
@@ -128,6 +150,22 @@
 }
 
 .form-control,
+.enterprise-form-control {
+    width: 100%;
+    max-width: 400px;
+    min-height: 34px;
+    padding: 7px 9px;
+    margin: 0;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--field-text);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
 .enterprise-scope input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]),
 .enterprise-scope select,
 .enterprise-scope textarea {
@@ -153,6 +191,7 @@
 }
 
 .form-control:focus,
+.enterprise-form-control:focus,
 .enterprise-scope input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
 .enterprise-scope select:focus,
 .enterprise-scope textarea:focus {
@@ -171,6 +210,7 @@
 }
 
 .btn-primary,
+.btn.btn-action,
 .enterprise-scope .btn.btn-action {
     display: inline-flex;
     align-items: center;
@@ -192,12 +232,14 @@
 }
 
 .btn-primary:hover,
+.btn.btn-action:hover,
 .enterprise-scope .btn.btn-action:hover {
     background: var(--accent-blue-hover);
     color: #fff;
 }
 
 .btn-secondary,
+.btn.btn-ghost,
 .enterprise-scope .btn.btn-ghost {
     display: inline-flex;
     align-items: center;
@@ -219,6 +261,7 @@
 }
 
 .btn-secondary:hover,
+.btn.btn-ghost:hover,
 .enterprise-scope .btn.btn-ghost:hover {
     background: rgba(30, 41, 59, 0.85);
     border-color: #475569;
@@ -276,6 +319,45 @@
     border-radius: var(--radius-lg);
 }
 
+/* STORAGE — 2-col owns layout; no heavy nested borders on sections */
+#ev-panel-settings.enterprise-scope .ev-hub-layout.enterprise-layout-2col {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: var(--space-xl);
+}
+
+#ev-panel-settings.enterprise-scope .ev-storage-section {
+    margin: 0 0 var(--space-lg);
+    padding: 0 0 var(--space-lg);
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    border-bottom: 1px solid var(--border-color);
+}
+
+#ev-panel-settings.enterprise-scope .ev-storage-section:last-of-type {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+#ev-panel-settings.enterprise-scope .ev-context-rail-inner.enterprise-card {
+    position: sticky;
+    top: 0;
+    padding: var(--space-md);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    box-shadow: none;
+}
+
+@media (max-width: 1000px) {
+    #ev-panel-settings.enterprise-scope .ev-hub-layout.enterprise-layout-2col {
+        grid-template-columns: 1fr;
+        gap: var(--space-md);
+    }
+}
+
 /* STORAGE-SETTINGS-COMPACT-ENTERPRISE-V1 */
 .action-bar {
     display: flex;
@@ -287,13 +369,79 @@
 #ev-panel-settings.enterprise-scope input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]),
 #ev-panel-settings.enterprise-scope select,
 #ev-panel-settings.enterprise-scope textarea {
-    max-width: 480px;
+    max-width: 400px;
 }
 
 #ev-panel-settings.enterprise-scope #ss-ftp-port,
 #ev-panel-settings.enterprise-scope #ss-ftp-pasv-min,
 #ev-panel-settings.enterprise-scope #ss-ftp-pasv-max {
     max-width: 120px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* FR face panel — 3×2 matrix locked; zero grid scrollbar                     */
+/* MOB-EXECUTE-END-TO-END-UI-CONSOLIDATION-V1                                 */
+/* -------------------------------------------------------------------------- */
+
+#ax-panel-face.enterprise-scope {
+    min-height: 0;
+    overflow: hidden;
+}
+
+#ax-panel-face.enterprise-scope .ax-fr-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    gap: var(--space-sm);
+    overflow: hidden;
+}
+
+#ax-panel-face.enterprise-scope .ax-fr-left {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    overflow: hidden;
+}
+
+#ax-panel-face.enterprise-scope .ax-fr-grid {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: 1fr 1fr;
+    gap: var(--space-sm);
+    overflow: hidden;
+}
+
+#ax-panel-face.enterprise-scope .ax-fr-tile {
+    position: relative;
+    min-height: 0;
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: #0b1220;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#ax-panel-face.enterprise-scope .ax-fr-watch.enterprise-card {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: var(--space-md);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    box-shadow: none;
+    overflow: hidden;
 }
 /* DESTROY-SCROLL-LOCK-V1 — Storage Settings document scroll (Ops map keeps body lock) */
 html.ev-storage-scroll-unlock body {
@@ -316,4 +464,379 @@ html.ev-storage-scroll-unlock #ev-panel-settings {
     max-height: none;
     overflow: visible;
     align-items: start;
+}
+
+/* -------------------------------------------------------------------------- */
+/* GLOBAL-UI-ROLLOUT-V1 — auth / legal shells                                 */
+/* -------------------------------------------------------------------------- */
+
+html.enterprise-auth,
+body.enterprise-auth {
+    margin: 0;
+    min-height: 100%;
+    font-family: var(--font-ui);
+    background: linear-gradient(160deg, var(--bg-base) 0%, var(--bg-surface) 45%, var(--bg-base) 100%);
+    color: var(--text);
+    color-scheme: dark;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-lg);
+    box-sizing: border-box;
+}
+
+body.enterprise-auth * { box-sizing: border-box; }
+
+.login-card.enterprise-card,
+.enterprise-auth .login-card {
+    width: 100%;
+    max-width: 420px;
+    margin: 0;
+    padding: 28px 24px 24px;
+    background: rgba(30, 41, 59, 0.95);
+    border: 1px solid #475569;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.enterprise-auth .login-card--wide { max-width: 460px; }
+.enterprise-auth .login-card--center { text-align: center; }
+
+.enterprise-auth .login-lang {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.enterprise-auth .login-lang select {
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid #475569;
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+.enterprise-auth .login-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 24px;
+    min-width: 0;
+}
+
+.enterprise-auth .ubitron-logo {
+    height: 20px;
+    width: auto;
+    display: block;
+    flex-shrink: 0;
+    filter: contrast(1.18) brightness(0.97);
+}
+
+.enterprise-auth .login-brand-divider {
+    flex-shrink: 0;
+    width: 1px;
+    height: 30px;
+    background: linear-gradient(180deg, transparent, rgba(100, 116, 139, 0.35) 18%, rgba(226, 232, 240, 0.55) 50%, rgba(100, 116, 139, 0.35) 82%, transparent);
+}
+
+.enterprise-auth .app-wordmark {
+    margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 0.38em;
+    line-height: 1.1;
+}
+
+.enterprise-auth .app-wordmark-primary {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #fafafa;
+}
+
+.enterprise-auth .app-wordmark-accent {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    background: linear-gradient(180deg, #cbd5e1 0%, #94a3b8 55%, #64748b 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.enterprise-auth label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 14px;
+}
+
+.enterprise-auth .login-input {
+    display: block;
+    width: 100%;
+    max-width: none;
+    margin-top: 6px;
+    padding: 11px 12px;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    background: var(--bg-input);
+    color: #f8fafc;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.enterprise-auth #login-pass.login-input {
+    font-family: "Segoe UI", Tahoma, Consolas, monospace;
+    letter-spacing: 0.14em;
+    font-size: 15px;
+    line-height: 1.35;
+}
+
+.enterprise-auth .login-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--focus-ring);
+}
+
+.enterprise-auth .login-pass-row {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.enterprise-auth .login-pass-row .login-input {
+    flex: 1;
+    min-width: 0;
+    margin-top: 0;
+}
+
+.enterprise-auth .login-pass-toggle {
+    flex-shrink: 0;
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    background: var(--bg-surface);
+    color: #cbd5e1;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.enterprise-auth .login-pass-toggle:hover {
+    background: #334155;
+    color: #f8fafc;
+}
+
+.enterprise-auth .btn-primary.btn-block,
+.enterprise-auth button.btn-primary[type="submit"] {
+    width: 100%;
+    margin-top: 8px;
+    min-height: 42px;
+    padding: 12px;
+    font-size: 14px;
+}
+
+.enterprise-auth .btn-secondary.btn-block {
+    width: 100%;
+    margin-top: 8px;
+    min-height: 42px;
+}
+
+.enterprise-auth #login-oidc {
+    width: 100%;
+    margin-top: 12px;
+    min-height: 42px;
+}
+
+.enterprise-auth #login-oidc[hidden],
+.enterprise-auth #login-form[hidden],
+.enterprise-auth #login-totp-step[hidden],
+.enterprise-auth .login-divider[hidden] {
+    display: none !important;
+}
+
+.enterprise-auth .login-divider {
+    margin: 16px 0;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.enterprise-auth #login-error,
+.enterprise-auth #pwd-error,
+.enterprise-auth #recovery-error,
+.enterprise-auth #enroll-error {
+    display: none;
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(220, 38, 38, 0.15);
+    border: 1px solid #b91c1c;
+    color: #fca5a5;
+    font-size: 12px;
+}
+
+.enterprise-auth #recovery-ok {
+    display: none;
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(20, 83, 45, 0.35);
+    border: 1px solid #16a34a;
+    color: #bbf7d0;
+    font-size: 13px;
+}
+
+.enterprise-auth .setup-hint {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0 0 14px;
+}
+
+.enterprise-auth .logout-link {
+    display: block;
+    margin-top: 16px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.enterprise-auth .logout-link button {
+    background: none;
+    border: none;
+    color: #60a5fa;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+}
+
+.enterprise-auth .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.enterprise-auth .badge.ok {
+    background: rgba(22, 163, 74, 0.25);
+    color: #86efac;
+}
+
+.enterprise-auth .badge.pending {
+    background: rgba(234, 179, 8, 0.2);
+    color: #fde047;
+}
+
+.enterprise-auth #enroll-qr {
+    display: block;
+    margin: 12px auto;
+    border-radius: 8px;
+    background: #fff;
+    padding: 8px;
+}
+
+.enterprise-auth #enroll-backup-list {
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--text-primary);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.enterprise-auth .step[hidden] { display: none !important; }
+
+.enterprise-auth .auth-title {
+    margin: 0 0 8px;
+    font-size: 18px;
+    color: var(--text-primary);
+}
+
+.enterprise-auth #verify-msg.ok { color: #bbf7d0; }
+.enterprise-auth #verify-msg.err { color: #fecaca; }
+
+body.enterprise-legal {
+    margin: 0;
+    min-height: 100%;
+    font-family: var(--font-ui);
+    background: var(--bg-base);
+    color: #cbd5e1;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 48px 24px 80px;
+}
+
+body.enterprise-legal .page { max-width: 640px; margin: 0 auto; }
+body.enterprise-legal h1 { font-size: 20px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+body.enterprise-legal .product { color: #475569; font-size: 13px; margin-bottom: 6px; }
+body.enterprise-legal .version { color: #334155; font-size: 12px; margin-bottom: 32px; }
+body.enterprise-legal .intro { font-size: 13px; color: #64748b; margin-bottom: 28px; line-height: 1.7; }
+body.enterprise-legal table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
+body.enterprise-legal th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    padding: 0 0 8px;
+    border-bottom: 1px solid #1e293b;
+}
+body.enterprise-legal td {
+    padding: 9px 0;
+    border-bottom: 1px solid #1e293b;
+    font-size: 13px;
+    vertical-align: middle;
+}
+body.enterprise-legal td:first-child { color: #e2e8f0; width: 55%; }
+body.enterprise-legal td:last-child { color: #64748b; }
+body.enterprise-legal .osm {
+    margin-bottom: 28px;
+    padding: 14px 0;
+    border-top: 1px solid #1e293b;
+    border-bottom: 1px solid #1e293b;
+    font-size: 13px;
+    color: #64748b;
+}
+body.enterprise-legal .osm strong { color: #94a3b8; }
+body.enterprise-legal footer { margin-top: 40px; font-size: 12px; color: #334155; line-height: 1.8; }
+body.enterprise-legal h2 { color: #e2e8f0; font-size: 16px; margin: 30px 0 10px; }
+body.enterprise-legal pre { white-space: pre-wrap; color: #94a3b8; font: 12px/1.55 Consolas, monospace; }
+body.enterprise-legal .close-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #475569;
+    font-size: 12px;
+    cursor: pointer;
+    margin-bottom: 32px;
+    background: none;
+    border: 1px solid #1e293b;
+    border-radius: 4px;
+    padding: 5px 12px;
+    text-decoration: none;
+}
+body.enterprise-legal .close-btn:hover { color: #94a3b8; border-color: #334155; }
+body.enterprise-legal a { color: #60a5fa; }
+
+/* Centre Summary — bridge cards/buttons to design system */
+.cs-card.enterprise-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    box-shadow: none;
+}
+.cs-btn.btn-secondary,
+.cs-btn.btn-primary {
+    /* keep cs-btn sizing; colors from global buttons */
 }

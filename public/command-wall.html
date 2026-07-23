@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Command Wall &mdash; Mobility Axiom</title>
+    <link rel="stylesheet" href="/css/global.css?v=20260723-global-ui-rollout-v1">
     <style>
         * { box-sizing: border-box; }
         html, body { margin: 0; height: 100%; background: #0b1220; color: #e2e8f0; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
@@ -149,33 +150,33 @@
     <div id="panel-display" class="cw-hub-panel" hidden>
         <div class="cw-panel-display-scroll">
             <p class="dr-intro" data-i18n="displayRoom.intro">Monitors 2&ndash;4 open in new windows. Drag each to the correct display and press F11. For a same-screen preview, use the Video wall tab above.</p>
-            <div class="dr-preset-card">
+            <div class="dr-preset-card enterprise-card">
                 <h3 data-i18n="displayRoom.presetSosTitle">Open monitors</h3>
                 <p class="dr-preset-desc" data-i18n="displayRoom.presetSosDesc">One click opens the same windows as monitors 2&ndash;4 (empty wall &mdash; no auto live).</p>
                 <div class="dr-monitor-grid">
-                    <div class="dr-monitor-card">
+                    <div class="dr-monitor-card enterprise-card">
                         <div class="dr-monitor-num" data-i18n="displayRoom.monitor1Num">Monitor 1</div>
                         <div class="dr-monitor-title" data-i18n="displayRoom.monitor1Title">Operator desk</div>
                         <div class="dr-monitor-hint" data-i18n="displayRoom.monitor1Hint">Operations &mdash; map, SOS, PTT, fleet</div>
-                        <a class="btn btn-sm" href="/" data-i18n="displayRoom.openOps">Use this window for Operations</a>
+                        <a class="btn btn-secondary btn-sm" href="/" data-i18n="displayRoom.openOps">Use this window for Operations</a>
                     </div>
-                    <div class="dr-monitor-card">
+                    <div class="dr-monitor-card enterprise-card">
                         <div class="dr-monitor-num" data-i18n="displayRoom.monitor2Num">Monitor 2</div>
                         <div class="dr-monitor-title" data-i18n="displayRoom.monitor2Title">Wall monitor</div>
                         <div class="dr-monitor-hint" data-i18n="displayRoom.monitor2Hint">Live multi-panel video wall &mdash; opens in a new window on monitor 2.</div>
-                        <button type="button" class="btn btn-action btn-sm" id="dr-open-wall" data-i18n="displayRoom.openWallMonitor2">Open video wall on monitor 2</button>
+                        <button type="button" class="btn btn-primary btn-action btn-sm" id="dr-open-wall" data-i18n="displayRoom.openWallMonitor2">Open video wall on monitor 2</button>
                     </div>
-                    <div class="dr-monitor-card">
+                    <div class="dr-monitor-card enterprise-card">
                         <div class="dr-monitor-num" data-i18n="displayRoom.monitor3Num">Monitor 3</div>
                         <div class="dr-monitor-title" data-i18n="displayRoom.monitor3Title">Map monitor</div>
                         <div class="dr-monitor-hint" data-i18n="displayRoom.monitor3Hint">Map mirror &mdash; opens in a new window on monitor 3.</div>
-                        <button type="button" class="btn btn-sm" id="dr-open-map" data-i18n="displayRoom.openMap">Open map on monitor 3</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="dr-open-map" data-i18n="displayRoom.openMap">Open map on monitor 3</button>
                     </div>
-                    <div class="dr-monitor-card">
+                    <div class="dr-monitor-card enterprise-card">
                         <div class="dr-monitor-num" data-i18n="displayRoom.monitor4Num">Monitor 4</div>
                         <div class="dr-monitor-title" data-i18n="displayRoom.monitor4Title">Status board</div>
                         <div class="dr-monitor-hint" data-i18n="displayRoom.monitor4Hint">Centre summary status board &mdash; opens in a new window on monitor 4.</div>
-                        <button type="button" class="btn btn-sm" id="dr-open-centre" data-i18n="displayRoom.openCentre">Open on monitor 4</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="dr-open-centre" data-i18n="displayRoom.openCentre">Open on monitor 4</button>
                     </div>
                 </div>
                 <label class="dr-auto-place">
@@ -187,7 +188,7 @@
                 <p class="dr-groups-hint" data-i18n="displayRoom.groupsHint">Dispatch groups (reference). Open all monitors does not auto-fill or auto-call &mdash; drag devices onto the wall when ready.</p>
                 <div id="dr-groups" class="dr-groups-list" aria-live="polite"></div>
                 <p class="dr-launch-warn" data-i18n="displayRoom.launchWarn">This window switches to Operations (desk). Opens empty video wall, map, and status board &mdash; same as monitors 2&ndash;4. Drag devices to go live; nothing auto-calls.</p>
-                <button type="button" class="btn" id="dr-apply-sos" data-i18n="displayRoom.launchAll">Open all monitors</button>
+                <button type="button" class="btn btn-primary" id="dr-apply-sos" data-i18n="displayRoom.launchAll">Open all monitors</button>
                 <p class="dr-status" id="dr-status" aria-live="polite"></p>
                 <ol class="dr-steps">
                     <li data-i18n="displayRoom.step1">Windows &rarr; Display &rarr; Extend these displays (HDMI/USB-C adapters as needed).</li>
