@@ -21,6 +21,20 @@
             'fleet.gpsTrackToggle': 'High-res GPS track {name}',
             'fleet.gpsTrackTitle': '15 s GPS trail (toggle)',
             'fleet.colTrack': 'GPS',
+            'fleet.circle.none': 'No circles yet',
+            'fleet.circle.namePrompt': 'Circle name',
+            'fleet.circle.nameDefault': 'Circle {n}',
+            'fleet.circle.needSelection': 'Select pins first (checkbox column).',
+            'fleet.circle.needCircle': 'Pick or save a circle first.',
+            'fleet.circle.saved': 'Saved “{name}” ({n}).',
+            'fleet.circle.added': 'Added {added} → “{name}” now {n}.',
+            'fleet.circle.deleted': 'Deleted “{name}”.',
+            'fleet.circle.deleteConfirm': 'Delete circle “{name}”?',
+            'fleet.circle.empty': 'Circle has no devices.',
+            'fleet.circle.noneOnline': 'No online devices in this circle.',
+            'fleet.circle.openedWallFull': 'Opened {opened} of {total} — wall full',
+            'fleet.circle.openedOffline': 'Opened {opened} of {total} ({offline} offline skipped)',
+            'fleet.circle.openedOk': 'Opened {opened}',
         };
         let s;
         if (global.I18n && I18n.t) {
@@ -29,6 +43,11 @@
             s = key;
         }
         if (s === key && fallbacks[key]) s = fallbacks[key];
+        if (params && typeof s === 'string') {
+            Object.keys(params).forEach(function (p) {
+                s = s.replace(new RegExp('\\{' + p + '\\}', 'g'), String(params[p]));
+            });
+        }
         return s;
     }
 
@@ -39,12 +58,17 @@
     /** Up to 8 cams with map pin popups open (matches pool cap + MAX_OPEN_PIN_POPUPS). */
     const selectedCamIds = new Set();
     const MAX_PIN_SELECT = 8;
+    /** USER-CIRCLE-BATCH-OPEN-V1 — open at most 8; roster may be larger. */
+    const CIRCLE_OPEN_CAP = 8;
+    const CIRCLE_STORAGE_KEY = 'me8.userCircles.v1';
     let searchQuery = '';
     let statusFilter = 'all';
     let canClearMapPins = false;
     const pttRxActive = {};
     const pttRxLinger = {};
     const smartGpsActive = {};
+    let circleStore = { circles: [], activeId: '' };
+    let circleUiBound = false;
 
     function esc(s) {
         return String(s == null ? '' : s)
@@ -89,7 +113,7 @@
         });
     }
 
-        function updateSummary() {
+    function updateSummary() {
         const el = document.getElementById('fleet-summary');
         if (!el) return;
         const online = fleetList.filter(function (m) { return m.status === '1'; }).length;
@@ -124,6 +148,7 @@
         }
         const openAllBtn = document.getElementById('fleet-open-all-pins');
         if (openAllBtn) openAllBtn.disabled = pinned === 0;
+        syncCircleUi();
     }
 
     function refreshFleetLayout() {
@@ -319,9 +344,181 @@
         global.mapPinPopupFocusCamId = null;
     }
 
-    function openAllSelectedPins() {
-        var ids = Array.from(selectedCamIds).filter(function (id) { return isDeviceOnline(id); });
-        if (!ids.length) return;
+    function circleStatus(msg) {
+        const el = document.getElementById('fleet-circle-status');
+        if (el) el.textContent = msg || '';
+        if (msg && global.AdminActionBus && AdminActionBus.toast) {
+            try { AdminActionBus.toast(msg, 4200); } catch (_) { /* ignore */ }
+        }
+    }
+
+    function loadCircleStore() {
+        try {
+            const raw = global.localStorage && localStorage.getItem(CIRCLE_STORAGE_KEY);
+            if (!raw) {
+                circleStore = { circles: [], activeId: '' };
+                return;
+            }
+            const parsed = JSON.parse(raw);
+            const circles = Array.isArray(parsed && parsed.circles) ? parsed.circles : [];
+            circleStore = {
+                circles: circles.map(function (c) {
+                    return {
+                        id: String(c && c.id || ''),
+                        name: String(c && c.name || '').trim() || 'Circle',
+                        camIds: Array.isArray(c && c.camIds)
+                            ? c.camIds.map(function (id) { return String(id || '').trim(); }).filter(Boolean)
+                            : [],
+                    };
+                }).filter(function (c) { return c.id; }),
+                activeId: String(parsed && parsed.activeId || ''),
+            };
+            if (circleStore.activeId && !circleStore.circles.some(function (c) { return c.id === circleStore.activeId; })) {
+                circleStore.activeId = circleStore.circles[0] ? circleStore.circles[0].id : '';
+            }
+        } catch (_) {
+            circleStore = { circles: [], activeId: '' };
+        }
+    }
+
+    function saveCircleStore() {
+        try {
+            if (global.localStorage) {
+                localStorage.setItem(CIRCLE_STORAGE_KEY, JSON.stringify(circleStore));
+            }
+        } catch (_) { /* ignore */ }
+    }
+
+    function makeCircleId() {
+        return 'uc' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    }
+
+    function getActiveCircle() {
+        const id = circleStore.activeId;
+        if (!id) return null;
+        for (let i = 0; i < circleStore.circles.length; i += 1) {
+            if (circleStore.circles[i].id === id) return circleStore.circles[i];
+        }
+        return null;
+    }
+
+    function syncCircleUi() {
+        const sel = document.getElementById('fleet-circle-select');
+        const openBtn = document.getElementById('fleet-circle-open');
+        const addBtn = document.getElementById('fleet-circle-add');
+        const delBtn = document.getElementById('fleet-circle-delete');
+        if (!sel) return;
+        const prev = circleStore.activeId;
+        sel.innerHTML = '';
+        if (!circleStore.circles.length) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = tr('fleet.circle.none');
+            sel.appendChild(opt);
+            circleStore.activeId = '';
+        } else {
+            circleStore.circles.forEach(function (c) {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name + ' (' + c.camIds.length + ')';
+                sel.appendChild(opt);
+            });
+            if (!circleStore.circles.some(function (c) { return c.id === prev; })) {
+                circleStore.activeId = circleStore.circles[0].id;
+            }
+            sel.value = circleStore.activeId;
+        }
+        const active = getActiveCircle();
+        const hasCircle = !!(active && active.camIds.length);
+        const hasSel = selectedCamIds.size > 0;
+        if (openBtn) openBtn.disabled = !hasCircle;
+        if (addBtn) addBtn.disabled = !active || !hasSel;
+        if (delBtn) delBtn.disabled = !active;
+    }
+
+    function selectedIdsList() {
+        return Array.from(selectedCamIds).map(function (id) { return String(id).trim(); }).filter(Boolean);
+    }
+
+    function saveSelectionAsCircle() {
+        const ids = selectedIdsList();
+        if (!ids.length) {
+            circleStatus(tr('fleet.circle.needSelection'));
+            return;
+        }
+        const n = circleStore.circles.length + 1;
+        const defaultName = tr('fleet.circle.nameDefault', { n: n });
+        let name = defaultName;
+        try {
+            const typed = global.prompt(tr('fleet.circle.namePrompt'), defaultName);
+            if (typed === null) return;
+            name = String(typed || '').trim() || defaultName;
+        } catch (_) { /* non-interactive */ }
+        const circle = { id: makeCircleId(), name: name, camIds: ids.slice() };
+        circleStore.circles.push(circle);
+        circleStore.activeId = circle.id;
+        saveCircleStore();
+        syncCircleUi();
+        circleStatus(tr('fleet.circle.saved', { name: circle.name, n: circle.camIds.length }));
+    }
+
+    function addSelectionToCircle() {
+        const active = getActiveCircle();
+        if (!active) {
+            circleStatus(tr('fleet.circle.needCircle'));
+            return;
+        }
+        const ids = selectedIdsList();
+        if (!ids.length) {
+            circleStatus(tr('fleet.circle.needSelection'));
+            return;
+        }
+        const have = new Set(active.camIds);
+        let added = 0;
+        ids.forEach(function (id) {
+            if (!have.has(id)) {
+                active.camIds.push(id);
+                have.add(id);
+                added += 1;
+            }
+        });
+        saveCircleStore();
+        syncCircleUi();
+        circleStatus(tr('fleet.circle.added', {
+            added: added,
+            name: active.name,
+            n: active.camIds.length,
+        }));
+    }
+
+    function deleteActiveCircle() {
+        const active = getActiveCircle();
+        if (!active) {
+            circleStatus(tr('fleet.circle.needCircle'));
+            return;
+        }
+        let ok = true;
+        try {
+            ok = global.confirm(tr('fleet.circle.deleteConfirm', { name: active.name }));
+        } catch (_) { /* ignore */ }
+        if (!ok) return;
+        const name = active.name;
+        circleStore.circles = circleStore.circles.filter(function (c) { return c.id !== active.id; });
+        circleStore.activeId = circleStore.circles[0] ? circleStore.circles[0].id : '';
+        saveCircleStore();
+        syncCircleUi();
+        circleStatus(tr('fleet.circle.deleted', { name: name }));
+    }
+
+    /**
+     * Batch-open pin popups + wall live (Open All / User Circle).
+     * Caps at CIRCLE_OPEN_CAP (VideoWall also slices to PIN_SLOT_COUNT).
+     */
+    function openBatchLivePins(camIds) {
+        var ids = (camIds || []).map(function (id) { return String(id || '').trim(); }).filter(Boolean);
+        ids = ids.filter(function (id) { return isDeviceOnline(id); });
+        if (!ids.length) return [];
+        ids = ids.slice(0, CIRCLE_OPEN_CAP);
         if (global.VideoWall && VideoWall.prepareOpenAllLive) {
             VideoWall.prepareOpenAllLive(ids);
         }
@@ -359,9 +556,47 @@
                 });
             }
         }, videoBase);
+        selectedCamIds.clear();
+        ids.forEach(function (id) { selectedCamIds.add(id); });
         selectedCamId = ids[ids.length - 1];
         renderTable();
         refreshMapPinStyles();
+        updateSummary();
+        return ids;
+    }
+
+    function openAllSelectedPins() {
+        var ids = Array.from(selectedCamIds).filter(function (id) { return isDeviceOnline(id); });
+        if (!ids.length) return;
+        openBatchLivePins(ids);
+    }
+
+    function openActiveCircle() {
+        const active = getActiveCircle();
+        if (!active) {
+            circleStatus(tr('fleet.circle.needCircle'));
+            return;
+        }
+        const total = active.camIds.length;
+        if (!total) {
+            circleStatus(tr('fleet.circle.empty'));
+            return;
+        }
+        const onlineInOrder = active.camIds.filter(function (id) { return isDeviceOnline(id); });
+        const offline = total - onlineInOrder.length;
+        if (!onlineInOrder.length) {
+            circleStatus(tr('fleet.circle.noneOnline'));
+            return;
+        }
+        const opened = openBatchLivePins(onlineInOrder);
+        const n = opened.length;
+        if (total > CIRCLE_OPEN_CAP) {
+            circleStatus(tr('fleet.circle.openedWallFull', { opened: n, total: total }));
+        } else if (offline > 0) {
+            circleStatus(tr('fleet.circle.openedOffline', { opened: n, total: total, offline: offline }));
+        } else {
+            circleStatus(tr('fleet.circle.openedOk', { opened: n }));
+        }
     }
 
     function openPinPopupForCam(camId, opts) {
@@ -738,6 +973,25 @@
         if (clearPins) clearPins.addEventListener('click', clearPinSelection);
         const openAllPins = document.getElementById('fleet-open-all-pins');
         if (openAllPins) openAllPins.addEventListener('click', openAllSelectedPins);
+        if (!circleUiBound) {
+            circleUiBound = true;
+            const circleSel = document.getElementById('fleet-circle-select');
+            if (circleSel) {
+                circleSel.addEventListener('change', function () {
+                    circleStore.activeId = String(circleSel.value || '');
+                    saveCircleStore();
+                    syncCircleUi();
+                });
+            }
+            const circleOpen = document.getElementById('fleet-circle-open');
+            if (circleOpen) circleOpen.addEventListener('click', openActiveCircle);
+            const circleSave = document.getElementById('fleet-circle-save');
+            if (circleSave) circleSave.addEventListener('click', saveSelectionAsCircle);
+            const circleAdd = document.getElementById('fleet-circle-add');
+            if (circleAdd) circleAdd.addEventListener('click', addSelectionToCircle);
+            const circleDel = document.getElementById('fleet-circle-delete');
+            if (circleDel) circleDel.addEventListener('click', deleteActiveCircle);
+        }
     }
 
     function setStatusFilter(value) {
@@ -750,11 +1004,14 @@
 
     function init(ioSocket) {
         socket = ioSocket;
+        loadCircleStore();
         bindUi();
+        syncCircleUi();
         window.addEventListener('resize', refreshFleetLayout);
         window.addEventListener('fm-i18n-changed', function () {
             renderTable();
             updateSummary();
+            syncCircleUi();
         });
     }
 
@@ -790,6 +1047,10 @@
         isPinSelected: function (camId) { return selectedCamIds.has(camId); },
         clearPinSelection,
         openAllSelectedPins,
+        openActiveCircle,
+        saveSelectionAsCircle,
+        addSelectionToCircle,
+        deleteActiveCircle,
         togglePinSelect,
         setClearMapPinsPermission,
         setStatusFilter,
@@ -797,6 +1058,7 @@
         refreshLayout: refreshFleetLayout,
         refreshFromGroups: function () { renderTable(); },
         maxPinSelect: MAX_PIN_SELECT,
+        circleOpenCap: CIRCLE_OPEN_CAP,
         getDeviceName: function (camId) {
             var m = fleetById[camId];
             return (m && m.name) ? m.name : (camId || '');

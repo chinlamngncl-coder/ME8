@@ -5990,6 +5990,14 @@
             }).catch(function () { alert('Download failed'); });
         }
 
+        /** Folder-open feedback must never use alert() — it freezes the tab and can hide a new SOS. */
+        function notifyFolderOpenNonBlocking(msg) {
+            if (!msg) return;
+            if (window.AdminActionBus && typeof AdminActionBus.toast === 'function') {
+                try { AdminActionBus.toast(msg, 7000); } catch (_) { /* ignore */ }
+            }
+        }
+
         function openSosIncidentFolder(incidentId) {
             if (!incidentId) return;
             fetch('/api/sos-incidents/open', {
@@ -5998,12 +6006,12 @@
                 body: JSON.stringify({ incidentId: incidentId }),
             }).then(function (r) { return r.json(); }).then(function (data) {
                 if (data.ok) {
-                    alert(dashboardTr('sos.alert.openedLocal', { path: data.path || '' }));
+                    notifyFolderOpenNonBlocking(dashboardTr('sos.alert.openedLocal', { path: data.path || '' }));
                     return;
                 }
-                alert(dashboardTr('sos.alert.openFolderManual', { path: data.path || '' }));
+                notifyFolderOpenNonBlocking(dashboardTr('sos.alert.openFolderManual', { path: data.path || '' }));
             }).catch(function () {
-                alert(dashboardTr('sos.alert.openFolderFailed'));
+                notifyFolderOpenNonBlocking(dashboardTr('sos.alert.openFolderFailed'));
             });
         }
 
@@ -6593,12 +6601,12 @@
                 var res = await fetch('/api/open-folder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folder: folder }) });
                 var data = await res.json();
                 if (data.ok) {
-                    alert(dashboardTr('storage.alert.openedLocal', { path: data.path || '' }));
+                    notifyFolderOpenNonBlocking(dashboardTr('storage.alert.openedLocal', { path: data.path || '' }));
                     return;
                 }
-                alert(dashboardTr('storage.alert.openManual', { path: data.path || '' }));
+                notifyFolderOpenNonBlocking(dashboardTr('storage.alert.openManual', { path: data.path || '' }));
             } catch (_) {
-                alert(dashboardTr('storage.alert.openFailed'));
+                notifyFolderOpenNonBlocking(dashboardTr('storage.alert.openFailed'));
             }
         }
 

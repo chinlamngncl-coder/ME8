@@ -13,18 +13,19 @@ alwaysApply: true
 
 ## When user asks to ship
 
-1. Read and enforce:  
+1. First print **PACK GATHER** from `docs/MOB-DISC-SHIP-PACK-GATHER-REMINDER-20260725.md` (Section A) — licensing, `build:ship`, Packaging Robot smoke, then classic gate. Operator must not have to remember these.
+2. Read and enforce:  
    `C:\Users\user\Desktop\Enterprise Mobility\ME8-INTERNAL\ship-desk\PRE-SHIP-GATE-CHECKLIST.md`
-2. Immediately print **Section A — One-screen summary** from that file (the PRE-SHIP GATE block).
-3. Do **not** declare “ready to send” until these are verified or user explicitly skips smoke:
+3. Immediately print **Section A — One-screen summary** from that file (the PRE-SHIP GATE block).
+4. Do **not** declare “ready to send” until these are verified or user explicitly skips smoke:
    - Bundled Node **22+**
    - Ship deps include **multer** (and synced ME8 deps)
    - Zip **root** has Install + Start bats + README + APK (if VC)
    - Signed license, no private key
    - Login + change-password **example hint** in the build
    - Desk smoke: Start → `global`/`global123` on clean port (or user says skip)
-4. Reminds at pack time also: `FM_TOTP_SUSPENDED` must be off for real customer ship.
-5. If rebuild fails mid-way, **do not zip** a half folder (missing root bats = ship fail).
+5. Reminds at pack time also: `FM_TOTP_SUSPENDED` must be off for real customer ship.
+6. If rebuild fails mid-way, **do not zip** a half folder (missing root bats = ship fail).
 
 ## When user is not shipping
 

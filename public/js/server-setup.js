@@ -1,8 +1,10 @@
 /**
  * Server Config \u2014 deployment, LAN/WAN network, SIP/ONVIF, users.
+ * + MOB-APPLY DYNAMIC-FRONTEND-UI-V1 (DEPLOYMENT_MODE chrome + SSL scaffold)
  */
 (function (global) {
     let lastDeploymentMode = 'lan';
+    let saasDeploymentMode = 'on_prem';
 
     const MODE_LABEL_FALLBACKS = {
         'server.mode.lab': 'Lab',
@@ -64,6 +66,7 @@
     const PRIMARY_TABS = ['server', 'bwc', 'groups', 'dashboard'];
     const NETWORK_SECTION_IDS = [
         'ss-section-deployment',
+        'ss-section-ssl',
         'ss-section-resilience',
         'ss-section-lan',
         'ss-section-wan',
@@ -318,7 +321,9 @@
     }
 
     function setMainTab(tab) {
-        activeMainTab = (tab === 'bwc' || tab === 'dashboard' || tab === 'groups' || isAdvancedTab(tab)) ? tab : 'server';
+        var next = (tab === 'bwc' || tab === 'dashboard' || tab === 'groups' || isAdvancedTab(tab)) ? tab : 'server';
+        if (saasDeploymentMode === 'cloud_leased' && next === 'server') next = 'bwc';
+        activeMainTab = next;
         ['server', 'bwc', 'groups', 'firmware', 'dashboard', 'usb', 'diagnostics', 'lab', 'cloud'].forEach(function (id) {
             const panel = document.getElementById('ss-panel-' + id);
             if (panel) panel.classList.toggle('active', id === activeMainTab);
@@ -933,9 +938,100 @@
     function updateDeploymentSections(mode) {
         const lan = document.getElementById('ss-section-lan');
         const wan = document.getElementById('ss-section-wan');
-        if (lan) lan.hidden = mode === 'cloud';
-        if (wan) wan.hidden = mode === 'lab';
+        if (lan) lan.hidden = mode === 'cloud' || saasDeploymentMode === 'cloud_leased';
+        if (wan) wan.hidden = mode === 'lab' || saasDeploymentMode === 'cloud_leased';
         updateNetworkSectionNav();
+    }
+
+    /**
+     * SaaS dual mode: cloud_leased hides Server / Network / Inbound infra chrome.
+     * Flag from GET /api/server-settings → DEPLOYMENT_MODE (env or license).
+     */
+    function applySaasDeploymentChrome(mode) {
+        const next = String(mode || 'on_prem').toLowerCase().replace(/-/g, '_');
+        saasDeploymentMode = (next === 'cloud_leased') ? 'cloud_leased' : 'on_prem';
+        const panel = document.getElementById('server-setup-panel');
+        if (panel) panel.setAttribute('data-deployment-mode', saasDeploymentMode);
+
+        document.querySelectorAll('[data-ss-saas-hide="cloud_leased"]').forEach(function (el) {
+            const hide = saasDeploymentMode === 'cloud_leased';
+            if (hide) {
+                el.hidden = true;
+                el.setAttribute('hidden', '');
+            } else if (el.id === 'ss-main-tab-server' || el.id === 'ss-panel-server'
+                || el.classList.contains('ss-inbound-checklist-card')
+                || el.getAttribute('data-ss-section') === 'ss-section-lan'
+                || el.getAttribute('data-ss-section') === 'ss-section-wan'
+                || el.id === 'ss-section-lan'
+                || el.id === 'ss-section-wan') {
+                /* LAN/WAN may stay hidden via updateDeploymentSections — only clear SaaS hide */
+                if (el.id === 'ss-main-tab-server' || el.id === 'ss-panel-server'
+                    || el.classList.contains('ss-inbound-checklist-card')) {
+                    el.hidden = false;
+                    el.removeAttribute('hidden');
+                }
+            }
+        });
+
+        document.querySelectorAll('[data-ss-saas-onprem-only="1"]').forEach(function (el) {
+            const show = saasDeploymentMode === 'on_prem';
+            el.hidden = !show;
+            if (show) el.removeAttribute('hidden');
+            else el.setAttribute('hidden', '');
+        });
+
+        if (saasDeploymentMode === 'cloud_leased' && activeMainTab === 'server') {
+            setMainTab('bwc');
+        }
+        if (saasDeploymentMode === 'on_prem') {
+            updateDeploymentSections(lastDeploymentMode);
+        }
+        updateNetworkSectionNav();
+        syncSidebarNav();
+        updateMaintenanceNavVisibility();
+    }
+
+    function resolveSaasDeploymentMode(data) {
+        if (!data) return 'on_prem';
+        if (data.saasDeployment && data.saasDeployment.deploymentMode) {
+            return data.saasDeployment.deploymentMode;
+        }
+        if (data.DEPLOYMENT_MODE) return data.DEPLOYMENT_MODE;
+        if (data.deploymentMode === 'cloud_leased' || data.deploymentMode === 'on_prem') {
+            return data.deploymentMode;
+        }
+        return 'on_prem';
+    }
+
+    function bindSslScaffold() {
+        const cert = document.getElementById('ss-ssl-cert');
+        const key = document.getElementById('ss-ssl-key');
+        const status = document.getElementById('ss-ssl-status');
+        function refreshSslStatus() {
+            if (!status) return;
+            const cName = cert && cert.files && cert.files[0] ? cert.files[0].name : '';
+            const kName = key && key.files && key.files[0] ? key.files[0].name : '';
+            if (!cName && !kName) {
+                status.textContent = '';
+                return;
+            }
+            status.textContent = tr('server.ssl.selected', {
+                cert: cName || '—',
+                key: kName || '—',
+            });
+            if (status.textContent === 'server.ssl.selected') {
+                status.textContent = 'Selected: ' + (cName || '—') + ' / ' + (kName || '—')
+                    + ' (upload save comes in a later MOB)';
+            }
+        }
+        if (cert && !cert._sslBound) {
+            cert._sslBound = true;
+            cert.addEventListener('change', refreshSslStatus);
+        }
+        if (key && !key._sslBound) {
+            key._sslBound = true;
+            key.addEventListener('change', refreshSslStatus);
+        }
     }
 
     function setActiveNetworkSectionNav(sectionId) {
@@ -1660,6 +1756,7 @@
         startSiteTimePreviewTick();
         lastBwcDeviceSummary = data.bwcDevices || null;
         fillBwcChecklist(data.bwc || buildPreviewChecklist(), lastBwcDeviceSummary);
+        applySaasDeploymentChrome(resolveSaasDeploymentMode(data));
         applyReadOnlyMode();
     }
 
@@ -1783,6 +1880,7 @@
     function bindUi() {
         if (uiBound) return;
         uiBound = true;
+        bindSslScaffold();
         document.getElementById('server-setup-cancel').addEventListener('click', () => setOpen(false));
         const backBtn = document.getElementById('server-setup-back');
         if (backBtn) backBtn.addEventListener('click', () => setOpen(false));

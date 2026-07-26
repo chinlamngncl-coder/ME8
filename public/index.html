@@ -1,10 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ubitron Mobility C2</title>
     <link rel="stylesheet" href="/vendor/leaflet/leaflet.css?v=20260701-vendor-local" />
+    <link rel="stylesheet" href="/vendor/leaflet-draw/leaflet.draw.css?v=20260724-tactical-leaflet-draw-v1" />
     <link rel="stylesheet" href="/vendor/markercluster/MarkerCluster.css?v=20260701-vendor-local" />
     <link rel="stylesheet" href="/vendor/markercluster/MarkerCluster.Default.css?v=20260701-vendor-local" />
     <link rel="stylesheet" href="/css/app-select-guard.css?v=20260711-no-select">
@@ -217,6 +218,8 @@
         #app-view-evidence[hidden] { display: none !important; }
         #app-view-analytics { flex: 1; display: flex; min-height: 0; overflow: hidden; }
         #app-view-analytics[hidden] { display: none !important; }
+        #app-view-tactical { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+        #app-view-tactical[hidden] { display: none !important; }
         #app-view-conference { flex: 1; display: flex; min-height: 0; overflow: hidden; }
         #app-view-conference[hidden] { display: none !important; }
         .ax-hub { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 10px 12px; gap: 8px; }
@@ -1631,7 +1634,7 @@
         }
         .vc-live-lobby-block > .setup-hint { margin: 0 0 12px; font-size: 11px; line-height: 1.45; }
         #vc-panel-live.vc-in-meeting .vc-live-dashboard {
-            display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; min-height: 0;
+            display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; min-height: 0;
         }
         #vc-panel-live.vc-in-meeting .vc-live-side { display: none !important; }
         #vc-panel-live.vc-in-meeting #vc-live-lobby-block { display: none !important; }
@@ -1644,6 +1647,50 @@
         .vc-live-row .vc-live-actions {
             display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0; width: 100%;
         }
+        /* VC-UI-COMPACT-LAYOUT-FIX-V1 — dense in-meeting top chrome */
+        #conference-panel.vc-in-meeting { padding: 6px 10px; }
+        #conference-panel.vc-in-meeting .vc-hub-nav { margin-bottom: 4px; gap: 4px; }
+        #conference-panel.vc-in-meeting .vc-hub-nav-btn { padding: 3px 8px; font-size: 10px; }
+        #vc-panel-live.vc-in-meeting .vc-live-console { gap: 4px; }
+        #vc-panel-live.vc-in-meeting .vc-live-top { gap: 4px; }
+        #vc-panel-live.vc-in-meeting .vc-live-row.enterprise-card {
+            gap: 6px; padding: 6px 8px; border-radius: 8px;
+        }
+        #vc-panel-live.vc-in-meeting .vc-live-row .vc-room-picker,
+        #vc-panel-live.vc-in-meeting .vc-live-row .vc-live-actions {
+            gap: 6px;
+        }
+        #vc-panel-live.vc-in-meeting .vc-room-picker { gap: 6px; }
+        #vc-panel-live.vc-in-meeting .vc-room-card {
+            flex-direction: row; align-items: center; gap: 6px;
+            padding: 4px 8px; min-width: 0; flex: 0 0 auto; max-width: none;
+            border-radius: 6px;
+        }
+        #vc-panel-live.vc-in-meeting .vc-room-card-name { font-size: 11px; font-weight: 600; }
+        #vc-panel-live.vc-in-meeting .vc-room-badge {
+            font-size: 9px; padding: 1px 6px; gap: 4px;
+        }
+        #vc-panel-live.vc-in-meeting .vc-room-badge::before { width: 5px; height: 5px; }
+        #vc-panel-live.vc-in-meeting .vc-host-inline { gap: 4px 6px; }
+        #vc-panel-live.vc-in-meeting .vc-host-inline .btn,
+        #vc-panel-live.vc-in-meeting .vc-floor-bar .btn {
+            padding: 3px 8px; font-size: 10px; min-height: 0; line-height: 1.25;
+        }
+        #vc-panel-live.vc-in-meeting .vc-bwc-inline,
+        #vc-panel-live.vc-in-meeting .vc-bwc-compact { font-size: 10px; gap: 4px 6px; }
+        #vc-panel-live.vc-in-meeting .vc-bwc-inline-select,
+        #vc-panel-live.vc-in-meeting .vc-bwc-compact select {
+            padding: 2px 6px; font-size: 10px; max-width: 160px;
+        }
+        #vc-panel-live.vc-in-meeting .vc-floor-bar {
+            margin-top: 2px; padding: 3px 6px; gap: 4px 6px; border-radius: 6px;
+        }
+        #vc-panel-live.vc-in-meeting .vc-floor-pill {
+            font-size: 9px; padding: 1px 6px; letter-spacing: 0.04em;
+        }
+        #vc-panel-live.vc-in-meeting .vc-floor-req,
+        #vc-panel-live.vc-in-meeting .vc-floor-user { font-size: 10px; }
+        #vc-panel-live.vc-in-meeting .vc-rec-inline { margin: 2px 0 0; font-size: 10px; }
         .vc-live-actions .vc-host-tools-panel {
             flex-basis: 100%; width: 100%; margin: 0;
             display: flex; flex-direction: column; gap: 10px;
@@ -1680,9 +1727,314 @@
             text-decoration: underline; cursor: pointer; font-family: inherit;
         }
         #conference-panel.vc-in-meeting .vc-live-top { margin-bottom: 0; }
-        #vc-panel-live.vc-in-meeting .vc-live-row { padding: 4px 8px; }
-        #vc-panel-live.vc-in-meeting #vc-stage { flex: 1; min-height: 0; margin-top: 0; display: flex; flex-direction: column; }
-        #vc-panel-live.vc-in-meeting #vc-stage .vc-stage-body { flex: 1; min-height: 0; height: auto !important; }
+        #vc-panel-live.vc-in-meeting .vc-live-row { padding: 6px 8px; }
+        /* MOB-FIX-VC-LAYOUT-INVERSION-CORRECTION — stage fills between top chrome and dock */
+        #vc-panel-live.vc-in-meeting {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 0%;
+            min-height: 0;
+            overflow: hidden;
+        }
+        #vc-panel-live.vc-in-meeting #vc-stage,
+        #vc-panel-live.vc-in-meeting #vc-stage.vc-client-v1 {
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            margin-top: 0;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 1;
+            align-self: stretch;
+            width: 100%;
+        }
+        #vc-panel-live.vc-in-meeting #vc-stage .vc-stage-canvas {
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            width: 100%;
+        }
+        #vc-panel-live.vc-in-meeting #vc-stage .vc-stage-body {
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            height: 100% !important;
+            width: 100%;
+            align-self: stretch;
+        }
+
+
+        /* VC-EMPTY-STATES-AND-LOBBY-V1 — hide stage/dock in lobby; empty-room placeholder */
+        #vc-stage[hidden],
+        .vc-stage[hidden] {
+            display: none !important;
+        }
+        #vc-panel-live.is-lobby #vc-stage:not(.vc-in-room),
+        #vc-panel-live:not(.vc-in-meeting) #vc-stage:not(.vc-in-room) {
+            display: none !important;
+        }
+        #vc-panel-live.is-lobby,
+        #vc-panel-live:not(.vc-in-meeting) {
+            overflow: auto;
+        }
+        #vc-panel-live.is-lobby .vc-live-dashboard,
+        #vc-panel-live:not(.vc-in-meeting) .vc-live-dashboard {
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+        #conference-panel.is-lobby,
+        #conference-panel:not(.vc-in-meeting) {
+            height: auto;
+            max-height: none;
+            overflow: auto;
+        }
+        .vc-stage.vc-empty-stage {
+            background: #0f172a !important;
+            border-color: #334155;
+        }
+        .vc-stage.vc-empty-stage .vc-stage-canvas {
+            background: transparent !important;
+        }
+        .vc-stage.vc-empty-stage .vc-stage-body {
+            visibility: hidden;
+            pointer-events: none;
+        }
+        .vc-stage.vc-empty-stage .vc-spotlight-inner,
+        .vc-stage.vc-empty-stage .vc-gallery-pane {
+            background: transparent !important;
+        }
+        .vc-stage.vc-empty-stage .vc-meeting-dock {
+            display: flex !important;
+            visibility: visible;
+        }
+        .empty-stage-placeholder {
+            position: absolute;
+            inset: 0;
+            z-index: 6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            height: 100%;
+            padding: 24px;
+            box-sizing: border-box;
+            color: #64748b;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            background: transparent;
+            text-align: center;
+            pointer-events: none;
+        }
+        .empty-stage-placeholder[hidden] { display: none !important; }
+        .empty-stage-icon { color: #475569; opacity: 0.9; margin-bottom: 4px; }
+        .empty-stage-title {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            color: #94a3b8;
+        }
+        .empty-stage-body {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.45;
+            color: #64748b;
+            max-width: 360px;
+        }
+        .vc-stage.vc-has-streams .vc-spotlight-inner {
+            background: #000;
+        }
+        .vc-stage.vc-has-streams .vc-tile {
+            background-color: #000;
+        }
+
+        /* VC-LIVE-STAGE-RESTORE-AND-ESCAPE-V1 — kill void + honest Focus escape */
+        #vc-panel-live.vc-in-meeting #vc-stage.vc-client-v1,
+        .vc-stage.vc-client-v1 {
+            flex: 1 1 0% !important;
+            flex-shrink: 1 !important;
+            min-height: 280px !important;
+            height: auto !important;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body {
+            flex: 1 1 0% !important;
+            min-height: 240px !important;
+            height: 100% !important;
+            max-height: none !important;
+        }
+        .vc-stage.vc-client-v1 .vc-spotlight-inner {
+            flex: 1 1 0% !important;
+            min-height: 200px !important;
+            width: 100%;
+            height: 100%;
+        }
+        .vc-stage.vc-client-v1 .vc-spotlight-inner .vc-tile {
+            min-height: 200px !important;
+        }
+        .vc-exit-focus {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 12;
+            width: auto !important;
+            font-size: 11px !important;
+            font-weight: 700;
+            padding: 4px 10px !important;
+            background: rgba(37, 99, 235, 0.92) !important;
+            border-color: #60a5fa !important;
+            color: #fff !important;
+        }
+        .vc-exit-focus[hidden] { display: none !important; }
+        .vc-tile-pin {
+            opacity: 1 !important;
+            width: auto !important;
+            min-width: 44px;
+            padding: 2px 8px !important;
+            font-size: 10px !important;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+        #vc-ingress-toast {
+            position: absolute;
+            left: 50%;
+            bottom: 56px;
+            transform: translateX(-50%);
+            z-index: 30;
+            max-width: min(420px, 90%);
+            padding: 8px 14px;
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.94);
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            font-size: 12px;
+            font-weight: 600;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        #vc-ingress-toast.visible { opacity: 1; }
+        #vc-ingress-toast.err { border-color: #f87171; color: #fecaca; }
+        #vc-panel-live { position: relative; }
+
+        /* MOB-FIX-VC-LAYOUT-GRID-AND-VOID-ELIMINATION — viewport fill + kill east-west strip */
+        #app-view-conference.enterprise-scope:not([hidden]),
+        #app-view-conference:not([hidden]) {
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            height: 100% !important;
+            display: flex !important;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #conference-panel.vc-in-meeting {
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            height: 100% !important;
+            display: flex !important;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 6px 10px;
+        }
+        #conference-panel.vc-in-meeting .vc-hub-nav { flex-shrink: 0; }
+        #vc-panel-live.vc-in-meeting .vc-live-dashboard,
+        #vc-panel-live.vc-in-meeting .vc-live-top,
+        #vc-panel-live.vc-in-meeting .vc-live-row {
+            flex: 0 0 auto !important;
+            height: auto !important;
+            max-height: none;
+        }
+        #vc-panel-live.vc-in-meeting #vc-stage.vc-client-v1 {
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            height: auto !important;
+        }
+        .vc-stage.vc-client-v1 .vc-meeting-dock {
+            flex-shrink: 0 !important;
+            position: relative;
+            z-index: 8;
+        }
+        /* Empty spotlight + tiles in gallery → full responsive grid (not bottom banner) */
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-fill-grid {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            height: 100% !important;
+            width: 100% !important;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-fill-grid .vc-spotlight-pane,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-fill-grid .vc-stage-divider {
+            display: none !important;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-fill-grid .vc-gallery-pane,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-fill-grid .vc-gallery-pane.vc-filmstrip {
+            flex: 1 1 0% !important;
+            width: 100% !important;
+            max-width: none !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            height: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            border: none !important;
+            background: transparent !important;
+            overflow: hidden !important;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-fill-grid .vc-gallery-grid {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)) !important;
+            grid-auto-rows: minmax(180px, auto) !important;
+            gap: 12px !important;
+            padding: 12px !important;
+            width: 100% !important;
+            height: 100% !important;
+            min-height: 0 !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            flex-direction: unset !important;
+            align-content: start !important;
+            align-items: stretch !important;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-fill-grid .vc-gallery-grid .vc-tile {
+            flex: unset !important;
+            width: 100% !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            aspect-ratio: 16 / 9 !important;
+            border-radius: 8px;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-fill-grid .vc-gallery-grid .vc-tile video,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-fill-grid .vc-gallery-grid .vc-tile img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: contain !important;
+        }
+        /* Speaker filmstrip must stay vertical column even if operations class leaks */
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-speaker:not(.vc-mode-deploy):not(.layout-dual) .vc-gallery-grid {
+            display: flex !important;
+            flex-direction: column !important;
+            grid-template-columns: none !important;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-gallery .vc-gallery-grid,
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-gallery .vc-gallery-grid {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+            gap: 12px !important;
+            padding: 12px !important;
+            height: 100% !important;
+            overflow-y: auto !important;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-gallery .vc-gallery-grid .vc-tile,
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-gallery .vc-gallery-grid .vc-tile {
+            width: 100% !important;
+            height: auto !important;
+            aspect-ratio: 16 / 9 !important;
+            min-height: 0 !important;
+            max-height: 100% !important;
+        }
+
         .vc-room-picker { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 0; }
         .vc-room-card {
             display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
@@ -1798,7 +2150,269 @@
             .vc-settings-kv.vc-settings-span-2,
             .vc-settings-form-grid .vc-settings-span-2 { grid-column: auto; }
         }
-        .vc-stage { position: relative; margin-top: 6px; border: 1px solid #334155; border-radius: 10px; background: #0b1220; overflow: hidden; flex-shrink: 0; }
+        .vc-stage { position: relative; margin-top: 6px; border: 1px solid var(--border-color, #334155); border-radius: 10px; background: #0b1220; overflow: hidden; flex-shrink: 0; }
+        /* VC-MEETING-LAYOUT-CLIENT-V1 — full-bleed meeting + bottom dock */
+        #vc-panel-live.vc-in-meeting #vc-stage.vc-client-v1 {
+            flex: 1; min-height: 0; margin-top: 0; display: flex; flex-direction: column;
+            border-radius: 0; border-left: none; border-right: none; border-bottom: none;
+        }
+        .vc-stage.vc-client-v1 { display: flex; flex-direction: column; min-height: 0; flex: 1 1 0%; }
+        .vc-stage.vc-client-v1 .vc-stage-canvas { flex: 1 1 0%; min-height: 0; display: flex; flex-direction: column; position: relative; width: 100%; }
+        .vc-stage.vc-client-v1 .vc-stage-body {
+            flex: 1 1 0%; min-height: 0; height: 100% !important; width: 100%;
+        }
+        .vc-stage.vc-client-v1 .vc-spotlight-header,
+        .vc-stage.vc-client-v1 .vc-gallery-header { display: none !important; }
+        .vc-stage.vc-client-v1 .vc-tile-grip { display: none !important; }
+        .vc-stage-badge {
+            position: absolute; top: 10px; left: 10px; z-index: 5;
+            padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+            letter-spacing: 0.03em; background: rgba(15, 23, 42, 0.88); color: #e2e8f0;
+            border: 1px solid #475569; pointer-events: none; max-width: 60%;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .vc-stage-badge[hidden] { display: none !important; }
+        .vc-spotlight-pane { position: relative; min-height: 0; display: flex; flex-direction: column; flex: 1 1 auto; }
+        .vc-meeting-dock {
+            flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+            gap: 4px; padding: 5px 8px; min-height: 0;
+            background: rgba(15, 23, 42, 0.96); border-top: 1px solid #334155; z-index: 8;
+        }
+        .vc-meeting-dock .vc-dock-btn {
+            width: auto; flex: 0 0 auto; min-width: 0; font-weight: 600;
+            padding: 3px 8px; font-size: 10px; line-height: 1.25; min-height: 0;
+        }
+        .vc-meeting-dock .vc-dock-btn.active { background: var(--accent-blue, #2563eb); border-color: #3b82f6; color: #fff; }
+        .vc-dock-layout, .vc-dock-share { display: inline-flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+        .vc-dock-sep { width: 1px; height: 16px; background: #334155; margin: 0 3px; flex-shrink: 0; }
+        .vc-dock-spacer { flex: 1 1 8px; min-width: 4px; }
+        /* VC-14-STREAM-ENTERPRISE-LAYOUTS-V2 — void fill + 16:9 contain + 5 maps */
+        #conference-panel.vc-in-meeting {
+            height: 100vh;
+            max-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-canvas {
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            position: relative;
+            overflow: hidden;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body {
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            height: auto !important;
+            max-height: none !important;
+            position: relative;
+            overflow: hidden;
+        }
+        .vc-stage.vc-client-v1 .vc-tile,
+        .vc-stage.vc-client-v1 .vc-tile .vc-tile-media,
+        .vc-stage.vc-client-v1 .vc-tile video,
+        .vc-stage.vc-client-v1 .vc-tile img {
+            aspect-ratio: 16 / 9;
+            max-height: 100%;
+            max-width: 100%;
+            object-fit: contain;
+            background-color: #000;
+        }
+        .vc-stage.vc-client-v1 .vc-tile {
+            background-color: #000;
+            overflow: hidden;
+        }
+        .vc-stage.vc-client-v1 .vc-tile .vc-tile-media {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            aspect-ratio: auto;
+        }
+        .vc-stage.vc-client-v1 .vc-spotlight-inner .vc-tile {
+            aspect-ratio: auto;
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+        }
+        .vc-stage.vc-client-v1 .vc-spotlight-inner .vc-tile video,
+        .vc-stage.vc-client-v1 .vc-spotlight-inner .vc-tile img {
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            aspect-ratio: auto;
+        }
+        .vc-stage.vc-client-v1 .vc-gallery-overflow {
+            flex-shrink: 0; text-align: center; padding: 2px 4px; font-size: 10px; font-weight: 700; color: #94a3b8;
+        }
+        /* LAYOUT 1 — Speaker: main + right sidebar ~260px */
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-speaker,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-speaker:not(.layout-dual):not(.vc-mode-deploy) {
+            flex-direction: row !important;
+            align-items: stretch;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-speaker .vc-spotlight-pane,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-speaker:not(.layout-dual):not(.vc-mode-deploy) .vc-spotlight-pane {
+            flex: 1 1 0% !important; min-width: 0; min-height: 0;
+            display: flex; flex-direction: column; border-right: none;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-speaker .vc-stage-divider,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-speaker:not(.layout-dual) .vc-stage-divider { display: none; }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-speaker .vc-gallery-pane.vc-filmstrip,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-speaker:not(.layout-dual):not(.vc-mode-deploy) .vc-gallery-pane.vc-filmstrip {
+            flex: 0 0 260px !important; width: 260px; min-width: 220px; max-width: 280px;
+            display: flex; flex-direction: column; border-left: 1px solid #334155;
+            background: rgba(15, 23, 42, 0.55); overflow: hidden; align-self: stretch;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-speaker .vc-gallery-grid,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-speaker:not(.layout-dual):not(.vc-mode-deploy) .vc-gallery-grid {
+            flex: 1; min-height: 0; display: flex !important; flex-direction: column; gap: 6px; padding: 8px;
+            grid-template-columns: none !important; grid-template-rows: none !important;
+            overflow-y: auto; overflow-x: hidden; align-content: start; align-items: stretch;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-speaker .vc-gallery-grid .vc-tile,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-speaker:not(.layout-dual):not(.vc-mode-deploy) .vc-gallery-grid .vc-tile {
+            flex: 0 0 auto; width: 100%; height: auto; aspect-ratio: 16 / 9;
+            min-height: 0; max-height: 100%; max-width: 100%; border-radius: 6px;
+        }
+        /* LAYOUT 2 — Operations: BWC 3-col grid top + human strip ~180px */
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-operations,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-operations.vc-mode-deploy {
+            flex-direction: column !important;
+            align-items: stretch;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-operations .vc-spotlight-pane,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-operations.vc-mode-deploy .vc-spotlight-pane {
+            flex: 1 1 0% !important;
+            min-height: 0 !important;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-operations .vc-spotlight-inner,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-operations.vc-mode-deploy .vc-spotlight-inner {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            padding: 8px;
+            align-content: start;
+            /* absolute-tile override: see VC-OPS-BWC-GRID-NO-OVERLAP-V1 block below */
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-operations .vc-spotlight-inner .vc-tile,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-operations.vc-mode-deploy .vc-spotlight-inner .vc-tile {
+            /* base; final no-overlap rules after speaker absolute block */
+            width: 100%;
+            height: auto;
+            max-height: 100%;
+            aspect-ratio: 16 / 9;
+            min-height: 0;
+            border-radius: 6px;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-operations .vc-gallery-pane,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-operations.vc-mode-deploy .vc-gallery-pane {
+            flex: 0 0 180px !important;
+            min-height: 160px !important;
+            max-height: 200px !important;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-top: 1px solid #334155;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-operations .vc-gallery-grid,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-operations .vc-gallery-grid {
+            display: flex !important; flex-direction: row; flex-wrap: nowrap; gap: 8px; padding: 8px;
+            overflow-x: auto; overflow-y: hidden; align-items: center; justify-content: flex-start;
+            grid-template-columns: none !important; grid-template-rows: none !important;
+            flex: 1 1 auto; min-height: 0; height: 100%; width: 100%;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-operations .vc-gallery-grid .vc-tile,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-operations .vc-gallery-grid .vc-tile {
+            flex: 0 0 auto; width: auto; height: calc(180px - 24px);
+            max-height: 100%; aspect-ratio: 16 / 9; min-height: 0; border-radius: 6px;
+        }
+        /* LAYOUT 3 — Gallery: equal auto-fit grid */
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-gallery,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-gallery {
+            flex-direction: column !important; flex: 1 1 0%; min-height: 0; height: 100% !important;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-gallery .vc-spotlight-pane,
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-gallery .vc-stage-divider,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-gallery .vc-spotlight-pane,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-gallery .vc-stage-divider { display: none !important; }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-gallery .vc-gallery-pane,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-gallery .vc-gallery-pane {
+            flex: 1 1 0% !important; min-height: 0; height: 100%; width: 100%;
+            max-width: none !important; display: flex !important; flex-direction: column;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-gallery .vc-gallery-grid,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-gallery .vc-gallery-grid {
+            flex: 1 1 0%; min-height: 0; height: 100%;
+            display: grid !important;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+            gap: 12px !important;
+            padding: 12px !important;
+            align-content: start;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-gallery .vc-gallery-grid .vc-tile,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-gallery .vc-gallery-grid .vc-tile {
+            width: 100%; height: auto; min-height: 0; max-height: 100%;
+            aspect-ratio: 16 / 9 !important; border-radius: 8px;
+        }
+        /* LAYOUT 4 — Focus: one full-bleed stream */
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-focus .vc-gallery-pane,
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-focus .vc-stage-divider,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-focus .vc-gallery-pane,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-focus .vc-stage-divider { display: none !important; }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-focus .vc-spotlight-pane,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-focus .vc-spotlight-pane {
+            flex: 1 1 0% !important; border: none; min-height: 0; width: 100%;
+        }
+        /* LAYOUT 5 — Dual: 2 stages + right sidebar */
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-dual {
+            flex-direction: row !important;
+            align-items: stretch;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-dual .vc-spotlight-pane {
+            flex: 1 1 0% !important; min-width: 0; min-height: 0;
+            display: flex; flex-direction: column; border-right: none;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-dual .vc-spotlight-inner {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 8px;
+            padding: 8px;
+            align-content: stretch;
+            height: 100%;
+            min-height: 0;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-dual .vc-spotlight-inner .vc-tile {
+            width: 100%;
+            height: auto;
+            max-height: 100%;
+            aspect-ratio: 16 / 9;
+            min-height: 0;
+            border-radius: 6px;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-dual .vc-stage-divider { display: none !important; }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-dual .vc-gallery-pane.vc-filmstrip {
+            flex: 0 0 260px !important; width: 260px; min-width: 220px; max-width: 280px;
+            display: flex; flex-direction: column; border-left: 1px solid #334155;
+            background: rgba(15, 23, 42, 0.55); overflow: hidden; align-self: stretch;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-dual .vc-gallery-grid {
+            flex: 1; min-height: 0; display: flex !important; flex-direction: column; gap: 6px; padding: 8px;
+            grid-template-columns: none !important; overflow-y: auto; overflow-x: hidden;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-dual .vc-gallery-grid .vc-tile {
+            flex: 0 0 auto; width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 6px;
+        }
         .vc-stage-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 10px; background: #1e293b; border-bottom: 1px solid #334155; flex-shrink: 0; }
         .vc-stage-toolbar .btn { width: auto; flex: 0 0 auto; }
         .vc-stage-toolbar-spacer { flex: 1; min-width: 8px; }
@@ -1807,7 +2421,13 @@
         .vc-stage-mute-all { color: #fde68a !important; border-color: rgba(251,191,36,0.45) !important; }
         .vc-stage-leave:not(:disabled) { background: rgba(127, 29, 29, 0.35) !important; }
         .vc-stage-toolbar-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin-right: 4px; }
-        .vc-stage-body { display: flex; flex-direction: row; min-height: 360px; height: min(68vh, 620px); --vc-spotlight-pct: 58%; --vc-ops-pct: 68%; }
+        .vc-stage.vc-client-v1 .vc-stage-body,
+        .vc-stage.vc-client-v1.vc-stage .vc-stage-body {
+            min-height: 0 !important;
+            height: auto !important;
+            max-height: none !important;
+        }
+        .vc-stage-body { display: flex; flex-direction: row; min-height: 360px; height: min(68vh, 620px); --vc-spotlight-pct: 72%; --vc-ops-pct: 72%; }
         .vc-stage-body.vc-mode-gallery { flex-direction: column; flex: 1; min-height: 280px; height: 100%; }
         .vc-stage-body.vc-mode-gallery .vc-spotlight-pane,
         .vc-stage-body.vc-mode-gallery .vc-stage-divider { display: none; }
@@ -1872,6 +2492,106 @@
         .vc-spotlight-inner .vc-tile { width: 100%; height: 100%; min-height: 160px; border-radius: 0; }
         .vc-spotlight-inner .vc-tile video,
         .vc-spotlight-inner .vc-tile img { object-fit: contain; min-height: 160px; }
+        /* MOB-FIX-VC-LAYOUT-INVERSION-CORRECTION — spotlight fills stage; video object-fit contain */
+        .vc-stage.vc-client-v1 .vc-spotlight-inner {
+            position: relative;
+            flex: 1 1 0%;
+            min-height: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            overflow: hidden;
+            background: #000;
+        }
+        .vc-stage.vc-client-v1 .vc-spotlight-inner .vc-tile {
+            position: absolute;
+            inset: 0;
+            width: 100% !important;
+            height: 100% !important;
+            max-width: none;
+            max-height: none;
+            min-height: 0 !important;
+            border-radius: 0;
+            margin: 0;
+            background: #000;
+        }
+        .vc-stage.vc-client-v1 .vc-spotlight-inner .vc-tile-media {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+        }
+        .vc-stage.vc-client-v1 .vc-spotlight-inner .vc-tile video,
+        .vc-stage.vc-client-v1 .vc-spotlight-inner .vc-tile img {
+            width: 100%;
+            height: 100%;
+            min-height: 0 !important;
+            object-fit: contain;
+            display: block;
+        }
+        /* VC-OPS-BWC-GRID-NO-OVERLAP-V1 — Operations share grid (BWC + fixed): kill absolute stack */
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-operations .vc-spotlight-inner,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-operations.vc-mode-deploy .vc-spotlight-inner {
+            display: grid !important;
+            position: relative !important;
+            overflow: auto !important;
+            align-content: start !important;
+            gap: 8px !important;
+            padding: 8px !important;
+            background: #0f172a;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-operations .vc-spotlight-inner .vc-tile,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-operations.vc-mode-deploy .vc-spotlight-inner .vc-tile {
+            position: relative !important;
+            inset: auto !important;
+            top: auto !important;
+            right: auto !important;
+            bottom: auto !important;
+            left: auto !important;
+            width: 100% !important;
+            height: auto !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+            min-height: 0 !important;
+            aspect-ratio: 16 / 9 !important;
+            border-radius: 6px !important;
+            margin: 0 !important;
+            overflow: hidden;
+            background: #000;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-operations .vc-spotlight-inner .vc-tile-media,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-operations.vc-mode-deploy .vc-spotlight-inner .vc-tile-media {
+            position: absolute !important;
+            inset: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-operations .vc-spotlight-inner .vc-tile video,
+        .vc-stage.vc-client-v1 .vc-stage-body.layout-operations .vc-spotlight-inner .vc-tile img,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-operations.vc-mode-deploy .vc-spotlight-inner .vc-tile video,
+        .vc-stage.vc-client-v1 .vc-stage-body.vc-mode-operations.vc-mode-deploy .vc-spotlight-inner .vc-tile img {
+            position: absolute !important;
+            inset: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+            object-fit: contain !important;
+            min-height: 0 !important;
+        }
+        .vc-stage.vc-client-v1 .vc-gallery-grid .vc-tile-media,
+        .vc-stage.vc-client-v1 .vc-gallery-grid .vc-tile video,
+        .vc-stage.vc-client-v1 .vc-gallery-grid .vc-tile img {
+            width: 100%; height: 100%; min-height: 0; object-fit: contain; display: block;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-leave,
+        .vc-stage.vc-client-v1 .vc-stage-mute-all {
+            padding: 3px 8px; font-size: 10px; min-height: 0; line-height: 1.25;
+        }
+        .vc-stage.vc-client-v1 .vc-stage-badge {
+            top: 6px; left: 6px; padding: 2px 6px; font-size: 9px;
+        }
         .vc-spotlight-empty, .vc-gallery-empty { padding: 24px; color: #64748b; font-size: 12px; text-align: center; }
         .vc-stage-divider { width: 6px; cursor: col-resize; background: linear-gradient(90deg, #1e293b, #334155, #1e293b); flex-shrink: 0; }
         .vc-stage-divider:hover { background: #3b82f6; }
@@ -4901,9 +5621,19 @@
         .sidebar-storage-box h3 { margin-bottom: 6px; }
         .sidebar-storage-box .hint { margin-bottom: 6px; }
         .sidebar-storage-box .storage-actions { gap: 6px; }
-        /* OPS-FLEET-PIN-BUTTONS-COMPACT-V1 — compact; real win is global.css id rules */
+        /* OPS-LEFT-PANEL-BTN-COMPACT-UNIFY-V1 — local echo; win is global.css #sidebar .btn */
         .fleet-open-all-pins { flex: 1; font-size: 10px; padding: 4px 8px; min-height: 0; }
         .fleet-open-all-pins:disabled { opacity: 0.45; cursor: not-allowed; }
+        /* USER-CIRCLE-BATCH-OPEN-V1 */
+        .fleet-circle-box { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(51, 65, 85, 0.85); }
+        .fleet-circle-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 4px; }
+        .fleet-circle-select { flex: 1 1 120px; min-width: 0; font-size: 10px; padding: 3px 6px; background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 4px; }
+        .fleet-circle-open { flex: 0 0 auto; font-size: 10px; padding: 4px 8px; min-height: 0; }
+        .fleet-circle-open:disabled,
+        .fleet-circle-box .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .fleet-circle-box .btn { font-size: 10px; padding: 4px 8px; min-height: 0; }
+        .fleet-circle-status { margin: 0; min-height: 14px; font-size: 10px; color: #94a3b8; }
+        .sos-log-actions .btn { font-size: 10px; padding: 4px 8px; min-height: 0; line-height: 1.25; }
         .fleet-row:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
         .fleet-dot-cell { width: 28px; text-align: center; }
         .fleet-dot-cell .status-dot {
@@ -6082,10 +6812,12 @@
             left: 50%;
             transform: translateX(-50%);
             z-index: 12000;
-            max-width: min(92vw, 420px);
+            max-width: min(92vw, 560px);
             padding: 10px 16px;
             font-size: 12px;
             text-align: center;
+            white-space: pre-wrap;
+            word-break: break-word;
             background: #1e293b;
             border: 1px solid #475569;
             border-radius: 8px;
@@ -6171,7 +6903,8 @@
             position: sticky; top: 0; z-index: 2;
         }
         .ss-network-section-nav button {
-            width: auto; flex: 0 0 auto; padding: 5px 9px; font-size: 10px; font-weight: 600; border-radius: 5px;
+            display: inline-flex; align-items: center; width: auto; flex: 0 0 auto;
+            padding: 5px 9px; font-size: 10px; font-weight: 600; border-radius: 5px;
             border: 1px solid transparent; background: transparent; color: var(--text-muted, #94a3b8); cursor: pointer;
         }
         .ss-network-section-nav button:hover { background: var(--bg-surface, #1e293b); color: var(--text, #e2e8f0); border-color: var(--border-subtle, #334155); }
@@ -6333,13 +7066,24 @@
         .ss-config-nav button.active { background: var(--accent-blue, #2563eb); color: #fff; }
         .ss-config-nav button[hidden] { display: none !important; }
         .ss-config-nav-maint {
-            margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-subtle, #334155);
+            margin-top: 12px; padding-top: 12px;
+            border-top: 1px solid var(--border-subtle, #475569);
             display: flex; flex-direction: column; gap: 2px;
         }
         .ss-config-nav-maint[hidden] { display: none !important; }
         .ss-config-nav-label {
-            font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
-            color: #64748b; padding: 4px 10px 6px;
+            display: block;
+            margin: 0 0 8px;
+            padding: 2px 10px 6px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #64748b;
+            line-height: 1.2;
+            cursor: default;
+            pointer-events: none;
+            user-select: none;
         }
         .ss-config-content {
             flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column;
@@ -7050,8 +7794,8 @@
         .sos-detail-actions button { flex: 1; min-width: 100px; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; background: #334155; color: #e2e8f0; }
         .sos-detail-actions .sos-detail-secondary { flex: 0 1 auto; background: transparent; color: #94a3b8; font-weight: 500; font-size: 11px; }
     </style>
-    <link rel="stylesheet" href="/css/global.css?v=20260723-ops-fleet-pin-buttons-compact-v1">
-    <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260723-master-settings-grid-v4">
+    <link rel="stylesheet" href="/css/global.css?v=20260726-tactical-blueprint-zero-raw-v1">
+    <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260726-bwc-retire-maint-nav-divider-v1">
 </head>
 <body>
 <script>
@@ -7268,6 +8012,7 @@
         <button type="button" id="nav-tab-conference" data-i18n="nav.videoConference">Video Conference</button>
         <button type="button" id="nav-tab-server" data-i18n="nav.settings">Settings</button>
         <button type="button" id="nav-tab-analytics" data-i18n="nav.analytics">Analytics</button>
+        <button type="button" id="nav-tab-tactical" data-i18n="nav.tactical">Tactical</button>
         <div id="video-wall-nav-tools" class="video-wall-toolbar">
             <label id="video-wall-poll-wrap" class="video-wall-poll-wrap">
                 <input type="checkbox" id="video-wall-poll">
@@ -7336,6 +8081,19 @@
                 <div class="fleet-pin-actions btn-row horizontal">
                     <button type="button" id="fleet-open-all-pins" class="btn btn-action btn-sm fleet-open-all-pins" disabled data-i18n="fleet.openAll">Open All (Up to 8)</button>
                     <button type="button" id="fleet-clear-pins" class="btn btn-ghost btn-sm fleet-clear-pins" hidden data-i18n="fleet.clearMapPins">Clear map pins</button>
+                </div>
+                <!-- USER-CIRCLE-BATCH-OPEN-V1 -->
+                <div class="fleet-circle-box" id="fleet-circle-box">
+                    <div class="fleet-circle-row">
+                        <select id="fleet-circle-select" class="fleet-circle-select" data-i18n-aria="fleet.circle.selectAria" aria-label="User circle"></select>
+                        <button type="button" id="fleet-circle-open" class="btn btn-action btn-sm fleet-circle-open" disabled data-i18n="fleet.circle.open">Open Circle</button>
+                    </div>
+                    <div class="fleet-circle-row">
+                        <button type="button" id="fleet-circle-save" class="btn btn-ghost btn-sm" data-i18n="fleet.circle.save">Save selection</button>
+                        <button type="button" id="fleet-circle-add" class="btn btn-ghost btn-sm" disabled data-i18n="fleet.circle.add">Add to circle</button>
+                        <button type="button" id="fleet-circle-delete" class="btn btn-ghost btn-sm" disabled data-i18n="fleet.circle.delete">Delete</button>
+                    </div>
+                    <p id="fleet-circle-status" class="hint fleet-circle-status" aria-live="polite"></p>
                 </div>
                 <div id="fleet-table-wrap">
                     <table class="fleet-table">
@@ -7698,7 +8456,7 @@
 
             <div class="ss-config-body">
             <nav class="ss-config-nav" aria-label="Server configuration sections">
-                <button type="button" id="ss-main-tab-server" class="active" data-i18n="server.tab.server">Network &amp; deployment</button>
+                <button type="button" id="ss-main-tab-server" class="active" data-ss-saas-hide="cloud_leased" data-i18n="server.tab.server">Network &amp; deployment</button>
                 <button type="button" id="ss-main-tab-bwc" data-i18n="server.tab.bwc">BWCs</button>
                 <button type="button" id="ss-main-tab-groups" data-i18n="server.tab.groups">Map groups</button>
                 <button type="button" id="ss-main-tab-dashboard" data-i18n="server.tab.dashboard">Dashboard Auth</button>
@@ -7714,12 +8472,13 @@
             <div class="ss-config-content">
             <div id="ss-panel-scroll" class="ss-panel-scroll">
 
-            <div id="ss-panel-server" class="ss-main-panel active">
+            <div id="ss-panel-server" class="ss-main-panel active" data-ss-saas-hide="cloud_leased">
             <nav id="ss-network-section-nav" class="ss-network-section-nav" role="navigation" aria-label="Network sections">
                 <button type="button" class="active" data-ss-section="ss-section-deployment" data-i18n="server.deployment">Deployment</button>
+                <button type="button" data-ss-section="ss-section-ssl" data-ss-saas-onprem-only="1" data-i18n="server.ssl.title">SSL Configuration</button>
                 <button type="button" data-ss-section="ss-section-resilience" data-i18n="resilience.title">Site resilience</button>
-                <button type="button" data-ss-section="ss-section-lan" data-i18n="server.lan.title">LAN network</button>
-                <button type="button" data-ss-section="ss-section-wan" data-i18n="server.wan.title">WAN / internet</button>
+                <button type="button" data-ss-section="ss-section-lan" data-ss-saas-hide="cloud_leased" data-i18n="server.lan.title">LAN network</button>
+                <button type="button" data-ss-section="ss-section-wan" data-ss-saas-hide="cloud_leased" data-i18n="server.wan.title">WAN / internet</button>
                 <button type="button" data-ss-section="ss-section-operator" data-i18n="server.operatorSection">Operator portal</button>
                 <button type="button" data-ss-section="ss-section-production" data-i18n="server.productionAccess">Reverse proxy</button>
                 <button type="button" data-ss-section="ss-section-site-time" data-i18n="server.siteTimezone">Site timezone</button>
@@ -7730,16 +8489,38 @@
             </nav>
             <div class="ss-config-section" id="ss-section-deployment">
                 <h4 data-i18n="server.deployment">Deployment</h4>
-                <label><span data-i18n="server.deploymentMode">Deployment mode</span>
-                    <select id="ss-deployment-mode">
-                        <option value="lab" data-i18n="server.mode.lab">Lab</option>
-                        <option value="lan" data-i18n="server.mode.lan">LAN server</option>
-                        <option value="cloud" data-i18n="server.mode.cloud">Cloud / VPS</option>
-                        <option value="hybrid" data-i18n="server.mode.hybrid">Hybrid (cloud ops + site LAN)</option>
-                    </select>
-                </label>
+                <div class="ss-east-west-grid">
+                    <label>
+                        <span data-i18n="server.deploymentMode">Deployment mode</span>
+                        <select id="ss-deployment-mode">
+                            <option value="lab" data-i18n="server.mode.lab">Lab</option>
+                            <option value="lan" data-i18n="server.mode.lan">LAN server</option>
+                            <option value="cloud" data-i18n="server.mode.cloud">Cloud / VPS</option>
+                            <option value="hybrid" data-i18n="server.mode.hybrid">Hybrid (cloud ops + site LAN)</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span data-i18n="server.tenantName">Tenant / customer name (optional)</span>
+                        <input type="text" id="ss-tenant-name" data-i18n-placeholder="server.tenantPlaceholder" placeholder="e.g. Acme Security">
+                    </label>
+                </div>
                 <p id="ss-deployment-hint" class="setup-hint" style="margin-top:0"></p>
-                <label><span data-i18n="server.tenantName">Tenant / customer name (optional)</span><input type="text" id="ss-tenant-name" data-i18n-placeholder="server.tenantPlaceholder" placeholder="e.g. Acme Security"></label>
+            </div>
+
+            <div class="ss-config-section" id="ss-section-ssl" data-ss-saas-onprem-only="1">
+                <h4 data-i18n="server.ssl.title">SSL Configuration</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.ssl.hint">Upload the site certificate (.crt) and private key (.key) for on-prem HTTPS. Files stay on this server — not applied until a later save MOB.</p>
+                <div class="ss-east-west-grid">
+                    <label>
+                        <span data-i18n="server.ssl.certLabel">Certificate (.crt)</span>
+                        <input type="file" id="ss-ssl-cert" accept=".crt,.pem,application/x-x509-ca-cert,application/pkix-cert,text/plain" data-i18n-aria="server.ssl.certLabel">
+                    </label>
+                    <label>
+                        <span data-i18n="server.ssl.keyLabel">Private key (.key)</span>
+                        <input type="file" id="ss-ssl-key" accept=".key,.pem,application/pkcs8,text/plain" data-i18n-aria="server.ssl.keyLabel">
+                    </label>
+                </div>
+                <p id="ss-ssl-status" class="setup-hint" aria-live="polite"></p>
             </div>
 
             <div class="ss-config-section" id="ss-section-resilience">
@@ -7758,7 +8539,7 @@
                 <button type="button" class="btn btn-action btn-sm" id="ss-save-resilience" data-i18n="resilience.save">Save site node</button>
             </div>
 
-            <div class="ss-config-section" id="ss-section-lan">
+            <div class="ss-config-section" id="ss-section-lan" data-ss-saas-hide="cloud_leased">
                 <h4 data-i18n="server.lan.title">LAN network</h4>
                 <p class="setup-hint" style="margin-top:0" data-i18n="server.lan.hint">On-prem server addressing. Configure the OS network adapter to match, or use DHCP and record the assigned address here.</p>
                 <div class="ss-network-grid">
@@ -7777,7 +8558,7 @@
                 </div>
             </div>
 
-            <div class="ss-config-section" id="ss-section-wan">
+            <div class="ss-config-section" id="ss-section-wan" data-ss-saas-hide="cloud_leased">
                 <h4 data-i18n="server.wan.title">WAN / internet</h4>
                 <p class="setup-hint" style="margin-top:0" data-i18n="server.wan.hint">Public reachability for SIM cameras and remote operators. Configure router port-forward, cloud security group, or VPN to match.</p>
                 <div class="ss-network-grid">
@@ -8280,7 +9061,7 @@
                         <button type="button" class="btn btn-action btn-sm" id="cd-verify-now" data-i18n="cloud.verification.runNow">Run verification now</button>
                     </div>
                 </div>
-                <div class="ss-tech-section enterprise-card ss-inbound-checklist-card">
+                <div class="ss-tech-section enterprise-card ss-inbound-checklist-card" data-ss-saas-hide="cloud_leased">
                     <h5 class="enterprise-section-title" data-i18n="cloud.firewall.title">Inbound services checklist</h5>
                     <p class="setup-hint" style="margin-top:0" data-i18n="cloud.firewall.hint">Required ports for cloud security groups and edge firewalls. Align with your Server tab SIP and media settings.</p>
                     <div id="cd-firewall" class="ss-inbound-table-wrap"></div>
@@ -8564,42 +9345,54 @@
                         </div>
                     </aside>
                 </div>
-                <div id="vc-stage" class="vc-stage" hidden>
-                    <div class="vc-stage-toolbar">
-                        <span class="vc-stage-toolbar-label" data-i18n="conference.layoutToolbar">Layout</span>
-                        <button type="button" class="btn btn-ghost btn-sm vc-view-btn active" data-vc-action="view-gallery" title="All participants in equal tiles" data-i18n="conference.viewGallery">Gallery</button>
-                        <button type="button" class="btn btn-ghost btn-sm vc-view-btn" data-vc-action="view-speaker" title="Active speaker large, others in strip" data-i18n="conference.viewSpeaker">Speaker</button>
-                        <button type="button" class="btn btn-ghost btn-sm vc-view-btn" data-vc-action="view-focus" title="Active speaker full screen" data-i18n="conference.viewFocus">Focus</button>
-                        <button type="button" class="btn btn-ghost btn-sm vc-view-btn" data-vc-action="view-two-up" title="Two large feeds on top, others below" data-i18n="conference.viewTwoUp">2-up</button>
-                        <button type="button" class="btn btn-ghost btn-sm vc-view-btn" data-vc-action="view-briefing" title="Shared content on main stage, participants in strip" data-i18n="conference.viewBriefing">Briefing</button>
-                        <button type="button" class="btn btn-ghost btn-sm vc-view-btn" data-vc-action="view-sidebyside" title="Share left, participants right" data-i18n="conference.viewSideBySide">Side-by-side</button>
-                        <button type="button" class="btn btn-ghost btn-sm vc-view-btn" data-vc-action="pip-toggle" data-i18n="conference.pipToggle">PiP</button>
-                        <span class="vc-stage-toolbar-sep"></span>
-                        <span class="vc-stage-toolbar-label" data-i18n="conference.layoutShareToolbar">Share</span>
-                        <button type="button" class="btn btn-ghost btn-sm" data-vc-action="screen" data-i18n="conference.layoutShareScreen">Share screen</button>
-                        <button type="button" class="btn btn-ghost btn-sm" data-vc-action="image" data-i18n="conference.layoutShareImage">Share image</button>
-                        <button type="button" class="btn btn-ghost btn-sm" data-vc-action="video" data-i18n="conference.layoutShareVideo">Share video</button>
-                        <button type="button" class="btn btn-ghost btn-sm" data-vc-action="document" data-i18n="conference.layoutShareDocument">Share document</button>
-                        <button type="button" class="btn btn-ghost btn-sm" data-vc-action="expand" data-i18n="conference.layoutExpand" hidden>&#x2922; Expand</button>
-                        <button type="button" class="btn btn-ghost btn-sm" data-vc-action="shrink" data-i18n="conference.layoutShrink" hidden>&#x2921; Split</button>
-                        <span class="vc-stage-toolbar-spacer"></span>
+                <div id="vc-stage" class="vc-stage vc-client-v1" hidden>
+                    <div class="vc-stage-canvas">
+                        <div class="empty-stage-placeholder" hidden>
+                            <svg class="empty-stage-icon" viewBox="0 0 64 64" width="48" height="48" aria-hidden="true">
+                                <rect x="8" y="18" width="36" height="28" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
+                                <path d="M44 28l12-6v20l-12-6z" fill="none" stroke="currentColor" stroke-width="2"/>
+                                <line x1="12" y1="12" x2="52" y2="52" stroke="currentColor" stroke-width="2.5"/>
+                            </svg>
+                            <h2 class="empty-stage-title" data-i18n="conference.emptyStageTitle">ROOM ACTIVE</h2>
+                            <p class="empty-stage-body" data-i18n="conference.emptyStageBody">Waiting for participants or BWC streams...</p>
+                        </div>
+                        <div class="vc-pip-layer" hidden aria-label="Picture in picture"></div>
+                        <div class="vc-stage-body layout-speaker vc-mode-split vc-mode-speaker">
+                            <div class="vc-spotlight-pane">
+                                <div id="vc-stage-badge" class="vc-stage-badge" hidden></div>
+                                <div class="vc-spotlight-inner vc-drop-zone"></div>
+                            </div>
+                            <div class="vc-stage-divider" title="Drag to resize"></div>
+                            <div class="vc-gallery-pane vc-filmstrip">
+                                <div class="vc-gallery-grid vc-drop-zone"></div>
+                                <div class="vc-gallery-overflow" hidden></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="vc-meeting-dock" role="toolbar" aria-label="Meeting controls">
+                        <button type="button" class="btn btn-ghost btn-sm vc-dock-btn" id="vc-dock-mic" data-i18n="conference.dockMic">Mic</button>
+                        <button type="button" class="btn btn-ghost btn-sm vc-dock-btn" id="vc-dock-cam" data-i18n="conference.dockCam">Cam</button>
+                        <span class="vc-dock-sep" aria-hidden="true"></span>
+                        <div class="vc-dock-layout" role="group" aria-label="Layout">
+                            <button type="button" class="btn btn-ghost btn-sm vc-dock-btn active" data-vc-mission="speaker" data-i18n="conference.missionSpeaker">Speaker</button>
+                            <button type="button" class="btn btn-ghost btn-sm vc-dock-btn" data-vc-mission="operations" data-i18n="conference.missionOperations">Operations</button>
+                            <button type="button" class="btn btn-ghost btn-sm vc-dock-btn" data-vc-mission="gallery" data-i18n="conference.missionGallery">Gallery</button>
+                            <button type="button" class="btn btn-ghost btn-sm vc-dock-btn" data-vc-mission="focus" data-i18n="conference.missionFocus">Focus</button>
+                            <button type="button" class="btn btn-ghost btn-sm vc-dock-btn" data-vc-mission="dual" data-i18n="conference.missionDual">Dual</button>
+                        </div>
+                        <span class="vc-dock-sep" aria-hidden="true"></span>
+                        <div class="vc-dock-share" role="group" aria-label="Share">
+                            <button type="button" class="btn btn-ghost btn-sm vc-dock-btn" data-vc-action="screen" data-i18n="conference.layoutShareScreen">Share screen</button>
+                            <button type="button" class="btn btn-ghost btn-sm vc-dock-btn" data-vc-action="image" data-i18n="conference.layoutShareImage">Image</button>
+                            <button type="button" class="btn btn-ghost btn-sm vc-dock-btn" data-vc-action="video" data-i18n="conference.layoutShareVideo">Video</button>
+                            <button type="button" class="btn btn-ghost btn-sm vc-dock-btn" data-vc-action="document" data-i18n="conference.layoutShareDocument">Doc</button>
+                        </div>
+                        <span class="vc-dock-spacer"></span>
+                        <button type="button" class="btn btn-ghost btn-sm vc-stage-mute-all" id="vc-stage-mute-all" hidden data-i18n="conference.muteAll">Mute all</button>
                         <button type="button" class="btn btn-ghost btn-sm vc-stage-leave" id="vc-stage-leave" data-i18n="conference.leaveRoom">Leave</button>
                         <input type="file" id="vc-share-image-input" accept="image/*" hidden>
                         <input type="file" id="vc-share-video-input" accept="video/*" hidden>
                         <input type="file" id="vc-share-doc-input" accept=".pdf,application/pdf,image/*" hidden>
-                    </div>
-                    <div class="vc-pip-layer" hidden aria-label="Picture in picture"></div>
-                    <div class="vc-stage-body vc-mode-gallery">
-                        <div class="vc-spotlight-pane">
-                            <div class="vc-spotlight-header" data-i18n="conference.layoutSharedPane">Shared content</div>
-                            <div class="vc-spotlight-inner vc-drop-zone"></div>
-                        </div>
-                        <div class="vc-stage-divider" title="Drag to resize"></div>
-                        <div class="vc-gallery-pane">
-                            <div class="vc-gallery-header" data-i18n="conference.layoutGalleryPane">Participants</div>
-                            <div class="vc-gallery-grid vc-drop-zone"></div>
-                            <div class="vc-gallery-overflow" hidden></div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -8857,6 +9650,176 @@
                 <div id="ax-panel-weapon" class="ax-hub-panel" hidden>
                     <div class="ax-coming"><p data-i18n="analytics.weaponComing">Weapon detection &mdash; coming when licensed.</p></div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-view-tactical" class="enterprise-scope" hidden>
+        <div id="ax-panel-tactical" class="ax-tactical-shell">
+            <aside class="ax-tactical-rail" aria-label="Tactical tools">
+                <section class="enterprise-card ax-tactical-block">
+                    <h3 class="ax-tactical-block-title" data-i18n="tactical.incidentTitle">Incident</h3>
+                    <label class="ax-tactical-field" for="ax-tactical-incident-id">
+                        <span data-i18n="tactical.incidentId">Incident ID</span>
+                        <input type="text" id="ax-tactical-incident-id" class="form-control enterprise-form-control" autocomplete="off" maxlength="80">
+                    </label>
+                </section>
+                <!-- TACTICAL-PREPARE-OPERATE-MODE-FLOW-V1 — Prepare pins first, Operate grab later -->
+                <section class="enterprise-card ax-tactical-block" id="ax-tactical-prepare-block">
+                    <h3 class="ax-tactical-block-title" data-i18n="tactical.prepareTitle">PREPARE</h3>
+                    <p class="ax-tactical-empty" data-i18n="tactical.prepareHint">Floor plan · place pins · link cams</p>
+                    <!-- MOB-APPLY TACTICAL-BLUEPRINT-UI-V1 — Super Admin; dark chrome match Overwatch Heading/FOV -->
+                    <div class="ax-tactical-bp" id="ax-tactical-bp-block" hidden>
+                        <div class="ax-tactical-bp-title" data-i18n="tactical.bpTitle">Floor plan</div>
+                        <p class="ax-tactical-bp-hint" data-i18n="tactical.bpHint">JPEG / PNG / WebP · max 25 MB</p>
+                        <label class="ax-tactical-field" for="ax-tactical-bp-name">
+                            <span data-i18n="tactical.bpName">Plan name</span>
+                            <input type="text" id="ax-tactical-bp-name" class="form-control enterprise-form-control" autocomplete="off" maxlength="80" placeholder="e.g. Level 2">
+                        </label>
+                        <div class="ax-tactical-bp-actions">
+                            <label class="btn btn-ghost btn-sm ax-tactical-bp-file-btn" for="ax-tactical-bp-file">
+                                <span data-i18n="tactical.bpChoose">Choose file</span>
+                                <input type="file" id="ax-tactical-bp-file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden>
+                            </label>
+                            <button type="button" class="btn btn-action btn-sm" id="ax-tactical-bp-upload" disabled data-i18n="tactical.bpUpload">Upload</button>
+                        </div>
+                        <p id="ax-tactical-bp-file-label" class="ax-tactical-bp-file-label" aria-live="polite"></p>
+                        <p id="ax-tactical-bp-status" class="ax-tactical-bp-status" role="status"></p>
+                        <label class="ax-tactical-field" for="ax-tactical-bp-select">
+                            <span data-i18n="tactical.bpSelect">Saved plans</span>
+                            <select id="ax-tactical-bp-select" class="form-control enterprise-form-control">
+                                <option value="">—</option>
+                            </select>
+                        </label>
+                        <div class="ax-tactical-bp-actions">
+                            <button type="button" class="btn btn-action btn-sm" id="ax-tactical-bp-show" disabled data-i18n="tactical.bpShow">Show on map</button>
+                            <button type="button" class="btn btn-ghost btn-sm" id="ax-tactical-bp-clear" disabled data-i18n="tactical.bpClear" title="Take plan off the map (keeps saved plan)">Clear from map</button>
+                            <button type="button" class="btn btn-ghost btn-sm" id="ax-tactical-bp-remove" disabled data-i18n="tactical.bpRemove" title="Delete plan from this site">Remove plan</button>
+                            <button type="button" class="btn btn-ghost btn-sm" id="ax-tactical-bp-adjust" disabled data-i18n="tactical.bpAdjust">Adjust</button>
+                        </div>
+                        <div class="ax-tactical-bp-adjust-tools" id="ax-tactical-bp-adjust-tools" hidden>
+                            <p class="ax-tactical-bp-adjust-hint" data-i18n="tactical.bpAdjustHint">Drag plan · pull corners to size · Save placement</p>
+                            <label class="ax-tactical-ow-slider-field" for="ax-tactical-bp-opacity">
+                                <span class="ax-tactical-ow-slider-label"><span data-i18n="tactical.bpOpacity">Opacity</span> <strong id="ax-tactical-bp-opacity-val">55%</strong></span>
+                                <input type="range" id="ax-tactical-bp-opacity" min="20" max="100" step="1" value="55" aria-valuemin="20" aria-valuemax="100">
+                            </label>
+                            <div class="ax-tactical-bp-actions">
+                                <button type="button" class="btn btn-action btn-sm" id="ax-tactical-bp-save-place" disabled data-i18n="tactical.bpSavePlace">Save placement</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ax-tactical-poi-btns" id="ax-tactical-poi-block">
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-tactical-poi-place" data-i18n="tactical.poiPlace">Place POI</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-tactical-poi-delete" disabled data-i18n="tactical.poiDelete">Delete POI</button>
+                    </div>
+                    <p id="ax-tactical-poi-selected-hint" class="ax-tactical-poi-selected-hint" hidden role="status"></p>
+                    <p class="ax-tactical-poi-kinds-hint" data-i18n="tactical.poiKindsHint">BWC pins follow GPS · prepared / fixed pins stay until you drag or delete</p>
+                    <label class="ax-tactical-field" for="ax-tactical-poi-name">
+                        <span data-i18n="tactical.poiName">Name</span>
+                        <input type="text" id="ax-tactical-poi-name" class="form-control enterprise-form-control" autocomplete="off" maxlength="80" disabled>
+                    </label>
+                    <label class="ax-tactical-field" for="ax-tactical-poi-fixed">
+                        <span data-i18n="tactical.poiFixedCam">Linked fixed cam</span>
+                        <select id="ax-tactical-poi-fixed" class="form-control enterprise-form-control" disabled>
+                            <option value="" data-i18n="tactical.poiFixedNone">None</option>
+                        </select>
+                    </label>
+                    <button type="button" class="btn btn-action btn-sm ax-tactical-poi-open" id="ax-tactical-poi-open" disabled data-i18n="tactical.poiOpen">Open linked</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="ax-tactical-ar-open" data-i18n="tactical.arOpenSplit">Overwatch (AR)</button>
+                    <p id="ax-tactical-pois-empty" class="ax-tactical-empty" data-i18n="tactical.poiNone">No POIs</p>
+                    <ul id="ax-tactical-pois-list" class="ax-tactical-pois-list" hidden></ul>
+                </section>
+                <section class="enterprise-card ax-tactical-block" id="ax-tactical-operate-block">
+                    <h3 class="ax-tactical-block-title" data-i18n="tactical.operateTitle">OPERATE</h3>
+                    <p class="ax-tactical-empty" data-i18n="tactical.operateHint">During ops · select zone · pin video in zone (max 8)</p>
+                    <div class="ax-tactical-operate-btns">
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-tactical-grab-circle" data-i18n="tactical.grabCircle">Select zone</button>
+                        <button type="button" class="btn btn-action btn-sm" id="ax-tactical-open-in-circle" disabled data-i18n="tactical.openGrabbed" data-i18n-title="tactical.openGrabbedHint" title="Open POIs / BWC in the select zone on pins (max 8; stacked GPS fans L/R/T/B)">Open cameras</button>
+                    </div>
+                    <div id="ax-tactical-grab-cycle" class="ax-tactical-grab-cycle" hidden>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-tactical-grab-prev" data-i18n="tactical.grabPrev">Prev</button>
+                        <span id="ax-tactical-grab-cycle-label" class="ax-tactical-grab-cycle-label"></span>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-tactical-grab-next" data-i18n="tactical.grabNext">Next</button>
+                    </div>
+                </section>
+                <section class="enterprise-card ax-tactical-block">
+                    <h3 class="ax-tactical-block-title" data-i18n="tactical.zonesTitle">Zones</h3>
+                    <p id="ax-tactical-zones-empty" class="ax-tactical-empty" data-i18n="tactical.noZones">No zones</p>
+                    <ul id="ax-tactical-zones-list" class="ax-tactical-zones-list" hidden></ul>
+                    <div class="ax-tactical-draw-btns">
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-tactical-draw-polygon" data-i18n="tactical.drawPolygon">Polygon</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-tactical-draw-circle" data-i18n="tactical.zoneCircle">Zone circle</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-tactical-draw-edit" data-i18n="tactical.drawEdit">Edit</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-tactical-draw-delete" data-i18n="tactical.drawDelete">Delete</button>
+                    </div>
+                    <button type="button" class="btn btn-action btn-sm ax-tactical-save" id="ax-tactical-save-zone" disabled data-i18n="tactical.saveZone">Save zone</button>
+                </section>
+                <p id="ax-tactical-status" class="ax-tactical-status" data-i18n="tactical.statusIdle">Idle — drag map to move</p>
+            </aside>
+            <div class="ax-tactical-stage" id="ax-tactical-stage">
+                <div class="ax-tactical-map-wrap">
+                    <div id="ax-tactical-mode-banner" class="ax-tactical-mode-banner" data-mode="idle" data-i18n="tactical.bannerIdle">Idle — drag map to move</div>
+                    <div id="ax-tactical-pin-empty" class="ax-tactical-pin-empty" hidden role="status" data-i18n="tactical.pinMountEmptyMap">No GPS units — Place POI or wait for BWC GPS</div>
+                    <div id="ax-tactical-map" role="application" aria-label="Tactical map"></div>
+                </div>
+                <aside class="ax-tactical-ar-pane" id="ax-tactical-ar-pane" hidden aria-label="Overwatch">
+                    <div class="ax-tactical-ar-toolbar">
+                        <label class="ax-tactical-ar-field" for="ax-tactical-ar-cam">
+                            <span data-i18n="tactical.arCamera">Overview camera</span>
+                            <select id="ax-tactical-ar-cam" class="form-control enterprise-form-control"></select>
+                        </label>
+                        <label class="ax-tactical-ar-field" for="ax-tactical-ar-preset">
+                            <span data-i18n="tactical.arPreset">Saved view</span>
+                            <select id="ax-tactical-ar-preset" class="form-control enterprise-form-control" disabled>
+                                <option value="">—</option>
+                            </select>
+                        </label>
+                        <button type="button" class="btn btn-action btn-sm" id="ax-tactical-ar-lock" disabled data-i18n="tactical.arLockPreset">Use this view</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-tactical-ar-live" disabled data-i18n="tactical.arStartLive">Live</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-tactical-ar-close" data-i18n="tactical.arClose">Close Overwatch</button>
+                        <span id="ax-tactical-ar-status" class="ax-tactical-ar-status" data-i18n="tactical.arStatusIdle">Overwatch idle — use a saved view to show markers</span>
+                    </div>
+                    <div class="ax-tactical-ow-save-view" id="ax-tactical-ow-save-view">
+                        <div class="ax-tactical-ow-save-view-title" data-i18n="tactical.owSaveView">Save View</div>
+                        <label class="ax-tactical-ar-field" for="ax-tactical-ow-view-name">
+                            <span data-i18n="tactical.owViewName">View name</span>
+                            <input type="text" id="ax-tactical-ow-view-name" class="form-control enterprise-form-control" maxlength="80" placeholder="e.g. North gate" autocomplete="off">
+                        </label>
+                        <label class="ax-tactical-ow-slider-field" for="ax-tactical-ow-azimuth-slider">
+                            <span class="ax-tactical-ow-slider-label"><span data-i18n="tactical.owAzimuth">Heading</span> <strong id="ax-tactical-ow-azimuth-val">0°</strong></span>
+                            <input type="range" id="ax-tactical-ow-azimuth-slider" min="0" max="359" step="1" value="0" aria-valuemin="0" aria-valuemax="359">
+                        </label>
+                        <label class="ax-tactical-ow-slider-field" for="ax-tactical-ow-fov-slider">
+                            <span class="ax-tactical-ow-slider-label"><span data-i18n="tactical.owFov">FOV</span> <strong id="ax-tactical-ow-fov-val">60°</strong></span>
+                            <input type="range" id="ax-tactical-ow-fov-slider" min="5" max="170" step="1" value="60" aria-valuemin="5" aria-valuemax="170">
+                        </label>
+                        <!-- Hidden mirrors for verify / programmatic sync -->
+                        <input type="hidden" id="ax-tactical-ow-azimuth" value="0">
+                        <input type="hidden" id="ax-tactical-ow-fov" value="60">
+                    </div>
+                    <div class="ax-tactical-ar-video-wrap">
+                        <div id="ax-tactical-ar-video-stage" class="ax-tactical-ar-video-stage"></div>
+                        <div id="ax-tactical-ar-glass" class="ax-tactical-ar-glass ar-glass" aria-hidden="true"></div>
+                        <div id="ax-tactical-ar-bubbles" class="ax-tactical-ar-bubbles" hidden></div>
+                        <div id="ax-tactical-ow-manual-banner" class="ax-tactical-ow-manual-banner" hidden role="status">
+                            Manual Control Active - Overlays Suspended. Select a View to restore.
+                        </div>
+                        <div id="ax-tactical-ow-compass" class="ax-tactical-ow-compass" hidden aria-label="Overwatch compass">
+                            <div class="ax-tactical-ow-compass-ring" aria-hidden="true">
+                                <span class="n">N</span><span class="e">E</span><span class="s">S</span><span class="w">W</span>
+                            </div>
+                            <div id="ax-tactical-ow-compass-needle" class="ax-tactical-ow-compass-needle" aria-hidden="true"></div>
+                            <div id="ax-tactical-ow-compass-az" class="ax-tactical-ow-compass-az">0°</div>
+                        </div>
+                    </div>
+                    <div class="ax-tactical-ar-ptz" id="ax-tactical-ar-ptz" hidden>
+                        <button type="button" data-ar-ptz="up" aria-label="Tilt up">▲</button>
+                        <button type="button" data-ar-ptz="left" aria-label="Pan left">◀</button>
+                        <button type="button" data-ar-ptz="stop" aria-label="Stop">●</button>
+                        <button type="button" data-ar-ptz="right" aria-label="Pan right">▶</button>
+                        <button type="button" data-ar-ptz="down" aria-label="Tilt down">▼</button>
+                    </div>
+                </aside>
             </div>
         </div>
     </div>
@@ -9487,21 +10450,22 @@
     <!-- mob-me8-restore-8wc-v2-ops: v2 inline ops boot + ME8 enterprise glue; VC via vc-lazy -->
     <script src="/vendor/jsmpeg.min.js"></script>
     <script src="/vendor/mpegts.min.js"></script>
-    <script src="/js/live-player-factory.js?v=20260723-same-origin-media-proxy-v1"></script>
+    <script src="/js/live-player-factory.js?v=20260723-wvp-handoff-stop-ui-parity-v1"></script>
     <script src="/js/dashboard-ws-url.js?v=20260723-wss-video-audio-sockets-v1"></script>
     <script src="/js/i18n.js?v=20260723-reverse-proxy-ui-polish-v1"></script>
     <script src="/js/session-bus.js?v=20260702-settings-session-sync"></script>
+    <script src="/js/license-entitlements-ui.js?v=20260726-license-tactical-basic-command-v1"></script>
     <script src="/js/mobility-map-gis.js?v=20260709-place-search"></script>
     <script src="/js/map-offline-tiles.js?v=20260628-cn-offline"></script>
     <script src="/js/display-names.js"></script>
     <script src="/js/dispatch-groups-admin.js?v=20260609-groups-ux"></script>
     <script src="/js/firmware-ota-admin.js?v=20260609-ota-copy"></script>
     <script src="/js/auth-form-busy.js?v=20260702-admin-action-bus"></script>
-    <script src="/js/admin-action-bus.js?v=20260702-admin-action-bus"></script>
+    <script src="/js/admin-action-bus.js?v=20260725-sos-open-folder-no-blocking-alert-v1"></script>
     <script src="/js/auth-reverify.js?v=20260702-admin-action-bus"></script>
     <script src="/js/password-policy-ui.js?v=20260708-pwd12"></script>
     <script src="/js/tab-lifecycle.js?v=20260702-restore-8wc-v2"></script>
-    <script src="/js/server-setup.js?v=20260723-reverse-proxy-ui-polish-v1"></script>
+    <script src="/js/server-setup.js?v=20260726-dynamic-frontend-ui-v1"></script>
     <script src="/js/help-about.js?v=20260723-help-about-center-v1"></script>
     <script src="/js/platform-smtp.js?v=20260706-smtp-settings"></script>
     <script src="/js/settings-hub.js?v=20260712-health-plain"></script>
@@ -9533,15 +10497,21 @@
     <script src="/js/evidence-hub.js?v=20260723-redacted-exports-empty-hint-v1"></script>
     <script src="/js/system-health-plain.js?v=20260712-health-plain"></script>
     <script src="/js/missed-activity.js?v=20260712-alerts-copy"></script>
-    <script src="/js/evidence-manager.js?v=20260723-destroy-scroll-lock-v1"></script>
+    <script src="/js/evidence-manager.js?v=20260723-tactical-tab-shell-ui-v1"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260723-ptt-visual-alert-fullstack-v1"></script>
+    <script src="/js/video-wall.js?v=20260725-server-viewer-only-v1"></script>
     <script src="/js/video-matrix.js?v=20260721-ops10-v1"></script>
-    <script src="/js/fleet-ui.js?v=20260723-dock-bay-title-encoding-v1"></script>
+    <script src="/js/fleet-ui.js?v=20260724-user-circle-batch-open-v1"></script>
     <script src="/js/map-popout-sync.js?v=20260612-mirror"></script>
     <script src="/js/voice-alerts.js?v=20260630-geofence-voice"></script>
     <script src="/vendor/leaflet/leaflet.js?v=20260701-vendor-local"></script>
+    <script src="/vendor/leaflet-draw/leaflet.draw.js?v=20260724-tactical-leaflet-draw-v1"></script>
     <script src="/vendor/markercluster/leaflet.markercluster.js?v=20260701-vendor-local"></script>
+    <script src="/js/tactical-shell.js?v=20260726-tactical-blueprint-ui-v1"></script>
+    <script src="/js/tactical-poi.js?v=20260726-poi-drag-delete-clarity-v1"></script>
+    <script src="/js/tactical-blueprint-ui.js?v=20260726-tactical-blueprint-zero-raw-v1"></script>
+    <script src="/js/tactical-ar.js?v=20260725-tactical-overwatch-save-view-sync-v1"></script>
+    <script src="/js/tactical-overwatch.js?v=20260725-tactical-overwatch-save-view-sync-v1"></script>
     <script src="/js/map-pin-layer.js?v=20260722-cluster-bubble-restore"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/cw-display-room.js?v=20260712-launch-all-profile"></script>
@@ -16903,6 +17873,14 @@
             }).catch(function () { alert('Download failed'); });
         }
 
+        /** Folder-open feedback must never use alert() — it freezes the tab and can hide a new SOS. */
+        function notifyFolderOpenNonBlocking(msg) {
+            if (!msg) return;
+            if (window.AdminActionBus && typeof AdminActionBus.toast === 'function') {
+                try { AdminActionBus.toast(msg, 7000); } catch (_) { /* ignore */ }
+            }
+        }
+
         function openSosIncidentFolder(incidentId) {
             if (!incidentId) return;
             fetch('/api/sos-incidents/open', {
@@ -16911,12 +17889,12 @@
                 body: JSON.stringify({ incidentId: incidentId }),
             }).then(function (r) { return r.json(); }).then(function (data) {
                 if (data.ok) {
-                    alert(dashboardTr('sos.alert.openedLocal', { path: data.path || '' }));
+                    notifyFolderOpenNonBlocking(dashboardTr('sos.alert.openedLocal', { path: data.path || '' }));
                     return;
                 }
-                alert(dashboardTr('sos.alert.openFolderManual', { path: data.path || '' }));
+                notifyFolderOpenNonBlocking(dashboardTr('sos.alert.openFolderManual', { path: data.path || '' }));
             }).catch(function () {
-                alert(dashboardTr('sos.alert.openFolderFailed'));
+                notifyFolderOpenNonBlocking(dashboardTr('sos.alert.openFolderFailed'));
             });
         }
 
@@ -17514,12 +18492,12 @@
                 var res = await fetch('/api/open-folder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folder: folder }) });
                 var data = await res.json();
                 if (data.ok) {
-                    alert(dashboardTr('storage.alert.openedLocal', { path: data.path || '' }));
+                    notifyFolderOpenNonBlocking(dashboardTr('storage.alert.openedLocal', { path: data.path || '' }));
                     return;
                 }
-                alert(dashboardTr('storage.alert.openManual', { path: data.path || '' }));
+                notifyFolderOpenNonBlocking(dashboardTr('storage.alert.openManual', { path: data.path || '' }));
             } catch (_) {
-                alert(dashboardTr('storage.alert.openFailed'));
+                notifyFolderOpenNonBlocking(dashboardTr('storage.alert.openFailed'));
             }
         }
 
@@ -17626,8 +18604,8 @@
             });
         })();
     </script>
-    <script defer src="/js/vc-lazy.js?v=20260723-enterprise-ds-v1"></script>
-    <script defer src="/js/fixed-cams-ui.js?v=20260721-map-picker-icon-legend-v1"></script>
+    <script defer src="/js/vc-lazy.js?v=20260724-vc-live-stage-restore-escape-v1"></script>
+    <script defer src="/js/fixed-cams-ui.js?v=20260725-onvif-harden-profile-m-v1"></script>
 
 <!-- Fixed Cameras dialog &mdash; opens from Settings card, fully self-contained, no fleet-ui.js dependency -->
 <dialog id="fixed-cams-dlg" aria-labelledby="fc-dlg-title">
@@ -17699,13 +18677,17 @@
         <div id="fc-onvif-user-row" hidden><label>Username <input id="fc-f-ouser" type="text" placeholder="admin" autocomplete="off"></label></div>
         <div id="fc-onvif-pass-row" hidden><label>Password <input id="fc-f-opass" type="password" autocomplete="new-password"></label></div>
         <div id="fc-onvif-path-row" hidden><label>Device path <input id="fc-f-opath" type="text" value="/onvif/device_service"></label></div>
-        <div id="fc-onvif-tp-row" hidden>
-          <label>RTSP transport
-            <select id="fc-f-otp"><option value="tcp">TCP</option><option value="udp">UDP</option></select>
-          </label>
-        </div>
 
         <div class="full" id="fc-rtsp-row" hidden><label>RTSP stream URL * <input id="fc-f-rtsp" type="text" placeholder="rtsp://192.168.1.51/stream1" autocomplete="off"></label></div>
+
+        <div id="fc-transport-row" hidden>
+          <label>Stream transport (RTSP)
+            <select id="fc-f-otp">
+              <option value="tcp">TCP (recommended over VPN)</option>
+              <option value="udp">UDP</option>
+            </select>
+          </label>
+        </div>
 
         <div>
           <label>PTZ capable
@@ -17735,16 +18717,13 @@
           <tr><td>Lat</td><td>Yes</td><td>Latitude (e.g. 3.1575)</td></tr>
           <tr><td>Lng</td><td>Yes</td><td>Longitude (e.g. 101.7115)</td></tr>
           <tr><td>Zone</td><td>No</td><td>Area name (e.g. KL Central)</td></tr>
-          <tr><td>MapIcon</td><td>No</td><td>fixed, dome, ptz, traffic, or building</td></tr>
-          <tr><td>StreamSource</td><td>No</td><td>onvif, rtsp, or leave blank</td></tr>
-          <tr><td>OnvifHost</td><td>If ONVIF</td><td>Camera IP address</td></tr>
-          <tr><td>OnvifPort</td><td>If ONVIF</td><td>Camera web port &mdash; usually 80</td></tr>
-          <tr><td>OnvifUser</td><td>If ONVIF</td><td>Camera admin username</td></tr>
-          <tr><td>OnvifPassword</td><td>If ONVIF</td><td>Camera admin password</td></tr>
-          <tr><td>StreamUrl</td><td>If RTSP</td><td>Full RTSP address</td></tr>
-          <tr><td>PtzEnabled</td><td>No</td><td>true or false</td></tr>
-          <tr><td>Enabled</td><td>No</td><td>true or false &mdash; defaults to true</td></tr>
-          <tr><td>Notes</td><td>No</td><td>Internal note, not shown to officers</td></tr>
+          <tr><td>StreamUrl</td><td>If RTSP</td><td>Full RTSP address (or leave blank for ONVIF discover)</td></tr>
+          <tr><td>OnvifIp</td><td>If ONVIF</td><td>Camera IP address</td></tr>
+          <tr><td>OnvifPort</td><td>If ONVIF</td><td>Usually 80</td></tr>
+          <tr><td>OnvifUsername</td><td>If ONVIF</td><td>Camera admin username</td></tr>
+          <tr><td>OnvifPassword</td><td>If ONVIF</td><td>Stored encrypted in PostgreSQL</td></tr>
+          <tr><td>PtzCapable</td><td>No</td><td>true or false</td></tr>
+          <tr><td>StreamTransport</td><td>No</td><td>tcp (default) or udp</td></tr>
         </tbody>
       </table>
       <textarea id="fc-csv-paste" class="fc-csv-paste" rows="5" placeholder="Paste CSV rows here (first row must be the column headers listed above)&hellip;"></textarea>

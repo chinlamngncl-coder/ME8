@@ -1,0 +1,19 @@
+# CI / docker build context — keep secrets and lab junk out of images
+.git
+.github
+.cursor
+baseline
+bench
+docs
+tools
+vendor
+ship-build-test
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.enterprise.example
+**/license-private.pem
+**/node_modules
+storage/
+pack
+android

@@ -26,6 +26,7 @@ const { multerTempFileName } = require('./lib/secureId');
 const WebSocket = require('ws');
 
 const hdaMsg = require('./lib/hdaMessageProtocol');
+const msgWssAuth = require('./lib/msgWssAuth');
 
 const mediaSession = require('./lib/mediaSession');
 const liveStreamPool = require('./lib/liveStreamPool');
@@ -44,10 +45,11 @@ const facePlateIngest = require('./lib/facePlateIngest');
 const ftpIngest       = require('./lib/ftpIngest');
 const fixedCamRegistry = require('./lib/fixedCamRegistry');
 const fixedCamOnvif = require('./lib/fixedCamOnvif');
-const { Cam: OnvifCam } = require('onvif/promises');
+const fixedCamCatalogPg = require('./lib/fixedCamCatalogPg');
 const evidenceCrypto   = require('./lib/evidenceCrypto');
 const evidenceUploadSafeName = require('./lib/evidenceUploadSafeName');
 const evidenceIngestGate = require('./lib/evidenceIngestGate');
+const imageDimensions = require('./lib/imageDimensions');
 const multer = require('multer');
 const log = require('./lib/fleetLog');
 const { installFatalProcessPolicy } = require('./lib/fatalProcessPolicy');
@@ -89,7 +91,12 @@ const scalePrep = require('./lib/scalePrep');
 const staticCache = require('./lib/staticCache');
 const scalePrepCfg = scalePrep.loadScalePrepEnv();
 const platformLicense = require('./lib/platformLicense');
+const licenseManager = require('./lib/licenseManager');
+const licenseEntitlementsMw = require('./lib/licenseEntitlementsMw');
+const tenantMiddleware = require('./lib/tenantMiddleware');
+const tenantIo = require('./lib/tenantIo');
 const tenantProfile = require('./lib/tenantProfile');
+const deploymentMode = require('./lib/deploymentMode');
 const bwcNetwork = require('./lib/bwcNetwork');
 const siteDb = require('./lib/siteDb');
 const enterpriseEnv = require('./lib/enterpriseEnv');
@@ -310,6 +317,7 @@ function applyLabSecurityRuntime() {
     return lab;
 }
 platformLicense.init(STORAGE_DIR);
+licenseManager.init({ storageDir: STORAGE_DIR, baseDir: BASE_DIR });
 sosIncidents.init(STORAGE_DIR);
 liveCapture.wireSosIncidents(sosIncidents);
 centreLlm.init(STORAGE_DIR);
@@ -360,6 +368,10 @@ const HTTP_PORT = parseInt(process.env.FM_HTTP_PORT || process.env.PORT || '3888
 const SOS_LEDGER_PIN = (process.env.FM_SOS_LEDGER_PIN || '').trim();
 const HTTPS_UPLOAD_TOKEN = (process.env.FM_HTTPS_UPLOAD_TOKEN || '').trim();
 const BWC_COMPANION_TOKEN = (process.env.FM_BWC_COMPANION_TOKEN || '').trim();
+/** SEC 1.5 — HMAC secret for msgWss device tokens. Ship: set a long random value. */
+const MSGWSS_HMAC_SECRET = (process.env.FM_MSGWSS_HMAC_SECRET || '').trim();
+/** SEC 1.5 — require ?token= on msgWss (default on). Lab escape: FM_MSGWSS_REQUIRE_TOKEN=0 */
+const MSGWSS_REQUIRE_TOKEN = !/^(0|false|off|no)$/i.test(String(process.env.FM_MSGWSS_REQUIRE_TOKEN != null ? process.env.FM_MSGWSS_REQUIRE_TOKEN : '1').trim());
 const VIDEO_WS_PORT = parseInt(process.env.FM_VIDEO_WS_PORT || String(HTTP_PORT + 1), 10);
 const AUDIO_WS_PORT = parseInt(process.env.FM_AUDIO_WS_PORT || String(HTTP_PORT + 2), 10);
 const PTT_ENABLED = process.env.FM_PTT_ENABLED === '1';
@@ -621,6 +633,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
     cookie: true,
 });
+tenantIo.installTenantIo(io);
 
 /** DASHBOARD-HTTPS-LAN-V1 — optional second listener; HTTP stays for lab fallback. */
 let httpsServer = null;
@@ -683,6 +696,7 @@ io.use((socket, next) => {
     if (dashboardAuth.isValidSession(cookies.fm_session)) return next();
     next(new Error('Unauthorized'));
 });
+io.use(tenantMiddleware.socketTenantGuard);
 
 const dashboardMediaWsBind = require('./lib/dashboardMediaWsBind');
 
@@ -873,6 +887,22 @@ function isKnownMsgWssDevice(camId) {
     return fleetRegistry.getDashboardFleet().some((d) => d && d.id === camId);
 }
 
+function getMsgWssDevicePassword(camId) {
+    const data = loadBwcDevices();
+    const row = bwcDevices.findById(data, camId);
+    return row ? String(row.password || '') : '';
+}
+
+function buildMsgWssDeviceUrl(camId) {
+    return msgWssAuth.buildDeviceUrl({
+        host: HOST,
+        port: MSG_WS_PORT,
+        camId,
+        devicePassword: getMsgWssDevicePassword(camId),
+        serverSecret: MSGWSS_HMAC_SECRET,
+    });
+}
+
 function sendMsgLoginSuccess(ws) {
 
     ws.send(hdaMsg.buildLoginSuccess());
@@ -900,6 +930,25 @@ msgWss.on('connection', (ws, req) => {
     if (!isKnownMsgWssDevice(urlCamId)) {
         log.messaging.warn('msgWss reject: unknown camId', { peer, urlCamId });
         ws.close(4002, 'unknown device');
+        return;
+    }
+
+    const urlToken = msgWssAuth.extractTokenFromUrl(rawUrl);
+    const tokenCheck = msgWssAuth.verifyConnectionToken({
+        requireToken: MSGWSS_REQUIRE_TOKEN,
+        providedToken: urlToken,
+        camId: urlCamId,
+        devicePassword: getMsgWssDevicePassword(urlCamId),
+        serverSecret: MSGWSS_HMAC_SECRET,
+    });
+    if (!tokenCheck.ok) {
+        log.messaging.warn('msgWss reject: unauthorized', {
+            peer,
+            urlCamId,
+            reason: tokenCheck.reason || 'bad_token',
+        });
+        // 4003 — distinct from 4001 camId in use (SEC Disc)
+        ws.close(4003, 'Unauthorized');
         return;
     }
 
@@ -1050,7 +1099,31 @@ msgWss.on('connection', (ws, req) => {
 
     ws.on('error', (err) => log.messaging.err('socket error', err.message));
 });
+
+/** Drop incomplete msgWss chunk buffers that stopped receiving chunks (memory leak / DoS). */
+const MSG_REASSEMBLER_TTL_MS = 60 * 1000;
+const MSG_REASSEMBLER_PRUNE_MS = 15 * 1000;
+const msgReassemblerPruneTimer = setInterval(() => {
+    try {
+        for (const ws of activeCameraSockets.values()) {
+            if (!ws || !ws._reassembler || typeof ws._reassembler.pruneStaleBuffers !== 'function') continue;
+            const pruned = ws._reassembler.pruneStaleBuffers(MSG_REASSEMBLER_TTL_MS);
+            if (pruned > 0) {
+                log.messaging.info('reassembler pruned stale', {
+                    camId: ws.registeredCamId || null,
+                    pruned,
+                    ttlMs: MSG_REASSEMBLER_TTL_MS,
+                });
+            }
+        }
+    } catch (err) {
+        log.messaging.warn('reassembler prune failed', { message: err && err.message });
+    }
+}, MSG_REASSEMBLER_PRUNE_MS);
+if (typeof msgReassemblerPruneTimer.unref === 'function') msgReassemblerPruneTimer.unref();
+
 app.use(express.json({ limit: '2mb' }));
+app.use(tenantMiddleware.attachTenantContext);
 
 // ── Security headers ──────────────────────────────────────────────────────────
 app.disable('x-powered-by');
@@ -2014,6 +2087,7 @@ app.post('/api/bwc-companion/telemetry', requireBwcCompanionToken, handleBwcComp
 })();
 
 app.use(dashboardAuth.requireDashboardAuth);
+app.use('/api', tenantMiddleware.requireValidLicenseWhenEnforced);
 
 app.get('/api/gis/geocode', async (req, res) => {
     try {
@@ -2218,13 +2292,14 @@ app.post('/api/sos-incidents/open', (req, res) => {
             return res.status(404).json(opErr("Incident folder not found"));
         }
         if (process.platform === 'win32') {
+            /* SEC Phase 1.2 — no shell launcher; explorer argv only. */
             spawn('explorer.exe', [folderPath], { detached: true, stdio: 'ignore' }).unref();
             const reportPath = sosIncidents.getIncidentReportPath(incidentId);
-            if (reportPath) {
-                spawn('cmd.exe', ['/c', 'start', '', reportPath], { detached: true, stdio: 'ignore' }).unref();
+            if (reportPath && fs.existsSync(reportPath)) {
+                spawn('explorer.exe', [reportPath], { detached: true, stdio: 'ignore' }).unref();
             }
             log.web.info('opened sos incident folder', { incidentId, path: folderPath });
-            return res.json({ ok: true, path: folderPath, report: reportPath });
+            return res.json({ ok: true, path: folderPath, report: reportPath || null });
         }
         res.json({ ok: false, path: folderPath, hint: 'Open this path on the server PC' });
     } catch (err) {
@@ -2526,7 +2601,15 @@ app.get('/api/bwc-devices', (req, res) => {
     res.json(filterBwcDevicesForSession(session, enrichBwcDevicesForApi(loadBwcDevices())));
 });
 
-app.post('/api/bwc-devices', (req, res) => {
+app.post('/api/bwc-devices', licenseEntitlementsMw.checkBwcCapacity({
+    totalCountFrom: function (req) {
+        const body = req.body || {};
+        const incomingRaw = Array.isArray(body.devices) ? body.devices : [];
+        return incomingRaw.filter(function (d) {
+            return d && isBwcCameraId(d.deviceId);
+        }).length;
+    },
+}), (req, res) => {
     const body = req.body || {};
     const incomingRaw = Array.isArray(body.devices) ? body.devices : [];
     const incoming = incomingRaw.filter((d) => d && isBwcCameraId(d.deviceId));
@@ -2573,11 +2656,12 @@ function companionTokenFromRequest(req) {
     return String((req.headers && req.headers['x-bwc-companion-token']) || '').trim();
 }
 
+/** SEC Phase 1.1 — hash both sides so timingSafeEqual always sees equal-length digests. */
 function secureTokenEqual(actual, expected) {
     if (!actual || !expected) return false;
-    const a = Buffer.from(String(actual), 'utf8');
-    const b = Buffer.from(String(expected), 'utf8');
-    return a.length === b.length && crypto.timingSafeEqual(a, b);
+    const a = crypto.createHash('sha256').update(String(actual), 'utf8').digest();
+    const b = crypto.createHash('sha256').update(String(expected), 'utf8').digest();
+    return crypto.timingSafeEqual(a, b);
 }
 
 function requireBwcCompanionToken(req, res, next) {
@@ -3550,12 +3634,16 @@ app.get('/api/server-settings', (req, res) => {
     const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
     const canManage = session && dashboardAuth.roleCanManageServer(session.role);
     const runtime = runtimePortSnapshot();
+    const saas = deploymentMode.publicPayload({ settings: settings });
     res.json({
         settings: serverSettings.publicView(settings),
         bwc: serverSettings.bwcChecklist(settings),
         firewall: serverSettings.firewallChecklist(settings, runtime),
         runtime,
         deploymentHint: serverSettings.deploymentHints(settings.deployment.mode),
+        deploymentMode: saas.deploymentMode,
+        DEPLOYMENT_MODE: saas.DEPLOYMENT_MODE,
+        saasDeployment: saas,
         docking: {
             ftpRoot: currentFtpRoot(),
             ftpLabel: storagePaths.displayPath(currentFtpRoot(), BASE_DIR),
@@ -4841,6 +4929,7 @@ app.get('/api/platform/status', async (req, res) => {
     const bwcData = loadBwcDevices();
     const users = dashboardAuth.listUsersPublic();
     const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+    const saas = deploymentMode.publicPayload({ settings: settings });
     res.json({
         ok: true,
         tenant: {
@@ -4852,6 +4941,8 @@ app.get('/api/platform/status', async (req, res) => {
             networkAccess: settings.deployment.networkAccess,
             plan: profile.plan,
         },
+        saasDeployment: saas,
+        DEPLOYMENT_MODE: saas.DEPLOYMENT_MODE,
         limits: profile.limits,
         usage: {
             bwcDevices: bwcData.devices.length,
@@ -4879,6 +4970,16 @@ app.get('/api/platform/status', async (req, res) => {
 // License feature flags — authenticated users only; returns plain booleans (no env keys exposed).
 app.get('/api/license-features', dashboardAuth.requireDashboardAuth, (req, res) => {
     res.json({ ok: true, features: licenseFeatures.getFeatures() });
+});
+
+/* Task 3.4 — air-gap license.lic entitlements (public-safe; no signature / private key) */
+app.get('/api/license/entitlements', dashboardAuth.requireDashboardAuth, (req, res) => {
+    try {
+        const entitlements = licenseManager.getPublicEntitlements();
+        res.json({ ok: true, entitlements: entitlements });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
 });
 
 app.get('/api/users/me', (req, res) => {
@@ -5699,7 +5800,6 @@ async function fixedCamResolvedRtspUrl(cam) {
 
 const fixedCamZlmProxies = new Map();
 const fixedCamZlmStarting = new Map();
-const fixedCamPtzSessions = new Map();
 
 function fixedCamZlmStreamId(id) {
     return ('fixed_' + String(id || '').trim()).replace(/[^\w.-]/g, '_');
@@ -5750,7 +5850,7 @@ async function startFixedCamZlmProxy(camera, owner) {
     const starting = (async function () {
         const resolved = await fixedCamResolvedRtspUrl(camera);
         const streamId = fixedCamZlmStreamId(id);
-        const transport = String(camera.onvif && camera.onvif.rtspTransport || 'tcp').toLowerCase();
+        const transport = fixedCamOnvif.resolveStreamTransport(camera);
         const result = await fixedCamZlmApi('/index/api/addStreamProxy', {
             vhost: process.env.FM_ZLM_VHOST || '__defaultVhost__',
             app: process.env.FM_ZLM_APP || 'live',
@@ -5830,27 +5930,7 @@ const fixedCamZlmOwnerSweep = setInterval(function () {
 if (typeof fixedCamZlmOwnerSweep.unref === 'function') fixedCamZlmOwnerSweep.unref();
 
 async function fixedCamPtzSession(camera) {
-    const cached = fixedCamPtzSessions.get(camera.id);
-    if (cached && cached.client) return cached;
-    const cfg = camera.onvif || {};
-    if (!cfg.host) throw new Error('ONVIF host is not configured');
-    const rawHost = String(cfg.host).trim();
-    const hostname = /^https?:\/\//i.test(rawHost) ? new URL(rawHost).hostname : rawHost;
-    const client = new OnvifCam({
-        hostname,
-        port: parseInt(cfg.port, 10) || 80,
-        username: String(cfg.user || ''),
-        password: String(cfg.password || ''),
-        path: String(cfg.devicePath || '/onvif/device_service'),
-        timeout: 12000,
-        preserveAddress: true,
-    });
-    await client.connect();
-    const token = client.activeSource && client.activeSource.profileToken;
-    if (!token) throw new Error('ONVIF camera returned no PTZ profile');
-    const session = { client, token, stopTimer: null, lastCommandAt: 0 };
-    fixedCamPtzSessions.set(camera.id, session);
-    return session;
+    return fixedCamOnvif.getPtzSession(camera);
 }
 
 async function stopFixedCamPtzMotion(session) {
@@ -5895,14 +5975,110 @@ app.post('/api/fixed-cams/:id/zlm/stop', dashboardAuth.requireDashboardAuth, exp
     }
 });
 
-app.post('/api/fixed-cams/:id/ptz', dashboardAuth.requireDashboardAuth, express.json(), async (req, res) => {
+app.get('/api/fixed-cams/:id/ptz/presets', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    try {
+        const camera = fixedCamRegistry.getById(req.params.id);
+        if (!camera || !camera.enabled || !camera.ptzEnabled || camera.streamSource !== 'onvif') {
+            return res.status(400).json(opErr('Registered ONVIF PTZ camera required'));
+        }
+        const session = await fixedCamPtzSession(camera);
+        const presetsMap = await fixedCamOnvif.getPresets(session.client, { profileToken: session.token });
+        const presets = Object.keys(presetsMap).map(function (token) {
+            const row = presetsMap[token] || {};
+            const name = (row.name != null ? String(row.name) : '')
+                || (row.Name != null ? String(row.Name) : '')
+                || token;
+            return { token: String(token), name: name };
+        });
+        res.json({
+            ok: true,
+            cameraId: camera.id,
+            presets,
+            profiles: session.profiles || null,
+        });
+    } catch (err) {
+        fixedCamOnvif.clearPtzSession(req.params.id);
+        res.status(400).json(opErr(err));
+    }
+});
+
+/** Real ONVIF auth + clock sync + GetCapabilities → Profile S / T / G / M (no mocks). */
+app.get('/api/fixed-cams/:id/onvif/capabilities', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        const camera = fixedCamRegistry.getById(req.params.id);
+        if (!camera || !camera.onvif || !camera.onvif.host) {
+            return res.status(400).json(opErr('ONVIF host is not configured for this camera'));
+        }
+        const probe = await fixedCamOnvif.authenticateAndProbe(camera);
+        res.json({
+            ok: true,
+            cameraId: camera.id,
+            hostname: probe.hostname,
+            port: probe.port,
+            profileToken: probe.profileToken,
+            profiles: probe.profiles,
+            clock: probe.clock || null,
+            streamTransport: probe.streamTransport || fixedCamOnvif.resolveStreamTransport(camera),
+            capabilityKeys: probe.profiles && probe.profiles.rawKeys ? probe.profiles.rawKeys : [],
+        });
+        try { if (probe.client && typeof probe.client.removeAllListeners === 'function') probe.client.removeAllListeners(); } catch (_) { /* ignore */ }
+    } catch (err) {
+        fixedCamOnvif.clearPtzSession(req.params.id);
+        res.status(400).json(opErr(err));
+    }
+});
+
+/** Pull-Point event subscription — motion / line / tamper logged to console (Task 2.5). */
+app.post('/api/fixed-cams/:id/onvif/events/start', dashboardAuth.requireSuperAdmin, express.json(), async (req, res) => {
+    try {
+        const camera = fixedCamRegistry.getById(req.params.id);
+        if (!camera || !camera.enabled || camera.streamSource !== 'onvif') {
+            return res.status(400).json(opErr('Enabled ONVIF fixed camera required'));
+        }
+        const out = await fixedCamOnvif.startEventSubscription(camera, {
+            onEvent: function (parsed, message, xml) {
+                console.log('[onvif-event]', {
+                    cameraId: camera.id,
+                    name: camera.name,
+                    kind: parsed.kind,
+                    topic: parsed.topic,
+                    xmlPreview: xml ? String(xml).slice(0, 500) : null,
+                });
+            },
+        });
+        auditLog.recordFromRequest(req, 'fixed-camera.onvif-events-start', { target: camera.id });
+        res.json({ ok: true, cameraId: camera.id, subscription: out });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.post('/api/fixed-cams/:id/onvif/events/stop', dashboardAuth.requireSuperAdmin, express.json(), async (req, res) => {
+    try {
+        const out = fixedCamOnvif.stopEventSubscription(req.params.id);
+        auditLog.recordFromRequest(req, 'fixed-camera.onvif-events-stop', { target: req.params.id });
+        res.json({ ok: true, cameraId: req.params.id, subscription: out });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.get('/api/fixed-cams/onvif/events', dashboardAuth.requireSuperAdmin, (_req, res) => {
+    try {
+        res.json({ ok: true, subscriptions: fixedCamOnvif.listEventSubscriptions() });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.post('/api/fixed-cams/:id/ptz', dashboardAuth.requireDashboardAuth, licenseEntitlementsMw.requireFeature('ptzControl'), express.json(), async (req, res) => {
     try {
         const camera = fixedCamRegistry.getById(req.params.id);
         if (!camera || !camera.enabled || !camera.ptzEnabled || camera.streamSource !== 'onvif') {
             return res.status(400).json(opErr('Registered ONVIF PTZ camera required'));
         }
         const action = String(req.body && req.body.action || '').toLowerCase();
-        if (!['left', 'right', 'up', 'down', 'zoom-in', 'zoom-out', 'home', 'stop'].includes(action)) {
+        if (!['left', 'right', 'up', 'down', 'zoom-in', 'zoom-out', 'home', 'stop', 'goto-preset', 'set-preset'].includes(action)) {
             return res.status(400).json(opErr('Unsupported PTZ command'));
         }
         const session = await fixedCamPtzSession(camera);
@@ -5911,11 +6087,24 @@ app.post('/api/fixed-cams/:id/ptz', dashboardAuth.requireDashboardAuth, express.
             return res.status(429).json(opErr('PTZ command rate limited'));
         }
         session.lastCommandAt = now;
+        let presetResult = null;
         if (action === 'stop') {
             await stopFixedCamPtzMotion(session);
         } else if (action === 'home') {
             await stopFixedCamPtzMotion(session);
             await session.client.gotoHomePosition({ profileToken: session.token });
+        } else if (action === 'goto-preset') {
+            const presetToken = String((req.body && (req.body.presetToken || req.body.preset)) || '').trim();
+            if (!presetToken) return res.status(400).json(opErr('presetToken required'));
+            await stopFixedCamPtzMotion(session);
+            presetResult = await fixedCamOnvif.gotoPreset(session.client, presetToken, { profileToken: session.token });
+        } else if (action === 'set-preset') {
+            const presetName = String((req.body && (req.body.presetName || req.body.name || req.body.viewName)) || '').trim();
+            if (!presetName) return res.status(400).json(opErr('presetName required'));
+            presetResult = await fixedCamOnvif.setPreset(session.client, presetName, {
+                profileToken: session.token,
+                presetToken: req.body && req.body.presetToken ? String(req.body.presetToken) : undefined,
+            });
         } else {
             const speed = Math.max(0.1, Math.min(0.8, Number(req.body && req.body.speed) || 0.45));
             const velocity = { profileToken: session.token, x: 0, y: 0, zoom: 0 };
@@ -5936,11 +6125,24 @@ app.post('/api/fixed-cams/:id/ptz', dashboardAuth.requireDashboardAuth, express.
         }
         auditLog.recordFromRequest(req, 'fixed-camera.ptz', {
             target: camera.id,
-            detail: { action },
+            detail: {
+                action,
+                presetToken: (presetResult && presetResult.presetToken)
+                    || (req.body && (req.body.presetToken || req.body.preset))
+                    || null,
+                presetName: (presetResult && presetResult.presetName)
+                    || (req.body && (req.body.presetName || req.body.name))
+                    || null,
+            },
         });
-        res.json({ ok: true, cameraId: camera.id, action });
+        res.json({
+            ok: true,
+            cameraId: camera.id,
+            action,
+            preset: presetResult || null,
+        });
     } catch (err) {
-        fixedCamPtzSessions.delete(req.params.id);
+        fixedCamOnvif.clearPtzSession(req.params.id);
         res.status(400).json(opErr(err));
     }
 });
@@ -5955,7 +6157,7 @@ app.post('/api/fixed-cams/:id/wall/start', dashboardAuth.requireDashboardAuth, a
         const streamId = fixedCamStreamKey(cam.id);
         const rtspUrl = await fixedCamResolvedRtspUrl(cam);
         liveStreamPool.startRtspStreamForCam(streamId, rtspUrl, BASE_DIR, {
-            rtspTransport: cam.onvif && cam.onvif.rtspTransport,
+            rtspTransport: fixedCamOnvif.resolveStreamTransport(cam),
         });
         res.json({ ok: true, streamId, name: cam.name, source: cam.streamSource });
     } catch (err) {
@@ -5974,46 +6176,153 @@ app.post('/api/fixed-cams/:id/wall/stop', dashboardAuth.requireDashboardAuth, as
     }
 });
 
-app.post('/api/fixed-cams', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.post('/api/fixed-cams', dashboardAuth.requireSuperAdmin, licenseEntitlementsMw.checkFixedCamCapacity({
+    currentCount: function () { return fixedCamRegistry.list().length; },
+    addCountFrom: function () { return 1; },
+}), async (req, res) => {
     try {
         const cam = fixedCamRegistry.add(req.body || {});
+        if (siteDb.isReady()) {
+            try { await fixedCamCatalogPg.upsertFixedCamera(cam, STORAGE_DIR); }
+            catch (pgErr) { log.web.warn('fixed-cam pg upsert failed', { id: cam.id, err: pgErr && pgErr.message }); }
+        }
         log.web.info('fixed-cam added', { id: cam.id, name: cam.name });
         res.json({ ok: true, cam });
     } catch (err) { res.status(400).json(opErr(err)); }
 });
 
-app.put('/api/fixed-cams/:id', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.put('/api/fixed-cams/:id', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         const cam = fixedCamRegistry.update(req.params.id, req.body || {});
         if (!cam) return res.status(404).json({ ok: false, error: 'Camera not found.' });
         fixedCamOnvif.clearCamera(cam.id);
+        if (siteDb.isReady()) {
+            try { await fixedCamCatalogPg.upsertFixedCamera(cam, STORAGE_DIR); }
+            catch (pgErr) { log.web.warn('fixed-cam pg upsert failed', { id: cam.id, err: pgErr && pgErr.message }); }
+        }
         log.web.info('fixed-cam updated', { id: cam.id, name: cam.name });
         res.json({ ok: true, cam });
     } catch (err) { res.status(400).json(opErr(err)); }
 });
 
-app.delete('/api/fixed-cams/:id', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.delete('/api/fixed-cams/:id', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         const ok = fixedCamRegistry.remove(req.params.id);
         if (!ok) return res.status(404).json({ ok: false, error: 'Camera not found.' });
         fixedCamOnvif.clearCamera(req.params.id);
+        if (siteDb.isReady()) {
+            try { await fixedCamCatalogPg.deleteFixedCamera(req.params.id); }
+            catch (pgErr) { log.web.warn('fixed-cam pg delete failed', { id: req.params.id, err: pgErr && pgErr.message }); }
+        }
         log.web.info('fixed-cam deleted', { id: req.params.id });
         res.json({ ok: true });
     } catch (err) { res.status(400).json(opErr(err)); }
 });
 
-app.post('/api/fixed-cams/import-csv', dashboardAuth.requireSuperAdmin, (req, res) => {
+/**
+ * CSV header (Download template):
+ * Name,Lat,Lng,Zone,StreamUrl,OnvifIp,OnvifPort,OnvifUsername,OnvifPassword,PtzCapable,StreamTransport
+ * Legacy aliases also accepted: OnvifHost, OnvifUser, StreamSource, PtzEnabled, MapIcon, Enabled, Notes, RtspTransport
+ */
+async function importFixedCamsCsv(req, res) {
     try {
         const body = req.body || {};
-        const csv  = String(body.csv || '').trim();
+        const csv = String(body.csv || '').trim();
         if (!csv) return res.status(400).json({ ok: false, error: 'No CSV data received.' });
         const rows = parseCsvText(csv);
         if (!rows.length) return res.status(400).json({ ok: false, error: 'CSV is empty or has no data rows.' });
-        const imported = fixedCamRegistry.importRows(rows);
-        log.web.info('fixed-cams csv import', { count: imported.length });
-        res.json({ ok: true, imported: imported.length, cams: imported });
-    } catch (err) { res.status(400).json(opErr(err)); }
-});
+
+        /* Normalize Task 2.4/2.5 headers → registry importRows keys */
+        const normalized = rows.map(function (row) {
+            const norm = {};
+            Object.keys(row || {}).forEach(function (k) {
+                norm[String(k).toLowerCase().replace(/\s+/g, '')] = row[k];
+            });
+            const transport = norm.streamtransport || norm.rtsptransport || 'tcp';
+            return {
+                Name: norm.name || '',
+                Lat: norm.lat || '',
+                Lng: norm.lng || '',
+                Zone: norm.zone || '',
+                MapIcon: norm.mapicon || (String(norm.ptzcapable || norm.ptzenabled || '').toLowerCase() === 'true' ? 'ptz' : 'fixed'),
+                StreamSource: norm.streamsource
+                    || (norm.onvifip || norm.onvifhost ? 'onvif' : (norm.streamurl || norm.rtspurl ? 'rtsp' : 'none')),
+                OnvifHost: norm.onvifip || norm.onvifhost || '',
+                OnvifPort: norm.onvifport || '80',
+                OnvifUser: norm.onvifusername || norm.onvifuser || '',
+                OnvifPassword: norm.onvifpassword || '',
+                OnvifPath: norm.onvifpath || '/onvif/device_service',
+                RtspTransport: transport,
+                StreamTransport: transport,
+                StreamUrl: norm.streamurl || norm.rtspurl || '',
+                PtzEnabled: norm.ptzcapable != null ? norm.ptzcapable : (norm.ptzenabled || 'false'),
+                Enabled: norm.enabled != null ? norm.enabled : 'true',
+                Notes: norm.notes || '',
+            };
+        });
+
+        const imported = fixedCamRegistry.importRows(normalized);
+        let pgStored = 0;
+        if (siteDb.isReady()) {
+            try {
+                await fixedCamCatalogPg.upsertFixedCameras(imported, STORAGE_DIR);
+                pgStored = imported.length;
+            } catch (pgErr) {
+                log.web.warn('fixed-cam csv pg store failed', { err: pgErr && pgErr.message });
+                return res.status(500).json({
+                    ok: false,
+                    error: 'Cameras imported to runtime registry but PostgreSQL secure store failed: '
+                        + (pgErr && pgErr.message ? pgErr.message : 'unknown'),
+                    imported: imported.length,
+                    pgStored: 0,
+                });
+            }
+        } else {
+            return res.status(503).json({
+                ok: false,
+                error: 'PostgreSQL catalog is required to securely store ONVIF credentials (FM_CATALOG_MODE=postgres_required).',
+                imported: imported.length,
+                pgStored: 0,
+            });
+        }
+        log.web.info('fixed-cams csv import', { count: imported.length, pgStored });
+        /* Never echo passwords back */
+        const safe = imported.map(function (c) {
+            const copy = Object.assign({}, c, {
+                onvif: Object.assign({}, c.onvif || {}, { password: c.onvif && c.onvif.password ? '••••' : '' }),
+            });
+            return copy;
+        });
+        res.json({ ok: true, imported: imported.length, pgStored: pgStored, cams: safe });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+}
+
+app.post('/api/fixed-cams/import-csv', dashboardAuth.requireSuperAdmin, express.json({ limit: '8mb' }), licenseEntitlementsMw.checkFixedCamCapacity({
+    currentCount: function () { return fixedCamRegistry.list().length; },
+    addCountFrom: function (req) {
+        const csv = String((req.body && req.body.csv) || '').trim();
+        if (!csv) return 0;
+        try {
+            return Math.max(0, parseCsvText(csv).length);
+        } catch (_) {
+            return 0;
+        }
+    },
+}), importFixedCamsCsv);
+app.post('/api/cameras/import-csv', dashboardAuth.requireSuperAdmin, express.json({ limit: '8mb' }), licenseEntitlementsMw.checkFixedCamCapacity({
+    currentCount: function () { return fixedCamRegistry.list().length; },
+    addCountFrom: function (req) {
+        const csv = String((req.body && req.body.csv) || '').trim();
+        if (!csv) return 0;
+        try {
+            return Math.max(0, parseCsvText(csv).length);
+        } catch (_) {
+            return 0;
+        }
+    },
+}), importFixedCamsCsv);
 
 // ─── HTTPS evidence upload — secure alternative to FTP for hybrid deployments.
 // Camera docking station software or relay agents POST files here using a bearer token.
@@ -6047,7 +6356,37 @@ const httpsUploadMiddleware = multer({
     },
 });
 
-app.post('/api/evidence/upload', (req, res) => {
+/** Block evidence disk writes when FTP_ROOT volume has less than 5 GB free (DoS / host fill). */
+const EVIDENCE_UPLOAD_MIN_FREE_BYTES = 5 * 1024 * 1024 * 1024;
+
+async function requireMinFreeDiskBytes(rootPath, req, res, next) {
+    try {
+        const stats = await fs.promises.statfs(rootPath);
+        const freeBytes = Number(stats.bfree) * Number(stats.bsize);
+        if (!Number.isFinite(freeBytes) || freeBytes < EVIDENCE_UPLOAD_MIN_FREE_BYTES) {
+            log.ftp.warn('upload blocked: insufficient free disk', {
+                freeBytes: Number.isFinite(freeBytes) ? freeBytes : null,
+                minBytes: EVIDENCE_UPLOAD_MIN_FREE_BYTES,
+                rootPath,
+            });
+            return res.status(507).json({ ok: false, error: 'Insufficient storage on server.' });
+        }
+        return next();
+    } catch (err) {
+        log.ftp.warn('upload disk check failed', { message: err && err.message, rootPath });
+        return res.status(503).json({ ok: false, error: 'Storage availability check failed.' });
+    }
+}
+
+async function requireFreeDiskSpace(req, res, next) {
+    return requireMinFreeDiskBytes(FTP_ROOT, req, res, next);
+}
+
+async function requireStorageFreeDiskSpace(req, res, next) {
+    return requireMinFreeDiskBytes(STORAGE_DIR, req, res, next);
+}
+
+app.post('/api/evidence/upload', (req, res, next) => {
     if (!HTTPS_UPLOAD_TOKEN) {
         return res.status(503).json({ ok: false, error: 'HTTPS evidence upload is not configured on this server.' });
     }
@@ -6056,6 +6395,8 @@ app.post('/api/evidence/upload', (req, res) => {
     if (!token || token !== HTTPS_UPLOAD_TOKEN) {
         return res.status(401).json({ ok: false, error: 'Invalid or missing upload token.' });
     }
+    return next();
+}, requireFreeDiskSpace, (req, res) => {
     httpsUploadMiddleware.single('file')(req, res, async (err) => {
         if (err) {
             log.ftp.warn('https-upload rejected', { message: err.message, ip: req.ip });
@@ -6094,7 +6435,7 @@ app.post('/api/evidence/upload', (req, res) => {
     });
 });
 
-app.post('/api/evidence/import-forensic', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.post('/api/evidence/import-forensic', dashboardAuth.requireSuperAdmin, requireFreeDiskSpace, (req, res) => {
     httpsUploadMiddleware.single('file')(req, res, async (err) => {
         if (err) return res.status(400).json(opErr(err));
         if (!req.file) return res.status(400).json(opErr('Select an evidence file to import.'));
@@ -6118,6 +6459,168 @@ app.post('/api/evidence/import-forensic', dashboardAuth.requireSuperAdmin, (req,
             res.status(400).json(opErr(ingestErr));
         }
     });
+});
+
+// ─── Tactical blueprint upload — floor-plan image → tactical_blueprints
+// MOB-APPLY TACTICAL-BLUEPRINT-SIZE-RAISE-V1: default 25 MB; FM_TACTICAL_BP_MAX_MB clamps 5..50
+function resolveTacticalBpMaxBytes() {
+    const raw = parseInt(process.env.FM_TACTICAL_BP_MAX_MB || '25', 10);
+    let mb = Number.isFinite(raw) ? raw : 25;
+    if (mb < 5) mb = 5;
+    if (mb > 50) mb = 50;
+    return mb * 1024 * 1024;
+}
+const TACTICAL_BP_MAX_BYTES = resolveTacticalBpMaxBytes();
+const TACTICAL_BP_MAX_MB_LABEL = Math.round(TACTICAL_BP_MAX_BYTES / (1024 * 1024));
+const TACTICAL_BP_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const TACTICAL_BP_DIR = path.join(STORAGE_DIR, 'tactical-blueprints');
+try { fs.mkdirSync(TACTICAL_BP_DIR, { recursive: true }); } catch (_) { /* ignore */ }
+
+const tacticalBpStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, TACTICAL_BP_DIR),
+    filename: (_req, file, cb) => {
+        const ext = file.mimetype === 'image/png' ? '.png'
+            : file.mimetype === 'image/webp' ? '.webp' : '.jpg';
+        cb(null, crypto.randomUUID() + ext);
+    },
+});
+const tacticalBpUpload = multer({
+    storage: tacticalBpStorage,
+    limits: { fileSize: TACTICAL_BP_MAX_BYTES, files: 1 },
+    fileFilter: (_req, file, cb) => {
+        if (!TACTICAL_BP_MIME.has(file.mimetype)) {
+            return cb(new Error('Only JPEG, PNG, or WebP blueprints allowed'));
+        }
+        cb(null, true);
+    },
+});
+
+app.post(
+    '/api/tactical/blueprints/upload',
+    dashboardAuth.requireSuperAdmin,
+    requireStorageFreeDiskSpace,
+    (req, res) => {
+        tacticalBpUpload.single('file')(req, res, async (err) => {
+            if (err) {
+                const tooLarge = err && (err.code === 'LIMIT_FILE_SIZE' || /File too large/i.test(String(err.message || '')));
+                log.web.warn('tactical blueprint upload rejected', { message: err && err.message, ip: req.ip });
+                return res.status(400).json({
+                    ok: false,
+                    error: tooLarge
+                        ? ('Blueprint exceeds ' + TACTICAL_BP_MAX_MB_LABEL + ' MB')
+                        : (err.message || 'Upload failed'),
+                });
+            }
+            if (!req.file) {
+                return res.status(400).json({ ok: false, error: 'file required' });
+            }
+            const unlinkQuiet = () => {
+                try { fs.unlinkSync(req.file.path); } catch (_) { /* ignore */ }
+            };
+            try {
+                if (req.file.size > TACTICAL_BP_MAX_BYTES) {
+                    unlinkQuiet();
+                    return res.status(400).json({
+                        ok: false,
+                        error: 'Blueprint exceeds ' + TACTICAL_BP_MAX_MB_LABEL + ' MB',
+                    });
+                }
+                if (!TACTICAL_BP_MIME.has(req.file.mimetype)) {
+                    unlinkQuiet();
+                    return res.status(400).json({ ok: false, error: 'Only JPEG, PNG, or WebP blueprints allowed' });
+                }
+                const absPath = path.resolve(req.file.path);
+                const rootResolved = path.resolve(TACTICAL_BP_DIR);
+                if (!absPath.startsWith(rootResolved + path.sep) && absPath !== rootResolved) {
+                    unlinkQuiet();
+                    return res.status(400).json({ ok: false, error: 'Blueprint path rejected' });
+                }
+                const dims = await imageDimensions.readImageDimensions(absPath);
+                const name = String((req.body && req.body.name) || '').trim() || 'Blueprint';
+                const siteId = String((req.body && req.body.siteId) || 'default').trim() || 'default';
+                const imageUrl = '/media/tactical-blueprints/' + req.file.filename;
+                if (!siteDb.isReady()) {
+                    unlinkQuiet();
+                    return res.status(503).json({ ok: false, error: 'Catalog database is not ready' });
+                }
+                const blueprint = await siteDb.insertTacticalBlueprint({
+                    siteId,
+                    name,
+                    imageUrl,
+                    originalWidth: dims.width,
+                    originalHeight: dims.height,
+                    mimeType: req.file.mimetype,
+                    byteSize: req.file.size,
+                });
+                log.web.info('tactical blueprint uploaded', {
+                    id: blueprint && blueprint.id,
+                    name,
+                    bytes: req.file.size,
+                    width: dims.width,
+                    height: dims.height,
+                });
+                return res.json({ ok: true, blueprint });
+            } catch (uploadErr) {
+                unlinkQuiet();
+                const status = uploadErr && uploadErr.status ? uploadErr.status : 400;
+                return res.status(status).json({
+                    ok: false,
+                    error: (uploadErr && uploadErr.message) || 'Blueprint upload failed',
+                });
+            }
+        });
+    },
+);
+
+app.get('/api/tactical/blueprints', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready' });
+        const blueprints = await siteDb.listTacticalBlueprints(req.query && req.query.limit);
+        res.json({ ok: true, blueprints });
+    } catch (err) {
+        res.status(400).json({ ok: false, error: err.message || String(err) });
+    }
+});
+
+app.patch('/api/tactical/blueprints/:id/placement', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready' });
+        const body = req.body || {};
+        const placement = body.placement || body;
+        const blueprint = await siteDb.updateTacticalBlueprintPlacement(req.params.id, placement);
+        log.web.info('tactical blueprint placement saved', {
+            id: blueprint && blueprint.id,
+            placement: blueprint && blueprint.placement,
+        });
+        res.json({ ok: true, blueprint });
+    } catch (err) {
+        const status = err && err.status ? err.status : 400;
+        res.status(status).json({ ok: false, error: err.message || String(err) });
+    }
+});
+
+app.delete('/api/tactical/blueprints/:id', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready' });
+        const blueprint = await siteDb.deleteTacticalBlueprint(req.params.id);
+        const imageUrl = blueprint && blueprint.imageUrl ? String(blueprint.imageUrl) : '';
+        const prefix = '/media/tactical-blueprints/';
+        if (imageUrl.indexOf(prefix) === 0) {
+            const fileName = path.basename(imageUrl.slice(prefix.length));
+            if (fileName && fileName !== '.' && fileName !== '..') {
+                const abs = path.resolve(TACTICAL_BP_DIR, fileName);
+                const rootResolved = path.resolve(TACTICAL_BP_DIR);
+                if (abs.startsWith(rootResolved + path.sep)) {
+                    try { fs.unlinkSync(abs); } catch (_) { /* ignore missing */ }
+                }
+            }
+        }
+        log.web.info('tactical blueprint removed', { id: blueprint && blueprint.id, name: blueprint && blueprint.name });
+        res.json({ ok: true, removed: { id: blueprint.id, name: blueprint.name } });
+    } catch (err) {
+        const status = err && err.status ? err.status : 400;
+        res.status(status).json({ ok: false, error: err.message || String(err) });
+    }
 });
 
 app.post('/api/evidence/request-secure-export', requireEvidenceDownload, async (req, res) => {
@@ -8616,6 +9119,7 @@ app.post('/api/open-folder', (req, res) => {
 });
 
 app.use('/sos-media', express.static(path.join(STORAGE_DIR, 'sos-incidents')));
+app.use('/media/tactical-blueprints', express.static(TACTICAL_BP_DIR));
 
 app.get('/', (req, res) => {
     res.setHeader('Cache-Control', staticCache.HTML_CACHE_CONTROL);
@@ -10636,8 +11140,13 @@ io.on('connection', (socket) => {
     const sessionToken = dashboardAuth.sessionTokenFromRequest(socket.request);
     const session = dashboardAuth.getSession(sessionToken);
     socket.dashboardUser = session || null;
+    const orgRoom = tenantMiddleware.joinOrgRoom(socket);
 
-    log.web.info('dashboard connected', { user: session ? session.username : null });
+    log.web.info('dashboard connected', {
+        user: session ? session.username : null,
+        orgId: socket.data && socket.data.orgId,
+        orgRoom: orgRoom,
+    });
 
     sosIncidents.getOpenAlarms().forEach((open) => {
         if (!open || !open.cameraId) return;
@@ -11028,7 +11537,8 @@ io.on('connection', (socket) => {
             const alreadyOwned = surface === 'command-wall' ? beforeSurfaces.commandWall
                 : (surface === 'analytics-fr' ? beforeSurfaces.analyticsFr
                     : (surface === 'matrix-popout' ? beforeSurfaces.matrixPopout
-                        : (surface === 'live-popout' ? beforeSurfaces.livePopout : beforeSurfaces.ops)));
+                        : (surface === 'live-popout' ? beforeSurfaces.livePopout
+                            : (surface === 'tactical' ? beforeSurfaces.tactical : beforeSurfaces.ops))));
             const viewers = liveViewers.addView(socket.id, camId, surface);
             const afterSurfaces = liveViewers.socketSurfacesForCam(socket.id, camId);
             if ((!beforeSurfaces.ops || !beforeSurfaces.commandWall)
@@ -11050,6 +11560,74 @@ io.on('connection', (socket) => {
             if (!wvpHandoffStart) startFastStatusPolling(camId, 'start-video');
         }
         startMediaFromDashboard(payload, socket);
+    });
+
+    /**
+     * register-viewer-only — liveViewers ref + conditional wake.
+     * If stream already held (countForCam > 0 before add): addView only (no Soft Open).
+     * If stream dead (countForCam === 0 before add): addView, then startMediaFromDashboard
+     * (WVP ensurePlay / classic invite) so tactical reopen is not a zombie FLV attach.
+     */
+    socket.on('register-viewer-only', (payload) => {
+        const camId = payload && payload.camId ? String(payload.camId).trim() : '';
+        const surface = liveViewers.normalizeSurface(
+            (payload && payload.surface) || 'tactical'
+        );
+        if (!camId) {
+            log.media.warn('register-viewer-only ignored', { reason: 'no_cam' });
+            return;
+        }
+        const countBefore = liveViewers.countForCam(camId);
+        const streamWasDead = countBefore === 0;
+        const viewers = liveViewers.addView(socket.id, camId, surface);
+        const refs = liveViewers.refBreakdownForCam(camId);
+        log.media.info('register-viewer-only', {
+            camId,
+            surface,
+            socketId: socket.id,
+            viewers,
+            countBefore,
+            remainingTactical: refs.tactical,
+            remainingOps: refs.ops,
+            countForCam: refs.countForCam,
+            wakeMedia: streamWasDead,
+            path: 'server-viewer-only-conditional-start-v1',
+        });
+        if (streamWasDead) {
+            /* Wake WVP / classic path only when nothing else is holding the cam */
+            startMediaFromDashboard({
+                camId: camId,
+                mode: 'video',
+                surface: surface,
+            }, socket);
+        }
+    });
+
+    /**
+     * unregister-viewer-only — decrement liveViewers; BYE only if count hits 0.
+     */
+    socket.on('unregister-viewer-only', (payload) => {
+        const camId = payload && payload.camId ? String(payload.camId).trim() : '';
+        const surface = liveViewers.normalizeSurface(
+            (payload && payload.surface) || 'tactical'
+        );
+        if (!camId) {
+            log.media.warn('unregister-viewer-only ignored', { reason: 'no_cam' });
+            return;
+        }
+        const remaining = liveViewers.removeView(socket.id, camId, surface);
+        const refs = liveViewers.refBreakdownForCam(camId);
+        log.media.info('unregister-viewer-only', {
+            camId,
+            surface,
+            socketId: socket.id,
+            remainingViewers: remaining,
+            remainingTactical: refs.tactical,
+            remainingOps: refs.ops,
+            countForCam: refs.countForCam,
+            path: 'server-viewer-only-v1',
+        });
+        releaseCamStreamWhenUnwatched(camId);
     });
 
     socket.on('audio-focus', (payload) => {
@@ -11107,6 +11685,7 @@ io.on('connection', (socket) => {
                 remainingAnalyticsFr: refs.analyticsFr,
                 remainingMatrixPopout: refs.matrixPopout,
                 remainingLivePopout: refs.livePopout,
+                remainingTactical: refs.tactical,
                 remainingConference: refs.conferenceRefs,
                 countForCam: refs.countForCam,
                 socketsWithRefs: refs.socketsWithRefs,
@@ -11770,7 +12349,8 @@ function pushFleetRoster(camId, sn, online, opts) {
 
 
 
-    const onlineStatusXml = `<?xml version="1.0" encoding="utf-8"?>\n<Notify>\n<CmdType>OnlineStatus</CmdType>\n<SN>${SERVER_ID}</SN>\n<DeviceList Num="${fleet.length}">${deviceListXml}\n</DeviceList>\n<Status>OK</Status>\n<SumNum>${fleet.length}</SumNum>\n<SNID>${sn}</SNID>\n<MsgServerIP>${HOST}</MsgServerIP>\n<MsgServerPort>${MSG_WS_PORT}</MsgServerPort>\n<MsgServerUri>${MSG_WS_URL}</MsgServerUri>\n</Notify>`;
+    const msgServerUri = buildMsgWssDeviceUrl(camId);
+    const onlineStatusXml = `<?xml version="1.0" encoding="utf-8"?>\n<Notify>\n<CmdType>OnlineStatus</CmdType>\n<SN>${SERVER_ID}</SN>\n<DeviceList Num="${fleet.length}">${deviceListXml}\n</DeviceList>\n<Status>OK</Status>\n<SumNum>${fleet.length}</SumNum>\n<SNID>${sn}</SNID>\n<MsgServerIP>${HOST}</MsgServerIP>\n<MsgServerPort>${MSG_WS_PORT}</MsgServerPort>\n<MsgServerUri>${msgServerUri}</MsgServerUri>\n</Notify>`;
 
 
 
@@ -12255,7 +12835,8 @@ function pushMsgServerHints(camId) {
     const contact = getContactUriForCam(camId);
     if (!contact || !camId) return;
     const sn = createGbSequenceNumber();
-    const xml = `<?xml version="1.0" encoding="utf-8"?>\n<Notify>\n<CmdType>DeviceConfig</CmdType>\n<SN>${sn}</SN>\n<DeviceID>${SERVER_ID}</DeviceID>\n<TargetDeviceID>${camId}</TargetDeviceID>\n<MsgServerIP>${HOST}</MsgServerIP>\n<MsgServerPort>${MSG_WS_PORT}</MsgServerPort>\n<MsgServerUri>${MSG_WS_URL}</MsgServerUri>\n</Notify>`;
+    const msgServerUri = buildMsgWssDeviceUrl(camId);
+    const xml = `<?xml version="1.0" encoding="utf-8"?>\n<Notify>\n<CmdType>DeviceConfig</CmdType>\n<SN>${sn}</SN>\n<DeviceID>${SERVER_ID}</DeviceID>\n<TargetDeviceID>${camId}</TargetDeviceID>\n<MsgServerIP>${HOST}</MsgServerIP>\n<MsgServerPort>${MSG_WS_PORT}</MsgServerPort>\n<MsgServerUri>${msgServerUri}</MsgServerUri>\n</Notify>`;
     sip.send({
         method: 'MESSAGE',
         uri: contact,
@@ -12269,7 +12850,7 @@ function pushMsgServerHints(camId) {
         },
         content: xml,
     }, () => {
-        log.messaging.info('msg server hint sent', { camId, uri: MSG_WS_URL });
+        log.messaging.info('msg server hint sent', { camId, uri: msgServerUri });
     });
 }
 
@@ -12423,7 +13004,7 @@ function scheduleMsgLinkCheck(camId) {
         if (msgSocket && msgSocket.readyState === WebSocket.OPEN) return;
         log.messaging.warn('msg link missing after register', {
             device: camId,
-            expect: MSG_WS_URL,
+            expect: buildMsgWssDeviceUrl(camId),
             action: 'check_bwc_message_server_menu',
         });
         pushMsgServerHints(camId);
@@ -12771,6 +13352,23 @@ process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
 
 (async function startServer() {
     try {
+        /* Task 3.1 — air-gapped license.lic (Ed25519 + HWID). Ship: FM_AIRGAP_LICENSE_REQUIRED=1 */
+        try {
+            licenseManager.validateOnBoot();
+        } catch (licErr) {
+            const msg = (licErr && licErr.message) || licenseManager.FATAL;
+            console.error('\n' + licenseManager.FATAL);
+            console.error(msg);
+            console.error('Place a vendor-signed storage/license.lic for this hardwareId:');
+            console.error('  ' + licenseManager.computeHardwareId());
+            console.error('Print HWID: node tools/generate-license.js --print-hwid\n');
+            log.web.err('startup blocked — LICENSE EXPIRED OR INVALID', {
+                error: msg,
+                hardwareId: licenseManager.computeHardwareId(),
+            });
+            await closeCatalogForShutdown('license-failure');
+            process.exit(1);
+        }
         platformLicense.assertReadyForStartup();
         await ffmpegRuntime.assertReady(log);
         await bootstrapSiteDatabase();
@@ -12816,6 +13414,24 @@ process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
 
     mediaSession.startTcpMediaServer(HOST, wss, BASE_DIR);
     mediaBridgeReady = true;
+    /* MOB-APPLY-WVP-HANDOFF-STOP-UI-PARITY-V1 — handoff hard-stop can emit device_bye when notifyUi:true */
+    try {
+        const handoffUi = require('./lib/wvpVideoHandoff');
+        if (typeof handoffUi.setStopUiNotify === 'function') {
+            handoffUi.setStopUiNotify(function (camId, reason) {
+                const id = String(camId || '').trim();
+                if (!id) return;
+                io.emit('video-stream-stopped', {
+                    camId: id,
+                    reason: reason || 'device_bye',
+                });
+            });
+        }
+    } catch (err) {
+        log.media.warn('wvp handoff stop ui notify wire failed', {
+            message: err && err.message ? err.message : String(err),
+        });
+    }
     if (PTT_ENABLED) {
         pttServer.startPttServer({
             host: HOST,
@@ -12940,7 +13556,13 @@ process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
 
     log.sip.info('sip listening', { publicHost: HOST, bind: BIND_HOST, port: SIP_PORT });
 
-    log.messaging.info('websocket listening', { bind: '0.0.0.0', port: MSG_WS_PORT, deviceUrl: MSG_WS_URL });
+    log.messaging.info('websocket listening', {
+        bind: '0.0.0.0',
+        port: MSG_WS_PORT,
+        deviceUrl: MSG_WS_URL,
+        requireToken: MSGWSS_REQUIRE_TOKEN,
+        hmacConfigured: !!MSGWSS_HMAC_SECRET,
+    });
 
     log.media.info('bridge listening', {
 

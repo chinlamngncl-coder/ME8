@@ -28,8 +28,9 @@
 
     // source-dependent field groups
     const onvifRows = ['fc-onvif-lbl','fc-onvif-host-row','fc-onvif-port-row',
-                       'fc-onvif-user-row','fc-onvif-pass-row','fc-onvif-path-row','fc-onvif-tp-row'];
+                       'fc-onvif-user-row','fc-onvif-pass-row','fc-onvif-path-row'];
     const rtspRow   = document.getElementById('fc-rtsp-row');
+    const transportRow = document.getElementById('fc-transport-row');
 
     if (!dlg || !openBtn) return; // guard \u2014 page may not have the dialog
 
@@ -114,7 +115,8 @@
             if (el) el.hidden = (src !== 'onvif');
         });
         // ONVIF registration still needs the resolved RTSP media URI for wall playback.
-        rtspRow.hidden = (src === 'none');
+        if (rtspRow) rtspRow.hidden = (src === 'none');
+        if (transportRow) transportRow.hidden = (src === 'none');
     }
 
     function clearForm() {
@@ -133,6 +135,7 @@
     }
 
     function readForm() {
+        const transport = document.getElementById('fc-f-otp').value === 'udp' ? 'udp' : 'tcp';
         return {
             name:         document.getElementById('fc-f-name').value.trim(),
             lat:          parseFloat(document.getElementById('fc-f-lat').value),
@@ -140,13 +143,14 @@
             zone:         document.getElementById('fc-f-zone').value.trim(),
             mapIcon:      document.getElementById('fc-f-map-icon').value,
             streamSource: document.getElementById('fc-f-source').value,
+            streamTransport: transport,
             onvif: {
                 host:         document.getElementById('fc-f-ohost').value.trim(),
                 port:         parseInt(document.getElementById('fc-f-oport').value, 10) || 80,
                 user:         document.getElementById('fc-f-ouser').value.trim(),
                 password:     document.getElementById('fc-f-opass').value,
                 devicePath:   document.getElementById('fc-f-opath').value.trim(),
-                rtspTransport: document.getElementById('fc-f-otp').value,
+                rtspTransport: transport,
             },
             rtspUrl:    document.getElementById('fc-f-rtsp').value.trim(),
             ptzEnabled: document.getElementById('fc-f-ptz').value === 'true',
@@ -184,7 +188,7 @@
         document.getElementById('fc-f-ouser').value   = cam.onvif.user;
         document.getElementById('fc-f-opass').value   = ''; // never pre-fill password
         document.getElementById('fc-f-opath').value   = cam.onvif.devicePath;
-        document.getElementById('fc-f-otp').value     = cam.onvif.rtspTransport;
+        document.getElementById('fc-f-otp').value     = cam.streamTransport || (cam.onvif && cam.onvif.rtspTransport) || 'tcp';
         document.getElementById('fc-f-rtsp').value    = cam.rtspUrl;
         document.getElementById('fc-f-ptz').value     = String(cam.ptzEnabled);
         document.getElementById('fc-f-enabled').value = String(cam.enabled);
@@ -204,9 +208,10 @@
 
     // ── CSV template download ─────────────────────────────────────────────────
     function downloadTemplate() {
-        const header = 'Name,Lat,Lng,Zone,MapIcon,StreamSource,OnvifHost,OnvifPort,OnvifUser,OnvifPassword,StreamUrl,PtzEnabled,Enabled,Notes';
-        const example1 = 'Jalan Ampang Cam 1,3.1575,101.7115,KL Central,ptz,onvif,192.168.1.50,80,admin,cam123,,true,true,';
-        const example2 = 'Building 3 Entrance,3.1465,101.7100,Bukit Bintang,building,rtsp,,,,,rtsp://192.168.1.51/stream1,false,true,';
+        /* Task 2.4 canonical header — also accepts legacy OnvifHost / PtzEnabled aliases on import */
+        const header = 'Name,Lat,Lng,Zone,StreamUrl,OnvifIp,OnvifPort,OnvifUsername,OnvifPassword,PtzCapable,StreamTransport';
+        const example1 = 'Jalan Ampang Cam 1,3.1575,101.7115,KL Central,,192.168.1.50,80,admin,cam123,true,tcp';
+        const example2 = 'Building 3 Entrance,3.1465,101.7100,Bukit Bintang,rtsp://192.168.1.51/stream1,,,,,false,tcp';
         const csv  = [header, example1, example2].join('\r\n');
         const blob = new Blob([csv], { type: 'text/csv' });
         const url  = URL.createObjectURL(blob);
@@ -286,7 +291,7 @@
     csvImport.addEventListener('click', async () => {
         const csv = csvPaste.value.trim();
         if (!csv) { showToast('Paste CSV rows first.', 'err'); return; } // i18n: fixedCam.err.csvEmpty
-        const r = await api('POST', '/api/fixed-cams/import-csv', { csv });
+        const r = await api('POST', '/api/cameras/import-csv', { csv });
         if (!r.ok) { showToast(r.error || 'Import failed.', 'err'); return; } // i18n: fixedCam.err.csvImport
         showToast('Imported ' + r.imported + ' camera' + (r.imported === 1 ? '' : 's') + '.'); // i18n: fixedCam.toast.imported
         csvPaste.value = '';

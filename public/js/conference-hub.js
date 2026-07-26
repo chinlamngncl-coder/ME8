@@ -52,6 +52,38 @@
             .replace(/"/g, '&quot;');
     }
 
+    function trOr(key, fallback, params) {
+        const s = tr(key, params);
+        if (!s || s === key) return fallback;
+        return s;
+    }
+
+    /** VC-LIVE-STAGE-RESTORE-AND-ESCAPE-V1 — operator-visible BWC/fixed feedback */
+    function vcToast(message, isErr) {
+        const msg = String(message || '').trim();
+        if (!msg) return;
+        if (global.AdminActionBus && AdminActionBus.toast) {
+            try { AdminActionBus.toast(msg, isErr ? 5200 : 4200); } catch (_) { /* ignore */ }
+        }
+        let el = document.getElementById('vc-ingress-toast');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'vc-ingress-toast';
+            el.setAttribute('role', 'status');
+            el.setAttribute('aria-live', 'polite');
+            const host = document.getElementById('vc-panel-live') || document.getElementById('conference-panel');
+            if (host) host.appendChild(el);
+            else document.body.appendChild(el);
+        }
+        el.textContent = msg;
+        el.classList.toggle('err', !!isErr);
+        el.classList.add('visible');
+        if (el._timer) clearTimeout(el._timer);
+        el._timer = setTimeout(function () {
+            el.classList.remove('visible');
+        }, isErr ? 5200 : 4200);
+    }
+
     function layout() {
         return global.ConferenceLayout;
     }
@@ -199,14 +231,18 @@
         renderSetupNotice();
         if (idle) idle.hidden = true;
         if (roster) roster.hidden = inRoom || !(roomOpen && !inRoom);
+        if (panel) panel.classList.toggle('is-lobby', !inRoom);
+        if (hub) hub.classList.toggle('is-lobby', !inRoom);
         if (stage) {
-            if (inRoom) {
-                stage.hidden = false;
-                const lay = layout();
-                if (lay) lay.show();
-            } else {
+            stage.hidden = !inRoom;
+            stage.classList.toggle('vc-in-room', inRoom);
+            if (!inRoom) {
+                stage.classList.remove('vc-empty-stage', 'vc-has-streams');
                 const lay = layout();
                 if (lay) lay.hide();
+            } else {
+                const lay = layout();
+                if (lay) lay.show();
             }
         }
         renderLiveRoster();
@@ -449,6 +485,7 @@
         await lkRoom.localParticipant.setMicrophoneEnabled(localMicEnabled);
         syncFloorToTiles();
         renderLiveControls();
+        syncDockMediaButtons();
     }
 
     function handleVcMuteAll() {
@@ -485,7 +522,7 @@
     }
 
     function maxBwcIngress() {
-        return (status && status.maxBwcIngress) || 4;
+        return (status && status.maxBwcIngress) || 6;
     }
 
     function buildBwcShareHtml(compact) {
@@ -549,26 +586,36 @@
     function syncStageToolbar() {
         const stage = document.getElementById('vc-stage');
         if (stage) stage.classList.toggle('vc-in-room', !!lkRoom);
-        let btn = document.getElementById('vc-stage-mute-all');
+        const btn = document.getElementById('vc-stage-mute-all');
         const showMuteAll = !!lkRoom && canManageFloor();
-        if (!showMuteAll) {
-            if (btn) btn.hidden = true;
-            return;
+        if (btn) btn.hidden = !showMuteAll;
+        syncDockMediaButtons();
+    }
+
+    function syncDockMediaButtons() {
+        const mic = document.getElementById('vc-dock-mic');
+        const cam = document.getElementById('vc-dock-cam');
+        if (mic) {
+            mic.disabled = !lkRoom || !perms.join;
+            mic.classList.toggle('active', !!localMicEnabled);
+            mic.textContent = localMicEnabled ? tr('conference.dockMic') : tr('conference.dockMicOff');
         }
-        const leave = document.getElementById('vc-stage-leave');
-        if (!leave || !leave.parentNode) return;
-        if (!btn) {
-            btn = document.createElement('button');
-            btn.type = 'button';
-            btn.id = 'vc-stage-mute-all';
-            btn.className = 'btn btn-ghost btn-sm vc-stage-mute-all';
-            btn.addEventListener('click', function () {
-                muteAllParticipants().catch(function (e) { alert(e.message); });
-            });
-            leave.parentNode.insertBefore(btn, leave);
+        if (cam) {
+            let camOn = true;
+            try {
+                camOn = !!(lkRoom && lkRoom.localParticipant && lkRoom.localParticipant.isCameraEnabled);
+            } catch (_) { camOn = true; }
+            cam.disabled = !lkRoom || !perms.join;
+            cam.classList.toggle('active', camOn);
+            cam.textContent = camOn ? tr('conference.dockCam') : tr('conference.dockCamOff');
         }
-        btn.textContent = tr('conference.muteAll');
-        btn.hidden = false;
+    }
+
+    async function toggleLocalCam() {
+        if (!lkRoom || !lkRoom.localParticipant) return;
+        const next = !lkRoom.localParticipant.isCameraEnabled;
+        await lkRoom.localParticipant.setCameraEnabled(next);
+        syncDockMediaButtons();
     }
 
     function renderLiveControls() {
@@ -591,10 +638,7 @@
                 html += '<button type="button" class="btn btn-ghost btn-sm" id="vc-end-room"' + (!roomOpen ? ' disabled' : '') + '>' + tr('conference.endRoom') + '</button>';
                 html += '<button type="button" class="btn btn-ghost btn-sm" id="vc-mute-all">' + tr('conference.muteAll') + '</button>';
             }
-            if (perms.join) {
-                html += '<button type="button" class="btn btn-ghost btn-sm" id="vc-mic-toggle" title="' + esc(tr('conference.toggleMic')) + '">'
-                    + (localMicEnabled ? '🎤' : '🔇') + '</button>';
-            }
+            /* Mic/Cam live on bottom meeting dock (VC-MEETING-LAYOUT-CLIENT-V1) */
             if (perms.record) {
                 if (rec) {
                     html += '<button type="button" class="btn btn-action btn-sm vc-rec-btn-stop" id="vc-rec-stop">⏹ ' + tr('conference.recordStop') + '</button>';
@@ -913,6 +957,17 @@
         const lay = layout();
         if (!lay) throw new Error('Conference layout not loaded');
         await leaveRoom({ keepBwc: true });
+        /* Mark meeting chrome before stage show — avoid lobby CSS hiding the stage */
+        const panel = document.getElementById('vc-panel-live');
+        const hub = document.getElementById('conference-panel');
+        if (panel) {
+            panel.classList.add('vc-in-meeting');
+            panel.classList.remove('is-lobby');
+        }
+        if (hub) {
+            hub.classList.add('vc-in-meeting');
+            hub.classList.remove('is-lobby');
+        }
         lay.init('vc-stage');
         lay.show();
         lay.setConnecting(tr('conference.connecting'));
@@ -1046,17 +1101,25 @@
         const sel = document.getElementById('vc-bwc-select');
         const camId = sel && sel.value;
         if (!camId) throw new Error(tr('conference.pickBwc'));
+        const label = sel.options[sel.selectedIndex]
+            ? sel.options[sel.selectedIndex].text
+            : camId;
+        vcToast(trOr('conference.bwcAdding', 'Adding ' + label + '\u2026', { name: label }));
         const res = await api('/api/conference/room/' + encodeURIComponent(selectedRoomId) + '/bwc-ingress', {
             method: 'POST',
-            body: { camId: camId, displayName: sel.options[sel.selectedIndex].text },
+            body: { camId: camId, displayName: label },
         });
-        if (!res.ok || !res.data.ok) throw new Error((res.data && res.data.error) || 'BWC ingress failed');
+        if (!res.ok || !res.data.ok) {
+            vcToast(trOr('conference.bwcAddFailed', 'Failed: ' + label, { name: label }), true);
+            throw new Error((res.data && res.data.error) || 'BWC ingress failed');
+        }
         await refreshPanel(true);
         const lay = layout();
         if (lay && lkRoom) {
             lay.setShareExpected(true);
             lay.autoLayout();
         }
+        vcToast(trOr('conference.bwcAddOk', 'LIVE \u00B7 ' + label, { name: label }));
     }
 
     async function removeBwcIngress(camId) {
@@ -1081,12 +1144,17 @@
         const sel = document.getElementById('vc-fixed-camera-select');
         const cameraId = sel && sel.value;
         if (!cameraId) throw new Error('Select a registered fixed camera');
+        const label = sel.options[sel.selectedIndex]
+            ? sel.options[sel.selectedIndex].text
+            : cameraId;
+        vcToast(trOr('conference.fixedAdding', 'Adding ' + label + '\u2026', { name: label }));
         const res = await api('/api/conference/room/' + encodeURIComponent(selectedRoomId)
             + '/fixed-camera-ingress', {
             method: 'POST',
             body: { cameraId: cameraId },
         });
         if (!res.ok || !res.data.ok) {
+            vcToast(trOr('conference.fixedAddFailed', 'Failed: ' + label, { name: label }), true);
             throw new Error((res.data && res.data.error) || 'Fixed camera ingress failed');
         }
         await refreshPanel(true);
@@ -1095,6 +1163,7 @@
             lay.setShareExpected(true);
             lay.autoLayout();
         }
+        vcToast(trOr('conference.fixedAddOk', 'LIVE \u00B7 ' + label, { name: label }));
     }
 
     async function removeFixedCameraIngress(cameraId) {
@@ -1596,6 +1665,28 @@
                 leaveRoom().catch(function (e) { alert(e.message); });
             });
         }
+        const dockMic = document.getElementById('vc-dock-mic');
+        if (dockMic && !dockMic._vcBound) {
+            dockMic._vcBound = true;
+            dockMic.addEventListener('click', function () {
+                toggleLocalMic().catch(function (e) { alert(e.message); });
+            });
+        }
+        const dockCam = document.getElementById('vc-dock-cam');
+        if (dockCam && !dockCam._vcBound) {
+            dockCam._vcBound = true;
+            dockCam.addEventListener('click', function () {
+                toggleLocalCam().catch(function (e) { alert(e.message); });
+            });
+        }
+        const stageMuteAll = document.getElementById('vc-stage-mute-all');
+        if (stageMuteAll && !stageMuteAll._vcBound) {
+            stageMuteAll._vcBound = true;
+            stageMuteAll.addEventListener('click', function () {
+                muteAllParticipants().catch(function (e) { alert(e.message); });
+            });
+        }
+        syncDockMediaButtons();
         document.querySelectorAll('.vc-hub-nav-btn').forEach(function (btn) {
             btn.addEventListener('click', function () { showPanel(btn.dataset.panel); });
         });

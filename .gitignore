@@ -72,8 +72,15 @@ baseline/**
 !baseline/**/CREATE-ME8-POC-DEMO.ps1
 !baseline/**/RESTORE-ME8-POC-DEMO.ps1
 !baseline/**/VERIFY-ME8-POC-DEMO.ps1
+!baseline/**/CREATE-ME8-PRE-SETTINGS-UI-FALLBACK*.ps1
+!baseline/**/RESTORE-ME8-PRE-SETTINGS-UI-FALLBACK*.ps1
+!baseline/**/VERIFY-ME8-PRE-SETTINGS-UI-FALLBACK*.ps1
+!baseline/**/CREATE-ME8-SETTINGS-UI-TARGET-A-PASS*.ps1
+!baseline/**/RESTORE-ME8-SETTINGS-UI-TARGET-A-PASS*.ps1
+!baseline/**/VERIFY-ME8-SETTINGS-UI-TARGET-A-PASS*.ps1
 !baseline/**/MANIFEST.json
 !baseline/**/HASHES.json
+!baseline/**/BASELINE-ME8-*.md
 
 # ---- Runtime / build output ----
 evidence/
@@ -93,3 +100,10 @@ Thumbs.db
 .DS_Store
 !.cursor/rules/
 !.cursor/rules/*.mdc
+
+# ---- Local ops / ship / OTA trees (MOB-EXECUTE-WORKSPACE-RECOVERY-V1) ----
+# Keep these out of git clean -fd collateral; they are local/lab artifacts.
+tools/
+vendor/firmware-ota/
+ship-build/
+ship-build-test/

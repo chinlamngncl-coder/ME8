@@ -1,7 +1,7 @@
 # MOB-APPLIED — PTT-VISUAL-ALERT-FULLSTACK-V1
 
 **Date:** 2026-07-23  
-**Status:** APPLIED — operator PASS pending  
+**Status:** **PASS** (operator 2026-07-23)  
 **Apply:** `MOB-APPLY PTT-VISUAL-ALERT-FULLSTACK-V1`
 
 ## Plain English
@@ -43,3 +43,5 @@ npm run verify:ptt-visual-alert
 3. Press PTT on that BWC → **that** tile pulses (yellow + PTT badge).  
 4. Release → pulse clears within ~1s.  
 5. Other tiles stay quiet. Talk/listen still works.
+
+**Operator result:** **PASS** (2026-07-23).

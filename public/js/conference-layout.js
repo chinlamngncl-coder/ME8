@@ -1,15 +1,25 @@
 /**
- * Video conference stage \u2014 fixed layouts for up to 8 participants, no scroll.
+ * Video conference stage \u2014 VC-14-STREAM-ENTERPRISE-LAYOUTS-V2
+ * Five layouts: speaker | operations | gallery | focus | dual.
+ * Caps: 8 humans + 6 BWC/fixed. LiveKit track attach unchanged.
  */
 (function (global) {
     const MAX_PEOPLE = 8;
-    const MAX_SHARE_TILES = 4;
+    const MAX_SHARE_TILES = 6;
+    const SIDEBAR_MAX = 13;
+    const FILMSTRIP_MAX = 13;
     const POLL_VISIBLE = 4;
     const POLL_MS = 8000;
-    const DEPLOY_OPS_PCT_DEFAULT = 68;
-    const PEOPLE_SCHEMES = ['auto', 'gallery', 'speaker', 'two-up', 'focus', 'pip', 'briefing', 'sidebyside'];
+    const DEPLOY_OPS_PCT_DEFAULT = 72;
+    const MISSION_MODES = ['speaker', 'operations', 'gallery', 'focus', 'dual'];
+    const PEOPLE_SCHEMES = ['auto', 'gallery', 'speaker', 'two-up', 'focus', 'pip', 'briefing', 'sidebyside', 'dual'];
     const SHARE_LAYOUTS = ['split', 'large', 'people'];
     const BWC_CONNECT_MS = 45000;
+    const LAYOUT_CLASSES = ['layout-speaker', 'layout-operations', 'layout-gallery', 'layout-focus', 'layout-dual'];
+    const LEGACY_MODE_CLASSES = [
+        'vc-mode-gallery', 'vc-mode-split', 'vc-mode-spotlight-full', 'vc-mode-two-up', 'vc-mode-deploy',
+        'vc-mode-speaker', 'vc-mode-operations', 'vc-mode-focus', 'vc-mode-fill-grid',
+    ];
 
     let stageEl = null;
     let bodyEl = null;
@@ -27,8 +37,10 @@
 
     let tiles = new Map();
     let staticShares = new Map();
-    let layoutMode = 'gallery';
-    let peopleScheme = 'gallery';
+    let layoutMode = 'split';
+    let missionMode = 'speaker';
+    let missionUserLocked = false;
+    let peopleScheme = 'speaker';
     let peopleLayoutOverride = false;
     let shareLayout = 'split';
     let shareLayoutOverride = false;
@@ -38,7 +50,7 @@
     let spotlightSid = null;
     let pinnedSid = null;
     let pipSid = null;
-    let spotlightPct = 58;
+    let spotlightPct = 72;
     let opsPct = DEPLOY_OPS_PCT_DEFAULT;
     let pollPage = 0;
     let pollTimer = null;
@@ -50,6 +62,7 @@
     let connectingEl = null;
     let participantStates = new Map();
     let activeSpeakers = new Set();
+    let escBound = false;
 
     function tr(key) {
         if (global.I18n && I18n.t) return I18n.t(key);
@@ -113,9 +126,9 @@
         galleryPane = stageEl.querySelector('.vc-gallery-pane');
         spotlightInner = stageEl.querySelector('.vc-spotlight-inner');
         dividerEl = stageEl.querySelector('.vc-stage-divider');
-        toolbarEl = stageEl.querySelector('.vc-stage-toolbar');
-        peopleBarEl = stageEl.querySelector('#vc-layout-people');
-        shareBarEl = stageEl.querySelector('#vc-layout-share');
+        toolbarEl = stageEl.querySelector('.vc-meeting-dock') || stageEl.querySelector('.vc-stage-toolbar');
+        peopleBarEl = stageEl.querySelector('#vc-layout-people') || stageEl.querySelector('.vc-dock-layout');
+        shareBarEl = stageEl.querySelector('#vc-layout-share') || stageEl.querySelector('.vc-dock-share');
         fileInput = stageEl.querySelector('#vc-share-image-input');
         videoInput = stageEl.querySelector('#vc-share-video-input');
         docInput = stageEl.querySelector('#vc-share-doc-input');
@@ -131,7 +144,57 @@
         bindDropZones();
         bindFileInput();
         bindPollHover();
+        bindEscFocusExit();
+        stageEl.classList.add('vc-client-v1');
         initialized = true;
+        setMissionMode('speaker', false);
+    }
+
+    function bindEscFocusExit() {
+        if (escBound) return;
+        escBound = true;
+        global.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape') return;
+            if (missionMode !== 'focus' && !(pinnedSid && missionMode === 'operations' && shareLayout === 'large')) {
+                return;
+            }
+            exitFocusToSpeaker();
+        });
+    }
+
+    /** VC-LIVE-STAGE-RESTORE-AND-ESCAPE-V1 — leave Focus / pin trap cleanly */
+    function exitFocusToSpeaker() {
+        pinnedSid = null;
+        if (shareLayout === 'large' && shareLayoutOverride) {
+            shareLayoutOverride = false;
+            shareLayout = 'split';
+        }
+        setMissionMode('speaker', true);
+    }
+
+    function syncExitFocusBtn() {
+        if (!stageEl) return;
+        let btn = stageEl.querySelector('.vc-exit-focus');
+        const show = missionMode === 'focus'
+            || (pinnedSid && missionMode === 'operations' && shareLayout === 'large');
+        if (!show) {
+            if (btn) btn.hidden = true;
+            return;
+        }
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-ghost btn-sm vc-exit-focus';
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                exitFocusToSpeaker();
+            });
+            const canvas = stageEl.querySelector('.vc-stage-canvas') || stageEl;
+            canvas.appendChild(btn);
+        }
+        btn.hidden = false;
+        btn.textContent = tr('conference.exitFocus', 'Exit Focus');
+        btn.title = tr('conference.exitFocusHint', 'Back to Speaker (Esc)');
     }
 
     function bindPollHover() {
@@ -178,81 +241,81 @@
     }
 
     function syncViewBtns() {
-        if (!toolbarEl) return;
-        toolbarEl.querySelectorAll('[data-vc-action]').forEach(function (btn) {
-            const a = btn.getAttribute('data-vc-action');
-            if (a === 'view-gallery') {
-                btn.classList.toggle('active', peopleScheme === 'gallery');
-            } else if (a === 'view-speaker') {
-                btn.classList.toggle('active', peopleScheme === 'speaker');
-            } else if (a === 'view-focus') {
-                btn.classList.toggle('active', peopleScheme === 'focus');
-            } else if (a === 'view-two-up') {
-                btn.classList.toggle('active', peopleScheme === 'two-up');
-            } else if (a === 'view-briefing') {
-                btn.classList.toggle('active', peopleScheme === 'briefing');
-            } else if (a === 'view-sidebyside') {
-                btn.classList.toggle('active', peopleScheme === 'sidebyside');
-            } else if (a === 'pip-toggle') {
-                btn.classList.toggle('active', peopleScheme === 'pip');
-            } else if (a === 'expand') {
-                btn.hidden = !hasShareTiles() || shareLayout === 'large' || layoutMode === 'deploy';
-            } else if (a === 'shrink') {
-                btn.hidden = shareLayout !== 'large';
-            }
+        syncMissionBtns();
+    }
+
+    function syncMissionBtns() {
+        if (!stageEl) return;
+        stageEl.classList.remove('vc-mission-speaker', 'vc-mission-operations', 'vc-mission-focus');
+        stageEl.classList.add('vc-mission-' + missionMode);
+        const bar = peopleBarEl || stageEl.querySelector('.vc-dock-layout');
+        if (!bar) return;
+        bar.querySelectorAll('[data-vc-mission]').forEach(function (btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-vc-mission') === missionMode);
         });
     }
 
     function bindToolbar() {
         if (!toolbarEl) return;
-        if (peopleBarEl && !peopleBarEl._vcBound) {
-            peopleBarEl._vcBound = true;
-            peopleBarEl.addEventListener('click', function (e) {
-                const btn = e.target.closest('[data-vc-layout]');
-                if (!btn) return;
-                setPeopleScheme(btn.getAttribute('data-vc-layout'));
+        const layoutBar = peopleBarEl || toolbarEl.querySelector('.vc-dock-layout');
+        if (layoutBar && !layoutBar._vcBound) {
+            layoutBar._vcBound = true;
+            layoutBar.addEventListener('click', function (e) {
+                const btn = e.target.closest('[data-vc-mission]');
+                if (btn) {
+                    setMissionMode(btn.getAttribute('data-vc-mission'), true);
+                    return;
+                }
+                const legacy = e.target.closest('[data-vc-layout]');
+                if (legacy) setPeopleScheme(legacy.getAttribute('data-vc-layout'));
             });
         }
         if (shareBarEl && !shareBarEl._vcBound) {
             shareBarEl._vcBound = true;
             shareBarEl.addEventListener('click', function (e) {
                 const btn = e.target.closest('[data-vc-share-layout]');
-                if (!btn) return;
-                setShareLayout(btn.getAttribute('data-vc-share-layout'));
+                if (btn) {
+                    setShareLayout(btn.getAttribute('data-vc-share-layout'));
+                    return;
+                }
+                const actionBtn = e.target.closest('[data-vc-action]');
+                if (!actionBtn) return;
+                runDockAction(actionBtn.getAttribute('data-vc-action'));
             });
         }
-        toolbarEl.addEventListener('click', function (e) {
-            const btn = e.target.closest('[data-vc-action]');
-            if (!btn) return;
-            const action = btn.getAttribute('data-vc-action');
-            if (action === 'screen') {
-                toggleScreenShare().catch(function (err) { alert(err.message); });
-            } else if (action === 'image') {
-                fileInput && fileInput.click();
-            } else if (action === 'video') {
-                videoInput && videoInput.click();
-            } else if (action === 'document') {
-                docInput && docInput.click();
-            } else if (action === 'view-gallery') {
-                setPeopleScheme('gallery');
-            } else if (action === 'view-speaker') {
-                setPeopleScheme('speaker');
-            } else if (action === 'view-focus') {
-                setPeopleScheme('focus');
-            } else if (action === 'view-two-up') {
-                setPeopleScheme('two-up');
-            } else if (action === 'view-briefing') {
-                setPeopleScheme('briefing');
-            } else if (action === 'view-sidebyside') {
-                setPeopleScheme('sidebyside');
-            } else if (action === 'pip-toggle') {
-                setPeopleScheme(peopleScheme === 'pip' ? 'gallery' : 'pip');
-            } else if (action === 'expand') {
-                setShareLayout('large');
-            } else if (action === 'shrink') {
-                setShareLayout('split');
-            }
-        });
+        if (!toolbarEl._vcDockBound) {
+            toolbarEl._vcDockBound = true;
+            toolbarEl.addEventListener('click', function (e) {
+                const btn = e.target.closest('[data-vc-action]');
+                if (!btn || (shareBarEl && shareBarEl.contains(btn))) return;
+                runDockAction(btn.getAttribute('data-vc-action'));
+            });
+        }
+    }
+
+    function runDockAction(action) {
+        if (action === 'screen') {
+            toggleScreenShare().catch(function (err) { alert(err.message); });
+        } else if (action === 'image') {
+            fileInput && fileInput.click();
+        } else if (action === 'video') {
+            videoInput && videoInput.click();
+        } else if (action === 'document') {
+            docInput && docInput.click();
+        } else if (action === 'view-gallery' || action === 'view-speaker') {
+            setMissionMode('speaker', true);
+        } else if (action === 'view-focus') {
+            setMissionMode('focus', true);
+        } else if (action === 'view-briefing' || action === 'view-sidebyside') {
+            setMissionMode('operations', true);
+        } else if (action === 'view-two-up' || action === 'pip-toggle') {
+            /* parked primary chrome — keep speaker */
+            setMissionMode('speaker', true);
+        } else if (action === 'expand') {
+            setShareLayout('large');
+        } else if (action === 'shrink') {
+            setShareLayout('split');
+        }
     }
 
     function bindFileInput() {
@@ -361,22 +424,29 @@
 
     function setLayoutMode(mode) {
         layoutMode = mode;
+        applyMissionLayoutChrome();
+    }
+
+    /** VC-14-STREAM-ENTERPRISE-LAYOUTS-V2 — stamp .layout-* maps */
+    function applyMissionLayoutChrome() {
         if (!bodyEl) return;
-        bodyEl.classList.remove(
-            'vc-mode-gallery', 'vc-mode-split', 'vc-mode-spotlight-full', 'vc-mode-two-up', 'vc-mode-deploy'
-        );
-        if (mode === 'split') {
-            bodyEl.classList.add('vc-mode-split');
+        LAYOUT_CLASSES.forEach(function (c) { bodyEl.classList.remove(c); });
+        LEGACY_MODE_CLASSES.forEach(function (c) { bodyEl.classList.remove(c); });
+        const m = MISSION_MODES.indexOf(missionMode) >= 0 ? missionMode : 'speaker';
+        bodyEl.classList.add('layout-' + m);
+        if (m === 'speaker') {
+            bodyEl.classList.add('vc-mode-speaker', 'vc-mode-split');
             applySplitRatio();
-        } else if (mode === 'deploy') {
-            bodyEl.classList.add('vc-mode-deploy');
+        } else if (m === 'operations') {
+            bodyEl.classList.add('vc-mode-operations', 'vc-mode-deploy');
             applyDeployRatio();
-        } else if (mode === 'spotlight-full') {
-            bodyEl.classList.add('vc-mode-spotlight-full');
-        } else if (mode === 'two-up') {
-            bodyEl.classList.add('vc-mode-two-up');
-        } else {
+        } else if (m === 'gallery') {
             bodyEl.classList.add('vc-mode-gallery');
+        } else if (m === 'focus') {
+            bodyEl.classList.add('vc-mode-focus', 'vc-mode-spotlight-full');
+        } else if (m === 'dual') {
+            bodyEl.classList.add('vc-mode-dual', 'vc-mode-speaker', 'vc-mode-split');
+            applySplitRatio();
         }
         syncToolbarState();
     }
@@ -389,15 +459,21 @@
     }
 
     function effectivePeopleScheme() {
-        if (peopleScheme === 'auto') return 'gallery';
+        if (missionMode === 'speaker') return 'speaker';
+        if (missionMode === 'operations') return 'briefing';
+        if (missionMode === 'focus') return 'focus';
+        if (peopleScheme === 'auto') return 'speaker';
         return peopleScheme;
     }
 
     function applyAutoShareLayout() {
-        if (peopleScheme !== 'auto') return;
         const sharing = hasShareTiles() || shareExpected;
         if (sharing) {
             if (!shareLayoutOverride) shareLayout = 'split';
+            if (!missionUserLocked || missionMode === 'speaker') {
+                missionMode = 'operations';
+                peopleScheme = 'briefing';
+            }
         } else {
             shareLayoutOverride = false;
             shareLayout = 'split';
@@ -405,6 +481,10 @@
             shareError = null;
             clearShareConnectTimer();
             if (pinnedSid && isShareKind(tileKindForSid(pinnedSid))) pinnedSid = null;
+            if (!missionUserLocked && missionMode === 'operations') {
+                missionMode = 'speaker';
+                peopleScheme = 'speaker';
+            }
         }
     }
 
@@ -415,26 +495,82 @@
         shareLayout = 'split';
         clearShareConnectTimer();
         if (pinnedSid && isShareKind(tileKindForSid(pinnedSid))) pinnedSid = null;
-        if (peopleScheme === 'auto') peopleLayoutOverride = false;
+        if (!missionUserLocked) {
+            missionMode = 'speaker';
+            peopleScheme = 'speaker';
+            peopleLayoutOverride = false;
+        }
         applyAutoShareLayout();
         remount();
     }
 
-    function setPeopleScheme(scheme) {
-        if (PEOPLE_SCHEMES.indexOf(scheme) < 0) scheme = 'auto';
-        peopleScheme = scheme;
-        if (scheme === 'auto') {
-            peopleLayoutOverride = false;
-            shareLayoutOverride = false;
-            shareError = null;
-            applyAutoShareLayout();
-        } else {
-            peopleLayoutOverride = true;
+    function setMissionMode(mode, userLocked) {
+        if (MISSION_MODES.indexOf(mode) < 0) mode = 'speaker';
+        if (mode !== 'focus' && pinnedSid && !isShareKind(tileKindForSid(pinnedSid))) {
+            pinnedSid = null;
         }
-        if (scheme !== 'pip') {
+        if (mode === 'speaker' || mode === 'gallery') {
+            pinnedSid = null;
+            if (shareLayout === 'large' && !hasShareTiles()) {
+                shareLayoutOverride = false;
+                shareLayout = 'split';
+            }
+        }
+        missionMode = mode;
+        if (userLocked) missionUserLocked = true;
+        if (mode === 'speaker') {
+            peopleScheme = 'speaker';
+            peopleLayoutOverride = true;
+        } else if (mode === 'operations') {
+            peopleScheme = 'briefing';
+            peopleLayoutOverride = true;
+            if (!shareLayoutOverride) shareLayout = 'split';
+        } else if (mode === 'gallery') {
+            peopleScheme = 'gallery';
+            peopleLayoutOverride = true;
+        } else if (mode === 'dual') {
+            peopleScheme = 'dual';
+            peopleLayoutOverride = true;
+        } else {
+            peopleScheme = 'focus';
+            peopleLayoutOverride = true;
             pipSid = null;
             if (pipLayer) pipLayer.hidden = true;
+            if (!pinnedSid) {
+                pinnedSid = primaryCameraSid() || primaryShareSid();
+            }
         }
+        remount();
+    }
+
+    function setPeopleScheme(scheme) {
+        if (PEOPLE_SCHEMES.indexOf(scheme) < 0) scheme = 'speaker';
+        peopleScheme = scheme;
+        if (scheme === 'auto' || scheme === 'speaker') {
+            setMissionMode('speaker', true);
+            return;
+        }
+        if (scheme === 'gallery') {
+            setMissionMode('gallery', true);
+            return;
+        }
+        if (scheme === 'two-up' || scheme === 'dual') {
+            setMissionMode('dual', true);
+            return;
+        }
+        if (scheme === 'pip') {
+            setMissionMode('speaker', true);
+            return;
+        }
+        if (scheme === 'briefing' || scheme === 'sidebyside') {
+            setMissionMode('operations', true);
+            return;
+        }
+        if (scheme === 'focus') {
+            setMissionMode('focus', true);
+            return;
+        }
+        peopleLayoutOverride = true;
         remount();
     }
 
@@ -487,24 +623,24 @@
         }
         if (shareBarEl) {
             const showShare = hasShareTiles() || shareExpected;
-            shareBarEl.hidden = !showShare;
-            if (showShare) {
-                shareBarEl.querySelectorAll('[data-vc-share-layout]').forEach(function (btn) {
-                    btn.classList.toggle('active', btn.getAttribute('data-vc-share-layout') === shareLayout);
-                });
-            }
+            /* dock share actions always visible; optional share-layout chips stay if present */
+            shareBarEl.querySelectorAll('[data-vc-share-layout]').forEach(function (btn) {
+                btn.hidden = !showShare;
+                btn.classList.toggle('active', btn.getAttribute('data-vc-share-layout') === shareLayout);
+            });
         }
-        syncViewBtns();
+        syncMissionBtns();
+        syncExitFocusBtn();
     }
-
-    /** Fixed grid for 1\u20134 share tiles in spotlight pane. */
     function fitShareGridDims(count) {
         const n = Math.max(0, Math.min(MAX_SHARE_TILES, count));
         if (n <= 0) return { cols: 1, rows: 1 };
         if (n === 1) return { cols: 1, rows: 1 };
         if (n === 2) return { cols: 2, rows: 1 };
-        if (n === 3) return { cols: 2, rows: 2 };
-        return { cols: 2, rows: 2 };
+        if (n === 3) return { cols: 3, rows: 1 };
+        if (n === 4) return { cols: 2, rows: 2 };
+        /* 5–6 BWC/fixed → 3×2 tactical grid */
+        return { cols: 3, rows: 2 };
     }
 
     function clearSpotlightGrid() {
@@ -635,13 +771,17 @@
 
     function maybeAutoBriefingOnShare() {
         if (!hasShareTiles()) return;
-        if (peopleScheme !== 'gallery' || peopleLayoutOverride) return;
-        if (shareLayoutOverride) return;
+        if (missionUserLocked) return;
+        if (missionMode === 'operations' || missionMode === 'gallery' || missionMode === 'dual' || missionMode === 'focus') {
+            return;
+        }
+        missionMode = 'operations';
         peopleScheme = 'briefing';
+        if (!shareLayoutOverride) shareLayout = 'split';
     }
 
     function isBriefingDeploy() {
-        return peopleScheme === 'briefing'
+        return (missionMode === 'operations' || peopleScheme === 'briefing')
             && hasShareTiles()
             && !shareLayoutOverride
             && shareLayout !== 'large';
@@ -649,9 +789,15 @@
 
     function wantsSharePaneLayout() {
         if (!hasShareTiles() || shareLayout === 'people') return false;
-        if (peopleScheme === 'briefing' || peopleScheme === 'sidebyside') return true;
+        if (missionMode === 'operations' || peopleScheme === 'briefing' || peopleScheme === 'sidebyside') return true;
         if (shareLayoutOverride) return true;
         return false;
+    }
+
+    function pickFilmstripIds(cams, excludeSid) {
+        const rest = (cams || []).filter(function (sid) { return sid !== excludeSid; });
+        if (rest.length <= FILMSTRIP_MAX) return { ids: rest, overflow: 0 };
+        return { ids: rest.slice(0, FILMSTRIP_MAX), overflow: rest.length - FILMSTRIP_MAX };
     }
 
     function pickPollGalleryIds(cams) {
@@ -716,9 +862,8 @@
     }
 
     function autoLayout() {
-        if (peopleScheme === 'auto') {
-            applyAutoShareLayout();
-        } else if (hasShareTiles()) {
+        applyAutoShareLayout();
+        if (hasShareTiles()) {
             shareExpected = false;
             shareError = null;
             clearShareConnectTimer();
@@ -760,171 +905,281 @@
         return '<div class="vc-spotlight-empty">' + esc(tr('conference.layoutDropShare')) + '</div>';
     }
 
+    /**
+     * VC-14-STREAM-ENTERPRISE-LAYOUTS-V2 — mount by mission map.
+     * Speaker | Operations | Gallery | Focus | Dual. Caps 8 humans + 6 BWC/fixed.
+     */
     function mountTiles() {
         if (!galleryGrid || !spotlightInner) return;
 
         const shares = shareSids();
         const cams = cameraSids();
-        const sharesLive = shares.length > 0;
-        const showSharePane = sharesLive && shareLayout !== 'people';
-        const effPeople = effectivePeopleScheme();
-        const honourPeopleLayout = peopleLayoutOverride && peopleScheme !== 'auto';
-        const useShareBranch = showSharePane && (
-            wantsSharePaneLayout() || !(honourPeopleLayout && !shareLayoutOverride)
-        );
+        const allVideo = orderedVideoSids();
+        const shareIds = orderedShareSids().slice(0, MAX_SHARE_TILES);
+        const mode = MISSION_MODES.indexOf(missionMode) >= 0 ? missionMode : 'speaker';
 
         detachAllTileElements();
         clearNonTileChildren(spotlightInner);
         clearSpotlightGrid();
         clearNonTileChildren(galleryGrid);
-        if (pipLayer) clearNonTileChildren(pipLayer);
+        if (pipLayer) {
+            clearNonTileChildren(pipLayer);
+            pipLayer.hidden = true;
+        }
+        pipSid = null;
+        stopPollTimer();
 
         let spotSid = null;
         let shareGridIds = [];
         let galleryIds = [];
-        let twoUpTop = [];
+        let dualTop = [];
+        let overflowN = 0;
 
-        if (useShareBranch) {
-            const shareIds = orderedShareSids().slice(0, MAX_SHARE_TILES);
-            const briefingDeploy = isBriefingDeploy();
-            if (briefingDeploy) {
-                shareGridIds = shareIds;
-                setLayoutMode('deploy');
-                if (cams.length > POLL_VISIBLE) {
-                    const pages = Math.ceil(cams.length / POLL_VISIBLE);
-                    if (pollPage >= pages) pollPage = 0;
-                }
-                galleryIds = pickPollGalleryIds(cams);
-            } else if (shareLayout === 'large' && shareIds.length === 1) {
-                spotSid = shareIds[0];
-                setLayoutMode('spotlight-full');
-                galleryIds = cams.slice(0, MAX_PEOPLE);
-                stopPollTimer();
-            } else if (shareLayout === 'large' && shareIds.length > 1) {
-                shareGridIds = shareIds;
-                setLayoutMode('spotlight-full');
-                galleryIds = cams.slice(0, MAX_PEOPLE);
-                stopPollTimer();
-            } else {
-                shareGridIds = shareIds;
-                setLayoutMode('split');
-                normalizePollPage(cams);
-                galleryIds = shouldPollPeople(cams, false)
-                    ? pickPollGalleryIds(cams)
-                    : cams.slice(0, MAX_PEOPLE);
+        if (mode === 'focus') {
+            spotSid = primaryCameraSid() || primaryShareSid();
+            if (spotSid && !getTileElement(spotSid)) {
+                pinnedSid = null;
+                spotSid = primaryCameraSid() || primaryShareSid();
             }
-        } else if (effPeople === 'focus') {
-            spotSid = primaryCameraSid();
+            if (!spotSid) {
+                pinnedSid = null;
+                missionMode = 'speaker';
+                peopleScheme = 'speaker';
+                return mountTiles();
+            }
             setLayoutMode('spotlight-full');
-        } else if (effPeople === 'speaker') {
-            spotSid = primaryCameraSid();
-            setLayoutMode('split');
-            galleryIds = cams.filter(function (sid) { return sid !== spotSid; });
-        } else if (effPeople === 'two-up') {
-            setLayoutMode('two-up');
-            twoUpTop = cams.slice(0, 2);
-            galleryIds = cams.slice(2, MAX_PEOPLE);
-        } else if (peopleScheme === 'pip') {
+        } else if (mode === 'gallery') {
             setLayoutMode('gallery');
-            const pipTarget = pipSid || primaryCameraSid() || primaryShareSid();
-            if (pipTarget) pipSid = pipTarget;
-            galleryIds = orderedVideoSids().filter(function (sid) {
-                return sid !== pipSid && (shareLayout === 'people' || !isShareKind(tileKindForSid(sid)));
-            }).slice(0, MAX_PEOPLE);
-        } else {
-            setLayoutMode('gallery');
-            const sharesInGalleryGrid = sharesLive && shareLayout !== 'people';
-            if (shareLayout === 'people' || !sharesLive) {
-                normalizePollPage(cams);
-                galleryIds = shouldPollPeople(cams, false)
-                    ? pickPollGalleryIds(cams)
-                    : cams.slice(0, MAX_PEOPLE);
-            } else {
-                normalizePollPage(cams);
-                galleryIds = pickGalleryGridIds(cams, true);
+            galleryIds = allVideo.slice(0, MAX_PEOPLE + MAX_SHARE_TILES);
+        } else if (mode === 'operations') {
+            setLayoutMode('deploy');
+            shareGridIds = shareIds;
+            const strip = pickFilmstripIds(cams.slice(0, MAX_PEOPLE), null);
+            galleryIds = strip.ids;
+            overflowN = strip.overflow;
+            if (shareExpected || shareError) {
+                /* keep ops chrome even while connecting / failed */
             }
+        } else if (mode === 'dual') {
+            setLayoutMode('split');
+            dualTop = shareIds.slice(0, 2);
+            if (dualTop.length < 2) {
+                cams.forEach(function (sid) {
+                    if (dualTop.length >= 2) return;
+                    if (dualTop.indexOf(sid) < 0) dualTop.push(sid);
+                });
+            }
+            if (dualTop.length < 2) {
+                allVideo.forEach(function (sid) {
+                    if (dualTop.length >= 2) return;
+                    if (dualTop.indexOf(sid) < 0) dualTop.push(sid);
+                });
+            }
+            const rest = allVideo.filter(function (sid) {
+                return dualTop.indexOf(sid) < 0;
+            });
+            const strip = pickFilmstripIds(rest, null);
+            galleryIds = strip.ids;
+            overflowN = strip.overflow;
+        } else {
+            /* speaker — main stage + right sidebar (humans + BWC) */
+            setLayoutMode('split');
+            spotSid = primaryCameraSid() || primaryShareSid();
+            if (!spotSid && cams.length) spotSid = cams[0];
+            if (!spotSid && shareIds.length) spotSid = shareIds[0];
+            const rest = allVideo.filter(function (sid) { return sid !== spotSid; });
+            const strip = pickFilmstripIds(rest, null);
+            galleryIds = strip.ids;
+            overflowN = strip.overflow;
         }
 
-        if (shareError && showSharePane && (layoutMode === 'split' || layoutMode === 'spotlight-full' || layoutMode === 'deploy')) {
-            appendSpotlightPlaceholder(shareSpotlightMessage());
-        } else if (showSharePane && !spotSid && !shareGridIds.length && (layoutMode === 'split' || layoutMode === 'spotlight-full' || layoutMode === 'deploy')) {
-            appendSpotlightPlaceholder(shareSpotlightMessage());
-        } else if (shareGridIds.length) {
-            clearSpotlightGrid();
-            applyFitShareGrid(spotlightInner, shareGridIds.length);
-            let mounted = 0;
-            shareGridIds.forEach(function (sid) {
-                const el = getTileElement(sid);
-                if (el) {
-                    spotlightInner.appendChild(el);
-                    mounted++;
-                }
-            });
-            if (!mounted) appendSpotlightPlaceholder(shareSpotlightMessage());
+        /* Spotlight mount */
+        if (mode === 'operations') {
+            if (shareGridIds.length) {
+                applyFitShareGrid(spotlightInner, shareGridIds.length);
+                let mounted = 0;
+                shareGridIds.forEach(function (sid) {
+                    const el = getTileElement(sid);
+                    if (el) {
+                        spotlightInner.appendChild(el);
+                        mounted++;
+                    }
+                });
+                if (!mounted) appendSpotlightPlaceholder(shareSpotlightMessage());
+            } else if (shareError || shareExpected) {
+                appendSpotlightPlaceholder(shareSpotlightMessage());
+            } else {
+                appendSpotlightPlaceholder(
+                    '<div class="vc-spotlight-empty">' +
+                    esc(tr('conference.layoutDropShare', 'Add BWC / fixed cameras for Operations')) +
+                    '</div>'
+                );
+            }
+        } else if (mode === 'dual') {
+            if (dualTop.length) {
+                applyFitShareGrid(spotlightInner, Math.max(2, dualTop.length));
+                dualTop.forEach(function (sid) {
+                    const el = getTileElement(sid);
+                    if (el) spotlightInner.appendChild(el);
+                });
+            } else {
+                appendSpotlightPlaceholder(
+                    '<div class="vc-spotlight-empty">' +
+                    esc(tr('conference.layoutWaitingVideo', 'Waiting for video…')) +
+                    '</div>'
+                );
+            }
+        } else if (mode === 'gallery') {
+            /* spotlight hidden by CSS */
         } else if (spotSid) {
             clearSpotlightGrid();
             const spotEl = getTileElement(spotSid);
             if (spotEl) spotlightInner.appendChild(spotEl);
             else appendSpotlightPlaceholder(shareSpotlightMessage());
-        } else if (layoutMode === 'two-up' && twoUpTop.length) {
-            clearSpotlightGrid();
-            applyFitShareGrid(spotlightInner, twoUpTop.length);
-            twoUpTop.forEach(function (sid) {
-                const el = getTileElement(sid);
-                if (el) spotlightInner.appendChild(el);
-            });
-        } else if (layoutMode === 'split' || layoutMode === 'spotlight-full') {
-            if (!spotSid && layoutMode === 'split') {
-                appendSpotlightPlaceholder(
-                    '<div class="vc-spotlight-empty">' + esc(tr('conference.layoutDropShare')) + '</div>'
-                );
-            }
+        } else if (mode === 'speaker') {
+            const msg = (cams.length || shares.length)
+                ? tr('conference.layoutWaitingVideo', 'Waiting for video…')
+                : tr('conference.layoutWaitingPeople', 'Waiting for participants…');
+            appendSpotlightPlaceholder('<div class="vc-spotlight-empty">' + esc(msg) + '</div>');
         }
 
         galleryIds.forEach(function (sid) {
-            if (sid === pipSid) return;
             const el = getTileElement(sid);
             if (el) galleryGrid.appendChild(el);
         });
 
-        if (pipSid && pipLayer) {
-            const pipEl = getTileElement(pipSid);
-            if (pipEl) {
-                pipLayer.hidden = false;
-                pipLayer.appendChild(pipEl);
-            } else {
-                pipSid = null;
-                pipLayer.hidden = true;
-            }
-        } else if (pipLayer) {
-            pipLayer.hidden = true;
-        }
-
         const gridCount = galleryGrid.childElementCount;
         if (gridCount > 0) {
-            applyFitGrid(galleryGrid, gridCount);
-        } else if (!spotSid && !pipSid && layoutMode === 'gallery') {
+            if (mode === 'gallery') {
+                galleryGrid.style.gridTemplateColumns = '';
+                galleryGrid.style.gridTemplateRows = '';
+                galleryGrid.style.height = '100%';
+                galleryGrid.style.minHeight = '0';
+                galleryGrid.style.overflow = 'auto';
+            } else {
+                galleryGrid.style.gridTemplateColumns = '';
+                galleryGrid.style.gridTemplateRows = '';
+                galleryGrid.style.height = '100%';
+                galleryGrid.style.minHeight = '0';
+                galleryGrid.style.overflow = '';
+            }
+        } else if (mode === 'gallery') {
             const empty = document.createElement('div');
             empty.className = 'vc-gallery-empty';
             empty.textContent = tr('conference.layoutWaiting');
             galleryGrid.appendChild(empty);
-            galleryGrid.style.gridTemplateColumns = '';
-            galleryGrid.style.gridTemplateRows = '';
         }
 
-        if (isPeoplePollLayout(cams)) {
-            startPollTimer(cams.length);
-            const visiblePeople = galleryIds.filter(function (sid) {
-                return !isShareKind(tileKindForSid(sid));
-            }).length;
-            syncGalleryHeader(cams.length, visiblePeople);
-        } else {
-            stopPollTimer();
-            syncGalleryHeader(cams.length, gridCount);
+        if (galleryPane) {
+            if (mode === 'focus') {
+                galleryPane.hidden = true;
+            } else if (mode === 'gallery') {
+                galleryPane.hidden = false;
+            } else if (mode === 'speaker' || mode === 'dual') {
+                galleryPane.hidden = galleryIds.length === 0;
+            } else {
+                galleryPane.hidden = false;
+            }
+            if (dividerEl) dividerEl.style.display = 'none';
         }
 
+        const overflowEl = galleryPane && galleryPane.querySelector('.vc-gallery-overflow');
+        if (overflowEl) {
+            if (overflowN > 0 && mode !== 'focus' && mode !== 'gallery') {
+                overflowEl.hidden = false;
+                overflowEl.textContent = '+' + overflowN;
+            } else {
+                overflowEl.hidden = true;
+                overflowEl.textContent = '';
+            }
+        }
+
+        /* Empty main + tiles only in strip → fill-grid (speaker/dual only) */
+        if (bodyEl) {
+            bodyEl.classList.remove('vc-mode-fill-grid');
+            const spotTile = spotlightInner && spotlightInner.querySelector('.vc-tile');
+            const galleryTile = galleryGrid && galleryGrid.querySelector('.vc-tile');
+            if (!spotTile && galleryTile && (mode === 'speaker' || mode === 'dual')) {
+                bodyEl.classList.add('vc-mode-fill-grid');
+                if (galleryPane) galleryPane.hidden = false;
+                if (dividerEl) dividerEl.style.display = 'none';
+            }
+        }
+
+        syncGalleryHeader(cams.length, gridCount);
+        syncExitFocusBtn();
+        syncStageBadge(spotSid, shareGridIds.length ? shareGridIds : dualTop);
         syncToolbarState();
         reattachTileMedia();
+        syncEmptyStageState();
+    }
+
+    /** VC-EMPTY-STATES-AND-LOBBY-V1 — professional wait chrome when room has no tiles */
+    function ensureEmptyStagePlaceholder() {
+        if (!stageEl) return null;
+        let ph = stageEl.querySelector('.empty-stage-placeholder');
+        if (ph) return ph;
+        const canvas = stageEl.querySelector('.vc-stage-canvas') || stageEl;
+        ph = document.createElement('div');
+        ph.className = 'empty-stage-placeholder';
+        ph.setAttribute('hidden', '');
+        ph.innerHTML =
+            '<svg class="empty-stage-icon" viewBox="0 0 64 64" width="48" height="48" aria-hidden="true">'
+            + '<rect x="8" y="18" width="36" height="28" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>'
+            + '<path d="M44 28l12-6v20l-12-6z" fill="none" stroke="currentColor" stroke-width="2"/>'
+            + '<line x1="12" y1="12" x2="52" y2="52" stroke="currentColor" stroke-width="2.5"/>'
+            + '</svg>'
+            + '<h2 class="empty-stage-title"></h2>'
+            + '<p class="empty-stage-body"></p>';
+        canvas.appendChild(ph);
+        return ph;
+    }
+
+    function syncEmptyStageState() {
+        if (!stageEl) return;
+        const tileCount = stageEl.querySelectorAll('.vc-tile').length;
+        const connecting = !!(connectingEl && connectingEl.parentNode);
+        const inRoom = !!lkRoom;
+        const empty = inRoom && tileCount === 0 && !connecting;
+        stageEl.classList.toggle('vc-empty-stage', empty);
+        stageEl.classList.toggle('vc-has-streams', inRoom && tileCount > 0);
+        stageEl.classList.toggle('vc-in-room', inRoom);
+        const ph = ensureEmptyStagePlaceholder();
+        if (!ph) return;
+        if (empty) {
+            const title = ph.querySelector('.empty-stage-title');
+            const body = ph.querySelector('.empty-stage-body');
+            if (title) title.textContent = tr('conference.emptyStageTitle', 'ROOM ACTIVE');
+            if (body) {
+                body.textContent = tr(
+                    'conference.emptyStageBody',
+                    'Waiting for participants or BWC streams...'
+                );
+            }
+            ph.hidden = false;
+        } else {
+            ph.hidden = true;
+        }
+    }
+
+    function syncStageBadge(spotSid, shareGridIds) {
+        if (!stageEl) return;
+        const badge = stageEl.querySelector('#vc-stage-badge');
+        if (!badge) return;
+        const sid = spotSid || (shareGridIds && shareGridIds[0]) || null;
+        if (!sid) {
+            badge.hidden = true;
+            badge.textContent = '';
+            return;
+        }
+        const kind = tileKindForSid(sid);
+        const el = getTileElement(sid);
+        const labelEl = el && el.querySelector('.vc-tile-label');
+        const label = labelEl ? String(labelEl.textContent || '').trim() : '';
+        if (kind === 'bwc') badge.textContent = 'LIVE · ' + (label || 'BWC');
+        else if (isShareKind(kind)) badge.textContent = 'SHARING · ' + (label || kind);
+        else badge.textContent = label || 'LIVE';
+        badge.hidden = false;
     }
 
     function reattachTileMedia() {
@@ -951,6 +1206,7 @@
 
         const grip = document.createElement('div');
         grip.className = 'vc-tile-grip';
+        grip.hidden = true;
         grip.title = tr('conference.layoutDragHint');
         grip.draggable = true;
         grip.addEventListener('dragstart', function (e) {
@@ -980,19 +1236,25 @@
         const pinBtn = document.createElement('button');
         pinBtn.type = 'button';
         pinBtn.className = 'vc-tile-pin';
-        pinBtn.title = tr('conference.layoutPin');
-        pinBtn.textContent = '⤢';
+        pinBtn.title = tr('conference.layoutFocusTile', 'Focus');
+        pinBtn.setAttribute('aria-label', tr('conference.layoutFocusTile', 'Focus'));
+        pinBtn.textContent = tr('conference.layoutFocusTile', 'Focus');
         pinBtn.addEventListener('click', function (e) {
             e.stopPropagation();
+            /* Toggle: second click exits Focus trap */
+            if (pinnedSid === sid && (missionMode === 'focus'
+                || (isShareKind(kind) && shareLayout === 'large'))) {
+                exitFocusToSpeaker();
+                return;
+            }
             pinnedSid = sid;
             if (isShareKind(kind)) {
                 shareLayout = 'large';
                 shareLayoutOverride = true;
+                setMissionMode('operations', true);
             } else {
-                peopleScheme = 'focus';
-                peopleLayoutOverride = true;
+                setMissionMode('focus', true);
             }
-            remount();
         });
 
         const muteBadge = document.createElement('span');
@@ -1008,15 +1270,19 @@
         wrap.appendChild(muteBadge);
         wrap.appendChild(pinBtn);
         wrap.addEventListener('dblclick', function () {
+            if (pinnedSid === sid && (missionMode === 'focus'
+                || (isShareKind(kind) && shareLayout === 'large'))) {
+                exitFocusToSpeaker();
+                return;
+            }
             pinnedSid = sid;
             if (isShareKind(kind)) {
                 shareLayout = 'large';
                 shareLayoutOverride = true;
+                setMissionMode('operations', true);
             } else {
-                peopleScheme = 'focus';
-                peopleLayoutOverride = true;
+                setMissionMode('focus', true);
             }
-            remount();
         });
         return { wrap: wrap, media: media, muteBadge: muteBadge };
     }
@@ -1053,7 +1319,8 @@
     function setActiveSpeakers(identities) {
         const cams = cameraSids();
         const peoplePoll = isPeoplePollLayout(cams);
-        const shouldFollow = !pinnedSid && (peopleScheme === 'speaker' || peopleScheme === 'focus');
+        const shouldFollow = !pinnedSid && (missionMode === 'speaker' || missionMode === 'focus'
+            || peopleScheme === 'speaker' || peopleScheme === 'focus');
         const prevPrimary = (shouldFollow || peoplePoll) ? primaryCameraSid() : null;
         activeSpeakers = new Set(identities || []);
         participantStates.forEach(function (state, identity) {
@@ -1201,7 +1468,9 @@
         pinnedSid = null;
         pipSid = null;
         screenSharing = false;
-        peopleScheme = 'gallery';
+        peopleScheme = 'speaker';
+        missionMode = 'speaker';
+        missionUserLocked = false;
         peopleLayoutOverride = false;
         shareLayout = 'split';
         shareLayoutOverride = false;
@@ -1222,8 +1491,9 @@
             pipLayer.innerHTML = '';
             pipLayer.hidden = true;
         }
-        setLayoutMode('gallery');
+        setLayoutMode('split');
         syncToolbarState();
+        syncEmptyStageState();
     }
 
     function setConnecting(message) {
@@ -1233,6 +1503,7 @@
                 connectingEl.remove();
                 connectingEl = null;
             }
+            syncEmptyStageState();
             return;
         }
         if (!connectingEl) {
@@ -1241,19 +1512,30 @@
             stageEl.appendChild(connectingEl);
         }
         connectingEl.textContent = message;
+        syncEmptyStageState();
     }
 
     function show() {
-        if (stageEl) stageEl.hidden = false;
+        if (stageEl) {
+            stageEl.hidden = false;
+            stageEl.classList.add('vc-in-room');
+        }
+        syncEmptyStageState();
     }
 
     function hide() {
         setConnecting(null);
-        if (stageEl) stageEl.hidden = true;
+        if (stageEl) {
+            stageEl.hidden = true;
+            stageEl.classList.remove('vc-in-room', 'vc-empty-stage', 'vc-has-streams');
+            const ph = stageEl.querySelector('.empty-stage-placeholder');
+            if (ph) ph.hidden = true;
+        }
     }
 
     function setRoom(room) {
         lkRoom = room;
+        syncEmptyStageState();
     }
 
     async function toggleScreenShare() {
@@ -1287,6 +1569,9 @@
         setShareError: setShareError,
         resetShareToGrid: resetShareToGrid,
         setPeopleScheme: setPeopleScheme,
+        setMissionMode: function (mode) { setMissionMode(mode, true); },
+        exitFocusToSpeaker: exitFocusToSpeaker,
+        getMissionMode: function () { return missionMode; },
         setShareLayout: setShareLayout,
         getPeopleScheme: function () { return peopleScheme; },
         getShareLayout: function () { return shareLayout; },

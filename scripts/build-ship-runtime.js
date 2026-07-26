@@ -15,13 +15,15 @@ if (!fs.existsSync(entry)) {
 }
 
 const tmpOut = path.join(appRoot, '.ship-run-build.tmp.js');
+const minify = String(process.env.FM_SHIP_MINIFY || '').trim() === '1' || process.argv.includes('--minify');
 const cmd = [
   'npx --yes esbuild',
   JSON.stringify(entry),
   '--bundle --platform=node --target=node22 --packages=external',
+  minify ? '--minify --legal-comments=none' : '',
   '--outfile=' + JSON.stringify(tmpOut),
   '--log-level=warning',
-].join(' ');
+].filter(Boolean).join(' ');
 
 try {
   execSync(cmd, { stdio: 'inherit', cwd: appRoot, shell: true });

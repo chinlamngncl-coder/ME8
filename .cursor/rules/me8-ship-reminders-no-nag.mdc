@@ -5,17 +5,20 @@ alwaysApply: true
 
 # ME8 ship reminders (no nag)
 
-**Locked:** `docs/MOB-DISC-SHIP-REMINDERS-NO-NAG.md`
+**Locked:** `docs/MOB-DISC-SHIP-REMINDERS-NO-NAG.md`  
+**Pack gather (when ship/pack only):** `docs/MOB-DISC-SHIP-PACK-GATHER-REMINDER-20260725.md`
 
 ## Do NOT open sessions with
 
 - SOS ledger scoped re-test “still pending”
 - TOTP / `FM_TOTP_SUSPENDED` daily nag
+- Pack gather / licensing / packaging robot lists
 
 ## Facts
 
 - **SOS ledger scope:** **PASS** (user confirmed). Never re-nag unless user asks or scope code regresses.
 - **TOTP:** Remind **only** when user is **ship packing** (says ship / pack / customer pack / packing checklist). Then: turn off `FM_TOTP_SUSPENDED`, verify authenticator login.
+- **Pack gather:** When user says ship / pack / customer pack / packing checklist / CREATE ship / send to client — AI must print the gather checklist (license + `build:ship` + Packaging Robot smoke + pre-ship gate). Operator does not have to remember. See `me8-pre-ship-gate.mdc`.
 
 ## Ordinary MOB / FR / live work
 

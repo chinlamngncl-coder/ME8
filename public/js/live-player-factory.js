@@ -216,6 +216,8 @@
         var proveMs = typeof opts.proveMs === 'number' ? opts.proveMs : 300;
         var onProven = opts.onProven;
         var onFail = opts.onFail;
+        /* After prove, ERROR must still notify — mid-stream die (BWC stop) used to no-op because settled. */
+        var onStreamLost = opts.onStreamLost;
         var onVideoFrame = opts.onVideoFrame;
 
         var prevPos = host.style.position;
@@ -317,7 +319,14 @@
         }
 
         player.on(mpegts.Events.ERROR, function () {
-            fail('zlm_player_error');
+            if (!settled) {
+                fail('zlm_player_error');
+                return;
+            }
+            /* MOB-APPLY-WVP-HANDOFF-STOP-UI-PARITY-V1 — live FLV died after prove */
+            if (typeof onStreamLost === 'function') {
+                try { onStreamLost('zlm_player_error'); } catch (_) { /* never break player */ }
+            }
         });
         video.addEventListener('playing', armProve);
         video.addEventListener('timeupdate', function () {
@@ -328,6 +337,12 @@
                     lastFrameTime = t;
                     onVideoFrame();
                 }
+            }
+        });
+        video.addEventListener('ended', function () {
+            if (!settled) return;
+            if (typeof onStreamLost === 'function') {
+                try { onStreamLost('zlm_ended'); } catch (_) { /* never break player */ }
             }
         });
 

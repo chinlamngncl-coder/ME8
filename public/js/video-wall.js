@@ -71,6 +71,23 @@
         });
     }
 
+    /** Server liveViewers only — no Soft Open / no startMedia */
+    function emitRegisterViewerOnly(camId, surface) {
+        if (!socket || !camId) return;
+        socket.emit('register-viewer-only', {
+            camId: String(camId).trim(),
+            surface: String(surface || 'tactical').trim() || 'tactical',
+        });
+    }
+
+    function emitUnregisterViewerOnly(camId, surface) {
+        if (!socket || !camId) return;
+        socket.emit('unregister-viewer-only', {
+            camId: String(camId).trim(),
+            surface: String(surface || 'tactical').trim() || 'tactical',
+        });
+    }
+
     const players = new Map();
 
     /** Wall slot index or 'map:camId' \u2192 camId bound to that JSMpeg player. */
@@ -2223,7 +2240,8 @@
             }
             if (localDashboardStopCams.has(camId)) return;
             if (pinStoppedByUser(camId)) return;
-            if (wvpVideoHandoffUi && opsWallClaimsCam(camId)) return;
+            /* MOB-APPLY-WVP-HANDOFF-STOP-UI-PARITY-V1 — do NOT skip stall on ops wall under handoff
+             * (old guard killed Stopped by BWC / signal-lost chrome whenever wall claimed the cam). */
             if (!bwcStallDecodedOnce.has(camId)) return;
             if (!camHasActiveLiveVideoSurface(camId)) {
                 clearBwcStallWatch(camId);
@@ -2934,6 +2952,14 @@ function handoffPlayerAttaching(player) {
                 if (isAlarm) ensureAlarmStreamingOverlay(slotEl);
                 else ensureLiveStreamingOverlay(slotEl);
                 if (statusEl) statusEl.textContent = tr('video.playerError');
+            },
+            /* After Live prove — BWC stop / ZLM die → Stopped by BWC chrome (not frozen Live). */
+            onStreamLost: function () {
+                wvpHandoffSlotInflight.delete(slotKey);
+                if (activeStreams.get(slotKey) !== camId) return;
+                if (localDashboardStopCams.has(camId)) return;
+                if (bwcStoppedCams.has(camId)) return;
+                markBwcStoppedOverlay(camId);
             },
         });
         if (!handle) {
@@ -5744,6 +5770,8 @@ function handoffPlayerAttaching(player) {
         updateMapPinStopButton,
         stopLiveForCam: stopPinLive,
         cleanupMapPinPlayerOnPopupClose,
+        emitRegisterViewerOnly,
+        emitUnregisterViewerOnly,
         getActiveCamId: () => activeCamId,
         isCameraLive,
         noteExternalStream,

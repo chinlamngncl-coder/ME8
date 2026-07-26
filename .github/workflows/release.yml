@@ -1,0 +1,164 @@
+# Packaging Robot — GitHub Release automation (Task 3.3)
+#
+# Triggers when an engineer publishes a GitHub Release (tag + release notes).
+# Produces:
+#   1) mobility-axiom-protected-<tag>.zip  — ship-build/protected (+ prod node_modules)
+#   2) mobility-axiom-docker-stack-<tag>.zip — docker/ compose configs for sidecars
+#   3) mobility-axiom-<tag>.tar.gz — docker save of production app image
+# Optional: push image to GHCR when repository variable PUSH_DOCKER_TO_GHCR=true
+#
+# Guide: docs/RELEASE_GUIDE.md
+
+name: Packaging Robot
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: packaging-robot-${{ github.event.release.tag_name }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-upload:
+    name: Build ship zip + Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build protected ship runtime
+        run: npm run build:ship
+        env:
+          # Optional: set repository variable FM_SHIP_OBFUSCATE=1 for stronger obfuscation
+          FM_SHIP_OBFUSCATE: ${{ vars.FM_SHIP_OBFUSCATE }}
+
+      - name: Install production deps into protected pack
+        working-directory: ship-build/protected
+        run: npm install --omit=dev --no-audit --no-fund
+
+      - name: Guard — no private keys / no server.js / no lib/
+        run: |
+          set -euo pipefail
+          test -f ship-build/protected/run.js
+          test ! -f ship-build/protected/server.js
+          test ! -d ship-build/protected/lib
+          if find ship-build/protected -iname '*private*.pem' -o -iname 'license-private.pem' | grep -q .; then
+            echo "FATAL: private key must not appear in ship pack"
+            exit 1
+          fi
+          grep -q "LICENSE EXPIRED OR INVALID" ship-build/protected/run.js
+
+      - name: Zip protected pack
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          OUT="mobility-axiom-protected-${TAG}.zip"
+          (cd ship-build && zip -r -q "../${OUT}" protected \
+            -x "protected/storage/secrets/*" \
+            -x "protected/storage/license.lic" \
+            -x "protected/.env")
+          ls -lh "${OUT}"
+          echo "PROTECTED_ZIP=${OUT}" >> "$GITHUB_ENV"
+
+      - name: Zip docker compose stack (sidecars)
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          OUT="mobility-axiom-docker-stack-${TAG}.zip"
+          zip -r -q "${OUT}" docker \
+            -x "docker/**/.env" \
+            -x "docker/**/*.log" \
+            -x "docker/wvp/wvp-config/*.local.yml"
+          ls -lh "${OUT}"
+          echo "DOCKER_STACK_ZIP=${OUT}" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build production Docker image
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          # Normalize owner to lowercase for GHCR
+          OWNER_LC="$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')"
+          IMAGE_LOCAL="mobility-axiom:${TAG}"
+          IMAGE_GHCR="ghcr.io/${OWNER_LC}/mobility-axiom:${TAG}"
+          IMAGE_GHCR_LATEST="ghcr.io/${OWNER_LC}/mobility-axiom:latest"
+          docker build -f docker/Dockerfile \
+            -t "${IMAGE_LOCAL}" \
+            -t "${IMAGE_GHCR}" \
+            -t "${IMAGE_GHCR_LATEST}" \
+            .
+          echo "IMAGE_LOCAL=${IMAGE_LOCAL}" >> "$GITHUB_ENV"
+          echo "IMAGE_GHCR=${IMAGE_GHCR}" >> "$GITHUB_ENV"
+          echo "IMAGE_GHCR_LATEST=${IMAGE_GHCR_LATEST}" >> "$GITHUB_ENV"
+
+      - name: Save Docker image as release asset
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          OUT="mobility-axiom-${TAG}.tar.gz"
+          docker save "${IMAGE_LOCAL}" | gzip -c > "${OUT}"
+          ls -lh "${OUT}"
+          echo "DOCKER_TAR=${OUT}" >> "$GITHUB_ENV"
+
+      - name: Log in to GitHub Container Registry
+        if: ${{ vars.PUSH_DOCKER_TO_GHCR == 'true' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push Docker image to GHCR
+        if: ${{ vars.PUSH_DOCKER_TO_GHCR == 'true' }}
+        run: |
+          set -euo pipefail
+          docker push "${IMAGE_GHCR}"
+          docker push "${IMAGE_GHCR_LATEST}"
+
+      - name: Upload assets to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.PROTECTED_ZIP }}
+            ${{ env.DOCKER_STACK_ZIP }}
+            ${{ env.DOCKER_TAR }}
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          {
+            echo "## Packaging Robot"
+            echo ""
+            echo "- Tag: \`${{ github.event.release.tag_name }}\`"
+            echo "- Protected zip: \`${{ env.PROTECTED_ZIP }}\`"
+            echo "- Docker stack zip: \`${{ env.DOCKER_STACK_ZIP }}\`"
+            echo "- Docker image tar: \`${{ env.DOCKER_TAR }}\`"
+            echo "- GHCR push: \`${{ vars.PUSH_DOCKER_TO_GHCR == 'true' && 'yes' || 'no (tar attached only)' }}\`"
+            echo ""
+            echo "Customer still needs a signed \`storage/license.lic\` for their HWID (Task 3.1)."
+          } >> "$GITHUB_STEP_SUMMARY"

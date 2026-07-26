@@ -63,6 +63,7 @@ So: not “AI can’t read.” **Conflicting instructions + agent picked the wro
 ## Related
 
 - `ME8-INTERNAL/ship-desk/PRE-SHIP-GATE-CHECKLIST.md` — **print Section A when user says ship/pack** (professional pack gate; not a daily nag)
+- `docs/MOB-DISC-SHIP-PACK-GATHER-REMINDER-20260725.md` — **AI gathers** license + `build:ship` + Packaging Robot smoke + gate when ship/pack (operator does not chase)
 - `docs/MOB-DISC-SOS-LEDGER-SCOPE-RETEST.md` — PASS  
 - `docs/MOB-DISC-TOTP-SUSPENDED-BENCH.md` — packing-only  
 - ME8 `.cursor/rules/me8-ship-reminders-no-nag.mdc`  

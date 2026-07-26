@@ -330,6 +330,7 @@
         const ops = document.getElementById('app-view-ops');
         const ev = document.getElementById('app-view-evidence');
         const ax = document.getElementById('app-view-analytics');
+        const tac = document.getElementById('app-view-tactical');
         const conf = document.getElementById('app-view-conference');
         const audit = document.getElementById('app-view-audit-trail');
         const srv = document.getElementById('app-view-server');
@@ -338,6 +339,7 @@
         const btnOps = document.getElementById('nav-tab-ops');
         const btnEv = document.getElementById('nav-tab-evidence');
         const btnAx = document.getElementById('nav-tab-analytics');
+        const btnTac = document.getElementById('nav-tab-tactical');
         const btnConf = document.getElementById('nav-tab-conference');
         const btnAudit = document.getElementById('nav-tab-audit-trail');
         const btnSrv = document.getElementById('nav-tab-server');
@@ -352,6 +354,7 @@
         if (ops) ops.hidden = tab !== 'ops';
         if (ev) ev.hidden = tab !== 'evidence';
         if (ax) ax.hidden = tab !== 'analytics';
+        if (tac) tac.hidden = tab !== 'tactical';
         if (conf) conf.hidden = tab !== 'conference';
         if (audit) audit.hidden = tab !== 'audit-trail';
         if (srv) srv.hidden = tab !== 'server';
@@ -360,6 +363,7 @@
         if (btnOps) btnOps.classList.toggle('active', tab === 'ops');
         if (btnEv) btnEv.classList.toggle('active', tab === 'evidence');
         if (btnAx) btnAx.classList.toggle('active', tab === 'analytics');
+        if (btnTac) btnTac.classList.toggle('active', tab === 'tactical');
         if (btnConf) btnConf.classList.toggle('active', tab === 'conference');
         if (btnAudit) btnAudit.classList.toggle('active', tab === 'audit-trail');
         if (btnSrv) btnSrv.classList.toggle('active', tab === 'server');
@@ -375,6 +379,10 @@
         }
         if (tab === 'analytics') {
             if (global.AnalyticsHub && AnalyticsHub.onShow) AnalyticsHub.onShow({ force: loadData });
+        }
+        if (tab === 'tactical') {
+            if (global.TacticalShell && TacticalShell.onShow) TacticalShell.onShow({ force: loadData });
+            if (global.TabLifecycle) TabLifecycle.markLoaded('tactical');
         }
         if (tab === 'conference') {
             const showVc = function (forceRefresh) {
@@ -444,6 +452,7 @@
         const btnOps = document.getElementById('nav-tab-ops');
         const btnEv = document.getElementById('nav-tab-evidence');
         const btnAx = document.getElementById('nav-tab-analytics');
+        const btnTac = document.getElementById('nav-tab-tactical');
         const btnSrv = document.getElementById('nav-tab-server');
         const btnCw = document.getElementById('nav-tab-command-wall');
         const btnCs = document.getElementById('nav-tab-centre-summary');
@@ -457,6 +466,7 @@
         if (btnOps) btnOps.addEventListener('click', function () { showTab('ops'); });
         if (btnEv) btnEv.addEventListener('click', function () { showTab('evidence'); });
         if (btnAx) btnAx.addEventListener('click', function () { showTab('analytics'); });
+        if (btnTac) btnTac.addEventListener('click', function () { showTab('tactical'); });
         if (btnConf) btnConf.addEventListener('click', function () { showTab('conference'); });
         if (global.AnalyticsHub && AnalyticsHub.bindUi) AnalyticsHub.bindUi();
         if (btnAudit) btnAudit.addEventListener('click', function () { showTab('audit-trail'); });
