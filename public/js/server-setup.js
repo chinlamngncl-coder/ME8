@@ -11,6 +11,14 @@
         'server.mode.lan': 'LAN server',
         'server.mode.cloud': 'Cloud / VPS',
         'server.mode.hybrid': 'Hybrid (cloud ops + site LAN)',
+        'server.users.colClearMapPins': 'Clear map pins',
+        'server.users.addNewAdminOperator': 'Add New Admin / Operator',
+        'server.dashSub.addAccount': 'Add New Admin / Operator',
+        'server.dashSub.usersAuthority': 'Users & authority',
+        'server.dashSub.siteSecurity': 'Site security',
+        'server.tab.dashboard': 'Dashboard Authentication',
+        'server.users.loginUsername': 'Login username',
+        'server.users.usernameRequired': 'Login username is required.',
     };
 
     function tr(key, params) {
@@ -49,7 +57,7 @@
     let lastSiteTimePreview = '';
     let bwcRegisterManual = false;
     let activeMainTab = 'server';
-    let activeDashSubTab = 'operators';
+    let activeDashSubTab = 'add';
     let layoutOverride = null;
     const TAB_LAYOUT = {
         server: 'compact',
@@ -65,18 +73,12 @@
     const ADVANCED_TABS = ['firmware', 'usb', 'cloud', 'diagnostics', 'lab'];
     const PRIMARY_TABS = ['server', 'bwc', 'groups', 'dashboard'];
     const NETWORK_SECTION_IDS = [
-        'ss-section-deployment',
-        'ss-section-ssl',
-        'ss-section-resilience',
-        'ss-section-lan',
-        'ss-section-wan',
-        'ss-section-operator',
-        'ss-section-production',
-        'ss-section-site-time',
-        'ss-section-dock-link',
-        'ss-section-bwc-register',
-        'ss-section-protocol',
-        'ss-section-readiness',
+        'ss-phase-identity',
+        'ss-phase-networking',
+        'ss-phase-access',
+        'ss-phase-storage',
+        'ss-phase-resiliency',
+        'ss-phase-diagnostics',
     ];
     let lastSiteReadiness = null;
     let networkSectionScrollBound = false;
@@ -358,7 +360,11 @@
         }
         applyPanelLayout(activeMainTab);
         if (activeMainTab === 'server') {
-            setActiveNetworkSectionNav('ss-section-deployment');
+            setActiveNetworkSectionNav('ss-phase-identity');
+            if (global.CloudDeployment && CloudDeployment.loadOverview) {
+                CloudDeployment.loadOverview().catch(function () { /* ignore */ });
+            }
+            loadSiteReadiness().catch(function () { /* ignore */ });
         }
         const saveServer = document.getElementById('server-setup-save');
         const saveBwc = document.getElementById('ss-save-bwc-list');
@@ -540,38 +546,66 @@
     }
 
     function setDashSubTab(tab) {
-        if (!canManageUsers) return;
-        activeDashSubTab = tab === 'me' ? 'me' : 'operators';
-        ['operators', 'me'].forEach(function (id) {
+        if (!canManageUsers && tab !== 'me' && tab !== 'site') return;
+        if (tab === 'me') activeDashSubTab = 'me';
+        else if (tab === 'site') activeDashSubTab = canManageServer ? 'site' : 'add';
+        else if (tab === 'users' || tab === 'operators') activeDashSubTab = canManageUsers ? 'users' : 'me';
+        else if (tab === 'add') activeDashSubTab = canManageUsers ? 'add' : 'me';
+        else activeDashSubTab = canManageUsers ? 'add' : 'me';
+        ['add', 'users', 'site', 'me'].forEach(function (id) {
             const btn = document.getElementById('ss-dash-sub-' + id);
             if (btn) btn.classList.toggle('active', id === activeDashSubTab);
         });
         applyDashboardAuthLayout();
         if (activeDashSubTab === 'me') loadMyAccount().catch(function () { /* ignore */ });
+        if (activeDashSubTab === 'users') loadUsers().catch(function () { /* ignore */ });
     }
 
     function applyDashboardAuthLayout() {
         const onDash = activeMainTab === 'dashboard';
         const subtabs = document.getElementById('ss-dash-subtabs');
         const usersSection = document.getElementById('ss-users-section');
+        const addSection = document.getElementById('ss-users-add-section');
+        const listSection = document.getElementById('ss-users-list-section');
         const mySection = document.getElementById('ss-my-account-section');
+        const siteSection = document.getElementById('ss-site-security-section');
         const voiceSection = document.getElementById('ss-voice-alerts-section');
         const smtpSection = document.getElementById('ss-smtp-section');
         const techPinSection = document.getElementById('ss-tech-pin-section');
-        if (smtpSection) smtpSection.hidden = !onDash || !canManageServer;
-        if (techPinSection) techPinSection.hidden = !onDash || !canManageServer;
-        if (voiceSection) voiceSection.hidden = !onDash || !canManageServer;
-        if (onDash && canManageServer && global.PlatformSmtp && global.PlatformSmtp.load) {
+        const siteTabBtn = document.getElementById('ss-dash-sub-site');
+        const addTabBtn = document.getElementById('ss-dash-sub-add');
+        const usersTabBtn = document.getElementById('ss-dash-sub-users');
+
+        const onSite = onDash && canManageServer && activeDashSubTab === 'site';
+        if (siteTabBtn) siteTabBtn.hidden = !canManageServer;
+        if (addTabBtn) addTabBtn.hidden = !canManageUsers;
+        if (usersTabBtn) usersTabBtn.hidden = !canManageUsers;
+
+        if (siteSection) siteSection.hidden = !onSite;
+        if (smtpSection) smtpSection.hidden = !onSite;
+        if (techPinSection) techPinSection.hidden = !onSite;
+        if (voiceSection) voiceSection.hidden = !onSite;
+        if (onSite && global.PlatformSmtp && global.PlatformSmtp.load) {
             global.PlatformSmtp.load().catch(function () { /* ignore */ });
         }
-        if (onDash && canManageServer) refreshTechPinStatus();
-        if (canManageUsers) {
+        if (onSite) refreshTechPinStatus();
+
+        if (canManageUsers || canManageServer) {
             if (subtabs) subtabs.hidden = !onDash;
-            if (usersSection) usersSection.hidden = !onDash || activeDashSubTab !== 'operators';
+        } else if (subtabs) {
+            subtabs.hidden = true;
+        }
+
+        if (canManageUsers) {
+            const onAddOrUsers = onDash && (activeDashSubTab === 'add' || activeDashSubTab === 'users');
+            if (usersSection) usersSection.hidden = !onAddOrUsers;
+            if (addSection) addSection.hidden = !onDash || activeDashSubTab !== 'add';
+            if (listSection) listSection.hidden = !onDash || activeDashSubTab !== 'users';
             if (mySection) mySection.hidden = !onDash || activeDashSubTab !== 'me';
         } else {
-            if (subtabs) subtabs.hidden = true;
             if (usersSection) usersSection.hidden = true;
+            if (addSection) addSection.hidden = true;
+            if (listSection) listSection.hidden = true;
             if (mySection) mySection.hidden = !onDash;
         }
     }
@@ -1390,6 +1424,39 @@
         }
     }
 
+    /** Expand Ops video-wall drawer so VideoConfig overlay is visible (same KEY as drawer init). */
+    function expandOpsVideoWallDrawer() {
+        const stage = document.getElementById('center-stage');
+        if (!stage) return;
+        stage.classList.remove('video-wall-collapsed');
+        try { localStorage.setItem('mobility-video-wall-collapsed', '0'); } catch (_) { /* ignore */ }
+        const btn = document.getElementById('video-wall-collapse-toggle');
+        if (btn) {
+            btn.textContent = '\u25B6';
+            btn.setAttribute('aria-expanded', 'true');
+            btn.title = 'Hide video panels';
+            btn.setAttribute('aria-label', btn.title);
+        }
+        try { window.dispatchEvent(new Event('resize')); } catch (_) { /* ignore */ }
+    }
+
+    /** Settings BWCs → honest panel assign (not live wall / Command Wall). */
+    function openWallPanelAssignFromSettings() {
+        setOpen(false);
+        if (global.EvidenceManager && EvidenceManager.showTab) {
+            EvidenceManager.showTab('ops');
+        }
+        expandOpsVideoWallDrawer();
+        const openAssign = function () {
+            if (global.VideoConfig && VideoConfig.openPanel) VideoConfig.openPanel();
+        };
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(function () { requestAnimationFrame(openAssign); });
+        } else {
+            setTimeout(openAssign, 50);
+        }
+    }
+
     function permAllBadge() {
         return '<span class="ss-perm-badge-all">' + esc(tr('server.users.permAll')) + '</span>';
     }
@@ -1417,29 +1484,48 @@
         return '<label class="ss-perm-check"><input type="checkbox" class="' + className + '"' + (checked ? ' checked' : '') + '></label>';
     }
 
-    function permCell(isSuper, className, checked) {
-        return isSuper ? permAllBadge() : permCheck(className, !!checked);
+    function permCheckLabeled(className, checked, labelText) {
+        return '<label class="ss-perm-check"><input type="checkbox" class="' + className + '"'
+            + (checked ? ' checked' : '') + '><span>' + esc(labelText) + '</span></label>';
     }
 
-    function permCellTd(isSuper, className, checked) {
-        const cls = isSuper ? 'ss-perm-col ss-perm-all' : 'ss-perm-col';
-        return '<td class="' + cls + '">' + permCell(isSuper, className, checked) + '</td>';
+    function permField(isSuper, className, checked, labelKey) {
+        const labelText = tr(labelKey);
+        if (isSuper) {
+            return '<div class="ss-perm-col ss-perm-all">' + permAllBadge()
+                + ' <span class="setup-hint" style="margin:0">' + esc(labelText) + '</span></div>';
+        }
+        return '<div class="ss-perm-col">' + permCheckLabeled(className, !!checked, labelText) + '</div>';
     }
 
-    function permKillSwitchCellTd(checked) {
-        return '<td class="ss-perm-col">' + permCheck('ss-user-kill-switch', !!checked) + '</td>';
+    function permKillSwitchField(checked) {
+        return '<div class="ss-perm-col">'
+            + permCheckLabeled('ss-user-kill-switch', !!checked, tr('server.users.colKillSwitch'))
+            + '</div>';
+    }
+
+    function closestUserRow(el) {
+        return el && el.closest ? el.closest('[data-user-id]') : null;
+    }
+
+    function dispatchGroupPinColor(g) {
+        const c = g && g.color != null ? String(g.color).trim() : '';
+        if (/^#[0-9a-fA-F]{3,8}$/.test(c)) return c;
+        return '#22c55e';
     }
 
     function renderDispatchGroupsCell(u) {
+        /* Super admin: All badge only — no station-group checklist. */
         if (u.role === 'super_admin') {
-            return '<div class="ss-dispatch-cell">' + permAllBadge() + '</div>';
+            return '<div class="ss-dispatch-cell ss-dispatch-cell--super">' + permAllBadge() + '</div>';
         }
+        /* Operator: assign by live Map group colour + name (no hardcoded chips). */
         const perms = u.permissions || {};
         const assigned = new Set(u.assignedGroupIds || []);
         const seeAll = !!perms.seeAllDispatchGroups;
         const seeAllLabel = tr('server.users.seeAllGroups');
-        let html = '<div class="ss-dispatch-cell">'
-            + '<label class="ss-dispatch-row">'
+        let html = '<div class="ss-dispatch-cell ss-dispatch-cell--operator">'
+            + '<label class="ss-dispatch-row ss-dispatch-see-all">'
             + '<input type="checkbox" class="ss-user-see-all-groups"' + (seeAll ? ' checked' : '') + '>'
             + '<span class="ss-dispatch-row-text">' + esc(seeAllLabel) + '</span></label>';
         if (!cachedDispatchGroups.length) {
@@ -1447,15 +1533,23 @@
             return html;
         }
         html += '<div class="ss-user-dispatch-grps"' + (seeAll ? ' hidden' : '') + '>'
-            + '<div class="ss-dispatch-section-title">' + esc(tr('server.users.dispatchAssignLabel')) + '</div>';
+            + '<div class="ss-dispatch-head">'
+            + '<span class="ss-dispatch-section-title">' + esc(tr('server.users.dispatchAssignLabel')) + '</span>'
+            + '<button type="button" class="ss-dispatch-jump-groups">'
+            + esc(tr('server.users.jumpToMapGroups')) + '</button>'
+            + '</div>'
+            + '<div class="ss-dispatch-chips">';
         cachedDispatchGroups.forEach(function (g) {
             if (!g || !g.id) return;
-            html += '<label class="ss-dispatch-row">'
+            const pin = dispatchGroupPinColor(g);
+            const name = g.name || g.id;
+            html += '<label class="ss-dispatch-row ss-dispatch-chip">'
                 + '<input type="checkbox" class="ss-user-dispatch-grp" value="'
                 + esc(g.id) + '"' + (assigned.has(g.id) ? ' checked' : '') + (seeAll ? ' disabled' : '') + '>'
-                + '<span class="ss-dispatch-row-text">' + esc(g.name || g.id) + '</span></label>';
+                + '<span class="ss-group-dot ss-dispatch-pin" style="background:' + esc(pin) + '" aria-hidden="true"></span>'
+                + '<span class="ss-dispatch-row-text">' + esc(name) + '</span></label>';
         });
-        html += '</div></div>';
+        html += '</div></div></div>';
         return html;
     }
 
@@ -1486,9 +1580,9 @@
             if (opt) opt.disabled = false;
         }
         lastUsersList = data.users || [];
-        const tbody = document.getElementById('ss-users-body');
-        if (!tbody) return;
-        tbody.innerHTML = (data.users || []).map((u) => {
+        const listRoot = document.getElementById('ss-users-body');
+        if (!listRoot) return;
+        listRoot.innerHTML = (data.users || []).map((u) => {
             const isSuper = u.role === 'super_admin';
             const perms = u.permissions || {};
             const roleCell = '<div class="ss-role-scope-cell">'
@@ -1515,44 +1609,68 @@
                 ? '<span class="ss-perm-na">\u2014</span>'
                 : ('<input type="date" class="ss-user-evidence-exp"' +
                     (expVal ? ' value="' + esc(expVal) + '"' : '') + ' title="' + tr('server.users.expiryHint') + '">');
-            const actionsCell = isSuper
-                ? ('<button type="button" class="ss-user-reset" title="' + tr('server.users.setPassword') + '">' + tr('server.users.setPassword') + '</button>')
-                : ('<div class="ss-user-actions">'
-                    + '<button type="button" class="ss-user-save" disabled title="' + tr('server.users.saveRow') + '">' + tr('server.users.saveRow') + '</button>'
-                    + '<button type="button" class="ss-user-reset" title="' + tr('server.users.setPassword') + '">' + tr('server.users.setPassword') + '</button>'
-                    + '<button type="button" class="ss-user-remove" title="' + tr('server.users.remove') + '">' + tr('server.users.remove') + '</button>'
-                    + '</div>');
-            return '<tr' + (isSuper ? ' class="ss-user-row-super"' : '') + ' data-user-id="' + esc(u.id) + '" data-username="' + esc(u.username) + '">'
-                + '<td class="ss-sticky-user">' + esc(u.username)
-                + (u.displayName ? '<br><span class="hint">' + esc(u.displayName) + '</span>' : '')
-                + (u.contactNote ? '<br><span class="hint">' + esc(u.contactNote) + '</span>' : '')
-                + '</td>'
-                + '<td class="ss-user-id"><code>' + esc(u.id) + '</code></td>'
-                + '<td>' + roleCell + '</td>'
-                + '<td class="' + (isSuper ? 'ss-perm-col ss-perm-all' : 'ss-dispatch-grps-col') + '">' + renderDispatchGroupsCell(u) + '</td>'
-                + '<td>' + dashCell + '</td>'
-                + '<td>' + signInCell + '</td>'
-                + permCellTd(isSuper, 'ss-user-map-control', perms.mapDeviceControl)
-                + permKillSwitchCellTd(perms.deviceKillSwitch)
-                + permCellTd(isSuper, 'ss-user-geofence', perms.geofenceControl)
-                + permCellTd(isSuper, 'ss-user-clear-map-pins', perms.clearMapPins)
-                + permCellTd(isSuper, 'ss-user-evidence-view', perms.evidenceView || perms.evidenceDownload)
-                + permCellTd(isSuper, 'ss-user-evidence-dl', perms.evidenceDownload)
-                + permCellTd(isSuper, 'ss-user-evidence-export', perms.evidenceExport)
-                + permCellTd(isSuper, 'ss-user-evidence-edit', perms.evidenceEdit)
-                + permCellTd(isSuper, 'ss-user-dock-admin', perms.dockAdmin)
-                + permCellTd(isSuper, 'ss-user-conference-view', perms.conferenceView || perms.conferenceJoin)
-                + permCellTd(isSuper, 'ss-user-conference-join', perms.conferenceJoin)
-                + permCellTd(isSuper, 'ss-user-conference-host', perms.conferenceHost)
-                + permCellTd(isSuper, 'ss-user-conference-record', perms.conferenceRecord)
-                + permCellTd(isSuper, 'ss-user-conference-bwc', perms.conferenceBwcShare)
-                + permCellTd(isSuper, 'ss-user-conference-cross', perms.conferenceCrossGroup)
-                + permCellTd(isSuper, 'ss-user-audit-view', perms.auditView || perms.auditExport)
-                + permCellTd(isSuper, 'ss-user-audit-export', perms.auditExport)
-                + '<td>' + expCell + '</td>'
-                + '<td class="ss-actions-col">' + actionsCell + '</td></tr>';
+            const actionsCell = '<div class="ss-user-actions">'
+                + '<button type="button" class="ss-user-save" disabled title="' + tr('server.users.saveRow') + '">' + tr('server.users.saveRow') + '</button>'
+                + '<button type="button" class="ss-user-reset" title="' + tr('server.users.setPassword') + '">' + tr('server.users.setPassword') + '</button>'
+                + (isSuper ? '' : ('<button type="button" class="ss-user-remove" title="' + tr('server.users.remove') + '">' + tr('server.users.remove') + '</button>'))
+                + '</div>';
+            const tierId = '<div class="ss-east-west-grid ss-user-tier-id">'
+                + '<label><span>' + esc(tr('server.users.loginUsername') || 'Login username') + '</span>'
+                + '<input type="text" class="ss-user-username enterprise-form-control" autocomplete="off" spellcheck="false" value="' + esc(u.username) + '"></label>'
+                + '<label><span>' + esc(tr('server.users.displayName')) + '</span>'
+                + '<input type="text" class="ss-user-display-name enterprise-form-control" autocomplete="off" value="'
+                + esc(u.displayName || '') + '" placeholder="e.g. Night shift lead"></label>'
+                + '<label><span>' + esc(tr('server.users.contactNote')) + '</span>'
+                + '<input type="text" class="ss-user-contact-note enterprise-form-control" autocomplete="off" value="'
+                + esc(u.contactNote || '') + '" placeholder="e.g. ext. 4021"></label>'
+                + '<label><span>User ID</span><div class="ss-user-id"><code>' + esc(u.id) + '</code></div></label>'
+                + '</div>';
+            const tierOps = '<div class="ss-east-west-grid ss-user-tier-ops">'
+                + '<label><span data-i18n="server.users.colRole">' + esc(tr('server.users.colRole')) + '</span>'
+                + '<div>' + roleCell + '</div></label>'
+                + '<label class="' + (isSuper ? 'ss-perm-col ss-perm-all' : 'ss-dispatch-grps-col') + '">'
+                + '<span data-i18n="server.users.colDispatchGroups">' + esc(tr('server.users.colDispatchGroups')) + '</span>'
+                + renderDispatchGroupsCell(u) + '</label>'
+                + '<label><span data-i18n="server.users.colSignInFrom">' + esc(tr('server.users.colSignInFrom')) + '</span>'
+                + dashCell + '</label>'
+                + '<label><span data-i18n="server.users.colSignInExpiry">' + esc(tr('server.users.colSignInExpiry')) + '</span>'
+                + signInCell + '</label>'
+                + '<label><span data-i18n="server.users.colExpiry">' + esc(tr('server.users.colExpiry')) + '</span>'
+                + expCell + '</label>'
+                + '<div class="ss-actions-col"><span>' + esc(tr('server.users.colActions')) + '</span>' + actionsCell + '</div>'
+                + '</div>';
+            const tier2 = '<div class="ss-east-west-grid ss-user-tier2">'
+                + '<div><h4 class="ss-user-perm-h">System</h4>'
+                + permField(isSuper, 'ss-user-map-control', perms.mapDeviceControl, 'server.users.colRemoteControl')
+                + permKillSwitchField(perms.deviceKillSwitch)
+                + permField(isSuper, 'ss-user-geofence', perms.geofenceControl, 'server.users.colGeofence')
+                + permField(isSuper, 'ss-user-clear-map-pins', perms.clearMapPins, 'server.users.colClearMapPins')
+                + '</div>'
+                + '<div><h4 class="ss-user-perm-h">Evidence</h4>'
+                + permField(isSuper, 'ss-user-evidence-view', perms.evidenceView || perms.evidenceDownload, 'server.users.colEvidenceView')
+                + permField(isSuper, 'ss-user-evidence-dl', perms.evidenceDownload, 'server.users.colEvidence')
+                + permField(isSuper, 'ss-user-evidence-export', perms.evidenceExport, 'server.users.colEvidenceExport')
+                + permField(isSuper, 'ss-user-evidence-edit', perms.evidenceEdit, 'server.users.colEvidenceEdit')
+                + permField(isSuper, 'ss-user-dock-admin', perms.dockAdmin, 'server.users.colDockAdmin')
+                + '</div>'
+                + '<div><h4 class="ss-user-perm-h">Video Conference</h4>'
+                + permField(isSuper, 'ss-user-conference-view', perms.conferenceView || perms.conferenceJoin, 'server.users.colConferenceView')
+                + permField(isSuper, 'ss-user-conference-join', perms.conferenceJoin, 'server.users.colConferenceJoin')
+                + permField(isSuper, 'ss-user-conference-host', perms.conferenceHost, 'server.users.colConferenceHost')
+                + permField(isSuper, 'ss-user-conference-record', perms.conferenceRecord, 'server.users.colConferenceRecord')
+                + permField(isSuper, 'ss-user-conference-bwc', perms.conferenceBwcShare, 'server.users.colConferenceBwc')
+                + permField(isSuper, 'ss-user-conference-cross', perms.conferenceCrossGroup, 'server.users.colConferenceCross')
+                + '</div>'
+                + '<div><h4 class="ss-user-perm-h">Audit</h4>'
+                + permField(isSuper, 'ss-user-audit-view', perms.auditView || perms.auditExport, 'server.users.colAuditView')
+                + permField(isSuper, 'ss-user-audit-export', perms.auditExport, 'server.users.colAuditExport')
+                + '</div>'
+                + '</div>';
+            return '<div class="ss-config-section ss-user-card' + (isSuper ? ' ss-user-row-super' : '') + '" data-user-id="'
+                + esc(u.id) + '" data-username="' + esc(u.username) + '">'
+                + tierId + tierOps + tier2 + '</div>';
         }).join('');
-        wireUserDatePickers(tbody);
+        wireUserDatePickers(listRoot);
     }
 
     function wireUserDatePickers(root) {
@@ -1569,9 +1687,9 @@
     }
 
     function highlightUserRow(username) {
-        const tbody = document.getElementById('ss-users-body');
-        if (!tbody || !username) return;
-        const row = Array.from(tbody.querySelectorAll('tr')).find(function (r) {
+        const listRoot = document.getElementById('ss-users-body');
+        if (!listRoot || !username) return;
+        const row = Array.from(listRoot.querySelectorAll('[data-username]')).find(function (r) {
             return r.getAttribute('data-username') === username;
         });
         if (!row) return;
@@ -1651,6 +1769,18 @@
             if (cb.value) ids.push(cb.value);
         });
         return ids;
+    }
+
+    function readRowProfile(row) {
+        if (!row) return {};
+        const userEl = row.querySelector('.ss-user-username');
+        const displayEl = row.querySelector('.ss-user-display-name');
+        const contactEl = row.querySelector('.ss-user-contact-note');
+        return {
+            username: userEl ? String(userEl.value || '').trim() : '',
+            displayName: displayEl ? String(displayEl.value || '').trim() : '',
+            contactNote: contactEl ? String(contactEl.value || '').trim() : '',
+        };
     }
 
     async function saveUserRow(userId, patch) {
@@ -2019,9 +2149,13 @@
             tabCloud.addEventListener('click', () => setMainTab('cloud'));
         }
         if (global.FirmwareOtaAdmin && FirmwareOtaAdmin.init) FirmwareOtaAdmin.init();
-        const subOps = document.getElementById('ss-dash-sub-operators');
+        const subAdd = document.getElementById('ss-dash-sub-add');
+        const subUsers = document.getElementById('ss-dash-sub-users');
+        const subSite = document.getElementById('ss-dash-sub-site');
         const subMe = document.getElementById('ss-dash-sub-me');
-        if (subOps) subOps.addEventListener('click', () => setDashSubTab('operators'));
+        if (subAdd) subAdd.addEventListener('click', () => setDashSubTab('add'));
+        if (subUsers) subUsers.addEventListener('click', () => setDashSubTab('users'));
+        if (subSite) subSite.addEventListener('click', () => setDashSubTab('site'));
         if (subMe) subMe.addEventListener('click', () => setDashSubTab('me'));
 
         const openEvidenceStorageBtn = document.getElementById('ss-open-evidence-storage');
@@ -2074,8 +2208,7 @@
         }
         if (openDevices) {
             openDevices.addEventListener('click', () => {
-                setOpen(false);
-                if (global.VideoConfig && VideoConfig.openPanel) VideoConfig.openPanel();
+                openWallPanelAssignFromSettings();
             });
         }
         if (dlTpl) {
@@ -2175,11 +2308,14 @@
                 try {
                     await loadUsers();
                 } catch (_) { /* user saved \u2014 table refresh failed */ }
+                setDashSubTab('users');
+                window.setTimeout(function () { highlightUserRow(createdName); }, 80);
                 alert(tr('server.alert.userCreated', { name: createdName }));
             } catch (err) {
                 const payload = err.opPayload || err.catalogPayload;
                 if (isUsernameExistsPayload(payload)) {
-                    highlightUserRow(username);
+                    setDashSubTab('users');
+                    window.setTimeout(function () { highlightUserRow(username); }, 80);
                     alert(tr('server.alert.userExists', { name: username }));
                     return;
                 }
@@ -2191,7 +2327,7 @@
         });
 
         document.getElementById('ss-users-body').addEventListener('change', (e) => {
-            const row = e.target.closest('tr');
+            const row = closestUserRow(e.target);
             if (!row) return;
             if (e.target.matches('.ss-user-map-control') || e.target.matches('.ss-user-kill-switch')
                 || e.target.matches('.ss-user-geofence')
@@ -2219,28 +2355,47 @@
         });
 
         document.getElementById('ss-users-body').addEventListener('input', (e) => {
-            const row = e.target.closest('tr');
+            const row = closestUserRow(e.target);
             if (!row) return;
             if (e.target.matches('.ss-user-signin-from') || e.target.matches('.ss-user-signin-exp')
-                || e.target.matches('.ss-user-evidence-exp')) {
+                || e.target.matches('.ss-user-evidence-exp')
+                || e.target.matches('.ss-user-username')
+                || e.target.matches('.ss-user-display-name')
+                || e.target.matches('.ss-user-contact-note')) {
                 markUserRowDirty(row);
             }
         });
 
         document.getElementById('ss-users-body').addEventListener('click', async (e) => {
-            const row = e.target.closest('tr');
+            const jumpBtn = e.target.closest && e.target.closest('.ss-dispatch-jump-groups');
+            if (jumpBtn) {
+                e.preventDefault();
+                setMainTab('groups');
+                return;
+            }
+            const row = closestUserRow(e.target);
             const id = row && row.getAttribute('data-user-id');
             if (!id) return;
             if (e.target.matches('.ss-user-save')) {
-                const name = row.getAttribute('data-username') || id;
+                const profile = readRowProfile(row);
+                if (!profile.username) {
+                    alert(tr('server.users.usernameRequired'));
+                    return;
+                }
+                const name = profile.username || row.getAttribute('data-username') || id;
                 const btn = e.target;
                 btn.disabled = true;
                 try {
                     await saveUserRow(id, {
+                        username: profile.username,
+                        displayName: profile.displayName,
+                        contactNote: profile.contactNote,
                         permissions: readRowPermissions(row),
                         assignedGroupIds: readRowAssignedGroupIds(row),
                     });
                     clearUserRowDirty(row);
+                    row.setAttribute('data-username', profile.username);
+                    await loadUsers();
                     alert(tr('server.users.saved', { name: name }));
                 } catch (err) {
                     alert(opMsg(err.opPayload || err.catalogPayload, err));
@@ -2333,14 +2488,15 @@
 
     function openUsersGrant() {
         openConfigPanel('dashboard');
-        activeDashSubTab = 'operators';
-        setDashSubTab('operators');
+        activeDashSubTab = 'users';
+        setDashSubTab('users');
         scheduleSettingsRefresh('dashboard', { force: true }).then(function () {
             if (!canManageUsers) {
                 alert(tr('map.permGrantSteps'));
                 return;
             }
-            const section = document.getElementById('ss-users-section');
+            const section = document.getElementById('ss-users-list-section')
+                || document.getElementById('ss-users-section');
             if (!section) return;
             section.hidden = false;
             window.setTimeout(function () {

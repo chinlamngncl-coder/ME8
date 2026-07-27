@@ -1,0 +1,21 @@
+[Unit]
+Description=Mobility Axiom ME8 Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=me8
+Group=me8
+WorkingDirectory=/opt/me8
+ExecStart=/opt/me8/me8-server
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=5
+Environment=FM_SEAMLESS_PACK=1
+Environment=FM_AIRGAP_LICENSE_REQUIRED=1
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

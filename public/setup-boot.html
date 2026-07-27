@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ME8 Setup — License</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; padding: 32px 16px; }
+    main { max-width: 32rem; margin: 0 auto; }
+    h1 { font-size: 1.35rem; margin: 0 0 8px; }
+    p { color: #94a3b8; line-height: 1.45; }
+    code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; word-break: break-all; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 16px; margin-top: 16px; }
+    label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; }
+    input[type=file] { width: 100%; }
+    button { margin-top: 12px; padding: 8px 14px; border-radius: 6px; border: 1px solid #1d4ed8; background: #2563eb; color: #fff; font-weight: 600; cursor: pointer; }
+    #status { margin-top: 12px; font-size: 0.9rem; }
+    .ok { color: #86efac; }
+    .err { color: #fca5a5; }
+    select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: #e2e8f0;
+      box-sizing: border-box;
+    }
+    #tier-status {
+      margin-top: 12px;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>ME8 Setup</h1>
+    <p>Services are locked until a valid air-gap license is installed. Use this page from <strong>localhost</strong> only (or SSH tunnel). WAN access to the setup port is blocked.</p>
+    <div class="card">
+      <p>Hardware ID</p>
+      <p><code id="hwid">…</code></p>
+      <p id="lic-state" class="hint"></p>
+      <label for="lic-file">Upload <code>license.lic</code></label>
+      <input type="file" id="lic-file" accept=".lic,application/octet-stream,text/plain">
+      <button type="button" id="upload">Install license</button>
+      <p id="status"></p>
+    </div>
+    <div class="card">
+      <p>Deployment tier</p>
+      <p id="tier-state" class="hint">Choose how this site will run after activation.</p>
+      <label for="tier-select">Network tier</label>
+      <select id="tier-select">
+        <option value="lan">LAN-Only</option>
+        <option value="wan">WAN (Public Edge)</option>
+        <option value="cloud">Cloud-Hosted</option>
+        <option value="hybrid">Hybrid</option>
+      </select>
+      <button type="button" id="save-tier">Save deployment tier</button>
+      <p id="tier-status"></p>
+    </div>
+    <p style="margin-top:20px;font-size:12px">CLI recovery: <code>me8-server --reset-license</code> · <code>me8-server --safe-mode</code></p>
+  </main>
+  <script>
+    async function refresh() {
+      const r = await fetch('/api/setup/status');
+      const j = await r.json();
+      document.getElementById('hwid').textContent = j.hardwareId || '—';
+      const el = document.getElementById('lic-state');
+      if (j.licenseOk) {
+        el.textContent = 'License valid on disk — restart me8-server without --safe-mode for full boot.';
+        el.className = 'ok';
+      } else {
+        el.textContent = j.licensePresent
+          ? ('License present but invalid: ' + (j.error || 'unknown'))
+          : 'No license on disk.';
+        el.className = j.licensePresent ? 'err' : '';
+      }
+    }
+    document.getElementById('upload').addEventListener('click', async function () {
+      const status = document.getElementById('status');
+      const file = document.getElementById('lic-file').files[0];
+      if (!file) { status.textContent = 'Choose a license.lic file first.'; status.className = 'err'; return; }
+      status.textContent = 'Uploading…'; status.className = '';
+      try {
+        const buf = await file.arrayBuffer();
+        const r = await fetch('/api/setup/license', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: buf,
+        });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || 'Upload failed');
+        status.textContent = j.message || 'OK';
+        status.className = 'ok';
+        refresh();
+      } catch (e) {
+        status.textContent = e.message || String(e);
+        status.className = 'err';
+      }
+    });
+    async function loadTier() {
+      const r = await fetch('/api/setup/status');
+      const j = await r.json();
+      const tier = j.networkTier || 'lan';
+      const select = document.getElementById('tier-select');
+      const state = document.getElementById('tier-state');
+      if (select) select.value = tier;
+      if (state) {
+        state.textContent = 'Current tier: '
+          + (tier === 'cloud' ? 'Cloud-Hosted'
+          : tier === 'wan' ? 'WAN (Public Edge)'
+          : tier === 'hybrid' ? 'Hybrid'
+          : 'LAN-Only');
+      }
+    }
+
+    document.getElementById('save-tier').addEventListener('click', async function () {
+      const btn = document.getElementById('save-tier');
+      const status = document.getElementById('tier-status');
+      const tier = document.getElementById('tier-select').value;
+      
+      btn.disabled = true; // Lock UI to prevent .env corruption from spam clicks
+      status.textContent = 'Saving…';
+      status.className = '';
+      
+      try {
+        const r = await fetch('/api/setup/network-tier', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tier: tier }),
+        });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || 'Save failed');
+        status.textContent = j.message || 'Saved';
+        status.className = 'ok';
+        loadTier();
+      } catch (e) {
+        status.textContent = e.message || String(e);
+        status.className = 'err';
+      } finally {
+        btn.disabled = false; // Unlock UI
+      }
+    });
+
+    refresh().then(loadTier).catch(function (e) {
+      document.getElementById('status').textContent = e.message || String(e);
+      document.getElementById('status').className = 'err';
+    });
+  </script>
+</body>
+</html>

@@ -3,7 +3,8 @@
 param(
     [string]$AppRoot = '',
     [switch]$SkipPortKill,
-    [switch]$PauseAtEnd
+    [switch]$PauseAtEnd,
+    [switch]$Use1Pack
 )
 $ErrorActionPreference = 'Stop'
 
@@ -80,14 +81,34 @@ else {
 
 $nodeExe = Resolve-NodeExe
 $serverJs = Join-Path $AppRoot 'server.js'
+$onePackExe = Join-Path $AppRoot 'me8-server.exe'
+$onePackJs = Join-Path $AppRoot 'bin\me8-server.js'
 $storageDir = Join-Path $AppRoot 'storage'
 New-Item -ItemType Directory -Force -Path $storageDir | Out-Null
 $stdoutLog = Join-Path $storageDir 'service-stdout.log'
 $stderrLog = Join-Path $storageDir 'service-stderr.log'
 
+$appExe = $nodeExe
+$appParams = 'server.js'
+$entryLabel = 'server.js (lab legacy)'
+if ($Use1Pack) {
+    if (Test-Path $onePackExe) {
+        $appExe = $onePackExe
+        $appParams = ''
+        $entryLabel = 'me8-server.exe (1-Pack)'
+    } elseif (Test-Path $onePackJs) {
+        $appExe = $nodeExe
+        $appParams = 'bin\me8-server.js'
+        $entryLabel = 'bin\me8-server.js (1-Pack)'
+    } else {
+        throw 'Use1Pack requested but neither me8-server.exe nor bin\me8-server.js found under AppRoot'
+    }
+}
+
 Write-Host ''
 Write-Host 'Install Ubitron Mobility C2 — Windows service' -ForegroundColor Cyan
 Write-Host "  App:     $AppRoot"
+Write-Host "  Entry:   $entryLabel"
 Write-Host "  Node:    $nodeExe"
 Write-Host "  Service: $ServiceName"
 Write-Host ''
@@ -121,6 +142,9 @@ Grant-SystemFolderAccess -Root $AppRoot
 
 $frPy = Join-Path $AppRoot 'fr-sidecar\.venv\Scripts\python.exe'
 $envExtra = "FM_SECRETS_DPAPI_SCOPE=LocalMachine`r`nFM_FR_SIDECAR_AUTO=1"
+if ($Use1Pack) {
+    $envExtra = "FM_SEAMLESS_PACK=1`r`nFM_AIRGAP_LICENSE_REQUIRED=1`r`n" + $envExtra
+}
 if (Test-Path $frPy) {
     $envExtra += "`r`nFM_FR_PY=$frPy"
     Write-Host "  FR Python: $frPy" -ForegroundColor Gray
@@ -129,9 +153,13 @@ if (Test-Path $frPy) {
 }
 
 Write-Host '  Registering service...' -ForegroundColor Gray
-& $nssm install $ServiceName $nodeExe
+& $nssm install $ServiceName $appExe
 & $nssm set $ServiceName AppDirectory $AppRoot
-& $nssm set $ServiceName AppParameters 'server.js'
+if ($appParams) {
+    & $nssm set $ServiceName AppParameters $appParams
+} else {
+    & $nssm set $ServiceName AppParameters ''
+}
 & $nssm set $ServiceName DisplayName $DisplayName
 & $nssm set $ServiceName Description 'Ubitron Mobility C2 - BWC fleet, live video, PTT, analytics. Operators use the portal URL; no console required.'
 & $nssm set $ServiceName Start SERVICE_AUTO_START
@@ -139,8 +167,9 @@ Write-Host '  Registering service...' -ForegroundColor Gray
 & $nssm set $ServiceName AppStderr $stderrLog
 & $nssm set $ServiceName AppStdoutCreationDisposition 4
 & $nssm set $ServiceName AppStderrCreationDisposition 4
-& $nssm set $ServiceName AppRotateFiles 1
-& $nssm set $ServiceName AppRotateBytes 10485760
+& $nssm set $ServiceName AppRotateFiles 5
+& $nssm set $ServiceName AppRotateBytes 52428800
+& $nssm set $ServiceName AppRotateOnline 1
 & $nssm set $ServiceName AppExit Default Exit
 & $nssm set $ServiceName AppEnvironmentExtra $envExtra
 & sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/15000/none/0 | Out-Null

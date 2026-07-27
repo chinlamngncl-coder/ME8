@@ -1,5 +1,6 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('./lib/networkTierRuntime').applyNetworkTierRuntime();
 
 const express = require('express');
 
@@ -64,6 +65,11 @@ const dashboardConnectWarm = require('./lib/dashboardConnectWarm');
 const wvpSipLanMap = require('./lib/wvpSipLanMap');
 
 installFatalProcessPolicy({ log });
+if (process.env.FM_SEAMLESS_PACK === '1') {
+    try {
+        require('./lib/processGroupHooks').installOrphanHooks();
+    } catch (_) { /* ignore */ }
+}
 const serverSettings = require('./lib/serverSettings');
 const platformSmtp = require('./lib/platformSmtp');
 const authRecoveryEmail = require('./lib/authRecoveryEmail');
@@ -309,7 +315,10 @@ licenseHeartbeat.init({ storageDir: STORAGE_DIR });
 techAccess.init(STORAGE_DIR);
 function applyLabSecurityRuntime() {
     const lab = labSecurity.load(STORAGE_DIR);
-    if (lab.trustProxy) {
+    const envTrust = String(process.env.ME8_TRUST_PROXY || '').trim();
+    if (envTrust) {
+        app.set('trust proxy', envTrust);
+    } else if (lab.trustProxy) {
         app.set('trust proxy', 1);
     } else {
         app.set('trust proxy', false);
@@ -364,6 +373,7 @@ function isBwcCameraId(camId) {
 }
 const MSG_WS_URL = `ws://${HOST}:${MSG_WS_PORT}`;
 const HTTP_PORT = parseInt(process.env.FM_HTTP_PORT || process.env.PORT || '3888', 10);
+const DASHBOARD_BIND = String(process.env.ME8_DASHBOARD_BIND || '0.0.0.0').trim() || '0.0.0.0';
 /** Optional PIN to open SOS log detail (full notes). Empty = no lock. Set FM_SOS_LEDGER_PIN in .env */
 const SOS_LEDGER_PIN = (process.env.FM_SOS_LEDGER_PIN || '').trim();
 const HTTPS_UPLOAD_TOKEN = (process.env.FM_HTTPS_UPLOAD_TOKEN || '').trim();
@@ -627,6 +637,14 @@ function getStorageFolders() {
 
 const app = express();
 applyLabSecurityRuntime();
+try {
+    app.use(require('./lib/networkTierRuntime').lanSubnetLockMiddleware());
+} catch (_) { /* ignore */ }
+if (process.env.FM_SEAMLESS_PACK === '1' && dashboardTls.envFlag('FM_HTTPS_ENABLED')) {
+    try {
+        app.use(require('./lib/localhostHttpGate').localhostHttpGate({ enabled: true }));
+    } catch (_) { /* ignore */ }
+}
 
 const server = http.createServer(app);
 
@@ -13405,7 +13423,7 @@ process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
         process.exit(1);
     }
 
-    server.listen(HTTP_PORT, '0.0.0.0', () => {
+    server.listen(HTTP_PORT, DASHBOARD_BIND, () => {
     httpListenerReady = true;
     bootstrapBwcDeviceList();
     syncFleetDeviceMeta();
@@ -13453,7 +13471,7 @@ process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
 
     log.web.info('dashboard listening', { url: `http://${HOST}:${HTTP_PORT}`, folder: __dirname });
     if (httpsServer && dashboardTlsBoot && dashboardTlsBoot.ready) {
-        httpsServer.listen(dashboardTlsBoot.httpsPort, '0.0.0.0', () => {
+        httpsServer.listen(dashboardTlsBoot.httpsPort, DASHBOARD_BIND, () => {
             httpsListenerReady = true;
             log.web.info('dashboard https listening', {
                 url: `https://${HOST}:${dashboardTlsBoot.httpsPort}`,

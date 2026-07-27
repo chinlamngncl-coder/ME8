@@ -70,7 +70,10 @@
     "verify:valkey": "node scripts/verify-valkey-fleet-runtime-state-degrade.js",
     "build:runjs": "node scripts/build-ship-runtime.js . run.js",
     "build:ship": "node scripts/build-ship-protected.js",
+    "build:1pack": "node scripts/build-1pack.js",
+    "start:1pack": "node bin/me8-server.js",
     "verify:ship-protected": "node scripts/verify-ship-protected-boot-v1.js",
+    "verify:1pack-boot": "node scripts/verify-0-seamless-installer-and-boot-lock.js",
     "postinstall": "node scripts/verify-install.js --quiet && node scripts/verify-postgres-catalog-retirement.js && node scripts/verify-startup-rollback-gate.js"
   },
   "overrides": {

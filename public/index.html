@@ -6875,7 +6875,6 @@
         .ss-panel-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0; padding: 0 2px 0 0; }
         #server-setup-panel.ss-layout-admin .ss-bwc-table-wrap { max-height: min(560px, calc(100vh - 240px)); }
         #server-setup-panel.ss-layout-wide .ss-bwc-table-wrap { max-height: min(480px, calc(100vh - 240px)); }
-        #server-setup-panel.ss-layout-admin .ss-users-table-wrap { max-height: min(600px, calc(100vh - 220px)); overflow: auto; }
         #server-setup-panel.ss-layout-admin .ss-user-add { grid-template-columns: 1fr 1fr 1fr; }
         .ss-network-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 24px; margin-bottom: 4px; }
         .ss-network-grid label { display: flex; flex-direction: column; gap: 6px; margin-bottom: 0; min-width: 0; }
@@ -6905,10 +6904,10 @@
         .ss-network-section-nav button {
             display: inline-flex; align-items: center; width: auto; flex: 0 0 auto;
             padding: 5px 9px; font-size: 10px; font-weight: 600; border-radius: 5px;
-            border: 1px solid transparent; background: transparent; color: var(--text-muted, #94a3b8); cursor: pointer;
+            border: 1px solid transparent; background: transparent; color: #ffffff; cursor: pointer;
         }
-        .ss-network-section-nav button:hover { background: var(--bg-surface, #1e293b); color: var(--text, #e2e8f0); border-color: var(--border-subtle, #334155); }
-        .ss-network-section-nav button.active { background: var(--accent-blue-soft, #1e3a5f); border-color: var(--accent-blue, #2563eb); color: var(--text, #e2e8f0); }
+        .ss-network-section-nav button:hover { background: var(--bg-surface, #1e293b); color: #ffffff; border-color: var(--border-subtle, #334155); }
+        .ss-network-section-nav button.active { background: var(--accent-blue-soft, #1e3a5f); border-color: var(--accent-blue, #2563eb); color: #ffffff; }
         .ss-network-section-nav button[hidden] { display: none !important; }
         .ss-runtime-ro { font-size: 11px; color: #64748b; margin-top: 4px; }
         .ss-proxy-readiness {
@@ -6976,8 +6975,8 @@
         #server-setup-panel .ss-network-grid select {
             max-width: 100%;
         }
-        #server-setup-panel .ss-users-table input:not([type="checkbox"]):not([type="radio"]),
-        #server-setup-panel .ss-users-table select,
+        #server-setup-panel #ss-users-body input:not([type="checkbox"]):not([type="radio"]),
+        #server-setup-panel #ss-users-body select,
         #server-setup-panel .ss-bwc-table input:not([type="checkbox"]):not([type="radio"]),
         #server-setup-panel .ss-bwc-table select,
         #server-setup-panel .ss-group-members-table input:not([type="checkbox"]):not([type="radio"]),
@@ -7184,29 +7183,75 @@
         .server-setup-actions button { flex: 0 0 auto; width: auto; min-width: 7.5rem; padding: 8px 14px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; }
         #server-setup-save { background: var(--accent-blue, #2563eb); color: #fff; border-color: var(--accent-blue-hover, #1d4ed8); }
         #server-setup-cancel { background: transparent; color: var(--text, #e2e8f0); }
-        .ss-users-table-wrap { overflow-x: auto; margin: 8px 0; border: 1px solid #334155; border-radius: 6px; }
-        .ss-users-table { width: 100%; min-width: 2240px; border-collapse: collapse; font-size: 11px; margin: 0; }
-        .ss-users-table th, .ss-users-table td { border: 1px solid #334155; padding: 6px; text-align: left; vertical-align: middle; }
-        .ss-users-table th { background: #0f172a; color: #94a3b8; white-space: nowrap; }
+        #ss-users-body.ss-users-list { margin: 8px 0 0; display: flex; flex-direction: column; gap: 10px; overflow: visible; }
+        #ss-users-body.ss-users-list > .ss-config-section { margin-bottom: 0; }
+        #ss-users-body .ss-user-card {
+            padding: 8px 10px;
+        }
+        #ss-users-body .ss-user-tier-id,
+        #ss-users-body .ss-user-tier-ops,
+        #ss-users-body .ss-user-tier2 {
+            gap: 8px 12px;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            align-items: start;
+        }
+        #ss-users-body .ss-user-tier-ops {
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid var(--border-subtle, #334155);
+        }
+        #ss-users-body .ss-user-tier2 {
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid var(--border-subtle, #334155);
+        }
+        #ss-users-body .ss-user-perm-h { margin: 0 0 4px; font-size: 11px; color: #e2e8f0; }
+        #ss-users-body .ss-actions-col > span {
+            display: block;
+            color: #e2e8f0;
+            font-size: 12px;
+            font-weight: 600;
+            margin: 0 0 4px;
+        }
+        #ss-users-body .ss-east-west-grid > label > span,
+        #ss-users-body .ss-user-tier-id > label > span,
+        #ss-users-body .ss-user-tier-ops > label > span {
+            color: #e2e8f0 !important;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        #ss-users-body .ss-user-username.enterprise-form-control {
+            max-width: 100%;
+            min-height: 30px;
+            padding: 5px 8px;
+            font-weight: 700;
+            font-size: 12px;
+            color: #f8fafc;
+            border-color: rgba(96, 165, 250, 0.45);
+            background: rgba(37, 99, 235, 0.22);
+        }
+        #ss-users-body .ss-user-display-name.enterprise-form-control,
+        #ss-users-body .ss-user-contact-note.enterprise-form-control {
+            max-width: 100%;
+            min-height: 30px;
+            padding: 5px 8px;
+            font-size: 12px;
+        }
+        #ss-users-body .ss-role-scope-cell {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+        }
         .ss-user-id code { font-size: 10px; color: #94a3b8; word-break: break-all; }
-        .ss-perm-check { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; color: #cbd5e1; margin: 0; cursor: pointer; white-space: nowrap; }
+        .ss-perm-check { display: flex; align-items: flex-start; justify-content: flex-start; gap: 10px; font-size: 11px; color: #cbd5e1; margin: 0 0 8px; cursor: pointer; white-space: normal; }
         .ss-perm-always { font-size: 10px; color: #64748b; font-style: italic; }
-        .ss-users-table th.ss-perm-col-h,
-        .ss-users-table td.ss-perm-col { text-align: center; vertical-align: middle; }
-        .ss-users-table td.ss-dispatch-grps-col {
-            text-align: left;
-            vertical-align: top;
-            min-width: 200px;
-            max-width: 300px;
-        }
-        .ss-users-table td.ss-actions-col {
-            vertical-align: top;
-            min-width: 108px;
-            width: 108px;
-            white-space: nowrap;
-        }
-        .ss-users-table td.ss-perm-col.ss-perm-all .ss-perm-badge-all,
-        .ss-users-table td.ss-perm-col.ss-perm-all > .ss-perm-badge-all { margin: 0 auto; }
+        .ss-perm-col { min-width: 0; }
+        .ss-perm-col.ss-perm-all .ss-perm-badge-all,
+        .ss-perm-col.ss-perm-all > .ss-perm-badge-all { margin: 0; }
+        .ss-dispatch-grps-col { min-width: 0; }
+        .ss-actions-col { min-width: 0; }
         .ss-perm-badge-all {
             display: inline-block;
             padding: 2px 8px;
@@ -7220,7 +7265,7 @@
             line-height: 1.4;
             text-align: center;
         }
-        .ss-role-scope-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+        .ss-role-scope-cell { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; }
         .ss-scope-badge {
             display: inline-block;
             padding: 2px 7px;
@@ -7248,33 +7293,61 @@
             line-height: 1.4;
             color: #64748b;
         }
-        .ss-user-signin-from, .ss-user-signin-exp, .ss-user-evidence-exp { width: 100%; min-width: 118px; max-width: 140px; margin: 0; padding: 4px 6px; font-size: 11px; box-sizing: border-box; }
+        .ss-user-signin-from, .ss-user-signin-exp, .ss-user-evidence-exp { width: 100%; min-width: 118px; max-width: 420px; margin: 0; padding: 4px 6px; font-size: 11px; box-sizing: border-box; }
         .ss-user-actions { display: flex; flex-wrap: wrap; gap: 4px; }
         .ss-user-save { padding: 4px 8px; font-size: 10px; font-weight: 600; border-radius: 4px; border: 1px solid #1d4ed8; background: #2563eb; color: #fff; cursor: pointer; }
         .ss-user-save:disabled { opacity: 0.4; cursor: default; }
         .ss-user-reset, .ss-user-remove { padding: 4px 8px; font-size: 10px; border-radius: 4px; border: 1px solid #475569; background: #334155; color: #e2e8f0; cursor: pointer; }
         .ss-user-remove { border-color: #7f1d1d; background: #450a0a; color: #fecaca; }
-        .ss-users-table tr.ss-user-dirty td { background: rgba(37, 99, 235, 0.06); }
-        .ss-dispatch-cell { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+        #ss-users-body .ss-config-section.ss-user-dirty { background: rgba(37, 99, 235, 0.08); border-color: rgba(37, 99, 235, 0.45); }
+        .ss-dispatch-cell { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+        .ss-dispatch-cell--super { align-items: flex-start; }
         .ss-dispatch-row-text { flex: 1; min-width: 0; word-break: break-word; }
+        .ss-dispatch-head {
+            display: flex; flex-direction: row; flex-wrap: wrap; align-items: center;
+            gap: 8px; margin: 0;
+        }
         .ss-dispatch-section-title {
-            margin: 0 0 2px;
+            margin: 0;
             font-size: 9px;
             font-weight: 600;
             letter-spacing: 0.04em;
             text-transform: uppercase;
-            color: #64748b;
+            color: #94a3b8;
         }
+        .ss-dispatch-jump-groups {
+            margin: 0; padding: 2px 8px; font-size: 10px; font-weight: 600;
+            border-radius: 4px; border: 1px solid #334155; background: #1e293b; color: #e2e8f0;
+            cursor: pointer; line-height: 1.3;
+        }
+        .ss-dispatch-jump-groups:hover { border-color: #2563eb; color: #fff; }
         .ss-user-dispatch-grps {
             display: flex;
             flex-direction: column;
             gap: 6px;
-            max-height: 132px;
-            overflow-x: hidden;
-            overflow-y: auto;
+            max-height: none;
+            overflow: visible;
             min-width: 0;
             padding-top: 6px;
             border-top: 1px solid #1e293b;
+        }
+        .ss-dispatch-chips {
+            display: flex; flex-direction: row; flex-wrap: wrap; align-items: center;
+            gap: 6px 10px; min-width: 0;
+        }
+        #server-setup-panel label.ss-dispatch-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            margin: 0; padding: 3px 8px 3px 6px;
+            border: 1px solid #334155; border-radius: 999px; background: #0f172a;
+            font-size: 10px; color: #e2e8f0; cursor: pointer; line-height: 1.2;
+            max-width: 100%;
+        }
+        #server-setup-panel label.ss-dispatch-chip .ss-dispatch-row-text {
+            flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            max-width: 9rem;
+        }
+        #server-setup-panel .ss-dispatch-pin {
+            width: 10px; height: 10px; border-width: 1px; box-shadow: none;
         }
         #ss-main-tab-usb[hidden] { display: none !important; }
         #ss-panel-usb .usb-maint-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
@@ -7303,7 +7376,8 @@
         }
         .ss-role-badge { display: inline-block; font-size: 9px; text-transform: none; letter-spacing: 0; padding: 2px 6px; border-radius: 4px; background: #334155; color: #94a3b8; margin-left: 4px; }
         .ss-role-badge.super_admin { background: #1e3a5f; color: #7dd3fc; }
-        #ss-users-section.ss-highlight-grant {
+        #ss-users-section.ss-highlight-grant,
+        #ss-users-list-section.ss-highlight-grant {
             outline: 2px solid #fbbf24; outline-offset: 4px; border-radius: 8px;
             animation: ss-grant-pulse 1.2s ease-in-out 2;
         }
@@ -7795,7 +7869,7 @@
         .sos-detail-actions .sos-detail-secondary { flex: 0 1 auto; background: transparent; color: #94a3b8; font-weight: 500; font-size: 11px; }
     </style>
     <link rel="stylesheet" href="/css/global.css?v=20260726-tactical-blueprint-zero-raw-v1">
-    <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260726-bwc-retire-maint-nav-divider-v1">
+    <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260727-dashboard-auth-dispatch-nav-v1">
 </head>
 <body>
 <script>
@@ -8459,7 +8533,7 @@
                 <button type="button" id="ss-main-tab-server" class="active" data-ss-saas-hide="cloud_leased" data-i18n="server.tab.server">Network &amp; deployment</button>
                 <button type="button" id="ss-main-tab-bwc" data-i18n="server.tab.bwc">BWCs</button>
                 <button type="button" id="ss-main-tab-groups" data-i18n="server.tab.groups">Map groups</button>
-                <button type="button" id="ss-main-tab-dashboard" data-i18n="server.tab.dashboard">Dashboard Auth</button>
+                <button type="button" id="ss-main-tab-dashboard" data-i18n="server.tab.dashboard">Dashboard Authentication</button>
                 <div id="ss-config-nav-maint" class="ss-config-nav-maint" hidden>
                     <span class="ss-config-nav-label" data-i18n="server.nav.maintenance">Maintenance</span>
                     <button type="button" id="ss-main-tab-firmware" hidden data-i18n="server.tab.firmware">Firmware OTA</button>
@@ -8472,23 +8546,20 @@
             <div class="ss-config-content">
             <div id="ss-panel-scroll" class="ss-panel-scroll">
 
-            <div id="ss-panel-server" class="ss-main-panel active" data-ss-saas-hide="cloud_leased">
-            <nav id="ss-network-section-nav" class="ss-network-section-nav" role="navigation" aria-label="Network sections">
-                <button type="button" class="active" data-ss-section="ss-section-deployment" data-i18n="server.deployment">Deployment</button>
-                <button type="button" data-ss-section="ss-section-ssl" data-ss-saas-onprem-only="1" data-i18n="server.ssl.title">SSL Configuration</button>
-                <button type="button" data-ss-section="ss-section-resilience" data-i18n="resilience.title">Site resilience</button>
-                <button type="button" data-ss-section="ss-section-lan" data-ss-saas-hide="cloud_leased" data-i18n="server.lan.title">LAN network</button>
-                <button type="button" data-ss-section="ss-section-wan" data-ss-saas-hide="cloud_leased" data-i18n="server.wan.title">WAN / internet</button>
-                <button type="button" data-ss-section="ss-section-operator" data-i18n="server.operatorSection">Operator portal</button>
-                <button type="button" data-ss-section="ss-section-production" data-i18n="server.productionAccess">Reverse proxy</button>
-                <button type="button" data-ss-section="ss-section-site-time" data-i18n="server.siteTimezone">Site timezone</button>
-                <button type="button" data-ss-section="ss-section-dock-link" data-i18n="server.nav.section.storage">Storage</button>
-                <button type="button" data-ss-section="ss-section-bwc-register" data-i18n="server.bwcRegister">Device registration</button>
-                <button type="button" data-ss-section="ss-section-protocol" data-i18n="server.protocol">Protocol (same on every BWC)</button>
-                <button type="button" data-ss-section="ss-section-readiness" data-i18n="server.readiness.title">Site readiness</button>
+                        <div id="ss-panel-server" class="ss-main-panel active" data-ss-saas-hide="cloud_leased">
+            <nav id="ss-network-section-nav" class="ss-network-section-nav" role="navigation" aria-label="Deployment phases">
+                <button type="button" class="active" data-ss-section="ss-phase-identity" data-i18n="server.phase.identity">Identity</button>
+                <button type="button" data-ss-section="ss-phase-networking" data-i18n="server.phase.networking">Networking</button>
+                <button type="button" data-ss-section="ss-phase-access" data-i18n="server.phase.access">Access &amp; Security</button>
+                <button type="button" data-ss-section="ss-phase-storage" data-i18n="server.phase.storage">Storage &amp; Devices</button>
+                <button type="button" data-ss-section="ss-phase-resiliency" data-i18n="server.phase.resiliency">Resiliency</button>
+                <button type="button" data-ss-section="ss-phase-diagnostics" data-i18n="server.phase.diagnostics">Diagnostics</button>
             </nav>
+
+            <div id="ss-phase-identity">
             <div class="ss-config-section" id="ss-section-deployment">
-                <h4 data-i18n="server.deployment">Deployment</h4>
+                <h4 data-i18n="server.phase.identity">Identity</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.phase.identityHint">Deployment type and tenant name for this site.</p>
                 <div class="ss-east-west-grid">
                     <label>
                         <span data-i18n="server.deploymentMode">Deployment mode</span>
@@ -8506,6 +8577,77 @@
                 </div>
                 <p id="ss-deployment-hint" class="setup-hint" style="margin-top:0"></p>
             </div>
+            </div>
+
+            <div id="ss-phase-networking">
+                <h4 data-i18n="server.phase.networking">Networking</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.phase.networkingHint">LAN, WAN / internet, and the IPv4 address devices use to register.</p>
+            <div class="ss-config-section" id="ss-section-lan" data-ss-saas-hide="cloud_leased">
+                <h4 data-i18n="server.lan.title">LAN network</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.lan.hint">On-prem server addressing. Configure the OS network adapter to match, or use DHCP and record the assigned address here.</p>
+                <div class="ss-east-west-grid">
+                    <label class="ss-east-west-span"><span data-i18n="server.lan.ipMode">IP assignment</span>
+                        <select id="ss-lan-ip-mode">
+                            <option value="static" data-i18n="server.lan.static">Static IPv4</option>
+                            <option value="dhcp" data-i18n="server.lan.dhcp">DHCP (record assigned address)</option>
+                        </select>
+                    </label>
+                    <label><span data-i18n="server.lan.serverIp">Server IP address</span><input type="text" id="ss-lan-server-ip" inputmode="decimal" placeholder="192.168.1.50"></label>
+                    <label><span data-i18n="server.lan.subnet">Subnet mask</span><input type="text" id="ss-lan-subnet" placeholder="255.255.255.0"></label>
+                    <label><span data-i18n="server.lan.gateway">Default gateway</span><input type="text" id="ss-lan-gateway" inputmode="decimal" placeholder="192.168.1.1"></label>
+                    <label><span data-i18n="server.lan.dns1">Primary DNS</span><input type="text" id="ss-lan-dns1" inputmode="decimal" placeholder="8.8.8.8"></label>
+                    <label><span data-i18n="server.lan.dns2">Secondary DNS</span><input type="text" id="ss-lan-dns2" inputmode="decimal" placeholder="8.8.4.4"></label>
+                    <label class="ss-east-west-span"><span data-i18n="server.lan.hostname">Server hostname (optional)</span><input type="text" id="ss-lan-hostname" placeholder="mobility-c2.local"></label>
+                </div>
+            </div>
+
+            <div class="ss-config-section" id="ss-section-wan" data-ss-saas-hide="cloud_leased">
+                <h4 data-i18n="server.wan.title">WAN / internet</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.wan.hint">Public reachability for SIM cameras and remote operators. Configure router port-forward, cloud security group, or VPN to match.</p>
+                <div class="ss-east-west-grid">
+                    <label><span data-i18n="server.wan.publicIp">Public WAN IPv4</span><input type="text" id="ss-wan-public-ip" inputmode="decimal" placeholder="203.0.113.10"></label>
+                    <label><span data-i18n="server.wan.ddns">DDNS hostname (optional)</span><input type="text" id="ss-wan-ddns" placeholder="c2.customer.com"></label>
+                    <label><span data-i18n="server.wan.vpnEndpoint">VPN endpoint IPv4 (hybrid)</span><input type="text" id="ss-wan-vpn" inputmode="decimal" placeholder="10.8.0.1"></label>
+                    <label><span data-i18n="server.wan.routerGw">Edge router / NAT gateway</span><input type="text" id="ss-wan-router" inputmode="decimal" placeholder="192.168.1.1"></label>
+                </div>
+            </div>
+
+            <div class="ss-config-section" id="ss-section-bwc-register">
+                <h4 data-i18n="server.bwcRegister">Device registration address</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.bwcRegisterHint">IPv4 on each BWC SIP screen (keypads cannot use hostnames). Independent of the Operator portal URL.</p>
+                <div class="ss-east-west-grid">
+                    <label><span data-i18n="server.bwcSipServer">Device registration IPv4</span><input type="text" id="ss-public-host" inputmode="decimal" data-i18n-placeholder="server.hostPlaceholder" placeholder="192.168.1.50"></label>
+                    <label><span data-i18n="server.bindHost">SIP listen address</span><input type="text" id="ss-bind-host" placeholder="0.0.0.0"></label>
+                </div>
+                <p class="setup-hint" style="margin-top:4px" data-i18n="server.bindHostHint">0.0.0.0 listens on all interfaces. Set a specific LAN IP only when the server has multiple NICs.</p>
+            </div>
+            </div>
+
+            <div id="ss-phase-access">
+                <h4 data-i18n="server.phase.access">Access &amp; Security</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.phase.accessHint">Operator portal URL, reverse proxy trust, and SSL certificates.</p>
+            <div class="ss-config-section" id="ss-section-operator">
+                <h4 data-i18n="server.operatorSection">Operator portal</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.operatorSectionHint">HTTPS bookmark for dispatch staff. Not the device registration IPv4.</p>
+                <div class="ss-east-west-grid">
+                    <label class="ss-east-west-span ss-portal-url-field"><span data-i18n="server.operatorUrl">Operator portal URL</span><input type="text" id="ss-operator-url" data-i18n-placeholder="server.operatorUrlPlaceholder" placeholder="https://dispatch.customer.com" autocomplete="off" spellcheck="false"></label>
+                </div>
+                <div class="ss-portal-url-actions" style="margin-top:8px">
+                    <span id="ss-operator-tls-badge" class="ss-tls-badge is-empty" aria-live="polite">&mdash;</span>
+                    <button type="button" class="btn btn-action btn-sm" id="ss-copy-operator-url" data-i18n="server.copyOperatorUrl">Copy URL</button>
+                </div>
+                <p class="ss-runtime-ro"><span data-i18n="server.dashboardPort">Dashboard port</span>: <span id="ss-runtime-http-port">3888</span></p>
+            </div>
+
+            <div class="ss-config-section" id="ss-section-production">
+                <h4 data-i18n="server.productionAccess">Reverse proxy</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.productionAccessHint">Turn ON only if HTTPS stops at nginx/Caddy in front of this server. Leave OFF for direct Ops HTTPS (for example https://192.168.x.x:4438).</p>
+                <label class="ss-lab-check"><input type="checkbox" id="ss-trust-proxy"><span data-i18n="server.trustReverseProxy">Trust reverse proxy — ON only if HTTPS stops at nginx/Caddy in front of this server</span></label>
+                <p class="setup-hint" id="ss-trust-proxy-help" style="margin-top:6px" data-i18n="server.trustReverseProxyHelp">OFF = browser talks straight to this server. ON = IT put nginx/Caddy in front — tick this box, then click Save below.</p>
+                <div id="ss-proxy-readiness" class="ss-proxy-readiness" role="status" aria-live="polite"></div>
+                <p id="ss-production-access-status" class="setup-hint" style="margin-top:6px"></p>
+                <button type="button" class="btn btn-action btn-sm" id="ss-save-production-access" data-i18n="server.saveProductionAccess">Save</button>
+            </div>
 
             <div class="ss-config-section" id="ss-section-ssl" data-ss-saas-onprem-only="1">
                 <h4 data-i18n="server.ssl.title">SSL Configuration</h4>
@@ -8522,103 +8664,19 @@
                 </div>
                 <p id="ss-ssl-status" class="setup-hint" aria-live="polite"></p>
             </div>
-
-            <div class="ss-config-section" id="ss-section-resilience">
-                <h4 data-i18n="resilience.title">Site resilience</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="resilience.hint">Single-node ops today. Set peer URL when a second site node is deployed.</p>
-                <dl class="ss-resilience-dl">
-                    <dt data-i18n="resilience.nodeId">Node ID</dt>
-                    <dd><input type="text" id="ss-resilience-node-id" style="width:100%;max-width:220px" placeholder="site-a"></dd>
-                    <dt data-i18n="resilience.peerUrl">Peer node URL</dt>
-                    <dd><input type="text" id="ss-resilience-peer-url" style="width:100%;max-width:320px" placeholder="http://192.168.1.9:3888"></dd>
-                    <dt data-i18n="resilience.health">This node</dt>
-                    <dd id="ss-resilience-local">&mdash;</dd>
-                    <dt data-i18n="resilience.peerStatus">Peer</dt>
-                    <dd id="ss-resilience-peer">&mdash;</dd>
-                </dl>
-                <button type="button" class="btn btn-action btn-sm" id="ss-save-resilience" data-i18n="resilience.save">Save site node</button>
             </div>
 
-            <div class="ss-config-section" id="ss-section-lan" data-ss-saas-hide="cloud_leased">
-                <h4 data-i18n="server.lan.title">LAN network</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.lan.hint">On-prem server addressing. Configure the OS network adapter to match, or use DHCP and record the assigned address here.</p>
-                <div class="ss-network-grid">
-                    <label class="full"><span data-i18n="server.lan.ipMode">IP assignment</span>
-                        <select id="ss-lan-ip-mode">
-                            <option value="static" data-i18n="server.lan.static">Static IPv4</option>
-                            <option value="dhcp" data-i18n="server.lan.dhcp">DHCP (record assigned address)</option>
-                        </select>
-                    </label>
-                    <label><span data-i18n="server.lan.serverIp">Server IP address</span><input type="text" id="ss-lan-server-ip" inputmode="decimal" placeholder="192.168.1.50"></label>
-                    <label><span data-i18n="server.lan.subnet">Subnet mask</span><input type="text" id="ss-lan-subnet" placeholder="255.255.255.0"></label>
-                    <label><span data-i18n="server.lan.gateway">Default gateway</span><input type="text" id="ss-lan-gateway" inputmode="decimal" placeholder="192.168.1.1"></label>
-                    <label><span data-i18n="server.lan.dns1">Primary DNS</span><input type="text" id="ss-lan-dns1" inputmode="decimal" placeholder="8.8.8.8"></label>
-                    <label><span data-i18n="server.lan.dns2">Secondary DNS</span><input type="text" id="ss-lan-dns2" inputmode="decimal" placeholder="8.8.4.4"></label>
-                    <label class="full"><span data-i18n="server.lan.hostname">Server hostname (optional)</span><input type="text" id="ss-lan-hostname" placeholder="mobility-c2.local"></label>
-                </div>
-            </div>
-
-            <div class="ss-config-section" id="ss-section-wan" data-ss-saas-hide="cloud_leased">
-                <h4 data-i18n="server.wan.title">WAN / internet</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.wan.hint">Public reachability for SIM cameras and remote operators. Configure router port-forward, cloud security group, or VPN to match.</p>
-                <div class="ss-network-grid">
-                    <label><span data-i18n="server.wan.publicIp">Public WAN IPv4</span><input type="text" id="ss-wan-public-ip" inputmode="decimal" placeholder="203.0.113.10"></label>
-                    <label><span data-i18n="server.wan.ddns">DDNS hostname (optional)</span><input type="text" id="ss-wan-ddns" placeholder="c2.customer.com"></label>
-                    <label><span data-i18n="server.wan.vpnEndpoint">VPN endpoint IPv4 (hybrid)</span><input type="text" id="ss-wan-vpn" inputmode="decimal" placeholder="10.8.0.1"></label>
-                    <label><span data-i18n="server.wan.routerGw">Edge router / NAT gateway</span><input type="text" id="ss-wan-router" inputmode="decimal" placeholder="192.168.1.1"></label>
-                </div>
-            </div>
-
-            <div class="ss-config-section" id="ss-section-operator">
-                <h4 data-i18n="server.operatorSection">Operator portal</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.operatorSectionHint">HTTPS bookmark for dispatch staff. Not the device registration IPv4.</p>
-                <div class="ss-portal-url-row">
-                    <label class="full ss-portal-url-field"><span data-i18n="server.operatorUrl">Operator portal URL</span><input type="text" id="ss-operator-url" data-i18n-placeholder="server.operatorUrlPlaceholder" placeholder="https://dispatch.customer.com" autocomplete="off" spellcheck="false"></label>
-                    <div class="ss-portal-url-actions">
-                        <span id="ss-operator-tls-badge" class="ss-tls-badge is-empty" aria-live="polite">&mdash;</span>
-                        <button type="button" class="btn btn-action btn-sm" id="ss-copy-operator-url" data-i18n="server.copyOperatorUrl">Copy URL</button>
-                    </div>
-                </div>
-                <p class="ss-runtime-ro"><span data-i18n="server.dashboardPort">Dashboard port</span>: <span id="ss-runtime-http-port">3888</span></p>
-            </div>
-
-            <div class="ss-config-section" id="ss-section-production">
-                <h4 data-i18n="server.productionAccess">Reverse proxy</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.productionAccessHint">Turn ON only if HTTPS stops at nginx/Caddy in front of this server. Leave OFF for direct Ops HTTPS (for example https://192.168.x.x:4438).</p>
-                <label class="ss-lab-check"><input type="checkbox" id="ss-trust-proxy"><span data-i18n="server.trustReverseProxy">Trust reverse proxy — ON only if HTTPS stops at nginx/Caddy in front of this server</span></label>
-                <p class="setup-hint" id="ss-trust-proxy-help" style="margin-top:6px" data-i18n="server.trustReverseProxyHelp">OFF = browser talks straight to this server. ON = IT put nginx/Caddy in front — tick this box, then click Save below.</p>
-                <div id="ss-proxy-readiness" class="ss-proxy-readiness" role="status" aria-live="polite"></div>
-                <p id="ss-production-access-status" class="setup-hint" style="margin-top:6px"></p>
-                <button type="button" class="btn btn-action btn-sm" id="ss-save-production-access" data-i18n="server.saveProductionAccess">Save</button>
-            </div>
-
-            <div class="ss-config-section" id="ss-section-site-time">
-                <h4 data-i18n="server.siteTimezone">Site timezone</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.siteTimezoneIntro">Used for audit timestamps, evidence catalog times, and operator sign-in windows.</p>
-                <label><span data-i18n="server.siteTimezoneSelect">Timezone</span>
-                    <select id="ss-site-timezone"></select>
-                </label>
-                <p id="ss-site-time-preview" class="setup-hint" style="margin-top:4px"></p>
-            </div>
-
+            <div id="ss-phase-storage">
+                <h4 data-i18n="server.phase.storage">Storage &amp; Devices</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.phase.storageHint">Evidence storage link, BWC protocol, site timezone, and control room monitors.</p>
             <div class="ss-config-section" id="ss-section-dock-link">
                 <h4 data-i18n="server.dockStorageTitle">Dock &amp; evidence storage</h4>
                 <p class="setup-hint" style="margin-top:0" data-i18n="server.dockStorageHint">FTP ingest, archive paths, and live capture are configured under Evidence &rarr; Storage.</p>
                 <button type="button" id="ss-open-evidence-storage" class="btn btn-action btn-sm" data-i18n="server.dockStorageOpen">Open Evidence &rarr; Storage</button>
             </div>
 
-            <div class="ss-config-section" id="ss-section-bwc-register">
-                <h4 data-i18n="server.bwcRegister">Device registration address</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.bwcRegisterHint">IPv4 on each BWC SIP screen (keypads cannot use hostnames). Independent of the Operator portal URL.</p>
-                <div class="ss-network-grid">
-                    <label><span data-i18n="server.bwcSipServer">Device registration IPv4</span><input type="text" id="ss-public-host" inputmode="decimal" data-i18n-placeholder="server.hostPlaceholder" placeholder="192.168.1.50"></label>
-                    <label><span data-i18n="server.bindHost">SIP listen address</span><input type="text" id="ss-bind-host" placeholder="0.0.0.0"></label>
-                </div>
-                <p class="setup-hint" style="margin-top:4px" data-i18n="server.bindHostHint">0.0.0.0 listens on all interfaces. Set a specific LAN IP only when the server has multiple NICs.</p>
-            </div>
-
             <div class="ss-config-section" id="ss-section-protocol">
-            <h4 class="enterprise-section-title" data-i18n="server.protocol">Protocol (same on every BWC)</h4>
+            <h4 data-i18n="server.protocol">Protocol (same on every BWC)</h4>
             <div class="ss-protocol-tabs">
                 <button type="button" id="ss-tab-sip" class="btn btn-ghost btn-sm" data-protocol="sip">SIP</button>
                 <button type="button" id="ss-tab-onvif" class="btn btn-ghost btn-sm" data-protocol="onvif">ONVIF</button>
@@ -8646,76 +8704,95 @@
             </div>
             </div>
 
+            <div class="ss-config-section" id="ss-section-site-time">
+                <h4 data-i18n="server.siteTimezone">Site timezone</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.siteTimezoneIntro">Used for audit timestamps, evidence catalog times, and operator sign-in windows.</p>
+                <div class="ss-east-west-grid">
+                <label><span data-i18n="server.siteTimezoneSelect">Timezone</span>
+                    <select id="ss-site-timezone"></select>
+                </label>
+                </div>
+                <p id="ss-site-time-preview" class="setup-hint" style="margin-top:4px"></p>
+            </div>
+
+            <div class="ss-config-section" id="ss-section-command-displays">
+                <h4 data-i18n="server.commandDisplays.title">Control room</h4>
+                <p class="setup-hint" style="margin:0 0 8px" data-i18n="server.commandDisplays.hint">Assign monitors for the control room &mdash; operator desk, video wall, map, and status board.</p>
+                <button type="button" class="btn btn-secondary btn-sm" id="ss-open-command-wall" data-i18n="server.commandDisplays.open">Configure monitors</button>
+            </div>
+            </div>
+
+            <div id="ss-phase-resiliency">
+            <div class="ss-config-section" id="ss-section-resilience">
+                <h4 data-i18n="server.phase.resiliency">Resiliency</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="resilience.hint">Single-node ops today. Set peer URL when a second site node is deployed.</p>
+                <div class="ss-east-west-grid">
+                    <label><span data-i18n="resilience.nodeId">Node ID</span><input type="text" id="ss-resilience-node-id" placeholder="site-a"></label>
+                    <label><span data-i18n="resilience.peerUrl">Peer node URL</span><input type="text" id="ss-resilience-peer-url" placeholder="http://192.168.1.9:3888"></label>
+                </div>
+                <dl class="ss-resilience-dl" style="margin-top:12px">
+                    <dt data-i18n="resilience.health">This node</dt>
+                    <dd id="ss-resilience-local">&mdash;</dd>
+                    <dt data-i18n="resilience.peerStatus">Peer</dt>
+                    <dd id="ss-resilience-peer">&mdash;</dd>
+                </dl>
+                <button type="button" class="btn btn-action btn-sm" id="ss-save-resilience" data-i18n="resilience.save">Save site node</button>
+            </div>
+            </div>
+
+            <div id="ss-phase-diagnostics">
+                <h4 data-i18n="server.phase.diagnostics">Diagnostics</h4>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.phase.diagnosticsHint">Site configuration status and go-live readiness checklist.</p>
+            <div class="ss-config-section" id="ss-section-site-config-status">
+                <h4 data-i18n="cloud.readiness.title">Site configuration status</h4>
+                <div id="cd-readiness" class="ss-tech-section enterprise-card ss-readiness-card"></div>
+            </div>
             <div class="ss-config-section" id="ss-section-readiness">
-                <h4 class="enterprise-section-title" data-i18n="server.readiness.title">Site readiness</h4>
+                <h4 data-i18n="server.readiness.title">Site readiness</h4>
                 <p class="setup-hint" style="margin-top:0" data-i18n="server.readiness.hint">Deployment health before go-live. Click a row to open the setting.</p>
                 <div id="ss-site-readiness" class="ss-tech-section enterprise-card ss-readiness-card" aria-live="polite"></div>
                 <button type="button" class="btn btn-secondary btn-sm" id="ss-refresh-readiness" data-i18n="server.readiness.refresh">Refresh</button>
-                <div class="ss-command-displays-note enterprise-card" id="ss-section-command-displays">
-                    <h5 class="enterprise-section-title" data-i18n="server.commandDisplays.title">Control room</h5>
-                    <p class="setup-hint" style="margin:0 0 8px" data-i18n="server.commandDisplays.hint">Assign monitors for the control room &mdash; operator desk, video wall, map, and status board.</p>
-                    <button type="button" class="btn btn-secondary btn-sm" id="ss-open-command-wall" data-i18n="server.commandDisplays.open">Configure monitors</button>
-                </div>
+            </div>
             </div>
             </div>
 
             
-            <div id="ss-panel-dashboard" class="ss-main-panel">
+<div id="ss-panel-dashboard" class="ss-main-panel">
             <div id="ss-dash-subtabs" class="ss-dash-subtabs" hidden>
-                <button type="button" id="ss-dash-sub-operators" class="active" data-i18n="server.dashSub.operators">Operators</button>
+                <button type="button" id="ss-dash-sub-add" class="active" data-i18n="server.dashSub.addAccount">Add New Admin / Operator</button>
+                <button type="button" id="ss-dash-sub-users" data-i18n="server.dashSub.usersAuthority">Users &amp; authority</button>
+                <button type="button" id="ss-dash-sub-site" data-i18n="server.dashSub.siteSecurity">Site security</button>
                 <button type="button" id="ss-dash-sub-me" data-i18n="server.dashSub.myAccount">My account</button>
             </div>
             <div id="ss-users-section" hidden>
-                <h4 data-i18n="server.users.title">Dashboard users</h4>
-                <p class="setup-hint" data-i18n="server.users.permHint">Set each operator&rsquo;s authority below, then click Save on that row. Sign-in from/until, geofencing, and evidence until apply as listed.</p>
-                <p class="setup-hint" data-i18n="server.users.hierarchyIntro">All stations = super admin or See all dispatch groups. Assigned only = pick groups in the Dispatch groups column.</p>
-                <div class="ss-users-table-wrap">
-                <table class="ss-users-table">
-                    <thead><tr>
-                        <th data-i18n="server.users.colUser">User</th>
-                        <th>User ID</th>
-                        <th data-i18n="server.users.colRole">Role</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colDispatchGroups">Dispatch groups</th>
-                        <th data-i18n="server.users.colSignInFrom">Sign-in from</th>
-                        <th data-i18n="server.users.colSignInExpiry">Sign-in until</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colRemoteControl">Remote control</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colKillSwitch">Kill switch</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colGeofence">Geofencing</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colClearMapPins">Clear map pins</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colEvidenceView">Evidence view</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colEvidence">Evidence download</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colEvidenceExport">Evidence export</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colEvidenceEdit">Evidence edit</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colDockAdmin">Dock admin</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceView">VC view</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceJoin">VC join</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceHost">VC host</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceRecord">VC record</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceBwc">VC BWC share</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colConferenceCross">VC cross-group</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colAuditView">Audit view</th>
-                        <th class="ss-perm-col-h" data-i18n="server.users.colAuditExport">Audit export</th>
-                        <th data-i18n="server.users.colExpiry">Evidence until</th>
-                        <th data-i18n="server.users.colActions">Actions</th>
-                    </tr></thead>
-                    <tbody id="ss-users-body"></tbody>
-                </table>
+                <div class="ss-config-section" id="ss-users-add-section">
+                    <h4 data-i18n="server.users.addNewAdminOperator">Add New Admin / Operator</h4>
+                    <p class="setup-hint" id="ss-superadmin-count">&mdash;</p>
+                    <div class="ss-east-west-grid">
+                        <label><span data-i18n="server.users.newUsername">New username</span><input type="text" id="ss-new-user" class="enterprise-form-control" autocomplete="off"></label>
+                        <label><span data-i18n="server.users.displayName">Display name (optional)</span><input type="text" id="ss-new-display-name" class="enterprise-form-control" autocomplete="off" placeholder="e.g. Night shift lead"></label>
+                        <label><span data-i18n="server.users.contactNote">Contact note (optional)</span><input type="text" id="ss-new-contact-note" class="enterprise-form-control" autocomplete="off" placeholder="e.g. ext. 4021"></label>
+                        <label><span data-i18n="server.users.newRole">Account type</span>
+                            <select id="ss-new-role" class="enterprise-form-control">
+                                <option value="operator" data-i18n="role.operator">Operator</option>
+                                <option value="super_admin" data-i18n="role.superAdmin">Super admin</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="ss-east-west-grid ss-users-add-pass-grid">
+                        <label><span data-i18n="server.users.password">Password (min 12)</span><input type="password" id="ss-new-pass" class="enterprise-form-control" autocomplete="new-password" minlength="12"></label>
+                        <label><span data-i18n="server.users.adminConfirm">Your password (to confirm)</span><input type="password" id="ss-new-admin-pass" class="enterprise-form-control" autocomplete="current-password"></label>
+                        <p class="setup-hint ss-east-west-span" id="ss-new-pass-policy-hint" style="margin:0 0 8px"></p>
+                        <div class="ss-east-west-span ss-users-add-actions">
+                            <button type="button" id="ss-add-user" class="btn btn-primary" data-i18n="server.users.add">Save account</button>
+                        </div>
+                    </div>
                 </div>
-                <div class="ss-user-add ss-east-west-grid">
-                    <p class="setup-hint ss-east-west-span" id="ss-superadmin-count">&mdash;</p>
-                    <label><span data-i18n="server.users.newUsername">New username</span><input type="text" id="ss-new-user" class="enterprise-form-control" autocomplete="off"></label>
-                    <label><span data-i18n="server.users.displayName">Display name (optional)</span><input type="text" id="ss-new-display-name" class="enterprise-form-control" autocomplete="off" placeholder="e.g. Night shift lead"></label>
-                    <label><span data-i18n="server.users.contactNote">Contact note (optional)</span><input type="text" id="ss-new-contact-note" class="enterprise-form-control" autocomplete="off" placeholder="e.g. ext. 4021"></label>
-                    <label><span data-i18n="server.users.newRole">Account type</span>
-                        <select id="ss-new-role" class="enterprise-form-control">
-                            <option value="operator" data-i18n="role.operator">Operator</option>
-                            <option value="super_admin" data-i18n="role.superAdmin">Super admin</option>
-                        </select>
-                    </label>
-                    <label class="ss-user-add-full"><span data-i18n="server.users.password">Password (min 12)</span><input type="password" id="ss-new-pass" class="enterprise-form-control" autocomplete="new-password" minlength="12"></label>
-                    <p class="setup-hint ss-east-west-span" id="ss-new-pass-policy-hint" style="margin:0 0 8px"></p>
-                    <label class="ss-user-add-full"><span data-i18n="server.users.adminConfirm">Your password (to confirm)</span><input type="password" id="ss-new-admin-pass" class="enterprise-form-control" autocomplete="current-password"></label>
-                    <button type="button" id="ss-add-user" class="btn btn-primary" data-i18n="server.users.add">Save operator</button>
+                <div class="ss-config-section" id="ss-users-list-section" hidden>
+                    <h4 data-i18n="server.users.title">Dashboard users</h4>
+                    <p class="setup-hint" data-i18n="server.users.permHint">Set each operator&rsquo;s authority below, then click Save on that row. Sign-in from/until, geofencing, and evidence until apply as listed.</p>
+                    <p class="setup-hint" data-i18n="server.users.hierarchyIntro">All stations = super admin or See all dispatch groups. Assigned only = pick groups in the Dispatch groups column.</p>
+                    <div id="ss-users-body" class="ss-users-list"></div>
                 </div>
             </div>
             <div id="ss-my-account-section" hidden>
@@ -8744,6 +8821,7 @@
                     <span class="setup-hint" id="ss-recovery-email-msg" style="display:block;margin-top:8px"></span>
                 </div>
             </div>
+            <div id="ss-site-security-section" hidden>
             <div id="ss-tech-pin-section" class="ss-config-section" hidden>
                 <h4 data-i18n="tech.adminPin.title">IT administrator PIN</h4>
                 <p class="setup-hint" style="margin-top:0" data-i18n="tech.adminPin.hint">Separate from login (must be different). Required for Diagnostics and Lab. Super admin sets it for IT use &mdash; re-enter login password each time you change it.</p>
@@ -8822,6 +8900,7 @@
                     <button type="button" class="btn btn-action btn-sm" id="ss-voice-test" data-i18n="voiceAlerts.config.test">Test speak</button>
                     <button type="button" class="btn btn-action btn-sm" id="ss-save-voice-settings" data-i18n="voiceAlerts.config.save">Save voice settings</button>
                 </div>
+            </div>
             </div>
             </div>
 
@@ -8911,8 +8990,9 @@
                     <button type="button" id="ss-import-device-csv" data-i18n="server.importBwcCsv">Import BWC CSV</button>
                     <button type="button" id="ss-bwc-export-csv" data-i18n="bwc.exportCsv">Export CSV</button>
                     <button type="button" id="ss-bwc-add-row" data-i18n="bwc.addRow">+ Add row</button>
-                    <button type="button" id="ss-open-video-config" data-i18n="server.openVideoWall">Video wall (8 panels)</button>
+                    <button type="button" id="ss-open-video-config" data-i18n="server.openVideoWall">Assign wall panels…</button>
                 </div>
+                <p class="setup-hint" data-i18n="server.openVideoWallHint" style="margin:6px 0 0">Opens panel assignment on the Operations wall — same as wall Config. Does not open live video.</p>
                 <input type="file" id="ss-device-csv-file" accept=".csv,text/csv" hidden>
                 <div class="ss-bwc-table-wrap">
                     <table class="ss-bwc-table">
@@ -9021,46 +9101,85 @@
 
             <div id="ss-panel-cloud" class="ss-main-panel">
                 <p class="setup-hint" style="margin-top:0" data-i18n="cloud.intro">Hosted and hybrid operations &mdash; site profile, platform entitlements, secure operator access, and scheduled verification. SIP, LAN, and protocol settings remain on the Server tab.</p>
-                <div id="cd-readiness" class="ss-tech-section enterprise-card ss-readiness-card"></div>
                 <div id="cd-entitlements" class="ss-tech-section"></div>
-                <div class="ss-tech-section enterprise-card">
-                    <h5 class="enterprise-section-title" data-i18n="cloud.site.title">Site identity</h5>
+
+                <div class="ss-config-section">
+                    <h4 data-i18n="cloud.site.title">Site identity</h4>
                     <div class="ss-east-west-grid">
-                    <label><span data-i18n="cloud.site.reference">Site reference</span><input type="text" id="cd-site-reference" class="enterprise-form-control" placeholder="SITE-2026-001"></label>
-                    <label><span data-i18n="cloud.site.organization">Organization name</span><input type="text" id="cd-org-name" class="enterprise-form-control" placeholder="Acme Security Operations"></label>
-                    <label><span data-i18n="cloud.site.region">Region / territory</span><input type="text" id="cd-region" class="enterprise-form-control" placeholder="Asia-Pacific Â&middot; Singapore"></label>
-                    <label><span data-i18n="cloud.site.contact">Operations contact email</span><input type="email" id="cd-ops-email" class="enterprise-form-control" placeholder="noc@customer.com"></label>
+                        <label>
+                            <span data-i18n="cloud.site.reference">Site reference</span>
+                            <input type="text" id="cd-site-reference" class="enterprise-form-control" placeholder="SITE-2026-001">
+                        </label>
+                        <label>
+                            <span data-i18n="cloud.site.organization">Organization name</span>
+                            <input type="text" id="cd-org-name" class="enterprise-form-control" placeholder="Acme Security Operations">
+                        </label>
+                        <label>
+                            <span data-i18n="cloud.site.region">Region / territory</span>
+                            <input type="text" id="cd-region" class="enterprise-form-control" placeholder="Asia-Pacific &middot; Singapore">
+                        </label>
+                        <label>
+                            <span data-i18n="cloud.site.contact">Operations contact email</span>
+                            <input type="email" id="cd-ops-email" class="enterprise-form-control" placeholder="noc@customer.com">
+                        </label>
                     </div>
                 </div>
-                <div class="ss-tech-section enterprise-card">
-                    <h5 class="enterprise-section-title" data-i18n="cloud.access.title">Public access &amp; topology</h5>
+
+                <div class="ss-config-section">
+                    <h4 data-i18n="cloud.access.title">Public access &amp; topology</h4>
                     <div class="ss-east-west-grid">
-                    <label><span data-i18n="server.deploymentMode">Deployment mode</span>
-                        <select id="cd-deployment-mode" class="enterprise-form-control">
-                            <option value="cloud" data-i18n="server.mode.cloud">Cloud / VPS</option>
-                            <option value="hybrid" data-i18n="server.mode.hybrid">Hybrid (cloud ops + site LAN)</option>
-                            <option value="lan" data-i18n="server.mode.lan">LAN server</option>
-                            <option value="lab" data-i18n="server.mode.lab">Lab</option>
-                        </select>
-                    </label>
-                    <label><span data-i18n="server.operatorUrl">Operator portal URL</span><input type="text" id="cd-operator-url" class="enterprise-form-control" placeholder="https://dispatch.customer.com"></label>
-                    <label><span data-i18n="server.wan.publicIp">Public WAN IPv4</span><input type="text" id="cd-wan-public-ip" class="enterprise-form-control" inputmode="decimal" placeholder="203.0.113.10"></label>
-                    <label><span data-i18n="server.wan.ddns">DDNS hostname (optional)</span><input type="text" id="cd-wan-ddns" class="enterprise-form-control" placeholder="dispatch.customer.com"></label>
-                    <label><span data-i18n="server.bwcSipServer">Device registration IPv4</span><input type="text" id="cd-bwc-register-ip" class="enterprise-form-control" inputmode="decimal" placeholder="203.0.113.10"></label>
+                        <label>
+                            <span data-i18n="server.deploymentMode">Deployment mode</span>
+                            <select id="cd-deployment-mode" class="enterprise-form-control">
+                                <option value="cloud" data-i18n="server.mode.cloud">Cloud / VPS</option>
+                                <option value="hybrid" data-i18n="server.mode.hybrid">Hybrid (cloud ops + site LAN)</option>
+                                <option value="lan" data-i18n="server.mode.lan">LAN server</option>
+                                <option value="lab" data-i18n="server.mode.lab">Lab</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span data-i18n="server.operatorUrl">Operator portal URL</span>
+                            <input type="text" id="cd-operator-url" class="enterprise-form-control" placeholder="https://dispatch.customer.com">
+                        </label>
+                        <label>
+                            <span data-i18n="server.wan.publicIp">Public WAN IPv4</span>
+                            <input type="text" id="cd-wan-public-ip" class="enterprise-form-control" inputmode="decimal" placeholder="203.0.113.10">
+                        </label>
+                        <label>
+                            <span data-i18n="server.wan.ddns">DDNS hostname (optional)</span>
+                            <input type="text" id="cd-wan-ddns" class="enterprise-form-control" placeholder="dispatch.customer.com">
+                        </label>
+                        <label>
+                            <span data-i18n="server.bwcSipServer">Device registration IPv4</span>
+                            <input type="text" id="cd-bwc-register-ip" class="enterprise-form-control" inputmode="decimal" placeholder="203.0.113.10">
+                        </label>
                     </div>
                 </div>
-                <div class="ss-tech-section">
-                    <h5 data-i18n="cloud.verification.title">Central entitlement verification</h5>
+
+                <div class="ss-config-section">
+                    <h4 data-i18n="cloud.verification.title">Central entitlement verification</h4>
                     <p class="setup-hint" style="margin-top:0" data-i18n="cloud.verification.hint">When enabled, this site checks in with your configured verification service on a schedule. Use it only when that service exists for the deployment.</p>
                     <label class="ss-lab-check"><input type="checkbox" id="cd-enable-verification"><span data-i18n="cloud.verification.enable">Enable scheduled verification</span></label>
-                    <label><span data-i18n="cloud.verification.url">Verification endpoint</span><input type="text" id="cd-verification-url" placeholder="https://verify.example.com/api/v1/site-checkin"></label>
-                    <label><span data-i18n="cloud.verification.token">Verification token</span><input type="password" id="cd-verification-token" autocomplete="new-password"></label>
-                    <label><span data-i18n="cloud.verification.interval">Check interval (hours)</span><input type="number" id="cd-verification-interval" min="1" max="168" value="24"></label>
+                    <div class="ss-east-west-grid">
+                        <label>
+                            <span data-i18n="cloud.verification.url">Verification endpoint</span>
+                            <input type="text" id="cd-verification-url" class="enterprise-form-control" placeholder="https://verify.example.com/api/v1/site-checkin">
+                        </label>
+                        <label>
+                            <span data-i18n="cloud.verification.token">Verification token</span>
+                            <input type="password" id="cd-verification-token" class="enterprise-form-control" autocomplete="new-password">
+                        </label>
+                    </div>
+                    <label>
+                        <span data-i18n="cloud.verification.interval">Check interval (hours)</span>
+                        <input type="number" id="cd-verification-interval" class="enterprise-form-control" min="1" max="168" value="24">
+                    </label>
                     <div id="cd-verification-status"></div>
                     <div class="evidence-toolbar" style="margin-top:8px">
                         <button type="button" class="btn btn-action btn-sm" id="cd-verify-now" data-i18n="cloud.verification.runNow">Run verification now</button>
                     </div>
                 </div>
+
                 <div class="ss-tech-section enterprise-card ss-inbound-checklist-card" data-ss-saas-hide="cloud_leased">
                     <h5 class="enterprise-section-title" data-i18n="cloud.firewall.title">Inbound services checklist</h5>
                     <p class="setup-hint" style="margin-top:0" data-i18n="cloud.firewall.hint">Required ports for cloud security groups and edge firewalls. Align with your Server tab SIP and media settings.</p>
@@ -10395,7 +10514,7 @@
         <div class="ss-gate-panel" role="dialog" aria-labelledby="ss-tech-gate-title">
             <h4 id="ss-tech-gate-title" data-i18n="server.techGate.title">Administrator Access</h4>
             <p id="ss-tech-gate-step-hint" class="setup-hint" style="margin-top:0;color:#38bdf8" hidden data-i18n="adminAction.diagnosticsSteps">Step 2 of 2: enter the IT administrator PIN.</p>
-            <p class="setup-hint" style="margin-top:0" data-i18n="server.techGate.hint">IT administrator PIN &mdash; not your login password. Set under Settings &rarr; Server Config &rarr; Dashboard Auth.</p>
+            <p class="setup-hint" style="margin-top:0" data-i18n="server.techGate.hint">IT administrator PIN &mdash; not your login password. Set under Settings &rarr; Server Config &rarr; Dashboard Authentication.</p>
             <label for="ss-tech-gate-pin"><span data-i18n="server.techGate.pinLabel">Administrator PIN</span>
                 <input type="password" id="ss-tech-gate-pin" autocomplete="off" inputmode="numeric">
             </label>
@@ -10465,7 +10584,7 @@
     <script src="/js/auth-reverify.js?v=20260702-admin-action-bus"></script>
     <script src="/js/password-policy-ui.js?v=20260708-pwd12"></script>
     <script src="/js/tab-lifecycle.js?v=20260702-restore-8wc-v2"></script>
-    <script src="/js/server-setup.js?v=20260726-dynamic-frontend-ui-v1"></script>
+    <script src="/js/server-setup.js?v=20260727-server-phase-labels-meaning-only-v1"></script>
     <script src="/js/help-about.js?v=20260723-help-about-center-v1"></script>
     <script src="/js/platform-smtp.js?v=20260706-smtp-settings"></script>
     <script src="/js/settings-hub.js?v=20260712-health-plain"></script>

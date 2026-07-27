@@ -11,7 +11,7 @@
             'fleet.emptyNoMatch': 'No devices match',
             'fleet.addNicknameHint': 'Add nickname in Server Config',
             'fleet.groupUngrouped': 'Ungrouped',
-            'fleet.clearMapPinsNoPerm': 'Clear map pins requires super admin or permission from Dashboard Auth.',
+            'fleet.clearMapPinsNoPerm': 'Clear map pins requires super admin or permission from Dashboard Authentication.',
             'fleet.clearMapPinsConfirm': 'Clear all map pins? This closes pin popups and removes markers from the map.',
             'fleet.pttTalkOnly': 'Talk to {name} only (hold)',
             'fleet.colPtt': 'PTT',
