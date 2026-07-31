@@ -2,16 +2,37 @@
  * Client-side license feature gate.
  *
  * Fetches /api/license-features after login and caches the result.
- * Modules check LicenseFeatures.isEnabled('fr') etc. before showing UI.
- * The server never exposes env key names \u2014 only plain booleans arrive here.
+ * Modules check LicenseFeatures.isEnabled('analyticsFr') etc. before showing UI.
+ * Legacy aliases: fr → analyticsFr, anpr → analyticsAnpr.
+ * The server never exposes env key names — only plain booleans arrive here.
  */
 (function (global) {
-    var _features = { fr: false, anpr: false, redaction: false };
+    var _features = {
+        ptt: false,
+        redaction: false,
+        analyticsFr: false,
+        analyticsAnpr: false,
+        analyticsWeapon: false,
+        videoConference: false,
+        tacticalOverwatch: false,
+        cadIntegration: false,
+        fr: false,
+        anpr: false,
+    };
     var _ready = false;
     var _callbacks = [];
 
+    var ALIASES = { fr: 'analyticsFr', anpr: 'analyticsAnpr' };
+
+    function resolveName(name) {
+        var raw = String(name || '').trim();
+        if (!raw) return '';
+        return ALIASES[raw] || raw;
+    }
+
     function isEnabled(name) {
-        return _features[name] === true;
+        var key = resolveName(name);
+        return _features[key] === true;
     }
 
     function get() {
@@ -24,7 +45,15 @@
     }
 
     function _resolve(features) {
-        _features = features || _features;
+        _features = Object.assign({}, _features, features || {});
+        if (_features.analyticsFr == null && _features.fr != null) {
+            _features.analyticsFr = !!_features.fr;
+        }
+        if (_features.analyticsAnpr == null && _features.anpr != null) {
+            _features.analyticsAnpr = !!_features.anpr;
+        }
+        _features.fr = !!_features.analyticsFr;
+        _features.anpr = !!_features.analyticsAnpr;
         _ready = true;
         _callbacks.forEach(function (cb) {
             try { cb(_features); } catch (_) { /* ignore */ }

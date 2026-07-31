@@ -44,9 +44,14 @@
     function applyNavLocks(ent) {
         var tactical = document.getElementById('nav-tab-tactical');
         var analytics = document.getElementById('nav-tab-analytics');
+        var conference = document.getElementById('nav-tab-conference');
+        var cad = document.getElementById('nav-tab-cad');
         /* Basic + Command both have Tactical. Never grey the whole tab on Overwatch. */
         applyUpgradeBadge(tactical, false);
-        applyUpgradeBadge(analytics, !featureOn(ent, 'analytics'));
+        var axOn = featureOn(ent, 'analyticsFr') || featureOn(ent, 'analytics');
+        applyUpgradeBadge(analytics, !axOn);
+        applyUpgradeBadge(conference, !featureOn(ent, 'videoConference'));
+        applyUpgradeBadge(cad, !featureOn(ent, 'cadIntegration'));
 
         /* Overwatch is Command-only */
         var owBtn = document.getElementById('ax-tactical-ar-open');
