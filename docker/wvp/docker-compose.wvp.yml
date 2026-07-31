@@ -81,10 +81,11 @@ services:
     environment:
       TZ: Asia/Singapore
       # Cameras register to this LAN IP (from START-WVP-LAB.ps1 → .env HOST)
-      WVP_HOST: ${WVP_HOST_IP:-192.168.1.38}
+      WVP_HOST: ${WVP_HOST_IP:-127.0.0.1}
       WVP_PORT: "5060"
-      WVP_DOMAIN: "4401020049"
-      WVP_ID: "44010200492000000001"
+      # Universal overseas default — not a Chinese province lab ID (override via .env)
+      WVP_DOMAIN: ${WVP_DOMAIN:-${GB_DOMAIN:-9999990000}}
+      WVP_ID: ${WVP_ID:-${GB_PLATFORM_ID:-99999900002000000001}}
       WVP_PWD: ${WVP_PWD:-admin123}
       ZLM_HOST: me8-wvp-zlm
       ZLM_PORT: "80"

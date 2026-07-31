@@ -28,11 +28,13 @@ server:
 
 sip:
     # Docker: LAN IP for SIP/hooks + 0.0.0.0 for listen (issue #818 pattern)
-    ip: ${WVP_HOST:192.168.1.38},0.0.0.0
+    # WVP_HOST / HOST set by one-click setup — never ship a lab desk IP as default
+    ip: ${WVP_HOST:127.0.0.1},0.0.0.0
     # Listen inside container; host maps 5061→5060
     port: ${WVP_PORT:5060}
-    domain: ${WVP_DOMAIN:4401020049}
-    id: ${WVP_ID:44010200492000000001}
+    # GB_PLATFORM_ID / GB_DOMAIN / WVP_* from .env — universal overseas defaults (not province lab)
+    domain: ${WVP_DOMAIN:${GB_DOMAIN:9999990000}}
+    id: ${WVP_ID:${GB_PLATFORM_ID:99999900002000000001}}
     password: ${WVP_PWD:admin123}
 
 media:
@@ -50,9 +52,9 @@ media:
         port-range: 30000,30100
         send-port-range: 30000,30100
     record-assist-port: 0
-    # Advertise LAN IP to cameras / browsers (START-WVP-LAB sets WVP_HOST)
-    sdp-ip: ${WVP_HOST:192.168.1.38}
-    stream-ip: ${WVP_HOST:192.168.1.38}
+    # Advertise LAN IP to cameras / browsers (Setup / START sets WVP_HOST)
+    sdp-ip: ${WVP_HOST:127.0.0.1}
+    stream-ip: ${WVP_HOST:127.0.0.1}
 
 user-settings:
     record-push-live: false

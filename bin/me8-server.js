@@ -27,6 +27,8 @@ const { installOrphanHooks } = require('../lib/processGroupHooks');
 const setupOnly = require('../lib/setupOnlyServer');
 const licenseManager = require('../lib/licenseManager');
 const licenseGatekeeper = require('../lib/licenseGatekeeper');
+const sipBridge = require('../lib/sipBridge');
+const { glassFortress } = require('../lib/glassFortressLog');
 
 const flags = parseArgv(process.argv.slice(2));
 if (flags.help) {
@@ -182,6 +184,13 @@ function needsSetupOnly() {
     }
 
     console.error('[me8-server] License gate FAIL:', gate.code, '—', gate.message);
+    if (gate.code === 'HARDWARE_CLOCK_INVALID') {
+        glassFortress(
+            'Boot blocked — hardware clock invalid.',
+            gate.message || 'System date is before 2026-01-01 UTC.',
+            'Set the correct date/time in BIOS/CMOS (replace the CMOS battery if the clock resets after power loss). Open Setup UI, then restart me8-server. This is NOT a license expiry rollback.'
+        );
+    }
     if (gate.hardwareId) {
         console.error('[me8-server] Hardware ID:', gate.hardwareId);
     }
@@ -199,8 +208,18 @@ function needsSetupOnly() {
         return;
     }
     console.log('[me8-server] License OK — starting full Fleet stack…');
+    try {
+        sipBridge.startSipBridge({ appRoot: APP_ROOT });
+    } catch (bridgeErr) {
+        console.warn('[me8-server] SIP bridge start skipped:', bridgeErr && bridgeErr.message);
+    }
     require(path.join(APP_ROOT, 'server.js'));
 })().catch(function (err) {
+    glassFortress(
+        'me8-server fatal exit.',
+        err && err.message ? err.message : String(err),
+        'Read the stack above. For port conflicts use netstat/lsof. For clock issues set BIOS time. Then restart.'
+    );
     console.error('[me8-server] Fatal:', err && err.stack ? err.stack : err);
     process.exit(1);
 });

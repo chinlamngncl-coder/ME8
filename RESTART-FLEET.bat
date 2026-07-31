@@ -18,7 +18,8 @@ set "RF_RC=%ERRORLEVEL%"
 if "%RF_RC%"=="0" (
     echo.
     echo  Service restart done. Leave service running in background.
-    echo  Open dashboard: http://192.168.1.38:3988
+    echo  Open dashboard URLs:
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0restart-fleet-prefer-service.ps1" -PrintUrlsOnly
     echo  This window can be closed.
     echo.
     pause
@@ -55,7 +56,7 @@ if errorlevel 1 (
 
 echo.
 echo  Starting console server - leave THIS window open
-echo  Dashboard: http://localhost:3988
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0restart-fleet-prefer-service.ps1" -PrintUrlsOnly
 echo  Log file:   storage\fleet.log  (or VIEW-LOG.bat)
 echo.
 

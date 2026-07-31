@@ -143,7 +143,11 @@ const evidenceWorkflow = require('./lib/evidenceWorkflow');
 const faceTrackSidecar = require('./lib/faceTrackSidecar');
 const frSidecarClient = require('./lib/frSidecarClient');
 const frVerifyErrors = require('./lib/frVerifyErrors');
+const anprPlateRead = require('./lib/anprPlateRead');
+const anprErrors = require('./lib/anprErrors');
 const frBlacklist = require('./lib/frBlacklist');
+const anprPlateList = require('./lib/anprPlateList');
+const anprLivePoller = require('./lib/anprLivePoller');
 const frLivePoller = require('./lib/frLivePoller');
 const frSnapLedger = require('./lib/frSnapLedger');
 const frKeptEvidence = require('./lib/frKeptEvidence');
@@ -338,6 +342,7 @@ if (process.env.FM_LLM_WARMUP === '1') {
 dashboardAuth.init(STORAGE_DIR);
 dockRegistry.init(STORAGE_DIR);
 frBlacklist.init(FR_STORAGE_ROOT);
+anprPlateList.init(STORAGE_DIR);
 frKeptEvidence.init(FR_STORAGE_ROOT);
 dispatchGroups.init(STORAGE_DIR);
 firmwareOta.init({
@@ -852,6 +857,49 @@ frLivePoller.init({
     },
 });
 frLivePoller.start();
+anprLivePoller.init({
+    storageDir: STORAGE_DIR,
+    liveStreamPool,
+    videoWsPort: VIDEO_WS_PORT,
+    log,
+    isAnprLicensed: () => licenseFeatures.isFeatureEnabled('analyticsAnpr')
+        || licenseFeatures.isFeatureEnabled('anpr'),
+    getGps: (camId) => {
+        try {
+            const g = lastGpsByCam[String(camId)];
+            if (g && Number.isFinite(Number(g.lat)) && Number.isFinite(Number(g.lon))) {
+                return { lat: Number(g.lat), lon: Number(g.lon), at: g.at || null };
+            }
+        } catch (_) { /* ignore */ }
+        return null;
+    },
+    deviceLabel: (camId) => {
+        try {
+            const fleet = fleetRegistry.getDashboardFleet && fleetRegistry.getDashboardFleet();
+            if (Array.isArray(fleet)) {
+                const m = fleet.find((x) => x && String(x.id) === String(camId));
+                if (m && m.name) return String(m.name);
+            }
+        } catch (_) { /* ignore */ }
+        return String(camId);
+    },
+    emit: (event, payload, camId) => emitToDashboardSockets(event, payload, camId),
+    onHit: (hit) => {
+        try {
+            auditLog.record('analytics.anpr_list_hit', {
+                target: hit.listId,
+                detail: {
+                    camId: hit.camId,
+                    plate: hit.plate,
+                    listStatus: hit.listStatus,
+                    hitId: hit.hitId,
+                    source: hit.source || 'live',
+                },
+            });
+        } catch (_) { /* ignore */ }
+    },
+});
+anprLivePoller.start();
 frOfflineVideo.init({
     storageDir: FR_STORAGE_ROOT,
     cropsDir: FR_STORAGE_LAYOUT.cropsRoot,
@@ -2106,6 +2154,9 @@ app.post('/api/bwc-companion/telemetry', requireBwcCompanionToken, handleBwcComp
 
 app.use(dashboardAuth.requireDashboardAuth);
 app.use('/api', tenantMiddleware.requireValidLicenseWhenEnforced);
+
+/* MOB-APPLY 8.3 — CAD/RMS mock API (air-gap features.cadIntegration) */
+app.use('/api/cad', require('./routes/cad-integration'));
 
 app.get('/api/gis/geocode', async (req, res) => {
     try {
@@ -3690,6 +3741,19 @@ app.post('/api/server-settings', dashboardAuth.requireSuperAdmin, (req, res) => 
     try {
         const body = req.body || {};
         if (reverifyForbidden(req, res, body)) return;
+        /* Glass Fortress — sanitize SIP port before persist */
+        if (body.sip && body.sip.sipPort != null) {
+            const sipPort = parseInt(body.sip.sipPort, 10);
+            if (!Number.isFinite(sipPort) || sipPort < 1024 || sipPort > 65535) {
+                return res.status(400).json({
+                    ok: false,
+                    error: 'Invalid SIP port',
+                    code: 'ERR_SIP_PORT_RANGE',
+                    message: 'sip.sipPort must be an integer from 1024 to 65535.',
+                });
+            }
+            body.sip.sipPort = sipPort;
+        }
         bwcNetwork.assertBwcRegisterIp(body.publicHost);
         const current = serverSettings.load(STORAGE_DIR);
         const settings = serverSettings.save(STORAGE_DIR, Object.assign({}, current, body));
@@ -4543,7 +4607,7 @@ function shouldSkipFleetInviteForWvpSoftOpen(payload) {
     if (payload && payload.forceFleetInvite) return false;
     if (payload && payload.sosServerPull) return false;
     const surface = String((payload && payload.surface) || '').trim();
-    if (surface === 'analytics-fr' || surface === 'conference'
+    if (surface === 'analytics-fr' || surface === 'analytics-anpr' || surface === 'conference'
         || surface === 'command-wall' || surface.indexOf('command') === 0) {
         return false;
     }
@@ -6910,7 +6974,7 @@ app.post('/api/evidence/detail/:fileId/trim-export', requireEvidenceExport, asyn
     }
 });
 
-app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin, express.json({ limit: '256kb' }), async (req, res) => {
+app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin, licenseEntitlementsMw.requireFeature('redaction'), express.json({ limit: '256kb' }), async (req, res) => {
     try {
         const body = req.body || {};
         const regions = body.regions;
@@ -6930,7 +6994,7 @@ app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin,
         };
         let out;
         if (faceFollow) {
-            if (!licenseFeatures.isFeatureEnabled('fr')) {
+            if (!licenseFeatures.isFeatureEnabled('analyticsFr')) {
                 return res.status(403).json(opErr('Face detection module is not enabled on this license'));
             }
             out = await evidenceWorkflow.applyFaceFollowRedaction(req.params.fileId, req.dashboardUser, {
@@ -6971,9 +7035,9 @@ app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin,
 
 // mob-evidence-redact-seeta-detect-v1: Seeta detect timeline (tight preview).
 // Burn on Save = per-frame Seeta + ROI blur. YuNet only if FM_REDACT_FACE_ENGINE=yunet.
-app.post('/api/evidence/detail/:fileId/redact/autoface', dashboardAuth.requireSuperAdmin, express.json({ limit: '16kb' }), async (req, res) => {
+app.post('/api/evidence/detail/:fileId/redact/autoface', dashboardAuth.requireSuperAdmin, licenseEntitlementsMw.requireFeature('redaction'), express.json({ limit: '16kb' }), async (req, res) => {
     try {
-        if (!licenseFeatures.isFeatureEnabled('fr')) {
+        if (!licenseFeatures.isFeatureEnabled('analyticsFr')) {
             return res.status(403).json(opErr('Face detection module is not enabled on this license'));
         }
         const body = req.body || {};
@@ -7050,7 +7114,7 @@ app.patch('/api/evidence/redact/:exportId/note', requireEvidenceEdit, express.js
     }
 });
 
-app.post('/api/evidence/redact/:exportId/finalize', dashboardAuth.requireSuperAdmin, async (req, res) => {
+app.post('/api/evidence/redact/:exportId/finalize', dashboardAuth.requireSuperAdmin, licenseEntitlementsMw.requireFeature('redaction'), async (req, res) => {
     try {
         const out = await evidenceWorkflow.finalizeRedactExport(req.params.exportId, req.dashboardUser);
         await auditLog.recordFromRequest(req, 'evidence.redact_finalize', {
@@ -7266,6 +7330,224 @@ app.get('/api/analytics/fr/health', dashboardAuth.requireDashboardAuth, async (r
         res.json({ ok: true, featureEnabled, runtime, snapLedger, frLabUi: isFrLabUiEnabled() });
     } catch (err) {
         res.status(500).json(opErr(err));
+    }
+});
+
+/** ANPR-SNAPSHOT-CROP-READ-V1 — health + still-image plate read */
+const ANPR_TEMP_DIR = path.join(BASE_DIR, 'storage', 'anpr-temp');
+const anprReadUpload = multer({
+    storage: multer.diskStorage({
+        destination: (_req, _file, cb) => {
+            try { fs.mkdirSync(ANPR_TEMP_DIR, { recursive: true }); } catch (_) { /* ignore */ }
+            cb(null, ANPR_TEMP_DIR);
+        },
+        filename: (_req, file, cb) => {
+            const safe = String(file.originalname || 'plate').replace(/[^\w.\-]+/g, '_').slice(0, 80);
+            cb(null, multerTempFileName(safe));
+        },
+    }),
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+        if (/\.(jpe?g|png|webp|bmp)$/i.test(file.originalname || '')) return cb(null, true);
+        cb(new Error('Use JPEG, PNG, WebP, or BMP'));
+    },
+});
+
+app.get('/api/analytics/anpr/health', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    try {
+        const featureEnabled = !!(licenseFeatures.isFeatureEnabled('anpr')
+            || licenseFeatures.isFeatureEnabled('analyticsAnpr'));
+        let runtime = { ok: false, error: 'not_licensed' };
+        if (featureEnabled) {
+            const anprSidecarClient = require('./lib/anprSidecarClient');
+            runtime = anprSidecarClient.isAutoStartEnabled()
+                ? await anprSidecarClient.ensureReady()
+                : await anprPlateRead.health();
+        }
+        res.json({
+            ok: true,
+            featureEnabled,
+            runtime,
+            live: {
+                maxCams: anprLivePoller.MAX_CAMS,
+                pollSec: anprLivePoller.POLL_SEC,
+            },
+        });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.get('/api/analytics/anpr/crop/:file', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('anpr') && !licenseFeatures.isFeatureEnabled('analyticsAnpr')) {
+        return res.status(403).end();
+    }
+    const p = anprLivePoller.cropAbsolutePath(req.params.file);
+    if (!p) return res.status(404).end();
+    res.type('image/jpeg').sendFile(p);
+});
+
+app.post('/api/analytics/anpr/read', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('anpr') && !licenseFeatures.isFeatureEnabled('analyticsAnpr')) {
+        return res.status(403).json(anprErrors.operatorPayload(anprErrors.CODES.NOT_LICENSED, 403));
+    }
+    anprReadUpload.single('photo')(req, res, async (err) => {
+        const cleanup = [];
+        try {
+            if (err) {
+                const msg = String(err.message || err);
+                const code = /not permitted|file type|too large|limit/i.test(msg)
+                    ? anprErrors.CODES.BAD_FILE
+                    : anprErrors.CODES.FAILED;
+                return res.status(400).json(anprErrors.operatorPayload(code, 400));
+            }
+            const f = req.file;
+            if (!f || !f.path) {
+                return res.status(400).json(anprErrors.operatorPayload(anprErrors.CODES.NEED_IMAGE, 400));
+            }
+            cleanup.push(f.path);
+            const result = await anprPlateRead.readPath(f.path);
+            const classified = anprErrors.classifyReadResult(result);
+            auditLog.recordFromRequest(req, 'analytics.anpr_read', {
+                detail: {
+                    ok: !!(result && result.ok),
+                    plate: result && result.plateCompact ? String(result.plateCompact).slice(0, 32) : null,
+                    confidence: result && result.confidence,
+                    lowConfidence: !!(result && result.lowConfidence),
+                    code: classified ? classified.code : null,
+                    engineError: result && result.error ? String(result.error).slice(0, 80) : null,
+                },
+            });
+            if (classified) {
+                return res.status(classified.httpStatus).json(
+                    anprErrors.operatorPayload(classified.code, classified.httpStatus)
+                );
+            }
+            let listMatch = null;
+            try {
+                const probed = anprPlateList.matchProbe(result.plateCompact || result.plate);
+                if (probed && probed.match) listMatch = probed.match;
+            } catch (_) { /* ignore list errors on read */ }
+            res.json({
+                ok: true,
+                plate: result.plate,
+                plateCompact: result.plateCompact,
+                confidence: result.confidence,
+                lowConfidence: !!result.lowConfidence,
+                engine: result.engine || 'tesseract.js',
+                listMatch: listMatch,
+            });
+        } catch (e) {
+            auditLog.recordFromRequest(req, 'analytics.anpr_read', {
+                detail: { ok: false, code: anprErrors.CODES.FAILED, message: String(e && e.message || e).slice(0, 120) },
+            });
+            res.status(500).json(anprErrors.operatorPayload(anprErrors.CODES.FAILED, 500));
+        } finally {
+            cleanup.forEach((p) => {
+                try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+            });
+        }
+    });
+});
+
+/* ANPR-PLATE-LISTS-V1 — match lists (Milestone-style); gated like ANPR read */
+function anprFeatureOn() {
+    return licenseFeatures.isFeatureEnabled('anpr') || licenseFeatures.isFeatureEnabled('analyticsAnpr');
+}
+
+app.get('/api/analytics/anpr/lists', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!anprFeatureOn()) {
+        return res.status(403).json(anprErrors.operatorPayload(anprErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const data = anprPlateList.list({
+            q: req.query && req.query.q,
+            listStatus: req.query && (req.query.listStatus || req.query.grade),
+            enabledOnly: String(req.query && req.query.enabledOnly || '') === '1',
+        });
+        res.json(data);
+    } catch (err) {
+        res.status(500).json(anprErrors.operatorPayload(anprErrors.CODES.FAILED, 500));
+    }
+});
+
+app.post('/api/analytics/anpr/lists', dashboardAuth.requireSuperAdmin, express.json({ limit: '32kb' }), (req, res) => {
+    if (!anprFeatureOn()) {
+        return res.status(403).json(anprErrors.operatorPayload(anprErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const body = req.body || {};
+        const out = anprPlateList.enroll({
+            plate: body.plate,
+            plateCompact: body.plateCompact,
+            displayName: body.displayName || body.label,
+            idNumber: body.idNumber,
+            notes: body.notes,
+            listStatus: body.listStatus || body.grade,
+            reasonCode: body.reasonCode || body.reason,
+            reasonOther: body.reasonOther,
+            lastSeen: body.lastSeen,
+            lastIncident: body.lastIncident,
+            enrolledBy: req.dashboardUser && req.dashboardUser.username || '',
+        });
+        if (!out.ok) {
+            const code = out.code || 'anpr.failed';
+            const status = code === 'anpr.list_full' || code === 'anpr.plate_exists' ? 409 : 400;
+            return res.status(status).json({
+                ok: false,
+                code,
+                message: out.message || 'Could not add plate.',
+                httpStatus: status,
+                existingId: out.existingId || null,
+            });
+        }
+        auditLog.recordFromRequest(req, 'analytics.anpr_list_enroll', {
+            target: out.entry && out.entry.id,
+            detail: {
+                plateCompact: out.entry && out.entry.plateCompact,
+                listStatus: out.entry && out.entry.listStatus,
+            },
+        });
+        res.json(out);
+    } catch (err) {
+        res.status(500).json(anprErrors.operatorPayload(anprErrors.CODES.FAILED, 500));
+    }
+});
+
+app.patch('/api/analytics/anpr/lists/:id', dashboardAuth.requireSuperAdmin, express.json({ limit: '8kb' }), (req, res) => {
+    if (!anprFeatureOn()) {
+        return res.status(403).json(anprErrors.operatorPayload(anprErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const body = req.body || {};
+        if (typeof body.enabled !== 'boolean') {
+            return res.status(400).json(anprErrors.operatorPayload(anprErrors.CODES.FAILED, 400));
+        }
+        const out = anprPlateList.setEnabled(req.params.id, body.enabled);
+        if (!out.ok) {
+            return res.status(404).json(anprErrors.operatorPayload(anprErrors.CODES.FAILED, 404));
+        }
+        res.json(out);
+    } catch (err) {
+        res.status(500).json(anprErrors.operatorPayload(anprErrors.CODES.FAILED, 500));
+    }
+});
+
+app.delete('/api/analytics/anpr/lists/:id', dashboardAuth.requireSuperAdmin, (req, res) => {
+    if (!anprFeatureOn()) {
+        return res.status(403).json(anprErrors.operatorPayload(anprErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const out = anprPlateList.remove(req.params.id);
+        if (!out.ok) {
+            return res.status(404).json(anprErrors.operatorPayload(anprErrors.CODES.FAILED, 404));
+        }
+        auditLog.recordFromRequest(req, 'analytics.anpr_list_remove', {
+            target: req.params.id,
+        });
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json(anprErrors.operatorPayload(anprErrors.CODES.FAILED, 500));
     }
 });
 
@@ -11554,9 +11836,10 @@ io.on('connection', (socket) => {
             const beforeSurfaces = liveViewers.socketSurfacesForCam(socket.id, camId);
             const alreadyOwned = surface === 'command-wall' ? beforeSurfaces.commandWall
                 : (surface === 'analytics-fr' ? beforeSurfaces.analyticsFr
-                    : (surface === 'matrix-popout' ? beforeSurfaces.matrixPopout
-                        : (surface === 'live-popout' ? beforeSurfaces.livePopout
-                            : (surface === 'tactical' ? beforeSurfaces.tactical : beforeSurfaces.ops))));
+                    : (surface === 'analytics-anpr' ? beforeSurfaces.analyticsAnpr
+                        : (surface === 'matrix-popout' ? beforeSurfaces.matrixPopout
+                            : (surface === 'live-popout' ? beforeSurfaces.livePopout
+                                : (surface === 'tactical' ? beforeSurfaces.tactical : beforeSurfaces.ops)))));
             const viewers = liveViewers.addView(socket.id, camId, surface);
             const afterSurfaces = liveViewers.socketSurfacesForCam(socket.id, camId);
             if ((!beforeSurfaces.ops || !beforeSurfaces.commandWall)
@@ -11735,6 +12018,13 @@ io.on('connection', (socket) => {
         const cams = payload && Array.isArray(payload.camIds) ? payload.camIds : [];
         const thr = loadFrSettings().matchThreshold;
         frLivePoller.setWatchSlots(socket.id, cams, thr);
+    });
+
+    socket.on('anpr-watch-slots', (payload) => {
+        if (!licenseFeatures.isFeatureEnabled('analyticsAnpr')
+            && !licenseFeatures.isFeatureEnabled('anpr')) return;
+        const cams = payload && Array.isArray(payload.camIds) ? payload.camIds : [];
+        anprLivePoller.setWatchSlots(socket.id, cams);
     });
 
     socket.on('fr-alarm-ack', (payload) => {
@@ -12193,6 +12483,7 @@ io.on('connection', (socket) => {
             sosGroupCall.stop('operator_disconnect');
         }
         try { frLivePoller.clearWatch(socket.id); } catch (_) { /* ignore */ }
+        try { anprLivePoller.clearSocket(socket.id); } catch (_) { /* ignore */ }
         const toStop = liveViewers.releaseSocket(socket.id);
         if (!toStop.length) return;
         log.media.info('dashboard disconnect — release live refs', { socketId: socket.id, cams: toStop });
@@ -13386,6 +13677,14 @@ process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
             });
             await closeCatalogForShutdown('license-failure');
             process.exit(1);
+        }
+        /* Glass Fortress — auto-start SIP bridge (in-memory port cascade; never edits .env) */
+        try {
+            require('./lib/sipBridge').startSipBridge({ appRoot: BASE_DIR });
+        } catch (bridgeErr) {
+            log.web.warn('sip bridge start skipped', {
+                message: bridgeErr && bridgeErr.message ? bridgeErr.message : String(bridgeErr),
+            });
         }
         platformLicense.assertReadyForStartup();
         await ffmpegRuntime.assertReady(log);

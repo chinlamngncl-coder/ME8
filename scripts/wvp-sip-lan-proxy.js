@@ -19,12 +19,42 @@ process.chdir(ROOT);
 const lanMap = require('../lib/wvpSipLanMap');
 const wvp = require('../lib/wvpLabClient');
 const http = require('http');
+const { glassFortressWarn } = require('../lib/glassFortressLog');
 
 const LISTEN_PORT = parseInt(process.env.WVP_SIP_PROXY_LISTEN || '5060', 10) || 5060;
-const TARGET = String(process.env.WVP_SIP_PROXY_TARGET || '127.0.0.1:15061').trim();
+const TARGET = String(process.env.WVP_SIP_PROXY_TARGET || '127.0.0.1:5061').trim();
 const tm = TARGET.match(/^([^:]+):(\d+)$/);
-const TARGET_HOST = tm ? tm[1] : '127.0.0.1';
-const TARGET_PORT = tm ? parseInt(tm[2], 10) : 15061;
+/* Anti-reflection: always forward to loopback; port from env (default 5061) */
+const TARGET_HOST = '127.0.0.1';
+const TARGET_PORT = tm ? parseInt(tm[2], 10) : (parseInt(TARGET, 10) || 5061);
+
+if (LISTEN_PORT === TARGET_PORT) {
+    glassFortressWarn(
+        'SIP proxy exiting — listen port equals target port (' + LISTEN_PORT + ').',
+        'Same-port forward would loop forever.',
+        'Use different listen vs Docker WVP port (e.g. 5060 → 127.0.0.1:5061).'
+    );
+    process.exit(1);
+}
+
+function safeUdpSend(sock, msg, port, address, label) {
+    try {
+        sock.send(msg, port, address, function (err) {
+            if (!err) return;
+            glassFortressWarn(
+                'SIP UDP send failed (' + (label || 'forward') + ') to ' + address + ':' + port + '.',
+                err && err.message ? err.message : String(err),
+                'If Docker WVP is down, start it (START-WVP-LAB). This error is non-fatal — ME8 keeps running.'
+            );
+        });
+    } catch (err) {
+        glassFortressWarn(
+            'SIP UDP send threw (' + (label || 'forward') + ').',
+            err && err.message ? err.message : String(err),
+            'Ignored so a downed media stack cannot crash the SIP bridge process.'
+        );
+    }
+}
 const SYNC_MS = Math.max(5000, parseInt(process.env.WVP_SIP_LAN_SYNC_MS || '10000', 10) || 10000);
 const FLEET_SIP_RETURN_HOST = String(process.env.FLEET_SIP_RETURN_HOST || '127.0.0.1').trim() || '127.0.0.1';
 const FLEET_SIP_RETURN_PORT = parseInt(process.env.FLEET_SIP_RETURN_PORT || '5062', 10) || 5062;
@@ -306,9 +336,7 @@ function startUdp() {
                 log('udp reply drop (no route)', { callId: parsed.callId, method: parsed.method });
                 return;
             }
-            sock.send(msg, route.port, route.address, (err) => {
-                if (err) log('udp reply err', err.message);
-            });
+            safeUdpSend(sock, msg, route.port, route.address, 'reply-to-cam');
             return;
         }
 
@@ -337,9 +365,7 @@ function startUdp() {
                 });
             }
             scheduleSyncSoon();
-            sock.send(msg, TARGET_PORT, TARGET_HOST, (err) => {
-                if (err) log('udp forward err', err.message);
-            });
+            safeUdpSend(sock, msg, TARGET_PORT, TARGET_HOST, 'register-to-wvp');
             return;
         }
 
@@ -378,17 +404,30 @@ function startUdp() {
                 viaRewrite: sig.ip + ':' + (sig.port || LISTEN_PORT),
                 targetSource: cam.source || null,
             });
-            sock.send(outBuf, cam.port, cam.address, (err) => {
-                if (err) log('invite relay err', err.message);
-                else if (parsed.method === 'INVITE') {
-                    log('INVITE forwarded to BWC', {
-                        deviceId: did,
-                        to: cam.address + ':' + cam.port,
-                        targetSource: cam.source || null,
-                        note: 'register_peer_nat_pinhole',
-                    });
-                }
-            });
+            try {
+                sock.send(outBuf, cam.port, cam.address, (err) => {
+                    if (err) {
+                        glassFortressWarn(
+                            'SIP INVITE relay UDP send failed to ' + cam.address + ':' + cam.port + '.',
+                            err.message || String(err),
+                            'Confirm the BWC is online and registered. Non-fatal — bridge stays up.'
+                        );
+                    } else if (parsed.method === 'INVITE') {
+                        log('INVITE forwarded to BWC', {
+                            deviceId: did,
+                            to: cam.address + ':' + cam.port,
+                            targetSource: cam.source || null,
+                            note: 'register_peer_nat_pinhole',
+                        });
+                    }
+                });
+            } catch (err) {
+                glassFortressWarn(
+                    'SIP INVITE relay threw.',
+                    err && err.message ? err.message : String(err),
+                    'Ignored so an unreachable camera cannot crash the SIP bridge.'
+                );
+            }
             return;
         }
 
@@ -420,9 +459,7 @@ function startUdp() {
                 cseqMethod: parsed.cseqMethod,
                 via: parsed.via || null,
             });
-            sock.send(msg, FLEET_SIP_RETURN_PORT, FLEET_SIP_RETURN_HOST, (err) => {
-                if (err) log('Fleet SIP Call reply forward err', err.message);
-            });
+            safeUdpSend(sock, msg, FLEET_SIP_RETURN_PORT, FLEET_SIP_RETURN_HOST, 'fleet-sip-return');
             return;
         }
         /* mob-proxy-invite-reply-trace-v1 — prove 200 OK returns to WVP :15061 */
@@ -447,15 +484,28 @@ function startUdp() {
                 cseqMethod: parsed.cseqMethod || null,
             });
         }
-        sock.send(msg, TARGET_PORT, TARGET_HOST, (err) => {
-            if (err) log('udp forward err', err.message);
-            else if (!parsed.isReq && parsed.statusCode === 200) {
-                log('200 OK forwarded to WVP', {
-                    to: TARGET_HOST + ':' + TARGET_PORT,
-                    callId: parsed.callId || null,
-                });
-            }
-        });
+        try {
+            sock.send(msg, TARGET_PORT, TARGET_HOST, (err) => {
+                if (err) {
+                    glassFortressWarn(
+                        'SIP UDP forward to WVP failed (' + TARGET_HOST + ':' + TARGET_PORT + ').',
+                        err.message || String(err),
+                        'Start Docker WVP (START-WVP-LAB) if containers are down. Non-fatal — me8-server stays up.'
+                    );
+                } else if (!parsed.isReq && parsed.statusCode === 200) {
+                    log('200 OK forwarded to WVP', {
+                        to: TARGET_HOST + ':' + TARGET_PORT,
+                        callId: parsed.callId || null,
+                    });
+                }
+            });
+        } catch (err) {
+            glassFortressWarn(
+                'SIP UDP forward to WVP threw.',
+                err && err.message ? err.message : String(err),
+                'Ignored so a downed Docker container never crashes the SIP bridge.'
+            );
+        }
     });
     sock.bind(LISTEN_PORT, '0.0.0.0', () => {
         log('UDP listen', LISTEN_PORT, '→', TARGET_HOST + ':' + TARGET_PORT);
