@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Command Wall &mdash; Mobility Axiom</title>
-    <link rel="stylesheet" href="/css/global.css?v=20260723-global-ui-rollout-v1">
+    <link rel="stylesheet" href="/css/global.css?v=20260731-dark-form-controls-unify-v1">
     <style>
         * { box-sizing: border-box; }
         html, body { margin: 0; height: 100%; background: #0b1220; color: #e2e8f0; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
@@ -96,7 +96,7 @@
         .dr-group-meta { font-size: 9px; color: #64748b; }
         .cell-stage { flex: 1; min-height: 0; position: relative; background: #000; }
         .cell-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; z-index: 1; }
-        .cell-stage video.me8-zlm-primary { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; z-index: 1; }
+        .cell-stage video.me8-zlm-primary { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover !important; background: #000; z-index: 1; }
         .cell-empty { position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 11px; font-weight: 600; text-align: center; pointer-events: none; }
         .cell-empty[hidden] { display: none !important; }
         .cell-drop-hint { position: absolute; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #475569; pointer-events: none; }
@@ -203,7 +203,7 @@
     </div>
     <script src="/vendor/jsmpeg.min.js"></script>
     <script src="/vendor/mpegts.min.js"></script>
-    <script src="/js/live-player-factory.js?v=20260723-same-origin-media-proxy-v1"></script>
+    <script src="/js/live-player-factory.js?v=20260730-cw-fill-cover-v1"></script>
     <script src="/js/live-surface-hint.js?v=20260709-duplicate-surface-warn"></script>
     <script src="/js/cw-display-room.js?v=20260712-launch-all-profile"></script>
     <script src="/js/command-wall.js?v=20260723-wss-video-audio-sockets-v1"></script>

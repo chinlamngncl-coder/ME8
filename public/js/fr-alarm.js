@@ -585,6 +585,11 @@
         }
     }
 
+    function isOfflineVideoHit(hit) {
+        if (!hit) return false;
+        return String(hit.source || '').trim().toLowerCase() === 'offline-video';
+    }
+
     function goOpsOnHit(hit, opts) {
         opts = opts || {};
         if (!hit) return;
@@ -594,6 +599,10 @@
             }
             return;
         }
+        /* FR-OFFLINE-HIT-ALERT-ONLY-V1 — offline video: toast/HQ/chime only unless Go to map */
+        var offline = isOfflineVideoHit(hit);
+        if (offline && !opts.explicit) return;
+
         if (isAnalyticsPopoutMode()) {
             if (!opts.explicit && !shouldAutoGoOpsForHit(hit)) return;
             focusOpsOnDesk(hit, opts);
@@ -610,8 +619,8 @@
                 toastOnFail: opts.explicit !== false,
                 blacklistZoom: alertTierForHit(hit) === 'high',
             });
-            /* FR-BLACKLIST-MAP-PIN-TAKEOVER-V1 — wall/pin live for catching BWC */
-            if (alertTierForHit(hit) === 'high' && hit.camId) {
+            /* FR-BLACKLIST-MAP-PIN-TAKEOVER-V1 — wall/pin live for catching BWC (never for offline video) */
+            if (!offline && alertTierForHit(hit) === 'high' && hit.camId) {
                 setTimeout(function () {
                     try {
                         if (global.VideoWall && typeof VideoWall.promoteFrBlacklistLive === 'function') {
@@ -2109,7 +2118,7 @@
         goOpsOnHit(hit);
         markRailAlertActive(hit);
         playChimeForHit(hit);
-        if (global.FrLiveWatch && FrLiveWatch.flashCam) {
+        if (!isOfflineVideoHit(hit) && global.FrLiveWatch && FrLiveWatch.flashCam) {
             FrLiveWatch.flashCam(hit.camId);
         }
     }
@@ -2211,7 +2220,7 @@
         /* Soft chime once on upgrade — full siren only if blacklist high */
         playChimeForHit(hit);
         goOpsOnHit(hit);
-        if (global.FrLiveWatch && FrLiveWatch.flashCam) {
+        if (!isOfflineVideoHit(hit) && global.FrLiveWatch && FrLiveWatch.flashCam) {
             FrLiveWatch.flashCam(hit.camId);
         }
     }

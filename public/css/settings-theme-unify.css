@@ -103,15 +103,32 @@
 
 /* Forms — match enterprise control height */
 #server-setup-panel input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]):not([type="hidden"]),
-#server-setup-panel select,
 #server-setup-panel textarea {
-    background: var(--bg-input);
+    background-color: var(--bg-input);
     border: 1px solid var(--border-color, #475569);
     border-radius: var(--radius-sm);
     color: var(--text-primary, #f8fafc);
     min-height: 34px;
     padding: 7px 10px;
     font-size: 12px;
+}
+
+/* Select: dark + caret (no background shorthand — keeps unify chevron) */
+#server-setup-panel select {
+    background-color: var(--bg-input);
+    background-image: var(--select-chevron);
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 12px 8px;
+    border: 1px solid var(--border-color, #475569);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary, #f8fafc);
+    min-height: 34px;
+    padding: 7px 28px 7px 10px;
+    font-size: 12px;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
 }
 
 #server-setup-panel textarea {

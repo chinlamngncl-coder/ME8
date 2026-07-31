@@ -12,9 +12,19 @@
                 if (list.length) return list;
             }
         } catch (_) { /* ignore */ }
-        return ['en', 'fil', 'id', 'th', 'ko'];
+        return ['en', 'fil', 'id', 'th', 'ko', 'zh'];
     })();
-    const DEFAULT = 'en';
+    const DEFAULT = (function () {
+        try {
+            var meta = document.querySelector('meta[name="fm-default-lang"]');
+            if (meta && meta.content) {
+                var d = String(meta.content || '').trim().toLowerCase();
+                if (d === 'zh-cn' || d === 'zh' || d === 'cn') return 'zh';
+                if (SUPPORTED.indexOf(d) >= 0) return d;
+            }
+        } catch (_) { /* ignore */ }
+        return 'en';
+    })();
 
     /** Keys that stay Latin acronym in all locales (professional convention). */
     const LOCK_TERMS = {

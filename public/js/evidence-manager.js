@@ -330,6 +330,7 @@
         const ops = document.getElementById('app-view-ops');
         const ev = document.getElementById('app-view-evidence');
         const ax = document.getElementById('app-view-analytics');
+        const cad = document.getElementById('app-view-cad');
         const tac = document.getElementById('app-view-tactical');
         const conf = document.getElementById('app-view-conference');
         const audit = document.getElementById('app-view-audit-trail');
@@ -339,6 +340,7 @@
         const btnOps = document.getElementById('nav-tab-ops');
         const btnEv = document.getElementById('nav-tab-evidence');
         const btnAx = document.getElementById('nav-tab-analytics');
+        const btnCad = document.getElementById('nav-tab-cad');
         const btnTac = document.getElementById('nav-tab-tactical');
         const btnConf = document.getElementById('nav-tab-conference');
         const btnAudit = document.getElementById('nav-tab-audit-trail');
@@ -354,6 +356,7 @@
         if (ops) ops.hidden = tab !== 'ops';
         if (ev) ev.hidden = tab !== 'evidence';
         if (ax) ax.hidden = tab !== 'analytics';
+        if (cad) cad.hidden = tab !== 'cad';
         if (tac) tac.hidden = tab !== 'tactical';
         if (conf) conf.hidden = tab !== 'conference';
         if (audit) audit.hidden = tab !== 'audit-trail';
@@ -363,6 +366,7 @@
         if (btnOps) btnOps.classList.toggle('active', tab === 'ops');
         if (btnEv) btnEv.classList.toggle('active', tab === 'evidence');
         if (btnAx) btnAx.classList.toggle('active', tab === 'analytics');
+        if (btnCad) btnCad.classList.toggle('active', tab === 'cad');
         if (btnTac) btnTac.classList.toggle('active', tab === 'tactical');
         if (btnConf) btnConf.classList.toggle('active', tab === 'conference');
         if (btnAudit) btnAudit.classList.toggle('active', tab === 'audit-trail');
@@ -379,6 +383,9 @@
         }
         if (tab === 'analytics') {
             if (global.AnalyticsHub && AnalyticsHub.onShow) AnalyticsHub.onShow({ force: loadData });
+        }
+        if (tab === 'cad') {
+            if (global.CadHub && CadHub.onShow) CadHub.onShow({ force: loadData });
         }
         if (tab === 'tactical') {
             if (global.TacticalShell && TacticalShell.onShow) TacticalShell.onShow({ force: loadData });
@@ -452,6 +459,7 @@
         const btnOps = document.getElementById('nav-tab-ops');
         const btnEv = document.getElementById('nav-tab-evidence');
         const btnAx = document.getElementById('nav-tab-analytics');
+        const btnCad = document.getElementById('nav-tab-cad');
         const btnTac = document.getElementById('nav-tab-tactical');
         const btnSrv = document.getElementById('nav-tab-server');
         const btnCw = document.getElementById('nav-tab-command-wall');
@@ -466,9 +474,11 @@
         if (btnOps) btnOps.addEventListener('click', function () { showTab('ops'); });
         if (btnEv) btnEv.addEventListener('click', function () { showTab('evidence'); });
         if (btnAx) btnAx.addEventListener('click', function () { showTab('analytics'); });
+        if (btnCad) btnCad.addEventListener('click', function () { showTab('cad'); });
         if (btnTac) btnTac.addEventListener('click', function () { showTab('tactical'); });
         if (btnConf) btnConf.addEventListener('click', function () { showTab('conference'); });
         if (global.AnalyticsHub && AnalyticsHub.bindUi) AnalyticsHub.bindUi();
+        if (global.CadHub && CadHub.bindUi) CadHub.bindUi();
         if (btnAudit) btnAudit.addEventListener('click', function () { showTab('audit-trail'); });
         if (btnAuditServer) btnAuditServer.addEventListener('click', function () { showTab('audit-trail'); });
         if (btnSrv) btnSrv.addEventListener('click', function () { showTab('server'); });

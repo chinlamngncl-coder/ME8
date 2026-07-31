@@ -71,6 +71,21 @@
         return once();
     }
 
+    /* COMMAND-WALL-FILL-COVER-V1 — CW mosaic fills cell; other surfaces keep contain */
+    function objectFitCssForHost(host) {
+        try {
+            if (host && host.closest && (
+                host.closest('.cw-cell-stage')
+                || host.closest('#cw-wall')
+                || host.closest('#app-view-command-wall')
+                || host.closest('.cell-stage')
+            )) {
+                return 'object-fit:cover';
+            }
+        } catch (_) { /* ignore */ }
+        return 'object-fit:contain';
+    }
+
     /**
      * Soft ZLM overlay \u2014 does NOT clear host. JSMpeg canvas stays.
      * Shows video only after prove (playing + short hold). Fail \u2192 remove overlay only.
@@ -99,7 +114,7 @@
             'top:0',
             'width:100%',
             'height:100%',
-            'object-fit:contain',
+            objectFitCssForHost(host),
             'background:#000',
             'opacity:0',
             'pointer-events:none',
@@ -236,7 +251,7 @@
             'top:0',
             'width:100%',
             'height:100%',
-            'object-fit:contain',
+            objectFitCssForHost(host),
             'background:#000',
             'opacity:0',
             'z-index:1',
