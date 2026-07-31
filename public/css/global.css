@@ -161,13 +161,12 @@
     font-size: 12px;
     line-height: 1.35;
     color: var(--field-text);
-    background: var(--bg-input);
+    background-color: var(--bg-input);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
 }
 
 .enterprise-scope input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]),
-.enterprise-scope select,
 .enterprise-scope textarea {
     width: 100%;
     max-width: none;
@@ -179,7 +178,23 @@
     font-size: 12px;
     line-height: 1.35;
     color: var(--field-text);
-    background: var(--bg-input);
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+/* Selects stay dark + caret — never use background shorthand (kills chevron) */
+.enterprise-scope select {
+    width: 100%;
+    max-width: none;
+    min-height: 34px;
+    padding: 7px 28px 7px 9px;
+    margin: 0;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--field-text);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
 }
@@ -198,6 +213,200 @@
     outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--focus-ring);
+}
+
+/* -------------------------------------------------------------------------- */
+/* UI-DARK-FORM-CONTROLS-UNIFY-V1 — no light native select/file patches       */
+/* ANALYTICS-GRADE-FILTER-COMPACT-CHEVRON-V1 — caret must survive overrides   */
+/* -------------------------------------------------------------------------- */
+
+html {
+    color-scheme: dark;
+}
+
+:root {
+    --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%94a3b8' d='M1.4 1.2L6 5.8l4.6-4.6L12 2.6 6 8.6 0 2.6z'/%3E%3C/svg%3E");
+}
+
+/* Selects — dark body + dark custom chevron (no OS light arrow well) */
+select {
+    -webkit-appearance: none;
+    appearance: none;
+    color: var(--field-text, #f8fafc);
+    background-color: var(--bg-input, #0f172a);
+    background-image: var(--select-chevron);
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 12px 8px;
+    border: 1px solid var(--field-border, #475569);
+    border-radius: var(--field-radius, 6px);
+    padding: 7px 28px 7px 9px;
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.35;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+/* Re-assert caret after any later background-color / panel paint */
+.enterprise-scope select,
+select.form-control,
+select.enterprise-form-control {
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: var(--bg-input, #0f172a);
+    background-image: var(--select-chevron);
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 12px 8px;
+    padding-right: 28px;
+    cursor: pointer;
+}
+
+/* SELECT-CARET-VISIBLE-OVERLAY-V1 / SELECT-CARET-UNIFY-ALL-UI-V1
+   Caret on wrap only. ::after must NEVER steal clicks (pointer-events: none). */
+.ax-select-wrap {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: middle;
+    box-sizing: border-box;
+    /* default: do not flex-grow and stretch toolbars */
+    flex: 0 1 auto;
+    min-width: 0;
+}
+.ax-select-wrap > select {
+    position: relative;
+    z-index: 1;
+    display: block;
+    box-sizing: border-box;
+    /* width left to existing select rules — do not force 100% on every wrap */
+}
+/* Form-grid selects: wrap fills the capped field column */
+.ax-select-wrap:has(> select.enterprise-form-control),
+.ax-select-wrap:has(> select.form-control) {
+    display: block;
+    width: 100%;
+    max-width: 420px;
+    flex: 0 0 auto;
+}
+.ax-select-wrap:has(> select.enterprise-form-control) > select,
+.ax-select-wrap:has(> select.form-control) > select {
+    width: 100%;
+    max-width: none;
+}
+.ax-select-wrap::after {
+    content: "";
+    position: absolute;
+    right: 11px;
+    top: 50%;
+    z-index: 2;
+    width: 0;
+    height: 0;
+    margin-top: -1px;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #e2e8f0;
+    pointer-events: none !important;
+}
+.ax-fr-verify-file > .ax-select-wrap {
+    width: 180px;
+    max-width: 100%;
+    flex: 0 0 auto;
+}
+.ax-fr-verify-file > .ax-select-wrap > select {
+    width: 100%;
+}
+.ax-fr-verify-file > .ax-select-wrap.ax-select-wrap--wide {
+    width: 220px;
+}
+#app-view-analytics .ax-bl-toolbar > .ax-select-wrap {
+    width: 180px;
+    flex: 0 0 auto;
+}
+#app-view-analytics .ax-bl-toolbar > .ax-select-wrap > select {
+    width: 100%;
+}
+
+select:hover {
+    border-color: #64748b;
+}
+
+select:focus {
+    outline: none;
+    border-color: var(--accent, #3b82f6);
+    box-shadow: 0 0 0 1px var(--focus-ring, rgba(59, 130, 246, 0.35));
+}
+
+select:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+select option,
+select optgroup {
+    background-color: #0f172a;
+    color: #f8fafc;
+}
+
+/* Text / textarea — dark field, no chevron */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+textarea {
+    color: var(--field-text, #f8fafc);
+    background-color: var(--bg-input, #0f172a);
+    border: 1px solid var(--field-border, #475569);
+    border-radius: var(--field-radius, 6px);
+    box-sizing: border-box;
+}
+
+input:disabled,
+textarea:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* File inputs — kill OS light "Choose file" chrome */
+input[type="file"] {
+    width: 100%;
+    max-width: 420px;
+    margin: 0;
+    padding: 6px 8px;
+    box-sizing: border-box;
+    border-radius: var(--radius-sm, 6px);
+    border: 1px solid var(--field-border, #475569);
+    background: var(--bg-input, #0f172a);
+    color: var(--field-text, #e2e8f0);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+input[type="file"]::file-selector-button,
+input[type="file"]::-webkit-file-upload-button {
+    margin-right: 10px;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm, 6px);
+    border: 1px solid var(--field-border, #475569);
+    background: var(--bg-surface, #1e293b);
+    color: var(--text-primary, #e2e8f0);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+input[type="file"]::file-selector-button:hover,
+input[type="file"]::-webkit-file-upload-button:hover {
+    background: #334155;
+    border-color: #64748b;
+}
+
+input[type="file"]:focus {
+    outline: none;
+    border-color: var(--accent, #3b82f6);
+    box-shadow: 0 0 0 1px var(--focus-ring, rgba(59, 130, 246, 0.35));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1964,4 +2173,495 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     color: #fde68a;
     vertical-align: middle;
 }
+
+/* MOB-APPLY 8.3 — CAD/RMS premium padlock */
+#app-view-cad {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+}
+#app-view-cad[hidden] {
+    display: none !important;
+}
+#cad-panel {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: var(--space-md, 16px);
+    gap: var(--space-md, 16px);
+    overflow: hidden;
+}
+#cad-panel.cad-premium-locked #cad-hub-body {
+    opacity: 0.35;
+    pointer-events: none;
+    filter: grayscale(0.35);
+}
+#cad-license-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(2, 6, 23, 0.72);
+    backdrop-filter: blur(2px);
+}
+#cad-license-overlay[hidden] {
+    display: none !important;
+}
+.cad-license-overlay-inner {
+    max-width: 420px;
+    padding: 28px 32px;
+    text-align: center;
+    border: 1px solid #475569;
+    border-radius: 10px;
+    background: #0f172a;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+.cad-license-overlay-lock {
+    font-size: 42px;
+    line-height: 1;
+    margin-bottom: 12px;
+}
+.cad-license-overlay-inner h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    color: #f8fafc;
+}
+.cad-license-overlay-inner p {
+    margin: 0;
+    font-size: 13px;
+    color: #94a3b8;
+    line-height: 1.45;
+}
+.cad-incidents-table {
+    width: 100%;
+    max-width: 960px;
+    border-collapse: collapse;
+}
+.cad-incidents-table th,
+.cad-incidents-table td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid #334155;
+    font-size: 12px;
+}
+.cad-incidents-table th {
+    color: #94a3b8;
+    font-weight: 600;
+}
+.cad-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+}
+.cad-toolbar .form-control {
+    max-width: 280px;
+}
+.cad-table-wrap {
+    margin-top: 12px;
+    overflow: auto;
+}
+
+/* ANALYTICS-ENGINE-HEALTH-PILL-V1 — same language as header System OK */
+.ax-engine-health {
+    display: inline-flex;
+    align-items: center;
+    max-width: 320px;
+    margin: 0 0 var(--space-sm, 8px);
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+    background: #1e293b;
+    color: #cbd5e1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ax-engine-health.ok {
+    border-color: rgba(34, 197, 94, 0.45);
+    color: #86efac;
+}
+.ax-engine-health.bad {
+    border-color: rgba(248, 113, 113, 0.55);
+    color: #fecaca;
+}
+.ax-engine-health.warn {
+    border-color: rgba(251, 191, 36, 0.5);
+    color: #fde68a;
+}
+
+/* ANPR-SNAPSHOT-CROP-READ-V1 — Analytics → ANPR snapshot workspace */
+#ax-panel-anpr .ax-anpr-workspace.enterprise-card {
+    max-width: 920px;
+    margin-top: var(--space-md, 16px);
+}
+
+/* ANPR-LIVE-TILES-VIEWPORT-LOCK-V1 + ANPR-LIVE-COMPACT-TILES-16-RAIL-V1
+   — 4 smaller live slots + 16 tight rails; no page cut-off */
+#ax-panel-anpr.ax-hub-panel {
+    overflow: hidden;
+}
+
+#ax-panel-anpr > .ax-engine-health,
+#ax-panel-anpr > .ax-anpr-subnav {
+    flex-shrink: 0;
+}
+
+#ax-panel-anpr .ax-anpr-sub-panel {
+    min-height: 0;
+}
+
+#ax-panel-anpr .ax-anpr-sub-panel[hidden] {
+    display: none !important;
+}
+
+#ax-panel-anpr #ax-anpr-sub-live-panel.ax-anpr-sub-panel:not([hidden]) {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm, 8px);
+    overflow: hidden;
+}
+
+#ax-panel-anpr #ax-anpr-sub-live-panel > .setup-hint {
+    flex-shrink: 0;
+    margin: 0;
+    max-height: 2.6em;
+    overflow: hidden;
+}
+
+#ax-panel-anpr .ax-anpr-live-layout {
+    flex: 1 1 0;
+    min-height: 0;
+    max-height: 100%;
+    display: grid;
+    /* ANPR-LIVE-BALANCE-4X4-SIZE-V1 — live + rail share row (neither postage) */
+    grid-template-columns: minmax(140px, 170px) minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: var(--space-sm, 8px);
+    align-items: stretch;
+    overflow: hidden;
+}
+
+@media (max-width: 1100px) {
+    #ax-panel-anpr .ax-anpr-live-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(80px, 18%) minmax(0, 42%) minmax(0, 40%);
+        overflow: hidden;
+    }
+}
+
+#ax-panel-anpr .ax-anpr-live-roster.enterprise-card {
+    min-height: 0;
+    max-height: 100%;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden;
+}
+
+#ax-panel-anpr .ax-anpr-live-roster-actions {
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+#ax-panel-anpr .ax-anpr-live-roster-list {
+    flex: 1 1 0;
+    min-height: 0;
+    max-height: none;
+    overflow: auto;
+    font-size: 12px;
+}
+
+#ax-panel-anpr .ax-anpr-live-main {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+}
+
+#ax-panel-anpr .ax-anpr-live-tiles {
+    /* Fill live column height — usable 2×2 (no 40%/560px postage cap) */
+    flex: 1 1 0;
+    max-height: none;
+    min-height: 0;
+    width: 100%;
+    max-width: none;
+    align-self: stretch;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 8px;
+    overflow: hidden;
+}
+
+#ax-panel-anpr .ax-anpr-live-tile {
+    position: relative;
+    min-height: 0;
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    background: #020617;
+    border: 1px solid var(--border-color, #334155);
+    border-radius: var(--radius-sm, 6px);
+    overflow: hidden;
+}
+
+#ax-panel-anpr .ax-anpr-live-hit-bar {
+    flex-shrink: 0;
+}
+
+#ax-panel-anpr .ax-anpr-live-side {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow: hidden;
+}
+
+#ax-panel-anpr .ax-anpr-live-rail.enterprise-card {
+    flex: 1 1 0;
+    min-height: 0;
+    max-height: 100%;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+    background: #111827;
+    border: 1px solid #334155;
+}
+
+#ax-panel-anpr .ax-anpr-live-rail-grid {
+    flex: 1 1 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    overflow: hidden;
+}
+
+#ax-panel-anpr .ax-anpr-live-rail-card {
+    padding: 4px;
+    gap: 2px;
+    font-size: 10px;
+    border-radius: 6px;
+}
+
+#ax-panel-anpr .ax-anpr-live-rail-card img.ax-anpr-rail-scene,
+#ax-panel-anpr .ax-anpr-live-rail-card img:not(.ax-anpr-rail-plate-thumb) {
+    min-height: 0;
+    flex: 1 1 0;
+}
+
+#ax-panel-anpr .ax-anpr-live-rail-card img.ax-anpr-rail-plate-thumb {
+    width: 40%;
+    max-width: 72px;
+    height: 20px;
+}
+
+#ax-panel-anpr .ax-anpr-live-rail-card .ax-anpr-rail-plate {
+    font-size: 11px;
+    line-height: 1.2;
+}
+
+#ax-panel-anpr .ax-anpr-live-rail-card .ax-anpr-rail-meta {
+    font-size: 9px;
+    line-height: 1.2;
+}
+
+@keyframes ax-anpr-rail-shift {
+    from { opacity: 0.65; transform: translateX(-4px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+#ax-panel-anpr .ax-anpr-live-rail-grid.is-rail-shift .ax-anpr-live-rail-card:first-child {
+    animation: ax-anpr-rail-shift 0.22s ease-out;
+}
+
+.ax-anpr-snapshot-row {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) minmax(220px, 320px);
+    gap: var(--space-md, 16px);
+    align-items: stretch;
+}
+@media (max-width: 760px) {
+    .ax-anpr-snapshot-row {
+        grid-template-columns: 1fr;
+    }
+}
+.ax-anpr-dropzone {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+.ax-anpr-dropzone-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary, #94a3b8);
+}
+.ax-anpr-dropzone-frame {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    height: 220px;
+    border: 1px dashed #475569;
+    border-radius: 8px;
+    background: #0b1220;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+.ax-anpr-dropzone.has-preview .ax-anpr-dropzone-frame {
+    border-style: solid;
+    border-color: var(--border-color, #334155);
+}
+.ax-anpr-dropzone-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    text-align: center;
+    color: #64748b;
+    font-size: 12px;
+    pointer-events: none;
+}
+.ax-anpr-dropzone.has-preview .ax-anpr-dropzone-empty { display: none; }
+.ax-anpr-dropzone-preview {
+    display: none;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #020617;
+}
+.ax-anpr-dropzone.has-preview .ax-anpr-dropzone-preview { display: block; }
+.ax-anpr-dropzone-input {
+    max-width: 420px;
+    font-size: 12px;
+}
+.ax-anpr-result-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    background: #0b1220;
+    min-height: 220px;
+    justify-content: center;
+}
+.ax-anpr-result-card.match-idle { color: #94a3b8; }
+.ax-anpr-result-card.is-ok { border-color: #16a34a; }
+.ax-anpr-result-card.is-warn { border-color: #d97706; }
+.ax-anpr-result-card.is-err { border-color: #b91c1c; }
+.ax-anpr-result-label {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+}
+.ax-anpr-crop-thumb {
+    width: 100%;
+    max-width: 280px;
+    max-height: 72px;
+    object-fit: contain;
+    border-radius: 4px;
+    border: 1px solid #334155;
+    background: #020617;
+}
+.ax-anpr-crop-thumb[hidden] { display: none !important; }
+.ax-anpr-plate {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #f1f5f9;
+    word-break: break-word;
+}
+.ax-anpr-confidence,
+.ax-anpr-note {
+    margin: 0;
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+.ax-anpr-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+#ax-anpr-crop-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 12100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(2, 6, 23, 0.72);
+    padding: 16px;
+}
+#ax-anpr-crop-modal[hidden] { display: none !important; }
+.ax-anpr-crop-panel {
+    width: min(920px, 100%);
+    max-height: 92vh;
+    overflow: auto;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 14px 16px 16px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+.ax-anpr-crop-panel h3 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    color: #f1f5f9;
+}
+.ax-anpr-crop-stage-wrap {
+    margin: 10px 0;
+    background: #020617;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 280px;
+}
+#ax-anpr-crop-canvas {
+    max-width: 100%;
+    touch-action: none;
+    cursor: crosshair;
+}
+.ax-anpr-crop-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+#ax-anpr-crop-status.is-bad { color: #fca5a5; }
+
 

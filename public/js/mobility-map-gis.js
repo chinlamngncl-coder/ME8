@@ -6,14 +6,14 @@
 
     var STORAGE_COUNTRY = 'fm_map_country_v1';
 
-    /** Capital-city views (English default = Singapore). */
+    /** Capital-city / site views — cn available for packs; lab default via meta is not cn. */
     var COUNTRY_PRESETS = {
         sg: { pos: [1.3521, 103.8198], zoom: 11 },
         ph: { pos: [14.5995, 120.9842], zoom: 11 },
         id: { pos: [-6.2088, 106.8456], zoom: 11 },
         th: { pos: [13.7563, 100.5018], zoom: 11 },
         kr: { pos: [37.5665, 126.9780], zoom: 11 },
-        cn: { pos: [39.9042, 116.4074], zoom: 11 },
+        cn: { pos: [32.0617, 118.7630], zoom: 11 },
         za: { pos: [-26.2041, 28.0473], zoom: 10 },
     };
 

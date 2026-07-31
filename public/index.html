@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ubitron Mobility C2</title>
+    <meta name="fm-locales" content="en,fil,id,th,ko,zh">
+    <meta name="fm-default-lang" content="en">
+    <title>Mobility Axiom</title>
     <link rel="stylesheet" href="/vendor/leaflet/leaflet.css?v=20260701-vendor-local" />
     <link rel="stylesheet" href="/vendor/leaflet-draw/leaflet.draw.css?v=20260724-tactical-leaflet-draw-v1" />
     <link rel="stylesheet" href="/vendor/markercluster/MarkerCluster.css?v=20260701-vendor-local" />
@@ -1470,7 +1472,17 @@
         .ax-bl-admin-card p { margin: 0 0 10px; color: #e2e8f0; font-size: 13px; }
         .ax-bl-admin-card input, .ax-bl-admin-card select {
             width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 6px;
-            border: 1px solid #334155; background: #020617; color: #e2e8f0; font-size: 13px;
+            border: 1px solid #334155; background-color: #020617; color: #e2e8f0; font-size: 13px;
+        }
+        .ax-bl-admin-card select {
+            padding-right: 28px;
+            background-image: var(--select-chevron);
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 12px 8px;
+            -webkit-appearance: none;
+            appearance: none;
+            cursor: pointer;
         }
         .ax-bl-admin-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
         .ax-bl-face-picker-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
@@ -1510,13 +1522,31 @@
             width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center;
             border-radius: 4px; border: 1px dashed #475569; color: #64748b; font-size: 11px; background: #0f172a;
         }
-        .ax-bl-enroll select, .ax-bl-enroll textarea, .ax-bl-grade-filter {
-            padding: 7px 10px; border-radius: 6px; border: 1px solid #334155;
-            background: #0f172a; color: #e2e8f0; font-size: 12px; box-sizing: border-box;
-        }
-        .ax-bl-enroll select { width: 180px; max-width: 100%; }
+        /* Compact selects + caret — never background shorthand (kills chevron) */
         .ax-bl-enroll textarea {
+            padding: 7px 10px; border-radius: 6px; border: 1px solid #334155;
+            background-color: #0f172a; color: #e2e8f0; font-size: 12px; box-sizing: border-box;
             width: 280px; max-width: 100%; min-height: 52px; resize: vertical;
+        }
+        #app-view-analytics .ax-bl-enroll select,
+        #app-view-analytics .ax-bl-grade-filter {
+            width: 100%;
+            max-width: 100%;
+            flex: 0 0 auto;
+            padding: 7px 28px 7px 10px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            background-color: #0f172a;
+            background-image: none;
+            color: #e2e8f0;
+            font-size: 12px;
+            box-sizing: border-box;
+            cursor: pointer;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        #app-view-analytics .ax-fr-verify-file > .ax-select-wrap--wide {
+            width: 220px;
         }
         .ax-bl-grade {
             display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px;
@@ -1526,6 +1556,176 @@
         .ax-bl-grade.is-monitoring { border-color: #14b8a6; color: #5eead4; background: rgba(20, 184, 166, 0.12); }
         .ax-bl-grade.is-suspect { border-color: #8b5cf6; color: #c4b5fd; background: rgba(139, 92, 246, 0.15); }
         .ax-bl-grade.is-blacklist { border-color: #dc2626; color: #fca5a5; background: rgba(220, 38, 38, 0.15); }
+        .ax-bl-grade.is-wanted { border-color: #ea580c; color: #fdba74; background: rgba(234, 88, 12, 0.15); }
+        .ax-bl-grade.is-suspicious { border-color: #8b5cf6; color: #c4b5fd; background: rgba(139, 92, 246, 0.15); }
+        .ax-anpr-subnav { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+        .ax-anpr-subnav-btn {
+            padding: 6px 12px; font-size: 11px; border-radius: 6px; border: 1px solid #475569;
+            background: #1e293b; color: #cbd5e1; cursor: pointer;
+        }
+        .ax-anpr-subnav-btn.active { background: #2563eb; border-color: #3b82f6; color: #fff; }
+        .ax-anpr-subnav-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .ax-anpr-live-layout {
+            /* height/grid: global.css ANPR-LIVE-BALANCE-4X4-SIZE-V1 */
+            display: grid;
+            grid-template-columns: minmax(140px, 170px) minmax(0, 1fr) minmax(0, 1.2fr);
+            gap: 8px;
+            align-items: stretch;
+            min-height: 0;
+        }
+        @media (max-width: 1100px) {
+            .ax-anpr-live-layout { grid-template-columns: 1fr; }
+        }
+        .ax-anpr-live-roster.enterprise-card { padding: 10px; min-height: 0; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+        .ax-anpr-live-roster-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex-shrink: 0; }
+        .ax-anpr-live-roster-list { flex: 1; min-height: 0; overflow: auto; font-size: 12px; }
+        .ax-anpr-live-roster-row {
+            display: flex; align-items: center; gap: 8px; padding: 6px 4px;
+            border-bottom: 1px solid #1e293b; color: #e2e8f0;
+        }
+        .ax-anpr-live-roster-row.is-offline { opacity: 0.55; }
+        .ax-anpr-live-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; overflow: hidden; }
+        .ax-anpr-live-tiles {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 8px;
+            flex: 1 1 0;
+            max-height: none;
+            max-width: none;
+            width: 100%;
+            align-self: stretch;
+            min-height: 0;
+            overflow: hidden;
+        }
+        .ax-anpr-live-tiles.ax-anpr-live-tiles--4 {
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+        }
+        .ax-anpr-live-tile {
+            position: relative; min-height: 0; min-width: 0; width: 100%; height: 100%;
+            background: #020617; border: 1px solid #334155;
+            border-radius: 6px; overflow: hidden;
+        }
+        .ax-anpr-live-tile.is-live { border-color: #2563eb; }
+        .ax-anpr-live-tile.is-tile-warn { border-color: #ca8a04; }
+        .ax-anpr-live-tile.is-tile-error { border-color: #dc2626; }
+        .ax-anpr-live-tile.is-tile-pulse .ax-fr-tile-ph { animation: ax-anpr-tile-pulse 1.2s ease-in-out infinite; }
+        @keyframes ax-anpr-tile-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+        .ax-anpr-live-tile.is-hit { box-shadow: 0 0 0 2px #dc2626 inset; }
+        .ax-anpr-live-tile .ax-fr-tile-ph {
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            color: #64748b; font-size: 12px; z-index: 2; pointer-events: none; text-align: center; padding: 8px;
+        }
+        .ax-anpr-live-tile video.me8-zlm-primary,
+        .ax-anpr-live-tile canvas {
+            position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000;
+        }
+        .ax-anpr-live-tile-label {
+            position: absolute; left: 6px; top: 6px; z-index: 3; font-size: 10px; padding: 2px 6px;
+            border-radius: 4px; background: rgba(15, 23, 42, 0.85); color: #e2e8f0;
+        }
+        /* Thin hit strip under tiles; no giant still */
+        .ax-anpr-live-hit-bar {
+            display: none; align-items: center; padding: 6px 10px; background: #991b1b; color: #fff;
+            font-size: 12px; font-weight: 700; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+            border-radius: 6px; flex-shrink: 0;
+        }
+        .ax-anpr-live-hit-bar.is-on { display: flex; }
+        .ax-anpr-live-hit-bar.is-wanted { background: #c2410c; }
+        .ax-anpr-live-hit-bar.is-suspicious { background: #6d28d9; }
+        .ax-anpr-live-hit-bar.is-blacklist { background: #991b1b; }
+        .ax-anpr-live-side {
+            display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0;
+        }
+        .ax-anpr-live-rail.enterprise-card {
+            flex: 1; min-height: 0; padding: 8px; display: flex; flex-direction: column; gap: 6px;
+            overflow: hidden; background: #111827; border: 1px solid #334155;
+        }
+        .ax-anpr-live-rail-title {
+            margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.05em; color: #94a3b8; flex-shrink: 0;
+        }
+        .ax-anpr-live-rail-grid {
+            flex: 1; min-height: 0; display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-rows: repeat(4, minmax(0, 1fr));
+            gap: 6px;
+        }
+        .ax-anpr-live-rail-card {
+            min-height: 0; border: 1px solid #334155; border-radius: 6px; background: #0f172a;
+            padding: 4px; color: #94a3b8; font-size: 10px; display: flex; flex-direction: column; gap: 2px;
+            cursor: pointer; overflow: hidden;
+        }
+        .ax-anpr-live-rail-card.is-empty {
+            cursor: default; opacity: 0.45; align-items: center; justify-content: center;
+        }
+        .ax-anpr-live-rail-card.is-hit { border-color: #dc2626; box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.35); }
+        .ax-anpr-live-rail-card.is-wanted { border-color: #ea580c; }
+        .ax-anpr-live-rail-card.is-suspicious { border-color: #7c3aed; }
+        .ax-anpr-live-rail-card.is-blacklist { border-color: #dc2626; }
+        .ax-anpr-live-rail-card img.ax-anpr-rail-scene {
+            width: 100%; flex: 1 1 0; min-height: 0; object-fit: cover; border-radius: 4px;
+            display: block; background: #020617;
+        }
+        .ax-anpr-live-rail-card img.ax-anpr-rail-plate-thumb {
+            width: 40%; max-width: 72px; height: 20px; object-fit: cover; border-radius: 3px;
+            align-self: flex-start; flex: 0 0 auto; background: #020617; border: 1px solid #475569;
+        }
+        .ax-anpr-live-rail-card img {
+            width: 100%; flex: 1 1 0; min-height: 0; object-fit: cover; border-radius: 4px;
+            display: block; background: #020617;
+        }
+        .ax-anpr-live-rail-card .ax-anpr-rail-plate {
+            font-weight: 700; color: #e2e8f0; font-size: 11px; line-height: 1.2;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .ax-anpr-live-rail-card .ax-anpr-rail-meta {
+            line-height: 1.2; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        #ax-anpr-snap-lightbox {
+            position: fixed; right: 16px; bottom: 16px; z-index: 28010;
+            width: min(420px, 92vw); max-height: min(78vh, 640px);
+            display: flex; flex-direction: column; overflow: hidden;
+            background: #0f172a; border: 1px solid #475569; border-radius: 10px;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+        }
+        #ax-anpr-snap-lightbox[hidden] { display: none !important; }
+        .ax-anpr-snap-lb-chrome {
+            display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+            border-bottom: 1px solid #334155; flex-shrink: 0; cursor: move;
+        }
+        .ax-anpr-snap-lb-title { flex: 1; margin: 0; font-size: 12px; font-weight: 700; color: #e2e8f0; }
+        .ax-anpr-snap-lb-close {
+            width: 28px; height: 28px; border: 1px solid #475569; border-radius: 6px;
+            background: #1e293b; color: #e2e8f0; cursor: pointer; font-size: 16px; line-height: 1;
+        }
+        .ax-anpr-snap-lb-body { padding: 10px; overflow: auto; min-height: 0; }
+        .ax-anpr-snap-lb-body img.ax-anpr-lb-scene {
+            display: block; width: 100%; max-height: 360px; object-fit: contain; background: #020617; border-radius: 6px;
+        }
+        .ax-anpr-snap-lb-body img.ax-anpr-lb-plate-img {
+            display: block; width: min(240px, 45%); max-height: 72px; object-fit: contain;
+            margin-top: 8px; background: #020617; border-radius: 4px; border: 1px solid #475569;
+        }
+        .ax-anpr-snap-lb-body img {
+            display: block; width: 100%; max-height: 360px; object-fit: contain; background: #020617; border-radius: 6px;
+        }
+        .ax-anpr-snap-lb-meta { margin: 8px 0 0; font-size: 12px; color: #cbd5e1; line-height: 1.45; }
+        .ax-anpr-snap-lb-meta p { margin: 0 0 4px; }
+        .ax-anpr-live-toast {
+            position: fixed; right: 16px; bottom: 16px; z-index: 28000; max-width: min(360px, 92vw);
+            padding: 12px 14px; border-radius: 8px; border: 1px solid #b91c1c; background: #7f1d1d; color: #fff;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.45); font-size: 13px;
+        }
+        .ax-anpr-live-toast[hidden] { display: none !important; }
+        .ax-anpr-live-toast strong { display: block; font-size: 16px; margin-bottom: 4px; }
+        .ax-anpr-list-match {
+            margin: 6px 0 0; font-size: 11px; font-weight: 700;
+        }
+        .ax-anpr-list-match.is-hit { color: #fdba74; }
+        .ax-anpr-list-match.is-clear { color: #94a3b8; font-weight: 500; }
+        .ax-anpr-list-match[hidden] { display: none !important; }
         .ax-bl-name-btn {
             background: none; border: none; padding: 0; margin: 0; color: #93c5fd;
             font: inherit; cursor: pointer; text-align: left; text-decoration: underline;
@@ -2900,7 +3100,7 @@
         #app-view-command-wall .cw-cell-actions { display: flex; gap: 3px; flex-shrink: 0; }
         #app-view-command-wall .cw-cell-stage { flex: 1; min-height: 0; position: relative; background: #000; }
         #app-view-command-wall .cw-cell-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; z-index: 1; }
-        #app-view-command-wall .cw-cell-stage video.me8-zlm-primary { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; z-index: 1; }
+        #app-view-command-wall .cw-cell-stage video.me8-zlm-primary { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover !important; background: #000; z-index: 1; }
         #app-view-command-wall .cw-cell-empty { position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 11px; font-weight: 600; text-align: center; pointer-events: none; }
         #app-view-command-wall .cw-cell-empty[hidden] { display: none !important; }
         #app-view-command-wall .cw-cell-drop-hint { position: absolute; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #475569; pointer-events: none; }
@@ -7868,8 +8068,8 @@
         .sos-detail-actions button { flex: 1; min-width: 100px; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; background: #334155; color: #e2e8f0; }
         .sos-detail-actions .sos-detail-secondary { flex: 0 1 auto; background: transparent; color: #94a3b8; font-weight: 500; font-size: 11px; }
     </style>
-    <link rel="stylesheet" href="/css/global.css?v=20260726-tactical-blueprint-zero-raw-v1">
-    <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260727-dashboard-auth-dispatch-nav-v1">
+    <link rel="stylesheet" href="/css/global.css?v=20260731-anpr-live-balance-4x4-size-v1">
+    <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260731-analytics-grade-filter-compact-chevron-v1">
 </head>
 <body>
 <script>
@@ -8086,6 +8286,7 @@
         <button type="button" id="nav-tab-conference" data-i18n="nav.videoConference">Video Conference</button>
         <button type="button" id="nav-tab-server" data-i18n="nav.settings">Settings</button>
         <button type="button" id="nav-tab-analytics" data-i18n="nav.analytics">Analytics</button>
+        <button type="button" id="nav-tab-cad" data-i18n="nav.cadRms">CAD / RMS</button>
         <button type="button" id="nav-tab-tactical" data-i18n="nav.tactical">Tactical</button>
         <div id="video-wall-nav-tools" class="video-wall-toolbar">
             <label id="video-wall-poll-wrap" class="video-wall-poll-wrap">
@@ -9583,7 +9784,7 @@
                 </div>
                 <div id="ax-panel-verify" class="ax-hub-panel" hidden>
                     <p class="setup-hint" data-i18n="analytics.verify.hint">Compare two photos (for example an ID photo and a field photo). Face matching must be running on this server.</p>
-                    <p id="ax-fr-sidecar-status" class="hint">&mdash;</p>
+                    <p id="ax-fr-sidecar-status" class="ax-engine-health" aria-live="polite">&mdash;</p>
                     <div class="ax-fr-verify-workspace enterprise-card">
                         <div class="ax-fr-verify-compare" aria-label="Verify 1:1 compare">
                             <div class="ax-fr-dropzone" id="ax-fr-dropzone-1" data-slot="1">
@@ -9625,14 +9826,17 @@
                             <input type="text" id="ax-bl-id" maxlength="64" autocomplete="off">
                         </label>
                         <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.grade">Watch grade</span>
+                            <span class="ax-select-wrap">
                             <select id="ax-bl-grade">
                                 <option value="poi" data-i18n="analytics.bl.gradePoi">Person of interest</option>
                                 <option value="monitoring" data-i18n="analytics.bl.gradeMonitoring">On monitoring</option>
                                 <option value="suspect" selected data-i18n="analytics.bl.gradeSuspect">Suspect</option>
                                 <option value="blacklist" data-i18n="analytics.bl.gradeBlacklist">Blacklist</option>
                             </select>
+                            </span>
                         </label>
                         <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.reason">Reason</span>
+                            <span class="ax-select-wrap ax-select-wrap--wide">
                             <select id="ax-bl-reason">
                                 <option value="theft" data-i18n="analytics.bl.reasonTheft">Theft</option>
                                 <option value="assault" data-i18n="analytics.bl.reasonAssault">Assault / violence</option>
@@ -9642,6 +9846,7 @@
                                 <option value="investigation" data-i18n="analytics.bl.reasonInvestigation">Open investigation</option>
                                 <option value="other" data-i18n="analytics.bl.reasonOther">Other</option>
                             </select>
+                            </span>
                         </label>
                         <label class="ax-fr-verify-file" id="ax-bl-reason-other-wrap" hidden><span data-i18n="analytics.bl.reasonOtherLabel">Other reason</span>
                             <input type="text" id="ax-bl-reason-other" maxlength="200" autocomplete="off">
@@ -9669,6 +9874,7 @@
                     <div id="ax-bl-msg" class="ax-fr-verify-result" hidden></div>
                     <div class="ax-bl-toolbar">
                         <input type="search" id="ax-bl-search" class="ax-bl-search" data-i18n-placeholder="analytics.bl.searchPh" placeholder="Search name or ID&hellip;" autocomplete="off">
+                        <span class="ax-select-wrap">
                         <select id="ax-bl-grade-filter" class="ax-bl-grade-filter" title="Filter by grade">
                             <option value="" data-i18n="analytics.bl.filterAll">All grades</option>
                             <option value="poi" data-i18n="analytics.bl.gradePoi">Person of interest</option>
@@ -9676,6 +9882,7 @@
                             <option value="suspect" data-i18n="analytics.bl.gradeSuspect">Suspect</option>
                             <option value="blacklist" data-i18n="analytics.bl.gradeBlacklist">Blacklist</option>
                         </select>
+                        </span>
                         <label class="ax-bl-threshold-inline" for="ax-bl-threshold"><span>Alert threshold</span>
                             <input type="range" id="ax-bl-threshold" class="fm-range" min="70" max="99" value="75" step="1">
                             <span id="ax-bl-threshold-val">75%</span>
@@ -9764,10 +9971,212 @@
                     </div>
                 </div>
                 <div id="ax-panel-anpr" class="ax-hub-panel" hidden>
-                    <div class="ax-coming"><p data-i18n="analytics.anprComing">ANPR module &mdash; coming when licensed.</p></div>
+                    <p id="ax-anpr-status" class="ax-engine-health" aria-live="polite">&mdash;</p>
+                    <nav class="ax-anpr-subnav" aria-label="ANPR sections">
+                        <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="live" id="ax-anpr-sub-live" data-i18n="analytics.anpr.subLive">Live</button>
+                        <button type="button" class="ax-anpr-subnav-btn active" data-anpr-sub="snapshot" id="ax-anpr-sub-snapshot" data-i18n="analytics.anpr.subSnapshot">Snapshot</button>
+                        <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="lists" id="ax-anpr-sub-lists" data-i18n="analytics.anpr.subLists">Plate lists</button>
+                    </nav>
+                    <div id="ax-anpr-sub-live-panel" class="ax-anpr-sub-panel" hidden>
+                        <p class="setup-hint" data-i18n="analytics.anpr.liveHint">Watch live BWC video. Plates are read from the stream and matched to Plate lists. List hits raise an alert.</p>
+                        <div class="ax-anpr-live-layout">
+                            <div class="ax-anpr-live-roster enterprise-card">
+                                <div class="ax-anpr-live-roster-actions">
+                                    <button type="button" class="btn btn-action btn-sm" id="ax-anpr-live-start" data-i18n="analytics.anpr.liveStart" disabled>Start watch</button>
+                                    <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-live-stop" data-i18n="analytics.anpr.liveStop" disabled>Stop</button>
+                                    <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-live-stop-all" data-i18n="analytics.anpr.liveStopAll" disabled>Stop all</button>
+                                    <span id="ax-anpr-live-meta" class="hint"></span>
+                                </div>
+                                <input type="search" id="ax-anpr-live-search" class="ax-bl-search" placeholder="Search BWC&hellip;" autocomplete="off" data-i18n-placeholder="analytics.anpr.liveSearchPh">
+                                <div id="ax-anpr-live-roster-list" class="ax-anpr-live-roster-list" role="list"></div>
+                            </div>
+                            <div class="ax-anpr-live-main">
+                                <div class="ax-anpr-live-tiles ax-anpr-live-tiles--4" aria-label="ANPR live tiles">
+                                    <div class="ax-anpr-live-tile" data-anpr-slot="0" id="ax-anpr-live-tile-0">
+                                        <span class="ax-anpr-live-tile-label">1</span>
+                                        <span class="ax-fr-tile-ph" data-i18n="analytics.anpr.tileIdleHint">Select BWCs and Start watch</span>
+                                    </div>
+                                    <div class="ax-anpr-live-tile" data-anpr-slot="1" id="ax-anpr-live-tile-1">
+                                        <span class="ax-anpr-live-tile-label">2</span>
+                                        <span class="ax-fr-tile-ph" data-i18n="analytics.anpr.tileIdleHint">Select BWCs and Start watch</span>
+                                    </div>
+                                    <div class="ax-anpr-live-tile" data-anpr-slot="2" id="ax-anpr-live-tile-2">
+                                        <span class="ax-anpr-live-tile-label">3</span>
+                                        <span class="ax-fr-tile-ph" data-i18n="analytics.anpr.tileIdleHint">Select BWCs and Start watch</span>
+                                    </div>
+                                    <div class="ax-anpr-live-tile" data-anpr-slot="3" id="ax-anpr-live-tile-3">
+                                        <span class="ax-anpr-live-tile-label">4</span>
+                                        <span class="ax-fr-tile-ph" data-i18n="analytics.anpr.tileIdleHint">Select BWCs and Start watch</span>
+                                    </div>
+                                </div>
+                                <div id="ax-anpr-live-hit-bar" class="ax-anpr-live-hit-bar" role="status">
+                                    <span id="ax-anpr-live-hit-plate">&mdash;</span>
+                                    <span id="ax-anpr-live-hit-meta">&mdash;</span>
+                                    <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-live-ack" data-i18n="analytics.anpr.liveAck" disabled>Acknowledge</button>
+                                </div>
+                            </div>
+                            <div class="ax-anpr-live-side">
+                                <div id="ax-anpr-live-rail" class="ax-anpr-live-rail enterprise-card" aria-label="Recent plates">
+                                    <h4 class="ax-anpr-live-rail-title" data-i18n="analytics.anpr.liveRailTitle">Recent plates</h4>
+                                    <div id="ax-anpr-live-rail-grid" class="ax-anpr-live-rail-grid" role="list"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="ax-anpr-live-toast" class="ax-anpr-live-toast" hidden role="alert"></div>
+                    </div>
+                    <div id="ax-anpr-sub-snapshot-panel" class="ax-anpr-sub-panel">
+                        <p class="setup-hint" data-i18n="analytics.anpr.hint">Upload a photo, crop the number plate, then read the plate text.</p>
+                        <div class="ax-anpr-workspace enterprise-card">
+                            <div class="ax-anpr-snapshot-row" aria-label="ANPR snapshot">
+                                <div class="ax-anpr-dropzone" id="ax-anpr-dropzone">
+                                    <span class="ax-anpr-dropzone-label" data-i18n="analytics.anpr.photoLabel">Photo</span>
+                                    <div class="ax-anpr-dropzone-frame">
+                                        <div class="ax-anpr-dropzone-empty" data-i18n="analytics.anpr.dropHint">Select a photo to preview</div>
+                                        <img class="ax-anpr-dropzone-preview" id="ax-anpr-preview" alt="ANPR photo preview">
+                                    </div>
+                                    <input type="file" id="ax-anpr-file" class="ax-anpr-dropzone-input" accept=".jpg,.jpeg,.png,.webp,.bmp,image/*">
+                                </div>
+                                <div id="ax-anpr-result-card" class="ax-anpr-result-card match-idle" aria-live="polite">
+                                    <p class="ax-anpr-result-label" data-i18n="analytics.anpr.resultLabel">Plate read</p>
+                                    <img id="ax-anpr-crop-thumb" class="ax-anpr-crop-thumb" alt="" hidden>
+                                    <h2 class="ax-anpr-plate" id="ax-anpr-plate" data-i18n="analytics.anpr.plateIdle">Awaiting read</h2>
+                                    <p class="ax-anpr-confidence" id="ax-anpr-confidence"></p>
+                                    <p class="ax-anpr-list-match" id="ax-anpr-list-match" hidden></p>
+                                    <p class="ax-anpr-note" id="ax-anpr-note"></p>
+                                </div>
+                            </div>
+                            <div class="ax-anpr-actions">
+                                <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-crop-btn" data-i18n="analytics.anpr.crop">Crop</button>
+                                <button type="button" class="btn btn-primary btn-action btn-sm" id="ax-anpr-read-btn" data-i18n="analytics.anpr.read">Read plate</button>
+                                <button type="button" class="btn btn-secondary btn-ghost btn-sm" id="ax-anpr-clear" hidden data-i18n="analytics.anpr.clear">Clear &amp; Start Over</button>
+                            </div>
+                            <div id="ax-anpr-msg" class="ax-fr-verify-result" hidden></div>
+                        </div>
+                    </div>
+                    <div id="ax-anpr-sub-lists-panel" class="ax-anpr-sub-panel" hidden>
+                        <p class="setup-hint" data-i18n="analytics.anpr.listsHint">Add plate numbers to Blacklist, Wanted, or Suspicious. Snapshot reads match these lists automatically.</p>
+                        <div class="ax-bl-enroll" id="ax-pl-enroll">
+                            <label class="ax-fr-verify-file"><span data-i18n="analytics.anpr.lists.plate">Plate number</span>
+                                <input type="text" id="ax-pl-plate" maxlength="32" autocomplete="off" placeholder="e.g. ABC 1234">
+                            </label>
+                            <label class="ax-fr-verify-file"><span data-i18n="analytics.anpr.lists.label">Label (optional)</span>
+                                <input type="text" id="ax-pl-label" maxlength="120" autocomplete="off">
+                            </label>
+                            <label class="ax-fr-verify-file"><span data-i18n="analytics.anpr.lists.grade">List grade</span>
+                                <span class="ax-select-wrap">
+                                <select id="ax-pl-grade">
+                                    <option value="suspicious" selected data-i18n="analytics.anpr.lists.gradeSuspicious">Suspicious</option>
+                                    <option value="wanted" data-i18n="analytics.anpr.lists.gradeWanted">Wanted</option>
+                                    <option value="blacklist" data-i18n="analytics.anpr.lists.gradeBlacklist">Blacklist</option>
+                                </select>
+                                </span>
+                            </label>
+                            <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.reason">Reason</span>
+                                <span class="ax-select-wrap ax-select-wrap--wide">
+                                <select id="ax-pl-reason">
+                                    <option value="theft" data-i18n="analytics.bl.reasonTheft">Theft</option>
+                                    <option value="assault" data-i18n="analytics.bl.reasonAssault">Assault / violence</option>
+                                    <option value="trespass" data-i18n="analytics.bl.reasonTrespass">Trespass / banned</option>
+                                    <option value="fraud" data-i18n="analytics.bl.reasonFraud">Fraud</option>
+                                    <option value="suspicious" selected data-i18n="analytics.bl.reasonSuspicious">Suspicious behaviour</option>
+                                    <option value="investigation" data-i18n="analytics.bl.reasonInvestigation">Open investigation</option>
+                                    <option value="other" data-i18n="analytics.bl.reasonOther">Other</option>
+                                </select>
+                                </span>
+                            </label>
+                            <label class="ax-fr-verify-file" id="ax-pl-reason-other-wrap" hidden><span data-i18n="analytics.bl.reasonOtherLabel">Other reason</span>
+                                <input type="text" id="ax-pl-reason-other" maxlength="200" autocomplete="off">
+                            </label>
+                            <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.idNumber">ID / case ref (optional)</span>
+                                <input type="text" id="ax-pl-id" maxlength="64" autocomplete="off">
+                            </label>
+                            <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.notes">Notes (optional)</span>
+                                <textarea id="ax-pl-notes" maxlength="500"></textarea>
+                            </label>
+                            <button type="button" class="btn btn-action btn-sm" id="ax-pl-enroll-btn" data-i18n="analytics.anpr.lists.enroll">Add to plate list</button>
+                        </div>
+                        <div id="ax-pl-msg" class="ax-fr-verify-result" hidden></div>
+                        <div class="ax-bl-toolbar">
+                            <input type="search" id="ax-pl-search" class="ax-bl-search" data-i18n-placeholder="analytics.anpr.lists.searchPh" placeholder="Search plate or label&hellip;" autocomplete="off">
+                            <span class="ax-select-wrap">
+                            <select id="ax-pl-grade-filter" class="ax-bl-grade-filter" title="Filter by grade">
+                                <option value="" data-i18n="analytics.bl.filterAll">All grades</option>
+                                <option value="suspicious" data-i18n="analytics.anpr.lists.gradeSuspicious">Suspicious</option>
+                                <option value="wanted" data-i18n="analytics.anpr.lists.gradeWanted">Wanted</option>
+                                <option value="blacklist" data-i18n="analytics.anpr.lists.gradeBlacklist">Blacklist</option>
+                            </select>
+                            </span>
+                            <button type="button" class="btn btn-ghost btn-sm" id="ax-pl-refresh" data-i18n="analytics.bl.refresh">Refresh</button>
+                            <span id="ax-pl-count" class="hint"></span>
+                        </div>
+                        <div class="ax-bl-table-wrap">
+                            <table class="ax-bl-table">
+                                <thead>
+                                    <tr>
+                                        <th data-i18n="analytics.anpr.lists.colPlate">Plate</th>
+                                        <th data-i18n="analytics.anpr.lists.colLabel">Label</th>
+                                        <th data-i18n="analytics.bl.colGrade">Grade</th>
+                                        <th data-i18n="analytics.bl.colReason">Reason</th>
+                                        <th data-i18n="analytics.bl.colWhen">Enrolled</th>
+                                        <th data-i18n="analytics.bl.colStatus">Status</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ax-pl-tbody">
+                                    <tr><td colspan="7" class="hint">&mdash;</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="ax-pl-remove-modal" class="ax-bl-admin-modal" hidden>
+                            <div class="ax-bl-admin-card" role="dialog" aria-modal="true" aria-labelledby="ax-pl-remove-modal-title">
+                                <p id="ax-pl-remove-modal-title" data-i18n="analytics.anpr.lists.removeTitle">Remove from plate list?</p>
+                                <div class="ax-bl-admin-actions">
+                                    <button type="button" class="btn btn-ghost btn-sm" id="ax-pl-remove-cancel" data-i18n="common.cancel">Cancel</button>
+                                    <button type="button" class="btn btn-action btn-sm" id="ax-pl-remove-confirm" data-i18n="analytics.bl.remove">Remove</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div id="ax-panel-weapon" class="ax-hub-panel" hidden>
                     <div class="ax-coming"><p data-i18n="analytics.weaponComing">Weapon detection &mdash; coming when licensed.</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-view-cad" class="enterprise-scope" hidden>
+        <div id="cad-panel" class="enterprise-card cad-premium-locked">
+            <div id="cad-license-overlay" class="cad-license-padlock">
+                <div class="cad-license-overlay-inner">
+                    <div class="cad-license-overlay-lock" aria-hidden="true">🔒</div>
+                    <h3>🔒 Premium License Required</h3>
+                    <p>CAD/RMS Integration is a premium Mobility Axiom module. Contact Ubitron to unlock Computer-Aided Dispatch and Records Management.</p>
+                </div>
+            </div>
+            <h2 data-i18n="nav.cadRms">CAD / RMS</h2>
+            <div id="cad-hub-body" aria-disabled="true">
+                <div class="cad-toolbar">
+                    <span id="cad-status-line" class="hint">Premium license required for CAD/RMS.</span>
+                    <input type="search" id="cad-search" class="form-control enterprise-form-control" placeholder="Search incidents" maxlength="80" disabled>
+                    <button type="button" class="btn btn-secondary btn-sm" id="cad-refresh-btn" disabled>Refresh</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="cad-dispatch-btn" disabled>Dispatch unit</button>
+                </div>
+                <div class="enterprise-card cad-table-wrap">
+                    <table class="cad-incidents-table" aria-label="CAD incidents">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>Summary</th>
+                                <th>Units</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cad-incidents-tbody">
+                            <tr><td colspan="5" class="hint">License required to load CAD incidents.</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -10569,7 +10978,8 @@
     <!-- mob-me8-restore-8wc-v2-ops: v2 inline ops boot + ME8 enterprise glue; VC via vc-lazy -->
     <script src="/vendor/jsmpeg.min.js"></script>
     <script src="/vendor/mpegts.min.js"></script>
-    <script src="/js/live-player-factory.js?v=20260723-wvp-handoff-stop-ui-parity-v1"></script>
+    <script src="/js/ax-select-wrap.js?v=20260731-select-caret-unify-all-ui-v1"></script>
+    <script src="/js/live-player-factory.js?v=20260730-cw-fill-cover-v1"></script>
     <script src="/js/dashboard-ws-url.js?v=20260723-wss-video-audio-sockets-v1"></script>
     <script src="/js/i18n.js?v=20260723-reverse-proxy-ui-polish-v1"></script>
     <script src="/js/session-bus.js?v=20260702-settings-session-sync"></script>
@@ -10599,13 +11009,16 @@
     <script src="/js/call-mic.js?v=20260721-sos-group-call-v1"></script>
     <script src="/js/ptt-rx.js?v=20260629-live-toast"></script>
     <script src="/js/audit-trail-hub.js?v=20260630-audit-preset-ux"></script>
-    <script src="/js/license-features.js?v=20260707-license-gate"></script>
+    <script src="/js/license-features.js?v=20260728-unify-8-features"></script>
+    <script src="/js/cad-hub.js?v=20260728-cad-rms-fomo"></script>
     <script src="/js/fr-live-watch.js?v=20260723-wss-video-audio-sockets-v1"></script>
     <script src="/js/fr-offline-video.js?v=20260715-threshold-admin"></script>
     <script src="/js/fr-enroll-cropper.js?v=20260710-fr-cropper"></script>
-    <script src="/js/fr-alarm.js?v=20260723-fr-blacklist-score-upgrade-dispatch-v1"></script>
+    <script src="/js/anpr-plate-cropper.js?v=20260729-anpr-snapshot-v1"></script>
+    <script src="/js/fr-alarm.js?v=20260730-fr-offline-hit-alert-only-v1"></script>
     <script src="/js/wvp-lab-tile.js?v=20260716-hide-lab-ui"></script>
-    <script src="/js/analytics-hub.js?v=20260723-dock-bay-title-encoding-v1"></script>
+    <script src="/js/anpr-live-watch.js?v=20260731-anpr-live-rail-4x4-equal-v1"></script>
+    <script src="/js/analytics-hub.js?v=20260731-anpr-live-zlm-watch-v1"></script>
     <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/operator-ui.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/ev-context-rail.js?v=20260627-rail-trim"></script>
@@ -10616,7 +11029,7 @@
     <script src="/js/evidence-hub.js?v=20260723-redacted-exports-empty-hint-v1"></script>
     <script src="/js/system-health-plain.js?v=20260712-health-plain"></script>
     <script src="/js/missed-activity.js?v=20260712-alerts-copy"></script>
-    <script src="/js/evidence-manager.js?v=20260723-tactical-tab-shell-ui-v1"></script>
+    <script src="/js/evidence-manager.js?v=20260728-cad-tab-shell"></script>
     <script src="/js/chat-ui.js"></script>
     <script src="/js/video-wall.js?v=20260725-server-viewer-only-v1"></script>
     <script src="/js/video-matrix.js?v=20260721-ops10-v1"></script>
