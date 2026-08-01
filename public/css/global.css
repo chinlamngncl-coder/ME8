@@ -3027,6 +3027,17 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     text-transform: uppercase;
     color: #9ca3af;
 }
+#ax-panel-anpr .ax-anpr-live-rail-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-shrink: 0;
+    margin-bottom: 8px;
+}
+#ax-panel-anpr .ax-anpr-live-rail-head .ax-anpr-live-rail-title {
+    margin: 0;
+}
 #ax-panel-anpr #ax-anpr-offline-rail-grid.ax-anpr-live-rail-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

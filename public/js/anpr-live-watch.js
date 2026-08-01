@@ -9,9 +9,9 @@
     var SURFACE = 'analytics-anpr';
     var LIVE_SLOTS = 4;
     var MAX_WATCH = 16;
-    var RAIL_MAX = 16;
-    /** Offline Match recent plates — scrollable backlog (not capped at 16). */
-    var OFFLINE_RAIL_MAX = 200;
+    var RAIL_MAX = 50;
+    /** Offline Match recent plates — volatile UI buffer (same cap as live). */
+    var OFFLINE_RAIL_MAX = 50;
     var ROTATE_MS = 20000;
     var TILE_SIGNAL_LOST_MS = 15000;
 
@@ -1196,10 +1196,11 @@
             }
         }
         bucket.unshift(copyRailTick(tick, null));
-        if (bucket.length > maxSlots) {
-            if (offline) offlineRail = bucket.slice(0, maxSlots);
-            else liveRail = bucket.slice(0, maxSlots);
+        while (bucket.length > maxSlots) {
+            bucket.pop();
         }
+        if (offline) offlineRail = bucket;
+        else liveRail = bucket;
         renderRail(true);
         if (listStatusOf(tick) && offline) pushHitSlot(tick);
     }
@@ -1378,8 +1379,13 @@
         }
     }
 
-    function railByScope(scope) {
-        return scope === 'offline' ? offlineRail : liveRail;
+    function clearUiRail(scope) {
+        if (scope === 'offline') {
+            offlineRail = [];
+        } else {
+            liveRail = [];
+        }
+        renderRail(false);
     }
 
     function openAnprModal(idx, scope) {
@@ -1875,6 +1881,16 @@
         var search = document.getElementById('ax-anpr-live-search');
         var list = document.getElementById('ax-anpr-live-roster-list');
         var railHost = document.getElementById('ax-anpr-live-rail');
+        var liveClear = document.getElementById('ax-anpr-live-rail-clear');
+        var offlineClear = document.getElementById('ax-anpr-offline-rail-clear');
+        if (liveClear && !liveClear._anprClearBound) {
+            liveClear._anprClearBound = true;
+            liveClear.addEventListener('click', function () { clearUiRail('live'); });
+        }
+        if (offlineClear && !offlineClear._anprClearBound) {
+            offlineClear._anprClearBound = true;
+            offlineClear.addEventListener('click', function () { clearUiRail('offline'); });
+        }
         if (startBtn) startBtn.addEventListener('click', startWatch);
         if (stopAllBtn) stopAllBtn.addEventListener('click', stopAllWatch);
         var tilesHost = document.querySelector('#ax-panel-anpr .ax-anpr-live-tiles');
@@ -2019,6 +2035,7 @@
         renderRail: renderRail,
         paintHitSlots: paintHitSlots,
         openAnprModal: openAnprModal,
+        clearUiRail: clearUiRail,
         openHistoryDetail: openHistoryDetail,
         MAX_WATCH: MAX_WATCH,
         LIVE_SLOTS: LIVE_SLOTS,

@@ -235,6 +235,9 @@ try {
         frRoot: FR_STORAGE_ROOT,
         ensureFrLayout: frStorageWorkspace.ensureManagedLayout,
     });
+    try {
+        require('./lib/analyticsCaptureStore').init(STORAGE_DIR);
+    } catch (_) { /* ignore */ }
     if (!bootDirs.ok) {
         log.web.warn('analytics evidence mkdir incomplete', {
             errors: (bootDirs.errors || []).slice(0, 8),
@@ -7408,6 +7411,27 @@ app.get('/api/analytics/anpr/crop/:file', dashboardAuth.requireDashboardAuth, (r
         return res.status(403).end();
     }
     const p = anprLivePoller.cropAbsolutePath(req.params.file);
+    if (!p) return res.status(404).end();
+    res.type('image/jpeg').sendFile(p);
+});
+
+/* Enterprise hierarchy evidence: storage/anpr|fr/{day}/{user}/{bwc}/… */
+app.get('/api/analytics/anpr/evidence', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('anpr') && !licenseFeatures.isFeatureEnabled('analyticsAnpr')) {
+        return res.status(403).end();
+    }
+    const analyticsCaptureStore = require('./lib/analyticsCaptureStore');
+    const p = analyticsCaptureStore.resolveRel(req.query.rel);
+    if (!p) return res.status(404).end();
+    res.type('image/jpeg').sendFile(p);
+});
+
+app.get('/api/analytics/fr/evidence', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('faceRecognition') && !licenseFeatures.isFeatureEnabled('analyticsFr')) {
+        return res.status(403).end();
+    }
+    const analyticsCaptureStore = require('./lib/analyticsCaptureStore');
+    const p = analyticsCaptureStore.resolveRel(req.query.rel);
     if (!p) return res.status(404).end();
     res.type('image/jpeg').sendFile(p);
 });

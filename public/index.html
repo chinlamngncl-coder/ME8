@@ -10034,7 +10034,10 @@
                             </div>
                             <div class="ax-anpr-live-side">
                                 <div id="ax-anpr-live-rail" class="ax-anpr-live-rail enterprise-card" aria-label="Recent plates">
-                                    <h4 class="ax-anpr-live-rail-title" data-i18n="analytics.anpr.liveRailTitle">Recent plates</h4>
+                                    <div class="ax-anpr-live-rail-head">
+                                        <h4 class="ax-anpr-live-rail-title" data-i18n="analytics.anpr.liveRailTitle">Recent plates</h4>
+                                        <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-live-rail-clear" title="Clear UI buffer">Clear UI</button>
+                                    </div>
                                     <div id="ax-anpr-live-rail-grid" class="ax-anpr-live-rail-grid grid grid-cols-2 gap-3" role="list"></div>
                                 </div>
                             </div>
@@ -10061,7 +10064,10 @@
                             </div>
                             <div class="ax-anpr-offline-side">
                                 <div id="ax-anpr-offline-rail" class="ax-anpr-live-rail" aria-label="Recent plates">
-                                    <h3 class="ax-anpr-live-rail-title" data-i18n="analytics.anpr.liveRailTitle">Recent Plates</h3>
+                                    <div class="ax-anpr-live-rail-head">
+                                        <h3 class="ax-anpr-live-rail-title" data-i18n="analytics.anpr.liveRailTitle">Recent Plates</h3>
+                                        <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-offline-rail-clear" title="Clear UI buffer">Clear UI</button>
+                                    </div>
                                     <div id="ax-anpr-offline-rail-grid" class="ax-anpr-live-rail-grid grid grid-cols-2 gap-3" role="list"></div>
                                 </div>
                             </div>
@@ -11106,7 +11112,6 @@
     <script src="/js/wvp-lab-tile.js?v=20260716-hide-lab-ui"></script>
     <script src="/js/anpr-live-watch.js?v=20260802-anpr-skeleton-firewall"></script>
     <script src="/js/anpr-offline-match.js?v=20260802-anpr-skeleton-firewall"></script>
-    <script src="/js/anpr-offline-match.js?v=20260802-live-rail-triage-isolate"></script>
     <script src="/js/anpr-history.js?v=20260801-anpr-history-v1"></script>
     <script src="/js/analytics-hub.js?v=20260802-live-rail-triage-isolate"></script>
     <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>
