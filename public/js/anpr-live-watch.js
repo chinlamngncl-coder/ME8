@@ -1246,31 +1246,65 @@
         return String(t.plate || 'UNCLEAR');
     }
 
+    function captureMacroUrl(t) {
+        if (!t) return '';
+        return t.vehicleUrl || t.macroCropUrl || t.sceneUrl || t.cropUrl || '';
+    }
+
+    function captureMicroUrl(t) {
+        if (!t) return '';
+        return t.cropUrl || t.microCropUrl || t.plateUrl || t.vehicleUrl || '';
+    }
+
+    function captureBwcUser(t) {
+        if (!t) return '\u2014';
+        return String(t.deviceLabel || t.bwcUser || t.camera_name || t.camName || t.camId || '\u2014');
+    }
+
+    function captureSourceIsLive(t) {
+        if (!t) return false;
+        if (isOfflineAnprSource(t)) return false;
+        if (t.isLive === true) return true;
+        var s = String(t.source || '').toLowerCase();
+        return s === 'live' || s === '' || s === 'bwc';
+    }
+
     function paintRailCardHtml(t, idx) {
-        var img = captureImagePath(t);
         var plateText = capturePlateText(t);
-        var when = formatWhenShort(t.at) || formatWhen(t.at) || '—';
+        var when = formatWhenShort(t.at) || formatWhen(t.at) || '\u2014';
+        var macroUrl = captureMacroUrl(t);
+        var microUrl = captureMicroUrl(t);
+        var bwcUser = captureBwcUser(t);
+        var isLive = captureSourceIsLive(t);
         var st = listStatusOf(t);
         var hitCls = st ? (' is-hit ' + gradeClass(st)) : '';
-        var imgHtml = img
-            ? '<img src="' + esc(img) + '" class="ax-anpr-snap-card-img" alt="Plate Crop" loading="lazy">'
-            : '<span class="ax-anpr-snap-card-img-empty">—</span>';
+        var sourceBadge = isLive
+            ? ('BWC: ' + bwcUser)
+            : 'OFFLINE MP4';
+        var macroHtml = macroUrl
+            ? '<img src="' + esc(macroUrl) + '" class="ax-anpr-snap-macro-img" alt="Full Context" loading="lazy">'
+            : '<span class="ax-anpr-snap-card-img-empty">\u2014</span>';
+        var microHtml = microUrl
+            ? '<img src="' + esc(microUrl) + '" class="ax-anpr-snap-micro-img" alt="Zoomed Plate Crop" loading="lazy">'
+            : '<span class="ax-anpr-snap-card-img-empty">\u2014</span>';
         return (
             '<div class="ax-anpr-snap-card' + hitCls + '" role="listitem" data-anpr-rail="' + idx + '">' +
-            '<div class="ax-anpr-snap-card-img-wrap">' +
-            imgHtml +
-            '</div>' +
-            '<div class="ax-anpr-snap-card-body">' +
-            '<span class="ax-anpr-snap-card-plate">' +
-            mismatchIconHtml(t) + esc(plateText) + '</span>' +
-            '<span class="ax-anpr-snap-card-time">' + esc(when) + '</span>' +
-            '</div>' +
+            '<div class="ax-anpr-snap-macro">' + macroHtml + '</div>' +
             '<button type="button" class="ax-anpr-rail-mag" data-anpr-open="' + idx + '" title="' +
             esc(tr('analytics.anpr.liveRailExpandHint', 'Open evidence')) + '" aria-label="' +
             esc(tr('analytics.anpr.liveRailExpandHint', 'Open evidence')) + '">' +
-            '<svg class="ax-anpr-rail-mag-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>' +
+            '<svg class="ax-anpr-rail-mag-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">' +
+            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>' +
             '</button>' +
-            '</div>'
+            '<div class="ax-anpr-snap-micro">' + microHtml + '</div>' +
+            '<div class="ax-anpr-snap-card-body">' +
+            '<div class="ax-anpr-snap-card-row">' +
+            '<span class="ax-anpr-snap-card-plate">' + mismatchIconHtml(t) + esc(plateText) + '</span>' +
+            '<span class="ax-anpr-snap-bwc' + (isLive ? ' is-live' : ' is-offline') + '">' +
+            esc(sourceBadge) + '</span>' +
+            '</div>' +
+            '<span class="ax-anpr-snap-card-time">' + esc(when) + '</span>' +
+            '</div></div>'
         );
     }
 

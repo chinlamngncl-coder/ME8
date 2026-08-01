@@ -2459,7 +2459,7 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: none;
-    grid-auto-rows: minmax(180px, auto);
+    grid-auto-rows: minmax(220px, auto);
     gap: 12px;
     align-content: start;
     overflow-x: hidden;
@@ -2490,7 +2490,7 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     max-width: 100%;
 }
 
-/* Snapshot cards — Tailwind template → global.css */
+/* Snapshot cards — information-dense: macro + micro + BWC badge */
 #ax-panel-anpr .ax-anpr-snap-card {
     position: relative;
     background: #1f2937;
@@ -2503,24 +2503,46 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     height: auto;
     max-height: none;
     cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 #ax-panel-anpr .ax-anpr-snap-card.is-hit {
     border-color: #dc2626;
-    box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.35);
+    box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.35), 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 #ax-panel-anpr .ax-anpr-snap-card.is-blacklist { border-color: #ef4444; }
 #ax-panel-anpr .ax-anpr-snap-card.is-wanted { border-color: #dc2626; }
 #ax-panel-anpr .ax-anpr-snap-card.is-suspicious { border-color: #f59e0b; }
-#ax-panel-anpr .ax-anpr-snap-card-img-wrap {
+#ax-panel-anpr .ax-anpr-snap-macro {
     width: 100%;
-    height: 128px;
+    height: 96px;
     background: #000;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    border-bottom: 1px solid #374151;
+    overflow: hidden;
 }
-#ax-panel-anpr .ax-anpr-snap-card-img {
+#ax-panel-anpr .ax-anpr-snap-macro-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.7;
+    display: block;
+}
+#ax-panel-anpr .ax-anpr-snap-micro {
+    width: 100%;
+    height: 56px;
+    background: #111827;
+    padding: 4px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-bottom: 1px solid #374151;
+}
+#ax-panel-anpr .ax-anpr-snap-micro-img {
     max-height: 100%;
     max-width: 100%;
     object-fit: contain;
@@ -2528,13 +2550,20 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
 }
 #ax-panel-anpr .ax-anpr-snap-card-img-empty {
     color: #64748b;
-    font-size: 13px;
+    font-size: 12px;
 }
 #ax-panel-anpr .ax-anpr-snap-card-body {
     padding: 8px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
+    background: #1f2937;
+}
+#ax-panel-anpr .ax-anpr-snap-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
 }
 #ax-panel-anpr .ax-anpr-snap-card-plate {
     color: #fff;
@@ -2542,6 +2571,29 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     font-size: 16px;
     letter-spacing: 0.06em;
     line-height: 1.2;
+    min-width: 0;
+}
+#ax-panel-anpr .ax-anpr-snap-bwc {
+    flex: 0 0 auto;
+    max-width: 48%;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #93c5fd;
+    background: rgba(30, 58, 138, 0.4);
+    border: 1px solid #1e40af;
+}
+#ax-panel-anpr .ax-anpr-snap-bwc.is-offline {
+    color: #cbd5e1;
+    background: rgba(51, 65, 85, 0.55);
+    border-color: #475569;
 }
 #ax-panel-anpr .ax-anpr-snap-card-time {
     font-size: 11px;
@@ -2551,20 +2603,21 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     position: absolute;
     top: 8px;
     right: 8px;
-    z-index: 3;
+    z-index: 10;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: 6px;
     border-radius: 6px;
     border: 1px solid #475569;
-    background: rgba(17, 24, 39, 0.85);
+    background: rgba(17, 24, 39, 0.9);
     color: #fff;
     cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
 }
 #ax-panel-anpr .ax-anpr-rail-mag:hover {
-    background: #2563eb;
-    border-color: #2563eb;
+    background: #3b82f6;
+    border-color: #3b82f6;
 }
 #ax-panel-anpr .ax-anpr-rail-mag-icon {
     display: block;
@@ -2968,7 +3021,7 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: none;
-    grid-auto-rows: minmax(180px, auto);
+    grid-auto-rows: minmax(220px, auto);
     gap: 12px;
     align-content: start;
     height: auto;
