@@ -1464,8 +1464,41 @@
             esc(tr('analytics.fr.snapPlayFromHere', 'Play from here')) + '</button>' +
             '<button type="button" class="btn btn-sm fr-snap-keep">' +
             esc(tr('analytics.fr.snapKeep', 'Keep')) + '</button>' +
+            '<button type="button" class="btn btn-sm btn-primary fr-snap-download">' +
+            esc(tr('analytics.fr.snapDownloadEvidence', 'Download Evidence')) + '</button>' +
             '</div></div></div></div>'
         );
+    }
+
+    function downloadSnapEvidence(slot) {
+        if (!slot || !slot.cropUrl) {
+            showStandbyToast(tr('analytics.fr.snapDownloadNoCrop', 'No face crop to download.'), 3500);
+            return;
+        }
+        var base = String(slot.displayName || slot.camId || 'face').replace(/[^\w.\-]+/g, '_').slice(0, 48);
+        var filename = 'fr-evidence-' + base + '-' + Date.now() + '.jpg';
+        showStandbyToast(tr('analytics.fr.snapDownloading', 'Downloading evidence\u2026'), 2500);
+        fetch(String(slot.cropUrl), { credentials: 'same-origin' })
+            .then(function (r) {
+                if (!r.ok) throw new Error('http_' + r.status);
+                return r.blob();
+            })
+            .then(function (blob) {
+                var u = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = u;
+                a.download = filename;
+                a.rel = 'noopener';
+                document.body.appendChild(a);
+                a.click();
+                try { document.body.removeChild(a); } catch (_) { /* ignore */ }
+                setTimeout(function () {
+                    try { URL.revokeObjectURL(u); } catch (_) { /* ignore */ }
+                }, 2000);
+            })
+            .catch(function () {
+                showStandbyToast(tr('analytics.fr.snapDownloadFail', 'Download failed. Try Keep, then open from Investigation holds.'), 4500);
+            });
     }
 
     function bindSnapPanelChrome(el) {
@@ -1490,6 +1523,7 @@
         var mapBtn = el.querySelector('.fr-snap-show-map');
         var playBtn = el.querySelector('.fr-snap-play');
         var keepBtn = el.querySelector('.fr-snap-keep');
+        var dlBtn = el.querySelector('.fr-snap-download');
         if (copyBtn) {
             copyBtn.addEventListener('click', function (e) {
                 e.stopPropagation();
@@ -1512,6 +1546,12 @@
             keepBtn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 keepEvidencePack(el._tick);
+            });
+        }
+        if (dlBtn) {
+            dlBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                downloadSnapEvidence(el._tick);
             });
         }
         bindSnapFloatDrag(el);
@@ -1713,8 +1753,9 @@
 
     function ensureSnapLightbox() {
         var el = document.getElementById('fr-snap-lightbox');
-        /* recreate if missing Keep / Play (evidence + offline play-at) or chrome */
+        /* recreate if missing Keep / Download / Play (evidence + offline play-at) or chrome */
         if (el && (!el.querySelector('.fr-snap-float-chrome') || !el.querySelector('.fr-snap-keep')
+            || !el.querySelector('.fr-snap-download')
             || !el.querySelector('.fr-snap-play'))) {
             el.parentNode.removeChild(el);
             el = null;

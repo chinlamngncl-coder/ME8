@@ -287,6 +287,14 @@
         }
     }
 
+    function canManageHolds() {
+        try {
+            return !!(global.ServerSetup && ServerSetup.canManageServer && ServerSetup.canManageServer());
+        } catch (_) {
+            return false;
+        }
+    }
+
     function renderRows(rows, folderHint, filter) {
         var grid = document.getElementById('ev-holds-grid');
         var meta = document.getElementById('ev-holds-meta');
@@ -299,6 +307,7 @@
             renderEmpty(meta, grid, emptyMessageForFilter(filter));
             return;
         }
+        var admin = canManageHolds();
         var html = rows.map(function (row) {
             var id = row.id || '';
             var thumb = row.thumbUrl || ('/api/analytics/fr/kept/' + encodeURIComponent(id) + '/jpg');
@@ -313,7 +322,7 @@
                 + actionSep()
                 + '<button type="button" class="btn btn-ghost btn-sm ev-hold-action-link" data-hold-copy="' + esc(id) + '">'
                 + esc(tr('evidenceHub.holdsCopyId', 'Copy ID')) + '</button>';
-            if (status === 'open') {
+            if (admin && status === 'open') {
                 actions += actionSep()
                     + '<button type="button" class="btn btn-ghost btn-sm ev-hold-action-link" data-hold-clear="' + esc(id) + '" data-hold-title="' + esc(title) + '">'
                     + esc(tr('evidenceHub.holdsClear', 'Clear')) + '</button>'

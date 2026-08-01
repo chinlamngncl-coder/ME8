@@ -1655,7 +1655,7 @@
         .ax-anpr-live-rail-card {
             min-height: 0; border: 1px solid #334155; border-radius: 6px; background: #0f172a;
             padding: 4px; color: #94a3b8; font-size: 10px; display: flex; flex-direction: column; gap: 2px;
-            cursor: pointer; overflow: hidden;
+            cursor: pointer; overflow: hidden; position: relative;
         }
         .ax-anpr-live-rail-card.is-empty {
             cursor: default; opacity: 0.45; align-items: center; justify-content: center;
@@ -1664,24 +1664,30 @@
         .ax-anpr-live-rail-card.is-wanted { border-color: #ea580c; }
         .ax-anpr-live-rail-card.is-suspicious { border-color: #7c3aed; }
         .ax-anpr-live-rail-card.is-blacklist { border-color: #dc2626; }
-        .ax-anpr-live-rail-card img.ax-anpr-rail-scene {
-            width: 100%; flex: 1 1 0; min-height: 0; object-fit: cover; border-radius: 4px;
+        .ax-anpr-rail-macro {
+            position: relative; flex: 1 1 0; min-height: 0; width: 100%;
+            border-radius: 4px; overflow: hidden; background: #020617;
+        }
+        .ax-anpr-rail-macro .ax-anpr-rail-scene {
+            width: 100%; height: 100%; min-height: 0; object-fit: cover; border-radius: 4px;
             display: block; background: #020617;
         }
+        .ax-anpr-rail-macro-empty {
+            display: flex; align-items: center; justify-content: center;
+            width: 100%; height: 100%; min-height: 36px;
+        }
+        .ax-anpr-rail-micro,
         .ax-anpr-live-rail-card img.ax-anpr-rail-plate-thumb {
-            width: 40%; max-width: 72px; height: 20px; object-fit: cover; border-radius: 3px;
-            align-self: flex-start; flex: 0 0 auto; background: #020617; border: 1px solid #475569;
-        }
-        .ax-anpr-live-rail-card img {
-            width: 100%; flex: 1 1 0; min-height: 0; object-fit: cover; border-radius: 4px;
-            display: block; background: #020617;
+            position: absolute; right: 4px; bottom: 4px; width: 38%; max-width: 88px;
+            height: auto; max-height: 28%; min-height: 18px; object-fit: contain; border-radius: 3px;
+            background: #020617; border: 1px solid #94a3b8; box-shadow: 0 1px 4px rgba(0,0,0,0.55); z-index: 2;
         }
         .ax-anpr-live-rail-card .ax-anpr-rail-plate {
             font-weight: 700; color: #e2e8f0; font-size: 11px; line-height: 1.2;
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0;
         }
         .ax-anpr-live-rail-card .ax-anpr-rail-meta {
-            line-height: 1.2; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            line-height: 1.2; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0;
         }
         #ax-anpr-snap-lightbox {
             position: fixed; right: 16px; bottom: 16px; z-index: 28010;
@@ -1701,12 +1707,18 @@
             background: #1e293b; color: #e2e8f0; cursor: pointer; font-size: 16px; line-height: 1;
         }
         .ax-anpr-snap-lb-body { padding: 10px; overflow: auto; min-height: 0; }
+        .ax-anpr-snap-lb-body .ax-anpr-lb-scene-wrap {
+            overflow: hidden; border-radius: 6px; background: #020617; cursor: zoom-in;
+        }
         .ax-anpr-snap-lb-body img.ax-anpr-lb-scene {
             display: block; width: 100%; max-height: 360px; object-fit: contain; background: #020617; border-radius: 6px;
+            transition: transform 0.08s linear;
         }
+        .ax-anpr-snap-lb-body .ax-anpr-lb-scene-wrap.is-zooming img.ax-anpr-lb-scene { max-height: none; }
         .ax-anpr-snap-lb-body img.ax-anpr-lb-plate-img {
             display: block; width: min(240px, 45%); max-height: 72px; object-fit: contain;
             margin-top: 8px; background: #020617; border-radius: 4px; border: 1px solid #475569;
+            transition: transform 0.08s linear;
         }
         .ax-anpr-snap-lb-body img {
             display: block; width: 100%; max-height: 360px; object-fit: contain; background: #020617; border-radius: 6px;
@@ -8068,7 +8080,7 @@
         .sos-detail-actions button { flex: 1; min-width: 100px; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; background: #334155; color: #e2e8f0; }
         .sos-detail-actions .sos-detail-secondary { flex: 0 1 auto; background: transparent; color: #94a3b8; font-weight: 500; font-size: 11px; }
     </style>
-    <link rel="stylesheet" href="/css/global.css?v=20260731-anpr-live-balance-4x4-size-v1">
+    <link rel="stylesheet" href="/css/global.css?v=20260801-evidence-rbac-offline-fix">
     <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260731-analytics-grade-filter-compact-chevron-v1">
 </head>
 <body>
@@ -9207,6 +9219,7 @@
                                 <th data-i18n="bwc.col.pttDownlink">HQ hold PTT</th>
                                 <th data-i18n="bwc.col.pttAudioCmd">PTT audio (HQ&rarr;BWC)</th>
                                 <th data-i18n="bwc.col.protocol">Protocol</th>
+                                <th data-i18n="bwc.col.pipSecondary">Assign PIP / Rear Camera</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -9975,6 +9988,8 @@
                     <nav class="ax-anpr-subnav" aria-label="ANPR sections">
                         <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="live" id="ax-anpr-sub-live" data-i18n="analytics.anpr.subLive">Live</button>
                         <button type="button" class="ax-anpr-subnav-btn active" data-anpr-sub="snapshot" id="ax-anpr-sub-snapshot" data-i18n="analytics.anpr.subSnapshot">Snapshot</button>
+                        <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="offline" id="ax-anpr-sub-offline" data-i18n="analytics.anpr.subOffline">Offline Match</button>
+                        <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="history" id="ax-anpr-sub-history" data-i18n="analytics.anpr.subHistory">Search &amp; History</button>
                         <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="lists" id="ax-anpr-sub-lists" data-i18n="analytics.anpr.subLists">Plate lists</button>
                     </nav>
                     <div id="ax-anpr-sub-live-panel" class="ax-anpr-sub-panel" hidden>
@@ -9983,7 +9998,6 @@
                             <div class="ax-anpr-live-roster enterprise-card">
                                 <div class="ax-anpr-live-roster-actions">
                                     <button type="button" class="btn btn-action btn-sm" id="ax-anpr-live-start" data-i18n="analytics.anpr.liveStart" disabled>Start watch</button>
-                                    <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-live-stop" data-i18n="analytics.anpr.liveStop" disabled>Stop</button>
                                     <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-live-stop-all" data-i18n="analytics.anpr.liveStopAll" disabled>Stop all</button>
                                     <span id="ax-anpr-live-meta" class="hint"></span>
                                 </div>
@@ -10024,6 +10038,30 @@
                         </div>
                         <div id="ax-anpr-live-toast" class="ax-anpr-live-toast" hidden role="alert"></div>
                     </div>
+                    <div id="ax-anpr-sub-offline-panel" class="ax-anpr-sub-panel" hidden>
+                        <div class="ax-anpr-offline-layout">
+                            <div class="ax-anpr-offline-main enterprise-card">
+                                <div id="ax-anpr-offline-dropzone" class="ax-anpr-offline-dropzone">
+                                    <div class="ax-anpr-offline-empty" data-i18n="analytics.anpr.uploadVideo">Upload Video</div>
+                                    <input type="file" id="ax-anpr-offline-file" class="ax-anpr-offline-input" accept=".mp4,.avi,.webm,video/*">
+                                </div>
+                                <p id="ax-anpr-offline-status" class="hint" aria-live="polite" hidden></p>
+                                <div class="ax-anpr-offline-video-wrap">
+                                    <video id="ax-anpr-offline-video" class="ax-anpr-offline-video" controls playsinline></video>
+                                </div>
+                                <div id="ax-anpr-offline-hit-slots" class="ax-anpr-offline-hit-slots" aria-label="Blacklist / Suspect Hits">
+                                    <h4 class="ax-anpr-offline-hit-title">Blacklist / Suspect Hits</h4>
+                                    <div id="ax-anpr-offline-hit-row" class="ax-anpr-offline-hit-row" role="list"></div>
+                                </div>
+                            </div>
+                            <div class="ax-anpr-offline-side">
+                                <div id="ax-anpr-offline-rail" class="ax-anpr-live-rail enterprise-card" aria-label="Recent plates">
+                                    <h4 class="ax-anpr-live-rail-title" data-i18n="analytics.anpr.liveRailTitle">Recent plates</h4>
+                                    <div id="ax-anpr-offline-rail-grid" class="ax-anpr-live-rail-grid" role="list"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div id="ax-anpr-sub-snapshot-panel" class="ax-anpr-sub-panel">
                         <p class="setup-hint" data-i18n="analytics.anpr.hint">Upload a photo, crop the number plate, then read the plate text.</p>
                         <div class="ax-anpr-workspace enterprise-card">
@@ -10053,6 +10091,41 @@
                             <div id="ax-anpr-msg" class="ax-fr-verify-result" hidden></div>
                         </div>
                     </div>
+                    <div id="ax-anpr-sub-history-panel" class="ax-anpr-sub-panel" hidden>
+                        <div class="ax-anpr-hist-filters enterprise-card">
+                            <label class="ax-fr-verify-file"><span data-i18n="analytics.anpr.histPlateQ">Plate Search</span>
+                                <input type="search" id="ax-anpr-hist-q" maxlength="32" autocomplete="off" placeholder="Plate number">
+                            </label>
+                            <label class="ax-fr-verify-file"><span data-i18n="analytics.anpr.histVtype">Vehicle Type</span>
+                                <span class="ax-select-wrap">
+                                <select id="ax-anpr-hist-vtype">
+                                    <option value="All" selected>All</option>
+                                    <option value="Car">Car</option>
+                                    <option value="Motorcycle">Motorcycle</option>
+                                    <option value="Truck">Truck</option>
+                                    <option value="Bus">Bus</option>
+                                </select>
+                                </span>
+                            </label>
+                            <label class="ax-fr-verify-file"><span data-i18n="analytics.anpr.histCam">Camera ID</span>
+                                <input type="text" id="ax-anpr-hist-cam" maxlength="64" autocomplete="off">
+                            </label>
+                            <label class="ax-fr-verify-file"><span data-i18n="analytics.anpr.histFrom">From</span>
+                                <input type="date" id="ax-anpr-hist-from">
+                            </label>
+                            <label class="ax-fr-verify-file"><span data-i18n="analytics.anpr.histTo">To</span>
+                                <input type="date" id="ax-anpr-hist-to">
+                            </label>
+                            <div class="ax-anpr-hist-filter-actions">
+                                <button type="button" class="btn btn-primary btn-action btn-sm" id="ax-anpr-hist-search" data-i18n="common.search">Search</button>
+                                <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-hist-reset" data-i18n="common.reset">Reset</button>
+                                <span id="ax-anpr-hist-status" class="hint"></span>
+                            </div>
+                        </div>
+                        <div id="ax-anpr-hist-scroll" class="ax-anpr-hist-scroll enterprise-card">
+                            <div id="ax-anpr-hist-grid" class="ax-anpr-hist-grid" role="list"></div>
+                        </div>
+                    </div>
                     <div id="ax-anpr-sub-lists-panel" class="ax-anpr-sub-panel" hidden>
                         <p class="setup-hint" data-i18n="analytics.anpr.listsHint">Add plate numbers to Blacklist, Wanted, or Suspicious. Snapshot reads match these lists automatically.</p>
                         <div class="ax-bl-enroll" id="ax-pl-enroll">
@@ -10061,6 +10134,15 @@
                             </label>
                             <label class="ax-fr-verify-file"><span data-i18n="analytics.anpr.lists.label">Label (optional)</span>
                                 <input type="text" id="ax-pl-label" maxlength="120" autocomplete="off">
+                            </label>
+                            <label class="ax-fr-verify-file"><span data-i18n="analytics.anpr.lists.regMake">Registered make</span>
+                                <input type="text" id="ax-pl-make" maxlength="64" autocomplete="off" placeholder="e.g. Toyota">
+                            </label>
+                            <label class="ax-fr-verify-file"><span data-i18n="analytics.anpr.lists.regModel">Registered model</span>
+                                <input type="text" id="ax-pl-model" maxlength="64" autocomplete="off" placeholder="e.g. Camry">
+                            </label>
+                            <label class="ax-fr-verify-file"><span data-i18n="analytics.anpr.lists.regColor">Registered color</span>
+                                <input type="text" id="ax-pl-color" maxlength="32" autocomplete="off" placeholder="e.g. White">
                             </label>
                             <label class="ax-fr-verify-file"><span data-i18n="analytics.anpr.lists.grade">List grade</span>
                                 <span class="ax-select-wrap">
@@ -11015,17 +11097,19 @@
     <script src="/js/fr-offline-video.js?v=20260715-threshold-admin"></script>
     <script src="/js/fr-enroll-cropper.js?v=20260710-fr-cropper"></script>
     <script src="/js/anpr-plate-cropper.js?v=20260729-anpr-snapshot-v1"></script>
-    <script src="/js/fr-alarm.js?v=20260730-fr-offline-hit-alert-only-v1"></script>
+    <script src="/js/fr-alarm.js?v=20260801-fr-download-evidence"></script>
     <script src="/js/wvp-lab-tile.js?v=20260716-hide-lab-ui"></script>
-    <script src="/js/anpr-live-watch.js?v=20260731-anpr-live-rail-4x4-equal-v1"></script>
-    <script src="/js/analytics-hub.js?v=20260731-anpr-live-zlm-watch-v1"></script>
+    <script src="/js/anpr-live-watch.js?v=20260801-evidence-rbac-offline-fix"></script>
+    <script src="/js/anpr-offline-match.js?v=20260801-evidence-rbac-offline-fix"></script>
+    <script src="/js/anpr-history.js?v=20260801-anpr-history-v1"></script>
+    <script src="/js/analytics-hub.js?v=20260801-delete-superadmin-rbac"></script>
     <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/operator-ui.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/ev-context-rail.js?v=20260627-rail-trim"></script>
     <script src="/js/evidence-storage-ui.js?v=20260723-storage-compact-enterprise-v1"></script>
     <script src="/js/route-trace.js?v=20260621-smart-gps"></script>
     <script src="/js/case-files-ui.js?v=20260722-cf-list-one-view-v5"></script>
-    <script src="/js/fr-kept-ui.js?v=20260722-holds-disposition-v1"></script>
+    <script src="/js/fr-kept-ui.js?v=20260801-delete-superadmin-rbac"></script>
     <script src="/js/evidence-hub.js?v=20260723-redacted-exports-empty-hint-v1"></script>
     <script src="/js/system-health-plain.js?v=20260712-health-plain"></script>
     <script src="/js/missed-activity.js?v=20260712-alerts-copy"></script>
@@ -11033,6 +11117,7 @@
     <script src="/js/chat-ui.js"></script>
     <script src="/js/video-wall.js?v=20260725-server-viewer-only-v1"></script>
     <script src="/js/video-matrix.js?v=20260721-ops10-v1"></script>
+    <script src="/js/global-device-presence.js?v=20260801-global-presence-v1"></script>
     <script src="/js/fleet-ui.js?v=20260724-user-circle-batch-open-v1"></script>
     <script src="/js/map-popout-sync.js?v=20260612-mirror"></script>
     <script src="/js/voice-alerts.js?v=20260630-geofence-voice"></script>
@@ -11574,6 +11659,7 @@
         VideoWall.init(socket);
         window._videoWallInited = true;
         window.__mobilityDashboardSocket = socket;
+        if (typeof GlobalDevicePresence !== 'undefined' && GlobalDevicePresence.bind) GlobalDevicePresence.bind(socket);
         if (typeof CommandWall !== 'undefined' && CommandWall.init) CommandWall.init(socket);
 
         function slotOwnCamId(slotEl) {

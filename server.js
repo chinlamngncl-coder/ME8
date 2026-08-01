@@ -148,6 +148,7 @@ const anprErrors = require('./lib/anprErrors');
 const frBlacklist = require('./lib/frBlacklist');
 const anprPlateList = require('./lib/anprPlateList');
 const anprLivePoller = require('./lib/anprLivePoller');
+const anprCaptureHistory = require('./lib/anprCaptureHistory');
 const frLivePoller = require('./lib/frLivePoller');
 const frSnapLedger = require('./lib/frSnapLedger');
 const frKeptEvidence = require('./lib/frKeptEvidence');
@@ -163,6 +164,7 @@ const conferenceLivekit = require('./lib/conferenceLivekit');
 const conferenceBwcIngress = require('./lib/conferenceBwcIngress');
 const storagePaths = require('./lib/storagePaths');
 const frStorageWorkspace = require('./lib/frStorageWorkspace');
+const analyticsEvidenceDirs = require('./lib/analyticsEvidenceDirs');
 const storageStatus = require('./lib/storageStatus');
 const siteReadiness = require('./lib/siteReadiness');
 const authAuditShipChecklist = require('./lib/authAuditShipChecklist');
@@ -226,6 +228,29 @@ const FR_PREVIOUS_ROOT = frStorageWorkspace.resolveRoot(BASE_DIR, STORAGE_DIR, {
 });
 const FR_STARTUP_MIGRATION = frStorageWorkspace.prepareRootChange(FR_PREVIOUS_ROOT, FR_STORAGE_ROOT);
 const FR_STORAGE_LAYOUT = FR_STARTUP_MIGRATION.workspace;
+/* ANALYTICS-EVIDENCE-MKDIR-BOOT-V1 — relative storage/ dirs for on-prem packaging */
+try {
+    const bootDirs = analyticsEvidenceDirs.ensureAnalyticsEvidenceDirs({
+        storageDir: STORAGE_DIR,
+        frRoot: FR_STORAGE_ROOT,
+        ensureFrLayout: frStorageWorkspace.ensureManagedLayout,
+    });
+    if (!bootDirs.ok) {
+        log.web.warn('analytics evidence mkdir incomplete', {
+            errors: (bootDirs.errors || []).slice(0, 8),
+        });
+    } else {
+        log.web.info('analytics evidence dirs ready', {
+            count: (bootDirs.created || []).length,
+            storageDir: STORAGE_DIR,
+            frRoot: FR_STORAGE_ROOT,
+        });
+    }
+} catch (err) {
+    log.web.warn('analytics evidence mkdir failed', {
+        message: err && err.message ? err.message : String(err),
+    });
+}
 if (FR_STARTUP_MIGRATION.changed) {
     log.web.info('FR storage workspace activated', {
         from: FR_PREVIOUS_ROOT,
@@ -7428,6 +7453,25 @@ app.post('/api/analytics/anpr/read', dashboardAuth.requireDashboardAuth, (req, r
                 const probed = anprPlateList.matchProbe(result.plateCompact || result.plate);
                 if (probed && probed.match) listMatch = probed.match;
             } catch (_) { /* ignore list errors on read */ }
+            const mmr = result.mmr || (result.vehicle && (result.vehicle.make || result.vehicle.color)
+                ? {
+                    make: result.vehicle.make,
+                    model: result.vehicle.model,
+                    color: result.vehicle.color,
+                    mmrText: result.vehicle.mmrText,
+                }
+                : null);
+            let mmrMismatch = false;
+            let mmrMismatchDetail = null;
+            if (listMatch && mmr) {
+                try {
+                    const mm = anprPlateList.mmrMismatch(listMatch, mmr);
+                    if (mm && mm.mismatch) {
+                        mmrMismatch = true;
+                        mmrMismatchDetail = mm.detail || '';
+                    }
+                } catch (_) { /* ignore */ }
+            }
             res.json({
                 ok: true,
                 plate: result.plate,
@@ -7436,6 +7480,14 @@ app.post('/api/analytics/anpr/read', dashboardAuth.requireDashboardAuth, (req, r
                 lowConfidence: !!result.lowConfidence,
                 engine: result.engine || 'tesseract.js',
                 listMatch: listMatch,
+                vehicle: result.vehicle || null,
+                mmr: mmr,
+                mmrMismatch: mmrMismatch,
+                mmrMismatchDetail: mmrMismatchDetail,
+                vehicleJpegB64: result.vehicleJpegB64 || null,
+                cropJpegB64: result.cropJpegB64 || null,
+                hasVehicle: !!result.hasVehicle,
+                hasCrop: !!result.hasCrop,
             });
         } catch (e) {
             auditLog.recordFromRequest(req, 'analytics.anpr_read', {
@@ -7454,6 +7506,53 @@ app.post('/api/analytics/anpr/read', dashboardAuth.requireDashboardAuth, (req, r
 function anprFeatureOn() {
     return licenseFeatures.isFeatureEnabled('anpr') || licenseFeatures.isFeatureEnabled('analyticsAnpr');
 }
+
+app.get('/api/analytics/anpr/history', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    if (!anprFeatureOn()) {
+        return res.status(403).json(anprErrors.operatorPayload(anprErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const data = await anprCaptureHistory.search({
+            q: req.query && req.query.q,
+            vehicleType: req.query && req.query.vehicleType,
+            camId: req.query && req.query.camId,
+            from: req.query && req.query.from,
+            to: req.query && req.query.to,
+            limit: req.query && req.query.limit,
+            offset: req.query && req.query.offset,
+        });
+        res.json(data);
+    } catch (err) {
+        res.status(500).json(anprErrors.operatorPayload(anprErrors.CODES.FAILED, 500));
+    }
+});
+
+app.post('/api/analytics/anpr/history', dashboardAuth.requireDashboardAuth, express.json({ limit: '2mb' }), async (req, res) => {
+    if (!anprFeatureOn()) {
+        return res.status(403).json(anprErrors.operatorPayload(anprErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const body = req.body || {};
+        const saved = await anprCaptureHistory.record(Object.assign({}, body, { source: body.source || 'offline' }));
+        if (!saved) return res.status(500).json({ ok: false, error: 'persist_failed' });
+        res.json({ ok: true, entry: saved });
+    } catch (err) {
+        res.status(500).json(anprErrors.operatorPayload(anprErrors.CODES.FAILED, 500));
+    }
+});
+
+app.get('/api/analytics/anpr/history/:id', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    if (!anprFeatureOn()) {
+        return res.status(403).json(anprErrors.operatorPayload(anprErrors.CODES.NOT_LICENSED, 403));
+    }
+    try {
+        const row = await anprCaptureHistory.getById(req.params.id);
+        if (!row) return res.status(404).json({ ok: false, error: 'not_found' });
+        res.json({ ok: true, entry: row });
+    } catch (err) {
+        res.status(500).json(anprErrors.operatorPayload(anprErrors.CODES.FAILED, 500));
+    }
+});
 
 app.get('/api/analytics/anpr/lists', dashboardAuth.requireDashboardAuth, (req, res) => {
     if (!anprFeatureOn()) {
@@ -8311,8 +8410,9 @@ app.get('/api/analytics/fr/kept/:id/jpg', dashboardAuth.requireDashboardAuth, (r
     }
 });
 
-/* FR-HOLDS-DISPOSITION-STATUS-V1 — clear / discard hold (files stay on disk) */
-app.post('/api/analytics/fr/kept/:id/disposition', dashboardAuth.requireDashboardAuth, express.json({ limit: '32kb' }), (req, res) => {
+/* FR-HOLDS-DISPOSITION-STATUS-V1 — clear / discard hold (files stay on disk)
+ * ANALYTICS-DELETE-SUPERADMIN-RBAC-V1 — Super Admin only */
+app.post('/api/analytics/fr/kept/:id/disposition', dashboardAuth.requireSuperAdmin, express.json({ limit: '32kb' }), (req, res) => {
     if (!licenseFeatures.isFeatureEnabled('fr')) {
         return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
     }

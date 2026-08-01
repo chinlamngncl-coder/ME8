@@ -228,6 +228,8 @@
     function showAnprSub(sub) {
         if (sub === 'lists') anprSubPanel = 'lists';
         else if (sub === 'live') anprSubPanel = 'live';
+        else if (sub === 'offline') anprSubPanel = 'offline';
+        else if (sub === 'history') anprSubPanel = 'history';
         else anprSubPanel = 'snapshot';
         document.querySelectorAll('.ax-anpr-subnav .ax-anpr-subnav-btn').forEach(function (btn) {
             btn.classList.toggle('active', btn.getAttribute('data-anpr-sub') === anprSubPanel);
@@ -235,12 +237,26 @@
         var live = document.getElementById('ax-anpr-sub-live-panel');
         var snap = document.getElementById('ax-anpr-sub-snapshot-panel');
         var lists = document.getElementById('ax-anpr-sub-lists-panel');
+        var offline = document.getElementById('ax-anpr-sub-offline-panel');
+        var history = document.getElementById('ax-anpr-sub-history-panel');
         if (live) live.hidden = anprSubPanel !== 'live';
         if (snap) snap.hidden = anprSubPanel !== 'snapshot';
         if (lists) lists.hidden = anprSubPanel !== 'lists';
+        if (offline) offline.hidden = anprSubPanel !== 'offline';
+        if (history) history.hidden = anprSubPanel !== 'history';
         if (anprSubPanel === 'lists') loadPlateLists();
         if (anprSubPanel === 'live' && global.AnprLiveWatch && AnprLiveWatch.onShow) {
             AnprLiveWatch.onShow();
+        } else if (global.AnprLiveWatch && typeof AnprLiveWatch.onHide === 'function') {
+            AnprLiveWatch.onHide();
+        }
+        if (anprSubPanel === 'offline' && global.AnprOfflineMatch && AnprOfflineMatch.onShow) {
+            AnprOfflineMatch.onShow();
+        } else if (global.AnprOfflineMatch && AnprOfflineMatch.onHide) {
+            AnprOfflineMatch.onHide();
+        }
+        if (anprSubPanel === 'history' && global.AnprHistory && AnprHistory.onShow) {
+            AnprHistory.onShow();
         }
     }
 
@@ -258,6 +274,14 @@
         box.hidden = true;
         box.innerHTML = '';
         box.className = 'ax-fr-verify-result';
+    }
+
+    function canManageAnalyticsLists() {
+        try {
+            return !!(global.ServerSetup && ServerSetup.canManageServer && ServerSetup.canManageServer());
+        } catch (_) {
+            return false;
+        }
     }
 
     function loadPlateLists() {
@@ -296,6 +320,10 @@
                     var st = e.enabled === false
                         ? tr('analytics.bl.statusOff', 'Off')
                         : tr('analytics.bl.statusOn', 'On');
+                    var removeCell = canManageAnalyticsLists()
+                        ? ('<button type="button" class="btn btn-ghost btn-sm ax-pl-remove-btn" data-pl-id="' +
+                            esc(e.id) + '">' + esc(tr('analytics.bl.remove', 'Remove')) + '</button>')
+                        : '<span class="hint">\u2014</span>';
                     return '<tr data-pl-id="' + esc(e.id) + '">' +
                         '<td><strong>' + esc(e.plate || e.plateCompact || '\u2014') + '</strong></td>' +
                         '<td>' + esc(e.displayName || '\u2014') + '</td>' +
@@ -303,8 +331,7 @@
                         '<td>' + esc(reasonLabel(e.reasonCode)) + '</td>' +
                         '<td>' + esc(when) + '</td>' +
                         '<td>' + esc(st) + '</td>' +
-                        '<td><button type="button" class="btn btn-ghost btn-sm ax-pl-remove-btn" data-pl-id="' +
-                        esc(e.id) + '">' + esc(tr('analytics.bl.remove', 'Remove')) + '</button></td>' +
+                        '<td>' + removeCell + '</td>' +
                         '</tr>';
                 }).join('');
             })
@@ -331,6 +358,9 @@
         var labelEl = document.getElementById('ax-pl-label');
         var idEl = document.getElementById('ax-pl-id');
         var notesEl = document.getElementById('ax-pl-notes');
+        var makeEl = document.getElementById('ax-pl-make');
+        var modelEl = document.getElementById('ax-pl-model');
+        var colorEl = document.getElementById('ax-pl-color');
         var btn = document.getElementById('ax-pl-enroll-btn');
         if (btn) btn.disabled = true;
         hidePlMsg();
@@ -346,6 +376,9 @@
                 listStatus: gradeEl ? gradeEl.value : 'suspicious',
                 reasonCode: reasonEl ? reasonEl.value : 'suspicious',
                 reasonOther: reasonOtherEl ? reasonOtherEl.value : '',
+                registeredMake: makeEl ? makeEl.value : '',
+                registeredModel: modelEl ? modelEl.value : '',
+                registeredColor: colorEl ? colorEl.value : '',
             }),
         })
             .then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
@@ -357,6 +390,9 @@
                     if (labelEl) labelEl.value = '';
                     if (idEl) idEl.value = '';
                     if (notesEl) notesEl.value = '';
+                    if (makeEl) makeEl.value = '';
+                    if (modelEl) modelEl.value = '';
+                    if (colorEl) colorEl.value = '';
                     loadPlateLists();
                     return;
                 }
@@ -1341,6 +1377,14 @@
                             '<img class="ax-bl-face" src="' + esc(photoUrl) + '" alt="" loading="lazy" ' +
                             'onerror="this.classList.add(\'is-broken\');this.removeAttribute(\'src\')"></a>')
                         : '<span class="ax-bl-face-ph" aria-hidden="true">\u2014</span>';
+                    var toggleBtn = canManageAnalyticsLists()
+                        ? ('<button type="button" class="btn btn-ghost btn-sm ax-bl-toggle" data-enabled="' +
+                            (en ? '0' : '1') + '">' + esc(toggleLabel) + '</button> ')
+                        : '';
+                    var removeBtn = canManageAnalyticsLists()
+                        ? ('<button type="button" class="btn btn-ghost btn-sm ax-bl-del">' +
+                            esc(tr('analytics.bl.remove', 'Remove')) + '</button>')
+                        : '<span class="hint">\u2014</span>';
                     return '<tr class="' + (en ? '' : 'is-disabled') + '" data-id="' + esc(e.id) + '">' +
                         '<td class="ax-bl-face-td">' + faceCell + '</td>' +
                         '<td><button type="button" class="ax-bl-name-btn ax-bl-open">' + esc(e.displayName) + '</button></td>' +
@@ -1349,10 +1393,7 @@
                         '<td>' + esc(e.idNumber || '\u2014') + '</td>' +
                         '<td>' + esc(when) + '</td>' +
                         '<td>' + esc(status) + '</td>' +
-                        '<td><button type="button" class="btn btn-ghost btn-sm ax-bl-toggle" data-enabled="' +
-                        (en ? '0' : '1') + '">' + esc(toggleLabel) + '</button> ' +
-                        '<button type="button" class="btn btn-ghost btn-sm ax-bl-del">' +
-                        esc(tr('analytics.bl.remove', 'Remove')) + '</button></td></tr>';
+                        '<td>' + toggleBtn + removeBtn + '</td></tr>';
                 }).join('');
             })
             .catch(function () {

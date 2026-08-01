@@ -2396,9 +2396,9 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
 }
 
 #ax-panel-anpr .ax-anpr-live-tiles {
-    /* Fill live column height — usable 2×2 (no 40%/560px postage cap) */
-    flex: 1 1 0;
-    max-height: none;
+    /* Scaled tiles — leave room for bottom hit slots */
+    flex: 0 1 auto;
+    max-height: 55vh;
     min-height: 0;
     width: 100%;
     max-width: none;
@@ -2408,6 +2408,7 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     grid-template-rows: 1fr 1fr;
     gap: 8px;
     overflow: hidden;
+    aspect-ratio: auto;
 }
 
 #ax-panel-anpr .ax-anpr-live-tile {
@@ -2424,7 +2425,34 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
 }
 
 #ax-panel-anpr .ax-anpr-live-hit-bar {
-    flex-shrink: 0;
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 20vh;
+    min-height: 72px;
+    max-height: 20vh;
+    padding: 8px 10px;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    background: #0f172a;
+}
+#ax-panel-anpr .ax-anpr-live-hit-bar.is-on {
+    border-color: #f97316;
+    background: rgba(127, 29, 29, 0.45);
+}
+#ax-panel-anpr .ax-anpr-live-hit-bar.is-on.is-blacklist {
+    border-color: #ef4444;
+}
+#ax-panel-anpr .ax-anpr-live-hit-bar.is-on.is-wanted {
+    border-color: #dc2626;
+}
+#ax-panel-anpr .ax-anpr-live-hit-bar.is-on.is-suspicious {
+    border-color: #f59e0b;
 }
 
 #ax-panel-anpr .ax-anpr-live-side {
@@ -2440,6 +2468,7 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     flex: 1 1 0;
     min-height: 0;
     max-height: 100%;
+    height: calc(100vh - 120px);
     padding: 8px;
     display: flex;
     flex-direction: column;
@@ -2454,9 +2483,12 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     min-height: 0;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-rows: repeat(4, minmax(0, 1fr));
-    gap: 6px;
-    overflow: hidden;
+    grid-template-rows: none;
+    grid-auto-rows: 110px;
+    gap: 8px;
+    align-content: start;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 #ax-panel-anpr .ax-anpr-live-rail-card {
@@ -2464,28 +2496,636 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     gap: 2px;
     font-size: 10px;
     border-radius: 6px;
+    position: relative;
 }
 
-#ax-panel-anpr .ax-anpr-live-rail-card img.ax-anpr-rail-scene,
-#ax-panel-anpr .ax-anpr-live-rail-card img:not(.ax-anpr-rail-plate-thumb) {
-    min-height: 0;
+/* Macro vehicle container + nested micro plate PiP */
+#ax-panel-anpr .ax-anpr-rail-macro {
+    position: relative;
     flex: 1 1 0;
+    min-height: 0;
+    width: 100%;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #020617;
 }
 
+#ax-panel-anpr .ax-anpr-rail-macro .ax-anpr-rail-scene {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    object-fit: cover;
+    border-radius: 4px;
+    background: #020617;
+    image-rendering: high-quality;
+    image-rendering: -webkit-optimize-contrast;
+}
+
+#ax-panel-anpr .ax-anpr-rail-macro-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    min-height: 36px;
+}
+
+#ax-panel-anpr .ax-anpr-rail-micro,
 #ax-panel-anpr .ax-anpr-live-rail-card img.ax-anpr-rail-plate-thumb {
-    width: 40%;
-    max-width: 72px;
-    height: 20px;
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    width: 38%;
+    max-width: 88px;
+    height: auto;
+    max-height: 28%;
+    min-height: 18px;
+    object-fit: contain;
+    border-radius: 3px;
+    background: #020617;
+    border: 1px solid #94a3b8;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+    z-index: 2;
+    image-rendering: high-quality;
+    image-rendering: -webkit-optimize-contrast;
 }
 
 #ax-panel-anpr .ax-anpr-live-rail-card .ax-anpr-rail-plate {
     font-size: 11px;
     line-height: 1.2;
+    flex-shrink: 0;
 }
 
 #ax-panel-anpr .ax-anpr-live-rail-card .ax-anpr-rail-meta {
     font-size: 9px;
     line-height: 1.2;
+    flex-shrink: 0;
+}
+
+#ax-panel-anpr .ax-anpr-mmr-warn {
+    display: inline-block;
+    margin-right: 4px;
+    color: #eab308;
+    cursor: help;
+    font-size: 11px;
+    vertical-align: middle;
+}
+
+/* Live quadrant secondary PIP (~25% width) */
+#ax-panel-anpr .ax-anpr-live-tile {
+    position: relative;
+}
+
+#ax-panel-anpr .ax-anpr-live-tile > video,
+#ax-panel-anpr .ax-anpr-live-tile > canvas:not(.ax-anpr-live-pip-canvas) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+}
+#ax-panel-anpr .ax-anpr-live-pip {
+    position: absolute;
+    right: 1rem;
+    bottom: 1rem;
+    width: 25%;
+    min-width: 96px;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    z-index: 50;
+    border: 2px solid #6366f1;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #020617;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55);
+    pointer-events: auto;
+}
+#ax-panel-anpr .ax-anpr-live-pip.is-minimized {
+    width: 28px;
+    height: 20px;
+    min-width: 28px;
+    aspect-ratio: auto;
+}
+#ax-panel-anpr .ax-anpr-live-pip.is-minimized video,
+#ax-panel-anpr .ax-anpr-live-pip.is-minimized canvas {
+    opacity: 0;
+}
+#ax-panel-anpr .ax-anpr-live-pip video,
+#ax-panel-anpr .ax-anpr-live-pip canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+#ax-panel-anpr .ax-anpr-live-pip-bar {
+    position: absolute;
+    right: 1rem;
+    bottom: 0.25rem;
+    z-index: 51;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+#ax-panel-anpr .ax-anpr-live-pip-toggle,
+#ax-panel-anpr .ax-anpr-live-pip-swap {
+    position: static;
+    width: 22px;
+    height: 18px;
+    padding: 0;
+    font-size: 11px;
+    line-height: 1;
+    border: 1px solid #64748b;
+    border-radius: 3px;
+    background: rgba(15, 23, 42, 0.85);
+    color: #e2e8f0;
+    cursor: pointer;
+}
+#ax-panel-anpr .ax-anpr-live-pip.is-swapped {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    top: 0;
+    width: 100%;
+    min-width: 0;
+    aspect-ratio: auto;
+    border: none;
+    border-radius: 0;
+    z-index: 3;
+    box-shadow: none;
+}
+#ax-panel-anpr .ax-anpr-live-tile.is-pip-swapped > video,
+#ax-panel-anpr .ax-anpr-live-tile.is-pip-swapped > canvas:not(.ax-anpr-live-pip-canvas) {
+    position: absolute;
+    right: 6px;
+    bottom: 22px;
+    width: 25%;
+    min-width: 72px;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    z-index: 4;
+    border: 1px solid #6366f1;
+    border-radius: 4px;
+    object-fit: cover;
+}
+
+/* Offline Match — 65% left (scaled video + fixed blacklist) / 35% right (2-col Recent Plates) */
+#ax-panel-anpr #ax-anpr-sub-offline-panel.ax-anpr-sub-panel:not([hidden]) {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    height: auto;
+}
+#ax-panel-anpr .ax-anpr-offline-layout {
+    flex: 1 1 0;
+    min-height: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    gap: var(--space-md, 16px);
+    align-items: stretch;
+    overflow: hidden;
+    padding: 4px 0;
+}
+#ax-panel-anpr .ax-anpr-offline-main.enterprise-card {
+    flex: 1 1 65%;
+    max-width: 65%;
+    min-width: 0;
+    min-height: 0;
+    height: calc(100vh - 140px);
+    max-height: calc(100vh - 140px);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    overflow: hidden;
+}
+#ax-panel-anpr .ax-anpr-offline-side {
+    flex: 0 0 35%;
+    max-width: 35%;
+    min-width: 240px;
+    min-height: 0;
+    height: calc(100vh - 140px);
+    max-height: calc(100vh - 140px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+#ax-panel-anpr .ax-anpr-offline-dropzone {
+    position: relative;
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 56rem;
+    margin: 0 auto;
+    min-height: 48px;
+    border: 1px dashed #475569;
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+#ax-panel-anpr .ax-anpr-offline-dropzone.is-drag {
+    border-color: #2563eb;
+    background: rgba(37, 99, 235, 0.08);
+}
+#ax-panel-anpr .ax-anpr-offline-input {
+    max-width: 100%;
+    width: 100%;
+}
+/* Video — capped so blacklist stays fully on-screen */
+#ax-panel-anpr .ax-anpr-offline-video-wrap {
+    flex: 0 0 auto;
+    width: 100%;
+    max-height: 38vh;
+    height: auto;
+    min-height: 0;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+}
+#ax-panel-anpr .ax-anpr-offline-video {
+    flex: 0 1 auto;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    max-height: 38vh;
+    margin: 0 auto;
+    aspect-ratio: 16 / 9;
+    height: auto;
+    background: #000;
+    border-radius: 8px;
+    object-fit: contain;
+}
+/* Blacklist — fixed strip; never cropped under the fold */
+#ax-panel-anpr .ax-anpr-offline-hit-slots {
+    flex: 0 0 auto;
+    width: 100%;
+    height: 180px;
+    min-height: 180px;
+    max-height: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    background: rgba(17, 24, 39, 0.9);
+    border: 1px solid rgba(55, 65, 81, 0.7);
+    border-radius: 8px;
+    overflow: hidden;
+}
+#ax-panel-anpr .ax-anpr-offline-hit-title {
+    margin: 0;
+    flex: 0 0 auto;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: #f97316;
+}
+#ax-panel-anpr .ax-anpr-offline-hit-row {
+    flex: 0 0 auto;
+    width: 100%;
+    height: 130px;
+    min-height: 130px;
+    max-height: 130px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px;
+    align-items: center;
+}
+#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-offline-hit-card,
+#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-live-rail-card.is-hit {
+    flex: 0 0 auto;
+    min-width: 250px;
+    width: 280px;
+    height: 100%;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 2px solid #f97316;
+    border-radius: 8px;
+    background: rgba(127, 29, 29, 0.55);
+    box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.35);
+    padding: 8px;
+}
+#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-offline-hit-card .ax-anpr-rail-macro,
+#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-live-rail-card.is-hit .ax-anpr-rail-macro {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+}
+#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-offline-hit-card .ax-anpr-rail-plate,
+#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-live-rail-card.is-hit .ax-anpr-rail-plate {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-offline-hit-card.is-blacklist,
+#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-live-rail-card.is-blacklist {
+    border-color: #ef4444;
+    background: rgba(127, 29, 29, 0.7);
+}
+#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-offline-hit-card.is-wanted,
+#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-live-rail-card.is-wanted {
+    border-color: #dc2626;
+    background: rgba(153, 27, 27, 0.75);
+}
+#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-offline-hit-card.is-suspicious,
+#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-live-rail-card.is-suspicious {
+    border-color: #f59e0b;
+    background: rgba(120, 53, 15, 0.65);
+}
+/* Offline Recent Plates — 2-column spacious cards + scroll (not height:0) */
+#ax-panel-anpr #ax-anpr-offline-rail.ax-anpr-live-rail {
+    flex: 1 1 0;
+    min-height: 0;
+    height: 100%;
+    max-height: calc(100vh - 140px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+#ax-panel-anpr #ax-anpr-offline-rail-grid.ax-anpr-live-rail-grid {
+    flex: 1 1 0;
+    min-height: 120px;
+    height: auto;
+    max-height: calc(100vh - 140px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-auto-rows: 168px;
+    gap: 12px;
+    align-content: start;
+    padding-right: 8px;
+}
+#ax-panel-anpr #ax-anpr-offline-rail-grid .ax-anpr-live-rail-card {
+    height: 168px;
+    min-height: 168px;
+    max-height: 168px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 6px;
+    gap: 4px;
+}
+#ax-panel-anpr #ax-anpr-offline-rail-grid .ax-anpr-rail-macro {
+    flex: 1 1 auto;
+    min-height: 96px;
+    max-height: 118px;
+}
+#ax-panel-anpr #ax-anpr-offline-rail-grid .ax-anpr-live-rail-card .ax-anpr-rail-plate {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+#ax-panel-anpr #ax-anpr-offline-rail-grid .ax-anpr-live-rail-card .ax-anpr-rail-meta {
+    font-size: 11px;
+    line-height: 1.2;
+}
+#ax-panel-anpr #ax-anpr-offline-rail-grid .ax-anpr-live-rail-empty {
+    grid-column: 1 / -1;
+    padding: 16px 8px;
+    text-align: center;
+    color: #94a3b8;
+}
+@media (max-width: 1100px) {
+    #ax-panel-anpr .ax-anpr-offline-layout {
+        flex-direction: column;
+    }
+    #ax-panel-anpr .ax-anpr-offline-main.enterprise-card,
+    #ax-panel-anpr .ax-anpr-offline-side {
+        flex: 0 0 auto;
+        max-width: 100%;
+        width: 100%;
+        min-width: 0;
+        height: auto;
+        max-height: none;
+    }
+    #ax-panel-anpr .ax-anpr-offline-video-wrap,
+    #ax-panel-anpr .ax-anpr-offline-video {
+        max-height: 32vh;
+    }
+    #ax-panel-anpr .ax-anpr-offline-hit-slots {
+        height: 160px;
+        min-height: 160px;
+        max-height: 160px;
+    }
+    #ax-panel-anpr #ax-anpr-offline-rail.ax-anpr-live-rail {
+        height: 48vh;
+        max-height: 48vh;
+    }
+    #ax-panel-anpr #ax-anpr-offline-rail-grid.ax-anpr-live-rail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-rows: 148px;
+        max-height: 48vh;
+    }
+}
+
+#ax-panel-anpr .ax-anpr-live-tile-stop {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 52;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1;
+    font-size: 12px;
+    border: 1px solid #f87171;
+    border-radius: 4px;
+    background: rgba(127, 29, 29, 0.92);
+    color: #fecaca;
+    cursor: pointer;
+}
+#ax-panel-anpr .ax-anpr-live-tile-stop-x {
+    font-size: 14px;
+    font-weight: 700;
+}
+#ax-panel-anpr .ax-anpr-live-tile-stop-txt {
+    font-size: 11px;
+    white-space: nowrap;
+}
+@media (max-width: 900px) {
+    #ax-panel-anpr .ax-anpr-live-tile-stop-txt { display: none; }
+}
+#ax-panel-anpr .ax-anpr-live-tile-stop[hidden] {
+    display: none !important;
+}
+
+/* Vehicle snap — macro-crop (full vehicle) hover magnifier */
+#ax-anpr-snap-lightbox .ax-anpr-lb-scene-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    overflow: hidden;
+    border-radius: 6px;
+    background: #020617;
+    cursor: zoom-in;
+}
+#ax-anpr-snap-lightbox .ax-anpr-lb-scene-wrap .ax-anpr-lb-scene {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 360px;
+    object-fit: contain;
+    transition: transform 0.08s linear;
+    transform-origin: center center;
+}
+#ax-anpr-snap-lightbox .ax-anpr-lb-scene-wrap.is-zooming .ax-anpr-lb-scene {
+    max-height: none;
+}
+/* Vehicle snap — plate scrap secondary magnifier */
+#ax-anpr-snap-lightbox .ax-anpr-lb-plate-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    overflow: hidden;
+    border-radius: 6px;
+    background: #020617;
+    cursor: zoom-in;
+    margin-top: 8px;
+}
+#ax-anpr-snap-lightbox .ax-anpr-lb-plate-img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 160px;
+    object-fit: contain;
+    transition: transform 0.08s linear;
+    transform-origin: center center;
+}
+#ax-anpr-snap-lightbox .ax-anpr-lb-plate-wrap.is-zooming .ax-anpr-lb-plate-img {
+    max-height: none;
+}
+#ax-anpr-snap-lightbox .ax-anpr-snap-lb-chrome {
+    cursor: move;
+    user-select: none;
+    touch-action: none;
+}
+
+#ax-panel-anpr .ax-anpr-hist-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px 16px;
+    padding: 12px;
+    margin-bottom: 10px;
+    align-items: end;
+}
+#ax-panel-anpr .ax-anpr-hist-filters .ax-fr-verify-file {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 420px;
+}
+#ax-panel-anpr .ax-anpr-hist-filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+#ax-panel-anpr .ax-anpr-hist-scroll {
+    max-height: calc(100vh - 250px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 10px;
+    min-height: 240px;
+}
+#ax-panel-anpr .ax-anpr-hist-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 16px;
+    align-items: stretch;
+}
+@media (min-width: 700px) {
+    #ax-panel-anpr .ax-anpr-hist-grid {
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
+    }
+}
+@media (min-width: 1100px) {
+    #ax-panel-anpr .ax-anpr-hist-grid {
+        grid-template-columns: repeat(4, minmax(220px, 1fr));
+    }
+}
+#ax-panel-anpr .ax-anpr-hist-card {
+    min-width: 220px;
+    width: 100%;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    background: #0f172a;
+    padding: 8px;
+    color: #94a3b8;
+    font-size: 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    cursor: pointer;
+    overflow: hidden;
+}
+#ax-panel-anpr .ax-anpr-hist-thumb {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #020617;
+}
+#ax-panel-anpr .ax-anpr-hist-macro {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    image-rendering: high-quality;
+    image-rendering: -webkit-optimize-contrast;
+}
+#ax-panel-anpr .ax-anpr-hist-macro-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+#ax-panel-anpr .ax-anpr-hist-micro {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    width: 36%;
+    max-width: 96px;
+    height: auto;
+    max-height: 34%;
+    object-fit: contain;
+    border: 1px solid #94a3b8;
+    border-radius: 3px;
+    background: #020617;
+    image-rendering: high-quality;
+}
+#ax-panel-anpr .ax-anpr-hist-card.is-unclear {
+    border-color: #ca8a04;
+}
+#ax-panel-anpr .ax-anpr-live-rail-card.is-unclear {
+    border-color: #ca8a04;
+}
+#ax-panel-anpr .ax-anpr-hist-empty {
+    grid-column: 1 / -1;
+    padding: 24px;
+    text-align: center;
 }
 
 @keyframes ax-anpr-rail-shift {
