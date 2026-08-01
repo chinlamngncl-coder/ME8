@@ -8080,7 +8080,7 @@
         .sos-detail-actions button { flex: 1; min-width: 100px; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; background: #334155; color: #e2e8f0; }
         .sos-detail-actions .sos-detail-secondary { flex: 0 1 auto; background: transparent; color: #94a3b8; font-weight: 500; font-size: 11px; }
     </style>
-    <link rel="stylesheet" href="/css/global.css?v=20260801-evidence-rbac-offline-fix">
+    <link rel="stylesheet" href="/css/global.css?v=20260802-offline-tight-anpr-fr-ops">
     <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260731-analytics-grade-filter-compact-chevron-v1">
 </head>
 <body>
@@ -8115,6 +8115,7 @@
             </div>
             <div class="fr-alarm-actions">
                 <button type="button" class="btn btn-action btn-sm" id="fr-alarm-ack" data-i18n="analytics.fr.alarmAck">Ack</button>
+                <button type="button" class="btn btn-action btn-sm" id="fr-alarm-keep" data-i18n="analytics.fr.snapKeep">Keep for Investigation</button>
                 <button type="button" class="btn btn-action btn-sm" id="fr-alarm-field" data-i18n="analytics.fr.alarmField">Alert field</button>
                 <button type="button" class="btn btn-action btn-sm sos-ptt-btn" id="fr-alarm-standby-ptt" data-i18n="analytics.fr.standbyPttTeam" data-i18n-title="analytics.fr.standbyPttTeamTitle" aria-pressed="false">Standby PTT team</button>
                 <button type="button" class="btn btn-ghost btn-sm" id="fr-alarm-dismiss" data-i18n="analytics.fr.alarmDismiss">Dismiss</button>
@@ -8130,6 +8131,7 @@
         <div class="fr-hq-alert-actions">
             <button type="button" class="btn btn-action btn-sm" id="fr-hq-alert-map" data-i18n="analytics.fr.hqBarGoMap">Go to map</button>
             <button type="button" class="btn btn-action btn-sm" id="fr-hq-alert-open" data-i18n="analytics.fr.hqBarOpen">Open detail</button>
+            <button type="button" class="btn btn-action btn-sm" id="fr-hq-alert-keep" data-i18n="analytics.fr.snapKeep">Keep for Investigation</button>
             <button type="button" class="btn btn-action btn-sm sos-ptt-btn" id="fr-hq-alert-standby-ptt" data-i18n="analytics.fr.standbyPttTeam" data-i18n-title="analytics.fr.standbyPttTeamTitle" aria-pressed="false">Standby PTT team</button>
             <button type="button" class="btn btn-action btn-sm" id="fr-hq-alert-ack" data-i18n="analytics.fr.alarmAck">Ack</button>
             <button type="button" class="btn btn-ghost btn-sm" id="fr-hq-alert-dismiss" data-i18n="analytics.fr.alarmDismiss">Dismiss</button>
@@ -10027,6 +10029,8 @@
                                     <span id="ax-anpr-live-hit-plate">&mdash;</span>
                                     <span id="ax-anpr-live-hit-meta">&mdash;</span>
                                     <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-live-ack" data-i18n="analytics.anpr.liveAck" disabled>Acknowledge</button>
+                                    <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-live-dismiss" data-i18n="analytics.anpr.liveDismiss" disabled>Dismiss</button>
+                                    <button type="button" class="btn btn-sm btn-primary" id="ax-anpr-live-keep" data-i18n="analytics.anpr.liveKeep" disabled>Keep</button>
                                 </div>
                             </div>
                             <div class="ax-anpr-live-side">
@@ -11097,10 +11101,10 @@
     <script src="/js/fr-offline-video.js?v=20260715-threshold-admin"></script>
     <script src="/js/fr-enroll-cropper.js?v=20260710-fr-cropper"></script>
     <script src="/js/anpr-plate-cropper.js?v=20260729-anpr-snapshot-v1"></script>
-    <script src="/js/fr-alarm.js?v=20260801-fr-download-evidence"></script>
+    <script src="/js/fr-alarm.js?v=20260802-anpr-fr-global-alert"></script>
     <script src="/js/wvp-lab-tile.js?v=20260716-hide-lab-ui"></script>
-    <script src="/js/anpr-live-watch.js?v=20260801-evidence-rbac-offline-fix"></script>
-    <script src="/js/anpr-offline-match.js?v=20260801-evidence-rbac-offline-fix"></script>
+    <script src="/js/anpr-live-watch.js?v=20260802-anpr-fr-global-alert"></script>
+    <script src="/js/anpr-offline-match.js?v=20260802-offline-tight-anpr-fr-ops"></script>
     <script src="/js/anpr-history.js?v=20260801-anpr-history-v1"></script>
     <script src="/js/analytics-hub.js?v=20260801-delete-superadmin-rbac"></script>
     <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>

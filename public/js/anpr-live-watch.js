@@ -47,6 +47,9 @@
     var tileSignalRetried = Object.create(null);
     var socketBound = false;
     var rail = [];
+    /** Offline Match blacklist / suspect hit strip (separate from Recent Plates). */
+    var hitRail = [];
+    var HIT_RAIL_MAX = 40;
     var lastHit = null;
     var toastTimer = null;
     var fleetPollTimer = null;
@@ -1149,6 +1152,12 @@
         };
     }
 
+    function isOfflineAnprSource(tick) {
+        if (!tick) return false;
+        var s = String(tick.source || '').trim().toLowerCase();
+        return s === 'offline' || s === 'offline-video' || String(tick.camId || '') === 'offline';
+    }
+
     function pushRail(tick) {
         if (!tick) return;
         /* Prefer vehicle/scene; allow plate-only tick only if hull produced vehicleUrl */
@@ -1160,6 +1169,9 @@
                 if (rail[ri] && rail[ri].trackId === tick.trackId) {
                     rail[ri] = copyRailTick(tick, rail[ri]);
                     renderRail(false);
+                    if (listStatusOf(rail[ri]) && isOfflineAnprSource(rail[ri])) {
+                        pushHitSlot(rail[ri]);
+                    }
                     return;
                 }
             }
@@ -1168,6 +1180,49 @@
         rail.unshift(copyRailTick(tick, null));
         if (rail.length > OFFLINE_RAIL_MAX) rail = rail.slice(0, OFFLINE_RAIL_MAX);
         renderRail(true);
+        if (listStatusOf(tick) && isOfflineAnprSource(tick)) {
+            pushHitSlot(tick);
+        }
+    }
+
+    function pushHitSlot(tick) {
+        if (!tick || !listStatusOf(tick)) return;
+        hitRail.unshift(copyRailTick(tick, null));
+        if (hitRail.length > HIT_RAIL_MAX) hitRail = hitRail.slice(0, HIT_RAIL_MAX);
+        paintHitSlots();
+    }
+
+    function paintHitSlots() {
+        var row = document.getElementById('ax-anpr-offline-hit-row');
+        if (!row) return;
+        if (!Array.isArray(hitRail) || hitRail.length === 0) {
+            row.innerHTML = '<div class="ax-anpr-offline-hit-empty" role="status">' +
+                esc(tr('analytics.anpr.hitSlotsEmpty', 'Waiting for list hits\u2026')) + '</div>';
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < hitRail.length; i++) {
+            var t = hitRail[i];
+            if (!t) continue;
+            var st = listStatusOf(t);
+            var hitCls = st ? (' is-hit ' + gradeClass(st)) : ' is-hit';
+            var primary = railPrimaryUrl(t);
+            var plateThumb = railPlateUrl(t);
+            html += '<div class="ax-anpr-offline-hit-card ax-anpr-live-rail-card' + hitCls + '" role="listitem" data-anpr-hit="' + i + '" title="' +
+                esc(tr('analytics.anpr.liveRailExpandHint', 'Click to expand')) + '">' +
+                '<div class="ax-anpr-rail-macro">' +
+                (primary
+                    ? '<img class="ax-anpr-rail-scene" src="' + esc(primary) + '" alt="">'
+                    : '<div class="ax-anpr-rail-macro-empty hint">\u2014</div>') +
+                (plateThumb && primary
+                    ? '<img class="ax-anpr-rail-plate-thumb ax-anpr-rail-micro" src="' + esc(plateThumb) + '" alt="">'
+                    : '') +
+                '</div>' +
+                '<div class="ax-anpr-rail-plate">' + esc(t.plate || tr('analytics.anpr.liveRailNoText', 'No plate')) + '</div>' +
+                '<div class="ax-anpr-rail-meta">' + esc(String(st || 'hit').toUpperCase() + ' \u00B7 ' + formatWhenShort(t.at)) + '</div>' +
+                '</div>';
+        }
+        row.innerHTML = html;
     }
 
     function renderRail(animateShift) {
@@ -1188,9 +1243,10 @@
         var maxSlots = opts.maxSlots != null ? opts.maxSlots : RAIL_MAX;
         var fillEmpty = opts.fillEmpty !== false;
         var html = '';
-        var limit = fillEmpty ? maxSlots : Math.min(rail.length, maxSlots);
+        var recentPlates = Array.isArray(rail) ? rail : [];
+        var limit = fillEmpty ? maxSlots : Math.min(recentPlates.length, maxSlots);
         for (var i = 0; i < limit; i++) {
-            var t = rail[i];
+            var t = recentPlates[i];
             if (!t) {
                 if (!fillEmpty) continue;
                 html += '<div class="ax-anpr-live-rail-card is-empty" role="listitem">' +
@@ -1218,10 +1274,10 @@
                 '<div class="ax-anpr-rail-meta">' + esc(railMetaLine(t)) + '</div>' +
                 '</div>';
         }
-        /* Offline scroll rail: never leave an invisible empty flex child (height:0 look) */
+        /* Safe empty fallback so the container is never an invisible blank */
         if (!html && opts.scrollable) {
             html = '<div class="ax-anpr-live-rail-empty hint" role="status">' +
-                esc(tr('analytics.anpr.liveRailEmpty', 'No recent plates yet')) + '</div>';
+                esc(tr('analytics.anpr.liveRailWaiting', 'Waiting for plates\u2026')) + '</div>';
         }
         grid.innerHTML = html;
         if (opts.scrollable && grid.scrollHeight) {
@@ -1237,6 +1293,23 @@
     function ensureLightbox() {
         var el = document.getElementById('ax-anpr-snap-lightbox');
         if (el) {
+            if (!el.querySelector('.ax-anpr-lb-download')) {
+                var meta = el.querySelector('.ax-anpr-snap-lb-meta');
+                if (meta && !meta.querySelector('.ax-anpr-snap-lb-actions')) {
+                    var actions = document.createElement('div');
+                    actions.className = 'ax-anpr-snap-lb-actions';
+                    actions.innerHTML = '<button type="button" class="btn btn-sm btn-primary ax-anpr-lb-download">' +
+                        esc(tr('analytics.anpr.downloadEvidence', 'Download Evidence')) + '</button>';
+                    meta.appendChild(actions);
+                    var dl = actions.querySelector('.ax-anpr-lb-download');
+                    if (dl) {
+                        dl.addEventListener('click', function (e) {
+                            e.stopPropagation();
+                            downloadAnprEvidence(el._tick);
+                        });
+                    }
+                }
+            }
             var scene = el.querySelector('.ax-anpr-lb-scene');
             if (scene && scene.parentElement
                 && !scene.parentElement.classList.contains('ax-anpr-lb-scene-wrap')) {
@@ -1270,11 +1343,22 @@
             '<p class="ax-anpr-lb-list"></p>' +
             '<p class="ax-anpr-lb-when"></p>' +
             '<p class="ax-anpr-lb-bwc"></p>' +
+            '<div class="ax-anpr-snap-lb-actions">' +
+            '<button type="button" class="btn btn-sm btn-primary ax-anpr-lb-download">' +
+            esc(tr('analytics.anpr.downloadEvidence', 'Download Evidence')) + '</button>' +
+            '</div>' +
             '</div></div>';
         document.body.appendChild(el);
         var closeBtn = el.querySelector('.ax-anpr-snap-lb-close');
         if (closeBtn) {
             closeBtn.addEventListener('click', function () { el.hidden = true; });
+        }
+        var dlBtn = el.querySelector('.ax-anpr-lb-download');
+        if (dlBtn) {
+            dlBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                downloadAnprEvidence(el._tick);
+            });
         }
         bindMacroMagnifier(el);
         document.addEventListener('keydown', function (ev) {
@@ -1373,9 +1457,47 @@
         }
     }
 
+    function downloadAnprEvidence(tick) {
+        if (!tick) return;
+        var url = railPrimaryUrl(tick) || tick.cropUrl || '';
+        if (!url) return;
+        var base = String(tick.plate || tick.camId || 'plate').replace(/[^\w.\-]+/g, '_').slice(0, 48);
+        var filename = 'anpr-evidence-' + base + '-' + Date.now() + '.jpg';
+        fetch(String(url), { credentials: 'same-origin' })
+            .then(function (r) {
+                if (!r.ok) throw new Error('http_' + r.status);
+                return r.blob();
+            })
+            .then(function (blob) {
+                var u = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = u;
+                a.download = filename;
+                a.rel = 'noopener';
+                document.body.appendChild(a);
+                a.click();
+                try { document.body.removeChild(a); } catch (_) { /* ignore */ }
+                setTimeout(function () {
+                    try { URL.revokeObjectURL(u); } catch (_) { /* ignore */ }
+                }, 2000);
+            })
+            .catch(function () {
+                /* data: URLs — fallback via anchor */
+                try {
+                    var a2 = document.createElement('a');
+                    a2.href = url;
+                    a2.download = filename;
+                    document.body.appendChild(a2);
+                    a2.click();
+                    document.body.removeChild(a2);
+                } catch (_) { /* ignore */ }
+            });
+    }
+
     function openLightbox(tick) {
         if (!tick) return;
         var el = ensureLightbox();
+        el._tick = tick;
         var title = el.querySelector('.ax-anpr-snap-lb-title');
         var img = el.querySelector('.ax-anpr-lb-scene');
         var plateImg = el.querySelector('.ax-anpr-lb-plate-img');
@@ -1437,17 +1559,80 @@
         openLightbox(tick);
     }
 
+    /**
+     * ANPR-LIVE-FR-GLOBAL-ALERT-V1 — Live plate-list hits enter the SAME FrAlarm
+     * triage pipeline as fr-blacklist-hit (HQ bar + toast + Ack/Dismiss/Keep + map/PiP).
+     * Offline Match (isLive:false / source offline) must NOT call this.
+     */
+    function anprHitToFrAlarmPayload(hit) {
+        if (!hit) return null;
+        var st = String(hit.listStatus || (hit.listMatch && hit.listMatch.listStatus) || '').toLowerCase();
+        var tier = (st === 'suspicious' || st === 'suspect') ? 'medium' : 'high';
+        var listStatus = (st === 'wanted') ? 'blacklist' : (st || 'blacklist');
+        var conf = Number(hit.confidence);
+        var scorePct = Number.isFinite(conf)
+            ? Math.round((conf <= 1 ? conf * 100 : conf))
+            : 90;
+        if (scorePct < 75 && tier === 'high') scorePct = 90;
+        return {
+            hitId: hit.hitId || ('anprhit_' + Date.now()),
+            camId: hit.camId,
+            deviceLabel: hit.deviceLabel || hit.camId,
+            displayName: hit.displayName || hit.plate || 'Plate hit',
+            plate: hit.plate || null,
+            blacklistId: hit.listId || hit.blacklistId || null,
+            listId: hit.listId || null,
+            listStatus: listStatus,
+            alertTier: tier,
+            reasonCode: hit.reasonCode || '',
+            scorePct: scorePct,
+            lat: hit.lat,
+            lon: hit.lon,
+            gpsAt: hit.gpsAt || hit.at,
+            at: hit.at,
+            source: 'live',
+            isLive: true,
+            kind: 'anpr',
+            anpr: true,
+            cropUrl: hit.vehicleUrl || hit.cropUrl || null,
+            photoUrl: hit.cropUrl || hit.vehicleUrl || null,
+            vehicleUrl: hit.vehicleUrl || null,
+        };
+    }
+
+    function promoteLiveAnprHit(hit) {
+        if (!hit) return;
+        if (hit.isLive === false || isOfflineAnprSource(hit)) return;
+        if (hit.isLive !== true && String(hit.source || '').toLowerCase() !== 'live') return;
+        var frHit = anprHitToFrAlarmPayload(hit);
+        if (!frHit) return;
+        try {
+            if (global.FrAlarm && typeof FrAlarm.onHit === 'function') {
+                FrAlarm.onHit(frHit);
+                return;
+            }
+            if (global.FrAlarm && typeof FrAlarm.showHit === 'function') {
+                FrAlarm.showHit(frHit);
+            }
+        } catch (_) { /* ignore */ }
+    }
+
     function setHitBar(hit) {
         var bar = document.getElementById('ax-anpr-live-hit-bar');
         var plate = document.getElementById('ax-anpr-live-hit-plate');
         var meta = document.getElementById('ax-anpr-live-hit-meta');
         var ack = document.getElementById('ax-anpr-live-ack');
+        var dismiss = document.getElementById('ax-anpr-live-dismiss');
+        var keep = document.getElementById('ax-anpr-live-keep');
         if (!bar) return;
         if (!hit) {
             bar.className = 'ax-anpr-live-hit-bar';
             if (plate) plate.textContent = '\u2014';
             if (meta) meta.textContent = '\u2014';
             if (ack) ack.disabled = true;
+            if (dismiss) dismiss.disabled = true;
+            if (keep) keep.disabled = true;
+            lastHit = null;
             return;
         }
         bar.className = 'ax-anpr-live-hit-bar is-on ' + (gradeClass(hit.listStatus) || 'is-blacklist');
@@ -1457,6 +1642,8 @@
                 formatWhenShort(hit.at);
         }
         if (ack) ack.disabled = false;
+        if (dismiss) dismiss.disabled = false;
+        if (keep) keep.disabled = false;
         lastHit = hit;
     }
 
@@ -1506,10 +1693,19 @@
 
     function onListHit(hit) {
         if (!hit) return;
+        /* Analytics rail / tile flash still local */
         setHitBar(hit);
         pushRail(hit);
-        showToast(hit);
         flashCam(hit.camId);
+        /*
+         * Global enterprise triage (HQ + toast + Ack/Dismiss/Keep + map/PiP)
+         * ONLY for live BWC — offline Match must not fire FrAlarm.
+         */
+        if (hit.isLive === true || (!isOfflineAnprSource(hit) && hit.isLive !== false)) {
+            if (!isOfflineAnprSource(hit)) {
+                promoteLiveAnprHit(Object.assign({}, hit, { isLive: true, source: hit.source || 'live' }));
+            }
+        }
     }
 
     function bindSocket() {
@@ -1562,6 +1758,8 @@
         var search = document.getElementById('ax-anpr-live-search');
         var list = document.getElementById('ax-anpr-live-roster-list');
         var ack = document.getElementById('ax-anpr-live-ack');
+        var dismiss = document.getElementById('ax-anpr-live-dismiss');
+        var keep = document.getElementById('ax-anpr-live-keep');
         var railHost = document.getElementById('ax-anpr-live-rail');
         if (startBtn) startBtn.addEventListener('click', startWatch);
         if (stopAllBtn) stopAllBtn.addEventListener('click', stopAllWatch);
@@ -1592,13 +1790,20 @@
                 toggleSelect(cam, !!t.checked);
             });
         }
+        function clearAnprHitUi() {
+            setHitBar(null);
+            var toast = document.getElementById('ax-anpr-live-toast');
+            if (toast) toast.hidden = true;
+        }
         if (ack) {
-            ack.addEventListener('click', function () {
-                setHitBar(null);
-                var toast = document.getElementById('ax-anpr-live-toast');
-                if (toast) toast.hidden = true;
-                lastHit = null;
-                ack.disabled = true;
+            ack.addEventListener('click', clearAnprHitUi);
+        }
+        if (dismiss) {
+            dismiss.addEventListener('click', clearAnprHitUi);
+        }
+        if (keep) {
+            keep.addEventListener('click', function () {
+                if (lastHit) openLightbox(lastHit);
             });
         }
         if (railHost && !railHost._anprRailBound) {
@@ -1647,6 +1852,19 @@
                 openLightbox(rail[idx]);
             });
         }
+        var hitRow = document.getElementById('ax-anpr-offline-hit-row');
+        if (hitRow && !hitRow._anprHitBound) {
+            hitRow._anprHitBound = true;
+            hitRow.addEventListener('click', function (ev) {
+                var card = ev.target && ev.target.closest
+                    ? ev.target.closest('[data-anpr-hit]')
+                    : null;
+                if (!card) return;
+                var idx = parseInt(card.getAttribute('data-anpr-hit'), 10);
+                if (!isFinite(idx) || !hitRail[idx]) return;
+                openLightbox(hitRail[idx]);
+            });
+        }
     }
 
     function onShow() {
@@ -1665,6 +1883,7 @@
         }
         refreshEmptyTileHints();
         renderRail();
+        paintHitSlots();
         updateMeta();
         renderRoster();
     }

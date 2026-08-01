@@ -93,6 +93,8 @@
             esc(tr('analytics.fr.redToastShowLive', 'Show live')) + '</button>' +
             '<button type="button" class="btn btn-action btn-sm" id="fr-red-toast-detail">' +
             esc(tr('analytics.fr.redToastOpenDetail', 'Open detail')) + '</button>' +
+            '<button type="button" class="btn btn-action btn-sm" id="fr-red-toast-keep">' +
+            esc(tr('analytics.fr.snapKeep', 'Keep for Investigation')) + '</button>' +
             '<button type="button" class="btn btn-action btn-sm" id="fr-red-toast-ack">' +
             esc(tr('analytics.fr.alarmAck', 'Ack')) + '</button>' +
             '<button type="button" class="btn btn-ghost btn-sm" id="fr-red-toast-dismiss">' +
@@ -126,13 +128,15 @@
         var toastAck = document.getElementById('fr-red-toast-ack');
         var toastDismiss = document.getElementById('fr-red-toast-dismiss');
         var toastDetail = document.getElementById('fr-red-toast-detail');
+        var toastKeep = document.getElementById('fr-red-toast-keep');
         var toastMinimize = document.getElementById('fr-red-toast-minimize');
         var toastMap = document.getElementById('fr-red-toast-map');
         var toastField = document.getElementById('fr-red-toast-field');
-        if (!toastAck && !toastDismiss && !toastDetail && !toastMinimize && !toastMap && !toastField) return;
+        if (!toastAck && !toastDismiss && !toastDetail && !toastMinimize && !toastMap && !toastField && !toastKeep) return;
         if (toastAck) toastAck.addEventListener('click', onFrAlarmAck);
         if (toastDismiss) toastDismiss.addEventListener('click', onFrAlarmDismiss);
         if (toastDetail) toastDetail.addEventListener('click', onFrToastDetail);
+        if (toastKeep) toastKeep.addEventListener('click', onFrAlarmKeep);
         if (toastMinimize) toastMinimize.addEventListener('click', minimizeRedToast);
         if (toastMap) toastMap.addEventListener('click', onFrToastGoMap);
         if (toastField) toastField.addEventListener('click', onFrFieldAlertClick);
@@ -587,7 +591,11 @@
 
     function isOfflineVideoHit(hit) {
         if (!hit) return false;
-        return String(hit.source || '').trim().toLowerCase() === 'offline-video';
+        /* Unified live flag — offline / analytics-only must skip map+PiP auto path */
+        if (hit.isLive === false) return true;
+        if (hit.isLive === true) return false;
+        var s = String(hit.source || '').trim().toLowerCase();
+        return s === 'offline-video' || s === 'offline';
     }
 
     function goOpsOnHit(hit, opts) {
@@ -1840,6 +1848,8 @@
             '<div class="fr-alert-drawer-actions">' +
             '<button type="button" class="btn btn-action btn-sm" id="fr-alert-drawer-ack">' +
             esc(tr('analytics.fr.alarmAck', 'Ack')) + '</button>' +
+            '<button type="button" class="btn btn-action btn-sm" id="fr-alert-drawer-keep">' +
+            esc(tr('analytics.fr.snapKeep', 'Keep for Investigation')) + '</button>' +
             '<button type="button" class="btn btn-action btn-sm" id="fr-alert-drawer-field">' +
             esc(tr('analytics.fr.alarmField', 'Alert field')) + '</button>' +
             '<button type="button" class="btn btn-action btn-sm sos-ptt-btn" id="fr-alert-drawer-standby-ptt">' +
@@ -1939,7 +1949,8 @@
 
     function migrateAlertDrawerIfNeeded() {
         var el = alertDrawer();
-        if (el && el.querySelector('#fr-alert-drawer-video-toggle') && el.querySelector('#fr-alert-drawer-expand')) {
+        if (el && el.querySelector('#fr-alert-drawer-video-toggle') && el.querySelector('#fr-alert-drawer-expand')
+            && el.querySelector('#fr-alert-drawer-keep')) {
             return el;
         }
         if (el && el.parentNode) el.parentNode.removeChild(el);
@@ -2088,11 +2099,17 @@
             });
             return;
         }
+        var labelEl = bar.querySelector('.fr-hq-alert-label');
+        if (labelEl) {
+            labelEl.textContent = (hit.kind === 'anpr' || hit.anpr)
+                ? tr('analytics.anpr.hqBarLabel', 'ANPR hit')
+                : tr('analytics.fr.hqBarLabel', 'FR hit');
+        }
         var textEl = document.getElementById('fr-hq-alert-text');
         var pendEl = document.getElementById('fr-hq-alert-pending');
         if (textEl) {
             textEl.textContent = tr('analytics.fr.hqBarText', '{name} \u00B7 {cam} \u00B7 {score}%', {
-                name: hit.displayName || hit.blacklistId || '\u2014',
+                name: hit.displayName || hit.plate || hit.blacklistId || '\u2014',
                 cam: hit.deviceLabel || hit.camId || '\u2014',
                 score: hit.scorePct != null ? hit.scorePct : '\u2014',
             });
@@ -2116,12 +2133,18 @@
 
     function fillModal(hit) {
         if (!hit) return;
+        var titleEl = document.getElementById('fr-alarm-title');
+        if (titleEl) {
+            titleEl.textContent = (hit.kind === 'anpr' || hit.anpr)
+                ? tr('analytics.anpr.alarmTitle', 'Plate match')
+                : tr('analytics.fr.alarmTitle', 'Face match');
+        }
         var nameEl = document.getElementById('fr-alarm-name');
         var camEl = document.getElementById('fr-alarm-cam');
         var scoreEl = document.getElementById('fr-alarm-score');
         var cropEl = document.getElementById('fr-alarm-crop');
         var photoEl = document.getElementById('fr-alarm-photo');
-        if (nameEl) nameEl.textContent = hit.displayName || hit.blacklistId || '\u2014';
+        if (nameEl) nameEl.textContent = hit.displayName || hit.plate || hit.blacklistId || '\u2014';
         if (camEl) camEl.textContent = (hit.deviceLabel || hit.camId || '\u2014');
         if (scoreEl) scoreEl.textContent = String(hit.scorePct != null ? hit.scorePct : '\u2014') + '%';
         var dossier = document.getElementById('fr-alarm-dossier');
@@ -2134,7 +2157,7 @@
                 : status;
             var reasonText = (global.AnalyticsHub && AnalyticsHub.reasonLabel)
                 ? AnalyticsHub.reasonLabel(hit.reasonCode || 'other', hit.reasonOther || '')
-                : (hit.reasonCode || '');
+                : (hit.reasonCode || hit.plate || '');
             gradeEl.className = 'ax-bl-grade is-' + String(status).replace(/[^a-z]/gi, '');
             gradeEl.textContent = gradeText;
             reasonEl.textContent = reasonText;
@@ -2162,6 +2185,8 @@
         if (!isOfflineVideoHit(hit) && global.FrLiveWatch && FrLiveWatch.flashCam) {
             FrLiveWatch.flashCam(hit.camId);
         }
+        /* Triage shell on screen: Ack / Dismiss / Keep */
+        try { openAlertDrawerShell(hit); } catch (_) { /* ignore */ }
     }
 
     function openModalOnly() {
@@ -2213,6 +2238,34 @@
         }
         emitAction('fr-alarm-dismiss');
         hideModal();
+    }
+
+    function onFrAlarmKeep() {
+        if (!current || current._labPreview) {
+            showStandbyToast(tr('analytics.fr.snapKeepNoCrop', 'No evidence crop to Keep'), 4000);
+            return;
+        }
+        var crop = current.cropUrl || current.photoUrl || current.vehicleUrl || null;
+        if (!crop) {
+            showStandbyToast(tr('analytics.fr.snapKeepNoCrop', 'No evidence crop to Keep'), 4000);
+            return;
+        }
+        keepEvidencePack({
+            cropUrl: crop,
+            camId: current.camId,
+            deviceLabel: current.deviceLabel || current.camId,
+            displayName: current.displayName || current.plate || null,
+            scorePct: current.scorePct,
+            at: current.at,
+            lat: current.lat,
+            lon: current.lon,
+            gpsAt: current.gpsAt,
+            blacklistId: current.blacklistId || current.listId || null,
+            hitId: current.hitId,
+            match: true,
+            listStatus: current.listStatus,
+            kind: current.kind || (current.anpr ? 'anpr' : 'fr'),
+        });
     }
 
     function onFrToastDetail() {
@@ -2509,15 +2562,18 @@
             ensureCropRail();
             var ack = document.getElementById('fr-alarm-ack');
             var dismiss = document.getElementById('fr-alarm-dismiss');
+            var keep = document.getElementById('fr-alarm-keep');
             var field = document.getElementById('fr-alarm-field');
             var standby = document.getElementById('fr-alarm-standby-ptt');
             var hqStandby = document.getElementById('fr-hq-alert-standby-ptt');
             var hqMap = document.getElementById('fr-hq-alert-map');
             var hqOpen = document.getElementById('fr-hq-alert-open');
+            var hqKeep = document.getElementById('fr-hq-alert-keep');
             var hqAck = document.getElementById('fr-hq-alert-ack');
             var hqDismiss = document.getElementById('fr-hq-alert-dismiss');
             var drawerAck = document.getElementById('fr-alert-drawer-ack');
             var drawerDismiss = document.getElementById('fr-alert-drawer-dismiss');
+            var drawerKeep = document.getElementById('fr-alert-drawer-keep');
             var drawerField = document.getElementById('fr-alert-drawer-field');
             var drawerStandby = document.getElementById('fr-alert-drawer-standby-ptt');
             var drawerClose = document.getElementById('fr-alert-drawer-close');
@@ -2526,8 +2582,10 @@
             var previewToastBtn = document.getElementById('ax-fr-preview-toast');
             if (ack) ack.addEventListener('click', onFrAlarmAck);
             if (dismiss) dismiss.addEventListener('click', onFrAlarmDismiss);
+            if (keep) keep.addEventListener('click', onFrAlarmKeep);
             if (drawerAck) drawerAck.addEventListener('click', onFrAlarmAck);
             if (drawerDismiss) drawerDismiss.addEventListener('click', onFrAlarmDismiss);
+            if (drawerKeep) drawerKeep.addEventListener('click', onFrAlarmKeep);
             if (drawerClose) {
                 drawerClose.addEventListener('click', function () {
                     closeAlertDrawer();
@@ -2549,6 +2607,7 @@
                     openModalOnly();
                 });
             }
+            if (hqKeep) hqKeep.addEventListener('click', onFrAlarmKeep);
             if (hqAck) hqAck.addEventListener('click', onFrAlarmAck);
             if (hqDismiss) hqDismiss.addEventListener('click', onFrAlarmDismiss);
         }
@@ -2566,6 +2625,7 @@
         init: init,
         bindUi: bindUi,
         onHit: onHit,
+        showHit: showHit,
         pushStandbyPttTeam: pushFrStandbyPttTeamNow,
         previewDrawerLab: previewAlertDrawerLab,
         previewRedToastLab: previewRedToastLab,
