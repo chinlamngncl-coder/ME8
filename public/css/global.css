@@ -2465,11 +2465,21 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     overflow-x: hidden;
     overflow-y: auto;
 }
-#ax-panel-anpr #ax-anpr-live-rail-grid .ax-anpr-live-rail-empty {
-    grid-column: 1 / -1;
-    padding: 40px 8px;
-    text-align: center;
-    color: #6b7280;
+#ax-panel-anpr .ax-anpr-rail-skeleton {
+    height: 192px;
+    min-height: 192px;
+    border: 2px dashed #374151;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #4b5563;
+    background: rgba(17, 24, 39, 0.3);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    box-sizing: border-box;
 }
 
 /* Camera selector meta chip */

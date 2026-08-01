@@ -46,7 +46,8 @@
     var tileSignalTimers = [];
     var tileSignalRetried = Object.create(null);
     var socketBound = false;
-    var rail = [];
+    var liveRail = [];
+    var offlineRail = [];
     /** Offline Match blacklist / suspect hit strip (separate from Recent Plates). */
     var hitRail = [];
     var HIT_RAIL_MAX = 40;
@@ -1161,34 +1162,52 @@
         return s === 'offline' || s === 'offline-video' || String(tick.camId || '') === 'offline';
     }
 
+    function isLiveAnprSource(tick) {
+        if (!tick || isOfflineAnprSource(tick)) return false;
+        if (tick.isLive === false) return false;
+        return true;
+    }
+
     function pushRail(tick) {
         if (!tick) return;
         /* Accept vehicle scene, plate crop, or plate text — never drop a valid capture */
         if (!tick.vehicleUrl && !tick.cropUrl && !tick.plate) return;
-        /* Track dedupe: one rail card per trackId (replace in place if still on rail) */
+
+        var offline = isOfflineAnprSource(tick);
+        /* DATA ISOLATION: live bucket ignores offline; offline bucket ignores live */
+        if (!offline) {
+            tick = Object.assign({}, tick, {
+                source: tick.source || 'live',
+                isLive: true,
+            });
+        }
+
+        var bucket = offline ? offlineRail : liveRail;
+        var maxSlots = offline ? OFFLINE_RAIL_MAX : RAIL_MAX;
+
         if (tick.trackId != null) {
-            for (var ri = 0; ri < rail.length; ri++) {
-                if (rail[ri] && rail[ri].trackId === tick.trackId) {
-                    rail[ri] = copyRailTick(tick, rail[ri]);
+            for (var ri = 0; ri < bucket.length; ri++) {
+                if (bucket[ri] && bucket[ri].trackId === tick.trackId) {
+                    bucket[ri] = copyRailTick(tick, bucket[ri]);
                     renderRail(false);
-                    if (listStatusOf(rail[ri]) && isOfflineAnprSource(rail[ri])) {
-                        pushHitSlot(rail[ri]);
-                    }
+                    if (listStatusOf(bucket[ri]) && offline) pushHitSlot(bucket[ri]);
                     return;
                 }
             }
         }
-        /* Newest first — live paints top 16; offline scrolls the full backlog */
-        rail.unshift(copyRailTick(tick, null));
-        if (rail.length > OFFLINE_RAIL_MAX) rail = rail.slice(0, OFFLINE_RAIL_MAX);
-        renderRail(true);
-        if (listStatusOf(tick) && isOfflineAnprSource(tick)) {
-            pushHitSlot(tick);
+        bucket.unshift(copyRailTick(tick, null));
+        if (bucket.length > maxSlots) {
+            if (offline) offlineRail = bucket.slice(0, maxSlots);
+            else liveRail = bucket.slice(0, maxSlots);
         }
+        renderRail(true);
+        if (listStatusOf(tick) && offline) pushHitSlot(tick);
     }
 
     function pushHitSlot(tick) {
         if (!tick || !listStatusOf(tick)) return;
+        /* Hit strip is Offline Match only */
+        if (!isOfflineAnprSource(tick)) return;
         hitRail.unshift(copyRailTick(tick, null));
         if (hitRail.length > HIT_RAIL_MAX) hitRail = hitRail.slice(0, HIT_RAIL_MAX);
         paintHitSlots();
@@ -1230,9 +1249,13 @@
     function renderRail(animateShift) {
         paintRailGrid(document.getElementById('ax-anpr-live-rail-grid'), animateShift, {
             maxSlots: RAIL_MAX,
+            recentPlates: liveRail,
+            scope: 'live',
         });
         paintRailGrid(document.getElementById('ax-anpr-offline-rail-grid'), false, {
             maxSlots: OFFLINE_RAIL_MAX,
+            recentPlates: offlineRail,
+            scope: 'offline',
         });
     }
 
@@ -1243,44 +1266,43 @@
     function capturePlateText(t) {
         if (!t) return 'UNCLEAR';
         if (t.unclear) return 'UNCLEAR';
-        return String(t.plate || 'UNCLEAR');
+        return String(t.plate || t.plateText || t.plate_number || 'UNCLEAR');
     }
 
     function captureMacroUrl(t) {
         if (!t) return '';
-        return t.vehicleUrl || t.macroCropUrl || t.sceneUrl || t.cropUrl || '';
+        return t.vehicleUrl || t.macroCropUrl || t.sceneUrl || t.image || t.cropUrl || '';
     }
 
     function captureMicroUrl(t) {
         if (!t) return '';
-        return t.cropUrl || t.microCropUrl || t.plateUrl || t.vehicleUrl || '';
+        return t.cropUrl || t.microCropUrl || t.plateCrop || t.plateUrl || '';
     }
 
     function captureBwcUser(t) {
-        if (!t) return '\u2014';
-        return String(t.deviceLabel || t.bwcUser || t.camera_name || t.camName || t.camId || '\u2014');
+        if (!t) return 'Unknown';
+        return String(t.deviceLabel || t.bwcUser || t.cameraName || t.camera_name || t.camName || t.camId || 'Unknown');
     }
 
     function captureSourceIsLive(t) {
-        if (!t) return false;
-        if (isOfflineAnprSource(t)) return false;
-        if (t.isLive === true) return true;
-        var s = String(t.source || '').toLowerCase();
-        return s === 'live' || s === '' || s === 'bwc';
+        return isLiveAnprSource(t);
     }
 
-    function paintRailCardHtml(t, idx) {
+    function skeletonEmptyHtml() {
+        var cell = '<div class="ax-anpr-rail-skeleton" role="status">Awaiting Capture</div>';
+        return cell + cell + cell + cell;
+    }
+
+    function paintRailCardHtml(t, idx, scope) {
         var plateText = capturePlateText(t);
         var when = formatWhenShort(t.at) || formatWhen(t.at) || '\u2014';
         var macroUrl = captureMacroUrl(t);
         var microUrl = captureMicroUrl(t);
         var bwcUser = captureBwcUser(t);
-        var isLive = captureSourceIsLive(t);
+        var isLive = scope === 'live' || captureSourceIsLive(t);
         var st = listStatusOf(t);
         var hitCls = st ? (' is-hit ' + gradeClass(st)) : '';
-        var sourceBadge = isLive
-            ? ('BWC: ' + bwcUser)
-            : 'OFFLINE MP4';
+        var sourceBadge = isLive ? ('BWC: ' + bwcUser) : 'OFFLINE MP4';
         var macroHtml = macroUrl
             ? '<img src="' + esc(macroUrl) + '" class="ax-anpr-snap-macro-img" alt="Full Context" loading="lazy">'
             : '<span class="ax-anpr-snap-card-img-empty">\u2014</span>';
@@ -1288,9 +1310,11 @@
             ? '<img src="' + esc(microUrl) + '" class="ax-anpr-snap-micro-img" alt="Zoomed Plate Crop" loading="lazy">'
             : '<span class="ax-anpr-snap-card-img-empty">\u2014</span>';
         return (
-            '<div class="ax-anpr-snap-card' + hitCls + '" role="listitem" data-anpr-rail="' + idx + '">' +
+            '<div class="ax-anpr-snap-card' + hitCls + '" role="listitem" data-anpr-rail="' + idx +
+            '" data-anpr-rail-scope="' + esc(scope) + '">' +
             '<div class="ax-anpr-snap-macro">' + macroHtml + '</div>' +
-            '<button type="button" class="ax-anpr-rail-mag" data-anpr-open="' + idx + '" title="' +
+            '<button type="button" class="ax-anpr-rail-mag" data-anpr-open="' + idx +
+            '" data-anpr-rail-scope="' + esc(scope) + '" title="' +
             esc(tr('analytics.anpr.liveRailExpandHint', 'Open evidence')) + '" aria-label="' +
             esc(tr('analytics.anpr.liveRailExpandHint', 'Open evidence')) + '">' +
             '<svg class="ax-anpr-rail-mag-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">' +
@@ -1312,19 +1336,27 @@
         if (!grid) return;
         opts = opts || {};
         var maxSlots = opts.maxSlots != null ? opts.maxSlots : RAIL_MAX;
-        var recentPlates = Array.isArray(rail) ? rail : [];
+        var scope = opts.scope === 'offline' ? 'offline' : 'live';
+        var recentPlates = Array.isArray(opts.recentPlates) ? opts.recentPlates : [];
+        /* Strict isolation filter (defense in depth) */
+        recentPlates = recentPlates.filter(function (c) {
+            if (!c) return false;
+            if (scope === 'live') return !isOfflineAnprSource(c);
+            return isOfflineAnprSource(c);
+        });
+        grid.classList.add('ax-anpr-live-rail-grid', 'grid', 'grid-cols-2', 'gap-3');
         if (!recentPlates.length) {
-            grid.innerHTML = '<div class="ax-anpr-live-rail-empty col-span-2" role="status">Waiting for captures...</div>';
+            grid.innerHTML = skeletonEmptyHtml();
             return;
         }
         var html = '';
         var limit = Math.min(recentPlates.length, maxSlots);
         for (var i = 0; i < limit; i++) {
             if (!recentPlates[i]) continue;
-            html += paintRailCardHtml(recentPlates[i], i);
+            html += paintRailCardHtml(recentPlates[i], i, scope);
         }
         if (!html) {
-            grid.innerHTML = '<div class="ax-anpr-live-rail-empty col-span-2" role="status">Waiting for captures...</div>';
+            grid.innerHTML = skeletonEmptyHtml();
             return;
         }
         grid.innerHTML = html;
@@ -1335,13 +1367,23 @@
         }
     }
 
-    function openAnprModal(idx) {
+    function railByScope(scope) {
+        return scope === 'offline' ? offlineRail : liveRail;
+    }
+
+    function openAnprModal(idx, scope) {
         var i = parseInt(idx, 10);
         if (!isFinite(i) || i < 0) return;
-        var tick = rail[i];
+        var sc = scope === 'offline' ? 'offline' : 'live';
+        var bucket = railByScope(sc).filter(function (c) {
+            if (!c) return false;
+            if (sc === 'live') return !isOfflineAnprSource(c);
+            return isOfflineAnprSource(c);
+        });
+        var tick = bucket[i];
         if (!tick) return;
-        var img = captureImagePath(tick);
-        var liveHit = !!listStatusOf(tick) && !isOfflineAnprSource(tick);
+        var img = captureImagePath(tick) || captureMacroUrl(tick) || captureMicroUrl(tick);
+        var liveHit = sc === 'live' && !!listStatusOf(tick);
         if (liveHit) {
             try {
                 if (global.FrAlarm && typeof FrAlarm.showHit === 'function') {
@@ -1744,7 +1786,8 @@
 
     function onCropTick(tick) {
         if (!tick) return;
-        pushRail(tick);
+        if (isOfflineAnprSource(tick)) return;
+        pushRail(Object.assign({}, tick, { source: tick.source || 'live', isLive: true }));
         if (tick.listMatch) {
             setHitBar({
                 plate: tick.plate,
@@ -1760,19 +1803,16 @@
 
     function onListHit(hit) {
         if (!hit) return;
+        if (isOfflineAnprSource(hit)) return;
         /* Analytics rail / tile flash still local */
         setHitBar(hit);
-        pushRail(hit);
+        pushRail(Object.assign({}, hit, { isLive: true, source: hit.source || 'live' }));
         flashCam(hit.camId);
         /*
          * Global enterprise triage (HQ + toast + Ack/Dismiss/Keep + map/PiP)
          * ONLY for live BWC — offline Match must not fire FrAlarm.
          */
-        if (hit.isLive === true || (!isOfflineAnprSource(hit) && hit.isLive !== false)) {
-            if (!isOfflineAnprSource(hit)) {
-                promoteLiveAnprHit(Object.assign({}, hit, { isLive: true, source: hit.source || 'live' }));
-            }
-        }
+        promoteLiveAnprHit(Object.assign({}, hit, { isLive: true, source: hit.source || 'live' }));
     }
 
     function bindSocket() {
@@ -1862,17 +1902,16 @@
                     : null;
                 if (mag) {
                     ev.preventDefault();
-                    openAnprModal(mag.getAttribute('data-anpr-open'));
+                    openAnprModal(mag.getAttribute('data-anpr-open'), mag.getAttribute('data-anpr-rail-scope') || 'live');
                     return;
                 }
-                /* Single click kept for accessibility; double-click opens full evidence lightbox */
                 var card = ev.target && ev.target.closest
                     ? ev.target.closest('[data-anpr-rail]')
                     : null;
                 if (!card) return;
                 var idx = parseInt(card.getAttribute('data-anpr-rail'), 10);
-                if (!isFinite(idx) || !rail[idx]) return;
-                openAnprModal(idx);
+                if (!isFinite(idx)) return;
+                openAnprModal(idx, card.getAttribute('data-anpr-rail-scope') || 'live');
             });
             railHost.addEventListener('dblclick', function (ev) {
                 var card = ev.target && ev.target.closest
@@ -1881,20 +1920,20 @@
                 if (!card) return;
                 ev.preventDefault();
                 var idx = parseInt(card.getAttribute('data-anpr-rail'), 10);
-                if (!isFinite(idx) || !rail[idx]) return;
-                openAnprModal(idx);
+                if (!isFinite(idx)) return;
+                openAnprModal(idx, card.getAttribute('data-anpr-rail-scope') || 'live');
             });
         }
-        var offlineRail = document.getElementById('ax-anpr-offline-rail');
-        if (offlineRail && !offlineRail._anprRailBound) {
-            offlineRail._anprRailBound = true;
-            offlineRail.addEventListener('click', function (ev) {
+        var offlineRailEl = document.getElementById('ax-anpr-offline-rail');
+        if (offlineRailEl && !offlineRailEl._anprRailBound) {
+            offlineRailEl._anprRailBound = true;
+            offlineRailEl.addEventListener('click', function (ev) {
                 var mag = ev.target && ev.target.closest
                     ? ev.target.closest('[data-anpr-open]')
                     : null;
                 if (mag) {
                     ev.preventDefault();
-                    openAnprModal(mag.getAttribute('data-anpr-open'));
+                    openAnprModal(mag.getAttribute('data-anpr-open'), mag.getAttribute('data-anpr-rail-scope') || 'offline');
                     return;
                 }
                 var card = ev.target && ev.target.closest
@@ -1902,18 +1941,18 @@
                     : null;
                 if (!card) return;
                 var idx = parseInt(card.getAttribute('data-anpr-rail'), 10);
-                if (!isFinite(idx) || !rail[idx]) return;
-                openAnprModal(idx);
+                if (!isFinite(idx)) return;
+                openAnprModal(idx, card.getAttribute('data-anpr-rail-scope') || 'offline');
             });
-            offlineRail.addEventListener('dblclick', function (ev) {
+            offlineRailEl.addEventListener('dblclick', function (ev) {
                 var card = ev.target && ev.target.closest
                     ? ev.target.closest('[data-anpr-rail]')
                     : null;
                 if (!card) return;
                 ev.preventDefault();
                 var idx = parseInt(card.getAttribute('data-anpr-rail'), 10);
-                if (!isFinite(idx) || !rail[idx]) return;
-                openAnprModal(idx);
+                if (!isFinite(idx)) return;
+                openAnprModal(idx, card.getAttribute('data-anpr-rail-scope') || 'offline');
             });
         }
         var hitRow = document.getElementById('ax-anpr-offline-hit-row');
@@ -1974,5 +2013,7 @@
         MAX_WATCH: MAX_WATCH,
         LIVE_SLOTS: LIVE_SLOTS,
     };
-    global.openAnprModal = openAnprModal;
+    global.openAnprModal = function (idx, scope) {
+        return openAnprModal(idx, scope);
+    };
 })(typeof window !== 'undefined' ? window : this);
