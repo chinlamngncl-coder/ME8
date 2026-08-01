@@ -1228,7 +1228,8 @@
     function renderRail(animateShift) {
         paintRailGrid(document.getElementById('ax-anpr-live-rail-grid'), animateShift, {
             maxSlots: RAIL_MAX,
-            fillEmpty: true,
+            fillEmpty: false,
+            scrollable: true,
         });
         paintRailGrid(document.getElementById('ax-anpr-offline-rail-grid'), false, {
             maxSlots: OFFLINE_RAIL_MAX,
@@ -1241,16 +1242,20 @@
         if (!grid) return;
         opts = opts || {};
         var maxSlots = opts.maxSlots != null ? opts.maxSlots : RAIL_MAX;
-        var fillEmpty = opts.fillEmpty !== false;
+        var fillEmpty = opts.fillEmpty === true;
         var html = '';
         var recentPlates = Array.isArray(rail) ? rail : [];
-        var limit = fillEmpty ? maxSlots : Math.min(recentPlates.length, maxSlots);
+        if (!recentPlates.length) {
+            grid.innerHTML = '<div class="ax-anpr-live-rail-empty col-span-2" role="status">Waiting for captures...</div>';
+            return;
+        }
+        var limit = Math.min(recentPlates.length, maxSlots);
         for (var i = 0; i < limit; i++) {
             var t = recentPlates[i];
             if (!t) {
                 if (!fillEmpty) continue;
                 html += '<div class="ax-anpr-live-rail-card is-empty" role="listitem">' +
-                    '<span class="hint">\u2014</span></div>';
+                    '<span class="hint">—</span></div>';
                 continue;
             }
             var st = listStatusOf(t);
@@ -1262,7 +1267,7 @@
                 '<div class="ax-anpr-rail-macro">' +
                 (primary
                     ? '<img class="ax-anpr-rail-scene" src="' + esc(primary) + '" alt="" data-anpr-rail-img="' + i + '">'
-                    : '<div class="ax-anpr-rail-macro-empty hint">\u2014</div>') +
+                    : '<div class="ax-anpr-rail-macro-empty hint">—</div>') +
                 (plateThumb && primary
                     ? '<img class="ax-anpr-rail-plate-thumb ax-anpr-rail-micro" src="' + esc(plateThumb) + '" alt="">'
                     : '') +
@@ -1274,10 +1279,9 @@
                 '<div class="ax-anpr-rail-meta">' + esc(railMetaLine(t)) + '</div>' +
                 '</div>';
         }
-        /* Safe empty fallback so the container is never an invisible blank */
-        if (!html && opts.scrollable) {
-            html = '<div class="ax-anpr-live-rail-empty hint" role="status">' +
-                esc(tr('analytics.anpr.liveRailWaiting', 'Waiting for plates\u2026')) + '</div>';
+        if (!html) {
+            grid.innerHTML = '<div class="ax-anpr-live-rail-empty col-span-2" role="status">Waiting for captures...</div>';
+            return;
         }
         grid.innerHTML = html;
         if (opts.scrollable && grid.scrollHeight) {
@@ -1618,33 +1622,15 @@
     }
 
     function setHitBar(hit) {
+        /* Local triage bar removed from Live tiles — FrAlarm toast/drawer owns Ack/Dismiss/Keep.
+           Keep lastHit only for rail/lightbox context; never inject buttons into the video wall. */
         var bar = document.getElementById('ax-anpr-live-hit-bar');
-        var plate = document.getElementById('ax-anpr-live-hit-plate');
-        var meta = document.getElementById('ax-anpr-live-hit-meta');
-        var ack = document.getElementById('ax-anpr-live-ack');
-        var dismiss = document.getElementById('ax-anpr-live-dismiss');
-        var keep = document.getElementById('ax-anpr-live-keep');
-        if (!bar) return;
-        if (!hit) {
+        if (bar) {
+            bar.hidden = true;
+            bar.setAttribute('aria-hidden', 'true');
             bar.className = 'ax-anpr-live-hit-bar';
-            if (plate) plate.textContent = '\u2014';
-            if (meta) meta.textContent = '\u2014';
-            if (ack) ack.disabled = true;
-            if (dismiss) dismiss.disabled = true;
-            if (keep) keep.disabled = true;
-            lastHit = null;
-            return;
         }
-        bar.className = 'ax-anpr-live-hit-bar is-on ' + (gradeClass(hit.listStatus) || 'is-blacklist');
-        if (plate) plate.textContent = String(hit.plate || '') + ' \u00B7 ' + String(hit.listStatus || 'hit');
-        if (meta) {
-            meta.textContent = String(hit.deviceLabel || hit.camId || '') + ' \u00B7 ' +
-                formatWhenShort(hit.at);
-        }
-        if (ack) ack.disabled = false;
-        if (dismiss) dismiss.disabled = false;
-        if (keep) keep.disabled = false;
-        lastHit = hit;
+        lastHit = hit || null;
     }
 
     function showToast(hit) {
@@ -1757,9 +1743,6 @@
         var stopAllBtn = document.getElementById('ax-anpr-live-stop-all');
         var search = document.getElementById('ax-anpr-live-search');
         var list = document.getElementById('ax-anpr-live-roster-list');
-        var ack = document.getElementById('ax-anpr-live-ack');
-        var dismiss = document.getElementById('ax-anpr-live-dismiss');
-        var keep = document.getElementById('ax-anpr-live-keep');
         var railHost = document.getElementById('ax-anpr-live-rail');
         if (startBtn) startBtn.addEventListener('click', startWatch);
         if (stopAllBtn) stopAllBtn.addEventListener('click', stopAllWatch);
@@ -1788,22 +1771,6 @@
                 var cam = t.getAttribute('data-anpr-cam');
                 if (!cam) return;
                 toggleSelect(cam, !!t.checked);
-            });
-        }
-        function clearAnprHitUi() {
-            setHitBar(null);
-            var toast = document.getElementById('ax-anpr-live-toast');
-            if (toast) toast.hidden = true;
-        }
-        if (ack) {
-            ack.addEventListener('click', clearAnprHitUi);
-        }
-        if (dismiss) {
-            dismiss.addEventListener('click', clearAnprHitUi);
-        }
-        if (keep) {
-            keep.addEventListener('click', function () {
-                if (lastHit) openLightbox(lastHit);
             });
         }
         if (railHost && !railHost._anprRailBound) {
@@ -1903,6 +1870,8 @@
         stopAll: stopAllWatch,
         stopWatchSession: stopWatch,
         pushRail: pushRail,
+        renderRail: renderRail,
+        paintHitSlots: paintHitSlots,
         openHistoryDetail: openHistoryDetail,
         MAX_WATCH: MAX_WATCH,
         LIVE_SLOTS: LIVE_SLOTS,

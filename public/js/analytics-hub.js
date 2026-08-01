@@ -250,8 +250,17 @@
         } else if (global.AnprLiveWatch && typeof AnprLiveWatch.onHide === 'function') {
             AnprLiveWatch.onHide();
         }
-        if (anprSubPanel === 'offline' && global.AnprOfflineMatch && AnprOfflineMatch.onShow) {
-            AnprOfflineMatch.onShow();
+        if (anprSubPanel === 'offline') {
+            /* Paint Recent Plates empty state even when Live watch is not active */
+            if (global.AnprLiveWatch && typeof AnprLiveWatch.renderRail === 'function') {
+                AnprLiveWatch.renderRail();
+            }
+            if (global.AnprLiveWatch && typeof AnprLiveWatch.paintHitSlots === 'function') {
+                AnprLiveWatch.paintHitSlots();
+            }
+            if (global.AnprOfflineMatch && AnprOfflineMatch.onShow) {
+                AnprOfflineMatch.onShow();
+            }
         } else if (global.AnprOfflineMatch && AnprOfflineMatch.onHide) {
             AnprOfflineMatch.onHide();
         }

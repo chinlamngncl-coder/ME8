@@ -1625,16 +1625,10 @@
             position: absolute; left: 6px; top: 6px; z-index: 3; font-size: 10px; padding: 2px 6px;
             border-radius: 4px; background: rgba(15, 23, 42, 0.85); color: #e2e8f0;
         }
-        /* Thin hit strip under tiles; no giant still */
+        /* Thin hit strip under tiles — retired: triage is FrAlarm toast/drawer only */
         .ax-anpr-live-hit-bar {
-            display: none; align-items: center; padding: 6px 10px; background: #991b1b; color: #fff;
-            font-size: 12px; font-weight: 700; justify-content: space-between; gap: 8px; flex-wrap: wrap;
-            border-radius: 6px; flex-shrink: 0;
+            display: none !important;
         }
-        .ax-anpr-live-hit-bar.is-on { display: flex; }
-        .ax-anpr-live-hit-bar.is-wanted { background: #c2410c; }
-        .ax-anpr-live-hit-bar.is-suspicious { background: #6d28d9; }
-        .ax-anpr-live-hit-bar.is-blacklist { background: #991b1b; }
         .ax-anpr-live-side {
             display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0;
         }
@@ -1648,9 +1642,19 @@
         }
         .ax-anpr-live-rail-grid {
             flex: 1; min-height: 0; display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            grid-template-rows: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-rows: none;
+            grid-auto-rows: 140px;
             gap: 6px;
+            overflow-x: hidden;
+            overflow-y: auto;
+            align-content: start;
+        }
+        .ax-anpr-live-rail-empty {
+            grid-column: 1 / -1;
+            padding: 40px 8px;
+            text-align: center;
+            color: #6b7280;
         }
         .ax-anpr-live-rail-card {
             min-height: 0; border: 1px solid #334155; border-radius: 6px; background: #0f172a;
@@ -8080,7 +8084,7 @@
         .sos-detail-actions button { flex: 1; min-width: 100px; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; background: #334155; color: #e2e8f0; }
         .sos-detail-actions .sos-detail-secondary { flex: 0 1 auto; background: transparent; color: #94a3b8; font-weight: 500; font-size: 11px; }
     </style>
-    <link rel="stylesheet" href="/css/global.css?v=20260802-offline-tight-anpr-fr-ops">
+    <link rel="stylesheet" href="/css/global.css?v=20260802-live-rail-triage-isolate">
     <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260731-analytics-grade-filter-compact-chevron-v1">
 </head>
 <body>
@@ -10025,13 +10029,8 @@
                                         <span class="ax-fr-tile-ph" data-i18n="analytics.anpr.tileIdleHint">Select BWCs and Start watch</span>
                                     </div>
                                 </div>
-                                <div id="ax-anpr-live-hit-bar" class="ax-anpr-live-hit-bar" role="status">
-                                    <span id="ax-anpr-live-hit-plate">&mdash;</span>
-                                    <span id="ax-anpr-live-hit-meta">&mdash;</span>
-                                    <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-live-ack" data-i18n="analytics.anpr.liveAck" disabled>Acknowledge</button>
-                                    <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-live-dismiss" data-i18n="analytics.anpr.liveDismiss" disabled>Dismiss</button>
-                                    <button type="button" class="btn btn-sm btn-primary" id="ax-anpr-live-keep" data-i18n="analytics.anpr.liveKeep" disabled>Keep</button>
-                                </div>
+                                <!-- Triage Ack/Dismiss/Keep: FrAlarm toast/drawer only — never in live tiles -->
+                                <div id="ax-anpr-live-hit-bar" class="ax-anpr-live-hit-bar" role="status" hidden aria-hidden="true"></div>
                             </div>
                             <div class="ax-anpr-live-side">
                                 <div id="ax-anpr-live-rail" class="ax-anpr-live-rail enterprise-card" aria-label="Recent plates">
@@ -10045,22 +10044,24 @@
                     <div id="ax-anpr-sub-offline-panel" class="ax-anpr-sub-panel" hidden>
                         <div class="ax-anpr-offline-layout">
                             <div class="ax-anpr-offline-main enterprise-card">
-                                <div id="ax-anpr-offline-dropzone" class="ax-anpr-offline-dropzone">
-                                    <div class="ax-anpr-offline-empty" data-i18n="analytics.anpr.uploadVideo">Upload Video</div>
-                                    <input type="file" id="ax-anpr-offline-file" class="ax-anpr-offline-input" accept=".mp4,.avi,.webm,video/*">
+                                <div class="ax-anpr-offline-upload shrink-0">
+                                    <div id="ax-anpr-offline-dropzone" class="ax-anpr-offline-dropzone">
+                                        <div class="ax-anpr-offline-empty" data-i18n="analytics.anpr.uploadVideo">Upload Video</div>
+                                        <input type="file" id="ax-anpr-offline-file" class="ax-anpr-offline-input" accept=".mp4,.avi,.webm,video/*">
+                                    </div>
+                                    <p id="ax-anpr-offline-status" class="hint" aria-live="polite" hidden></p>
                                 </div>
-                                <p id="ax-anpr-offline-status" class="hint" aria-live="polite" hidden></p>
                                 <div class="ax-anpr-offline-video-wrap">
                                     <video id="ax-anpr-offline-video" class="ax-anpr-offline-video" controls playsinline></video>
                                 </div>
                                 <div id="ax-anpr-offline-hit-slots" class="ax-anpr-offline-hit-slots" aria-label="Blacklist / Suspect Hits">
-                                    <h4 class="ax-anpr-offline-hit-title">Blacklist / Suspect Hits</h4>
+                                    <span class="ax-anpr-offline-hit-title">Blacklist / Suspect Hits</span>
                                     <div id="ax-anpr-offline-hit-row" class="ax-anpr-offline-hit-row" role="list"></div>
                                 </div>
                             </div>
                             <div class="ax-anpr-offline-side">
-                                <div id="ax-anpr-offline-rail" class="ax-anpr-live-rail enterprise-card" aria-label="Recent plates">
-                                    <h4 class="ax-anpr-live-rail-title" data-i18n="analytics.anpr.liveRailTitle">Recent plates</h4>
+                                <div id="ax-anpr-offline-rail" class="ax-anpr-live-rail" aria-label="Recent plates">
+                                    <h3 class="ax-anpr-live-rail-title" data-i18n="analytics.anpr.liveRailTitle">Recent Plates</h3>
                                     <div id="ax-anpr-offline-rail-grid" class="ax-anpr-live-rail-grid" role="list"></div>
                                 </div>
                             </div>
@@ -11103,10 +11104,10 @@
     <script src="/js/anpr-plate-cropper.js?v=20260729-anpr-snapshot-v1"></script>
     <script src="/js/fr-alarm.js?v=20260802-anpr-fr-global-alert"></script>
     <script src="/js/wvp-lab-tile.js?v=20260716-hide-lab-ui"></script>
-    <script src="/js/anpr-live-watch.js?v=20260802-anpr-fr-global-alert"></script>
-    <script src="/js/anpr-offline-match.js?v=20260802-offline-tight-anpr-fr-ops"></script>
+    <script src="/js/anpr-live-watch.js?v=20260802-live-rail-triage-isolate"></script>
+    <script src="/js/anpr-offline-match.js?v=20260802-live-rail-triage-isolate"></script>
     <script src="/js/anpr-history.js?v=20260801-anpr-history-v1"></script>
-    <script src="/js/analytics-hub.js?v=20260801-delete-superadmin-rbac"></script>
+    <script src="/js/analytics-hub.js?v=20260802-live-rail-triage-isolate"></script>
     <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/operator-ui.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/ev-context-rail.js?v=20260627-rail-trim"></script>
