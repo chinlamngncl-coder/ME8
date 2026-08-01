@@ -1266,43 +1266,51 @@
     function capturePlateText(t) {
         if (!t) return 'UNCLEAR';
         if (t.unclear) return 'UNCLEAR';
-        return String(t.plate || t.plateText || t.plate_number || 'UNCLEAR');
+        return String(t.plate || 'UNCLEAR');
     }
 
     function captureMacroUrl(t) {
         if (!t) return '';
-        return t.vehicleUrl || t.macroCropUrl || t.sceneUrl || t.image || t.cropUrl || '';
+        return t.vehicleUrl || t.macroCropUrl || t.sceneUrl || t.cropUrl || '';
     }
 
     function captureMicroUrl(t) {
         if (!t) return '';
-        return t.cropUrl || t.microCropUrl || t.plateCrop || t.plateUrl || '';
+        return t.cropUrl || t.microCropUrl || t.plateUrl || t.vehicleUrl || '';
     }
 
     function captureBwcUser(t) {
-        if (!t) return 'Unknown';
-        return String(t.deviceLabel || t.bwcUser || t.cameraName || t.camera_name || t.camName || t.camId || 'Unknown');
+        if (!t) return '\u2014';
+        return String(t.deviceLabel || t.bwcUser || t.camera_name || t.camName || t.camId || '\u2014');
     }
 
     function captureSourceIsLive(t) {
-        return isLiveAnprSource(t);
+        if (!t) return false;
+        if (isOfflineAnprSource(t)) return false;
+        if (t.isLive === true) return true;
+        var s = String(t.source || '').toLowerCase();
+        return s === 'live' || s === '' || s === 'bwc';
     }
 
     function skeletonEmptyHtml() {
+        /* Empty state — 4 dashed placeholders (h-40 / Tailwind → global.css) */
         var cell = '<div class="ax-anpr-rail-skeleton" role="status">Awaiting Capture</div>';
         return cell + cell + cell + cell;
     }
 
-    function paintRailCardHtml(t, idx, scope) {
+    /* fe26055 dense cards — DO NOT alter HTML / mapping */
+    function paintRailCardHtml(t, idx) {
         var plateText = capturePlateText(t);
         var when = formatWhenShort(t.at) || formatWhen(t.at) || '\u2014';
         var macroUrl = captureMacroUrl(t);
         var microUrl = captureMicroUrl(t);
         var bwcUser = captureBwcUser(t);
-        var isLive = scope === 'live' || captureSourceIsLive(t);
+        var isLive = captureSourceIsLive(t);
         var st = listStatusOf(t);
         var hitCls = st ? (' is-hit ' + gradeClass(st)) : '';
-        var sourceBadge = isLive ? ('BWC: ' + bwcUser) : 'OFFLINE MP4';
+        var sourceBadge = isLive
+            ? ('BWC: ' + bwcUser)
+            : 'OFFLINE MP4';
         var macroHtml = macroUrl
             ? '<img src="' + esc(macroUrl) + '" class="ax-anpr-snap-macro-img" alt="Full Context" loading="lazy">'
             : '<span class="ax-anpr-snap-card-img-empty">\u2014</span>';
@@ -1310,11 +1318,9 @@
             ? '<img src="' + esc(microUrl) + '" class="ax-anpr-snap-micro-img" alt="Zoomed Plate Crop" loading="lazy">'
             : '<span class="ax-anpr-snap-card-img-empty">\u2014</span>';
         return (
-            '<div class="ax-anpr-snap-card' + hitCls + '" role="listitem" data-anpr-rail="' + idx +
-            '" data-anpr-rail-scope="' + esc(scope) + '">' +
+            '<div class="ax-anpr-snap-card' + hitCls + '" role="listitem" data-anpr-rail="' + idx + '">' +
             '<div class="ax-anpr-snap-macro">' + macroHtml + '</div>' +
-            '<button type="button" class="ax-anpr-rail-mag" data-anpr-open="' + idx +
-            '" data-anpr-rail-scope="' + esc(scope) + '" title="' +
+            '<button type="button" class="ax-anpr-rail-mag" data-anpr-open="' + idx + '" title="' +
             esc(tr('analytics.anpr.liveRailExpandHint', 'Open evidence')) + '" aria-label="' +
             esc(tr('analytics.anpr.liveRailExpandHint', 'Open evidence')) + '">' +
             '<svg class="ax-anpr-rail-mag-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">' +
@@ -1338,13 +1344,18 @@
         var maxSlots = opts.maxSlots != null ? opts.maxSlots : RAIL_MAX;
         var scope = opts.scope === 'offline' ? 'offline' : 'live';
         var recentPlates = Array.isArray(opts.recentPlates) ? opts.recentPlates : [];
-        /* Strict isolation filter (defense in depth) */
+        /* DATA FIREWALL — tab isolation */
         recentPlates = recentPlates.filter(function (c) {
             if (!c) return false;
-            if (scope === 'live') return !isOfflineAnprSource(c);
-            return isOfflineAnprSource(c);
+            var src = String(c.source || '').toLowerCase();
+            if (scope === 'live') {
+                if (src === 'offline') return false;
+                return !isOfflineAnprSource(c);
+            }
+            /* offline tab: only source === offline */
+            if (src === 'live' || src !== 'offline') return false;
+            return true;
         });
-        grid.classList.add('ax-anpr-live-rail-grid', 'grid', 'grid-cols-2', 'gap-3');
         if (!recentPlates.length) {
             grid.innerHTML = skeletonEmptyHtml();
             return;
@@ -1353,7 +1364,7 @@
         var limit = Math.min(recentPlates.length, maxSlots);
         for (var i = 0; i < limit; i++) {
             if (!recentPlates[i]) continue;
-            html += paintRailCardHtml(recentPlates[i], i, scope);
+            html += paintRailCardHtml(recentPlates[i], i);
         }
         if (!html) {
             grid.innerHTML = skeletonEmptyHtml();
@@ -1786,6 +1797,8 @@
 
     function onCropTick(tick) {
         if (!tick) return;
+        /* DATA FIREWALL — Live tab ignores offline captures */
+        if (String(tick.source || '').toLowerCase() === 'offline') return;
         if (isOfflineAnprSource(tick)) return;
         pushRail(Object.assign({}, tick, { source: tick.source || 'live', isLive: true }));
         if (tick.listMatch) {
@@ -1803,15 +1816,12 @@
 
     function onListHit(hit) {
         if (!hit) return;
+        /* DATA FIREWALL — Live tab ignores offline captures */
+        if (String(hit.source || '').toLowerCase() === 'offline') return;
         if (isOfflineAnprSource(hit)) return;
-        /* Analytics rail / tile flash still local */
         setHitBar(hit);
         pushRail(Object.assign({}, hit, { isLive: true, source: hit.source || 'live' }));
         flashCam(hit.camId);
-        /*
-         * Global enterprise triage (HQ + toast + Ack/Dismiss/Keep + map/PiP)
-         * ONLY for live BWC — offline Match must not fire FrAlarm.
-         */
         promoteLiveAnprHit(Object.assign({}, hit, { isLive: true, source: hit.source || 'live' }));
     }
 

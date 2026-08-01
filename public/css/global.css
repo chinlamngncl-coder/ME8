@@ -2466,8 +2466,8 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     overflow-y: auto;
 }
 #ax-panel-anpr .ax-anpr-rail-skeleton {
-    height: 192px;
-    min-height: 192px;
+    height: 160px;
+    min-height: 160px;
     border: 2px dashed #374151;
     border-radius: 8px;
     display: flex;

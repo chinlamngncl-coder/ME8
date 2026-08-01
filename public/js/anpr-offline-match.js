@@ -59,6 +59,9 @@
 
     function pushFromRead(data, whenIso) {
         if (!data || !global.AnprLiveWatch || typeof AnprLiveWatch.pushRail !== 'function') return;
+        /* DATA FIREWALL — Offline tab only accepts source offline */
+        var incomingSrc = String(data.source || 'offline').toLowerCase();
+        if (incomingSrc === 'live' || incomingSrc !== 'offline') return;
         var vehicleUrl = null;
         var cropUrl = null;
         if (data.vehicleJpegB64) {
