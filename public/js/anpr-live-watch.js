@@ -735,11 +735,8 @@
         if (startBtn) startBtn.disabled = watching || selected.length === 0;
         if (stopAllBtn) stopAllBtn.disabled = !watching && selected.length === 0;
         if (meta) {
-            meta.textContent = tr('analytics.anpr.liveMeta', '{n}/{max} selected \u00B7 {live}/{slots} live')
-                .replace('{n}', String(selected.length))
-                .replace('{max}', String(MAX_WATCH))
-                .replace('{live}', String(provenLiveCount()))
-                .replace('{slots}', String(LIVE_SLOTS));
+            meta.textContent = 'Cameras: ' + String(selected.length) + '/' + String(MAX_WATCH) +
+                ' selected \u00B7 ' + String(provenLiveCount()) + '/' + String(LIVE_SLOTS) + ' live';
         }
     }
 
@@ -1073,8 +1070,9 @@
 
     function railPrimaryUrl(t) {
         if (!t) return null;
-        /* WHOLE-VEHICLE-CROP-V1 — never promote tight plate scrap as main thumb */
+        /* Macro preferred; fall back to plate crop so cards never blank */
         if (t.vehicleUrl) return t.vehicleUrl;
+        if (t.cropUrl) return t.cropUrl;
         return null;
     }
 
@@ -1149,6 +1147,11 @@
             fusion: tick.fusion || (prev && prev.fusion) || null,
             lat: tick.lat != null ? tick.lat : (prev && prev.lat),
             lon: tick.lon != null ? tick.lon : (prev && prev.lon),
+            source: tick.source || (prev && prev.source) || null,
+            isLive: tick.isLive != null ? tick.isLive : (prev && prev.isLive),
+            hitId: tick.hitId || (prev && prev.hitId) || null,
+            confidence: tick.confidence != null ? tick.confidence : (prev && prev.confidence),
+            listId: tick.listId || (prev && prev.listId) || null,
         };
     }
 
@@ -1160,9 +1163,8 @@
 
     function pushRail(tick) {
         if (!tick) return;
-        /* Prefer vehicle/scene; allow plate-only tick only if hull produced vehicleUrl */
-        if (!tick.vehicleUrl && !tick.plate) return;
-        if (!tick.vehicleUrl && tick.cropUrl && !tick.plate) return;
+        /* Accept vehicle scene, plate crop, or plate text — never drop a valid capture */
+        if (!tick.vehicleUrl && !tick.cropUrl && !tick.plate) return;
         /* Track dedupe: one rail card per trackId (replace in place if still on rail) */
         if (tick.trackId != null) {
             for (var ri = 0; ri < rail.length; ri++) {
@@ -1228,70 +1230,115 @@
     function renderRail(animateShift) {
         paintRailGrid(document.getElementById('ax-anpr-live-rail-grid'), animateShift, {
             maxSlots: RAIL_MAX,
-            fillEmpty: false,
-            scrollable: true,
         });
         paintRailGrid(document.getElementById('ax-anpr-offline-rail-grid'), false, {
             maxSlots: OFFLINE_RAIL_MAX,
-            fillEmpty: false,
-            scrollable: true,
         });
+    }
+
+    function captureImagePath(t) {
+        return railPrimaryUrl(t) || '';
+    }
+
+    function capturePlateText(t) {
+        if (!t) return 'UNCLEAR';
+        if (t.unclear) return 'UNCLEAR';
+        return String(t.plate || 'UNCLEAR');
+    }
+
+    function paintRailCardHtml(t, idx) {
+        var img = captureImagePath(t);
+        var plateText = capturePlateText(t);
+        var when = formatWhenShort(t.at) || formatWhen(t.at) || '—';
+        var st = listStatusOf(t);
+        var hitCls = st ? (' is-hit ' + gradeClass(st)) : '';
+        var imgHtml = img
+            ? '<img src="' + esc(img) + '" class="ax-anpr-snap-card-img" alt="Plate Crop" loading="lazy">'
+            : '<span class="ax-anpr-snap-card-img-empty">—</span>';
+        return (
+            '<div class="ax-anpr-snap-card' + hitCls + '" role="listitem" data-anpr-rail="' + idx + '">' +
+            '<div class="ax-anpr-snap-card-img-wrap">' +
+            imgHtml +
+            '</div>' +
+            '<div class="ax-anpr-snap-card-body">' +
+            '<span class="ax-anpr-snap-card-plate">' +
+            mismatchIconHtml(t) + esc(plateText) + '</span>' +
+            '<span class="ax-anpr-snap-card-time">' + esc(when) + '</span>' +
+            '</div>' +
+            '<button type="button" class="ax-anpr-rail-mag" data-anpr-open="' + idx + '" title="' +
+            esc(tr('analytics.anpr.liveRailExpandHint', 'Open evidence')) + '" aria-label="' +
+            esc(tr('analytics.anpr.liveRailExpandHint', 'Open evidence')) + '">' +
+            '<svg class="ax-anpr-rail-mag-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>' +
+            '</button>' +
+            '</div>'
+        );
     }
 
     function paintRailGrid(grid, animateShift, opts) {
         if (!grid) return;
         opts = opts || {};
         var maxSlots = opts.maxSlots != null ? opts.maxSlots : RAIL_MAX;
-        var fillEmpty = opts.fillEmpty === true;
-        var html = '';
         var recentPlates = Array.isArray(rail) ? rail : [];
         if (!recentPlates.length) {
             grid.innerHTML = '<div class="ax-anpr-live-rail-empty col-span-2" role="status">Waiting for captures...</div>';
             return;
         }
+        var html = '';
         var limit = Math.min(recentPlates.length, maxSlots);
         for (var i = 0; i < limit; i++) {
-            var t = recentPlates[i];
-            if (!t) {
-                if (!fillEmpty) continue;
-                html += '<div class="ax-anpr-live-rail-card is-empty" role="listitem">' +
-                    '<span class="hint">—</span></div>';
-                continue;
-            }
-            var st = listStatusOf(t);
-            var hitCls = st ? (' is-hit ' + gradeClass(st)) : '';
-            var primary = railPrimaryUrl(t);
-            var plateThumb = railPlateUrl(t);
-            html += '<div class="ax-anpr-live-rail-card' + hitCls + (t.unclear ? ' is-unclear' : '') + '" role="listitem" data-anpr-rail="' + i + '" title="' +
-                esc(tr('analytics.anpr.liveRailExpandHint', 'Click to expand')) + '">' +
-                '<div class="ax-anpr-rail-macro">' +
-                (primary
-                    ? '<img class="ax-anpr-rail-scene" src="' + esc(primary) + '" alt="" data-anpr-rail-img="' + i + '">'
-                    : '<div class="ax-anpr-rail-macro-empty hint">—</div>') +
-                (plateThumb && primary
-                    ? '<img class="ax-anpr-rail-plate-thumb ax-anpr-rail-micro" src="' + esc(plateThumb) + '" alt="">'
-                    : '') +
-                '</div>' +
-                '<div class="ax-anpr-rail-plate">' + mismatchIconHtml(t) +
-                esc(t.unclear
-                    ? tr('analytics.anpr.unclear', 'Unclear / Manual Review')
-                    : (t.plate || tr('analytics.anpr.liveRailNoText', 'No plate'))) + '</div>' +
-                '<div class="ax-anpr-rail-meta">' + esc(railMetaLine(t)) + '</div>' +
-                '</div>';
+            if (!recentPlates[i]) continue;
+            html += paintRailCardHtml(recentPlates[i], i);
         }
         if (!html) {
             grid.innerHTML = '<div class="ax-anpr-live-rail-empty col-span-2" role="status">Waiting for captures...</div>';
             return;
         }
         grid.innerHTML = html;
-        if (opts.scrollable && grid.scrollHeight) {
-            try { grid.scrollTop = 0; } catch (_) { /* ignore */ }
-        }
         if (animateShift) {
             grid.classList.remove('is-rail-shift');
             void grid.offsetWidth;
             grid.classList.add('is-rail-shift');
         }
+    }
+
+    function openAnprModal(idx) {
+        var i = parseInt(idx, 10);
+        if (!isFinite(i) || i < 0) return;
+        var tick = rail[i];
+        if (!tick) return;
+        var img = captureImagePath(tick);
+        var liveHit = !!listStatusOf(tick) && !isOfflineAnprSource(tick);
+        if (liveHit) {
+            try {
+                if (global.FrAlarm && typeof FrAlarm.showHit === 'function') {
+                    var payload = anprHitToFrAlarmPayload(Object.assign({}, tick, {
+                        isLive: true,
+                        source: tick.source || 'live',
+                    }));
+                    if (payload) FrAlarm.showHit(payload);
+                }
+            } catch (_) { /* ignore */ }
+        }
+        try {
+            if (img && global.FrAlarm && typeof FrAlarm.openSnapLightbox === 'function') {
+                FrAlarm.openSnapLightbox({
+                    cropUrl: img,
+                    photoUrl: tick.cropUrl || img,
+                    displayName: capturePlateText(tick),
+                    camId: tick.camId,
+                    deviceLabel: tick.deviceLabel || tick.camId || capturePlateText(tick),
+                    at: tick.at,
+                    lat: tick.lat,
+                    lon: tick.lon,
+                    match: !!listStatusOf(tick),
+                    scorePct: tick.confidence != null ? Number(tick.confidence) : null,
+                    plate: tick.plate,
+                    anpr: true,
+                });
+                return;
+            }
+        } catch (_) { /* fall through */ }
+        openLightbox(tick);
     }
 
     function ensureLightbox() {
@@ -1776,6 +1823,14 @@
         if (railHost && !railHost._anprRailBound) {
             railHost._anprRailBound = true;
             railHost.addEventListener('click', function (ev) {
+                var mag = ev.target && ev.target.closest
+                    ? ev.target.closest('[data-anpr-open]')
+                    : null;
+                if (mag) {
+                    ev.preventDefault();
+                    openAnprModal(mag.getAttribute('data-anpr-open'));
+                    return;
+                }
                 /* Single click kept for accessibility; double-click opens full evidence lightbox */
                 var card = ev.target && ev.target.closest
                     ? ev.target.closest('[data-anpr-rail]')
@@ -1783,7 +1838,7 @@
                 if (!card) return;
                 var idx = parseInt(card.getAttribute('data-anpr-rail'), 10);
                 if (!isFinite(idx) || !rail[idx]) return;
-                openLightbox(rail[idx]);
+                openAnprModal(idx);
             });
             railHost.addEventListener('dblclick', function (ev) {
                 var card = ev.target && ev.target.closest
@@ -1793,20 +1848,28 @@
                 ev.preventDefault();
                 var idx = parseInt(card.getAttribute('data-anpr-rail'), 10);
                 if (!isFinite(idx) || !rail[idx]) return;
-                openLightbox(rail[idx]);
+                openAnprModal(idx);
             });
         }
         var offlineRail = document.getElementById('ax-anpr-offline-rail');
         if (offlineRail && !offlineRail._anprRailBound) {
             offlineRail._anprRailBound = true;
             offlineRail.addEventListener('click', function (ev) {
+                var mag = ev.target && ev.target.closest
+                    ? ev.target.closest('[data-anpr-open]')
+                    : null;
+                if (mag) {
+                    ev.preventDefault();
+                    openAnprModal(mag.getAttribute('data-anpr-open'));
+                    return;
+                }
                 var card = ev.target && ev.target.closest
                     ? ev.target.closest('[data-anpr-rail]')
                     : null;
                 if (!card) return;
                 var idx = parseInt(card.getAttribute('data-anpr-rail'), 10);
                 if (!isFinite(idx) || !rail[idx]) return;
-                openLightbox(rail[idx]);
+                openAnprModal(idx);
             });
             offlineRail.addEventListener('dblclick', function (ev) {
                 var card = ev.target && ev.target.closest
@@ -1816,7 +1879,7 @@
                 ev.preventDefault();
                 var idx = parseInt(card.getAttribute('data-anpr-rail'), 10);
                 if (!isFinite(idx) || !rail[idx]) return;
-                openLightbox(rail[idx]);
+                openAnprModal(idx);
             });
         }
         var hitRow = document.getElementById('ax-anpr-offline-hit-row');
@@ -1872,8 +1935,10 @@
         pushRail: pushRail,
         renderRail: renderRail,
         paintHitSlots: paintHitSlots,
+        openAnprModal: openAnprModal,
         openHistoryDetail: openHistoryDetail,
         MAX_WATCH: MAX_WATCH,
         LIVE_SLOTS: LIVE_SLOTS,
     };
+    global.openAnprModal = openAnprModal;
 })(typeof window !== 'undefined' ? window : this);

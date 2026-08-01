@@ -2632,6 +2632,7 @@
         showRedToast: showRedToast,
         goOpsOnHit: goOpsOnHit,
         keepEvidencePack: keepEvidencePack,
+        openSnapLightbox: openSnapLightbox,
         toast: showStandbyToast,
         applyLabPreviewGate: applyFrLabPreviewGate,
     };

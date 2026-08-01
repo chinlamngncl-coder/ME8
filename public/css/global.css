@@ -2459,8 +2459,8 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: none;
-    grid-auto-rows: 140px;
-    gap: 8px;
+    grid-auto-rows: minmax(180px, auto);
+    gap: 12px;
     align-content: start;
     overflow-x: hidden;
     overflow-y: auto;
@@ -2470,6 +2470,106 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     padding: 40px 8px;
     text-align: center;
     color: #6b7280;
+}
+
+/* Camera selector meta chip */
+#ax-panel-anpr .ax-anpr-live-meta-chip {
+    display: flex;
+    align-items: center;
+    font-size: 11px;
+    color: #9ca3af;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin: 0 0 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid #334155;
+    width: fit-content;
+    max-width: 100%;
+}
+
+/* Snapshot cards — Tailwind template → global.css */
+#ax-panel-anpr .ax-anpr-snap-card {
+    position: relative;
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: auto;
+    max-height: none;
+    cursor: pointer;
+}
+#ax-panel-anpr .ax-anpr-snap-card.is-hit {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.35);
+}
+#ax-panel-anpr .ax-anpr-snap-card.is-blacklist { border-color: #ef4444; }
+#ax-panel-anpr .ax-anpr-snap-card.is-wanted { border-color: #dc2626; }
+#ax-panel-anpr .ax-anpr-snap-card.is-suspicious { border-color: #f59e0b; }
+#ax-panel-anpr .ax-anpr-snap-card-img-wrap {
+    width: 100%;
+    height: 128px;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+#ax-panel-anpr .ax-anpr-snap-card-img {
+    max-height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+    display: block;
+}
+#ax-panel-anpr .ax-anpr-snap-card-img-empty {
+    color: #64748b;
+    font-size: 13px;
+}
+#ax-panel-anpr .ax-anpr-snap-card-body {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+#ax-panel-anpr .ax-anpr-snap-card-plate {
+    color: #fff;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 0.06em;
+    line-height: 1.2;
+}
+#ax-panel-anpr .ax-anpr-snap-card-time {
+    font-size: 11px;
+    color: #9ca3af;
+}
+#ax-panel-anpr .ax-anpr-rail-mag {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    border-radius: 6px;
+    border: 1px solid #475569;
+    background: rgba(17, 24, 39, 0.85);
+    color: #fff;
+    cursor: pointer;
+}
+#ax-panel-anpr .ax-anpr-rail-mag:hover {
+    background: #2563eb;
+    border-color: #2563eb;
+}
+#ax-panel-anpr .ax-anpr-rail-mag-icon {
+    display: block;
+    width: 16px;
+    height: 16px;
 }
 
 #ax-panel-anpr .ax-anpr-live-rail-card {
@@ -2868,7 +2968,7 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: none;
-    grid-auto-rows: 168px;
+    grid-auto-rows: minmax(180px, auto);
     gap: 12px;
     align-content: start;
     height: auto;

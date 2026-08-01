@@ -8084,7 +8084,7 @@
         .sos-detail-actions button { flex: 1; min-width: 100px; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; background: #334155; color: #e2e8f0; }
         .sos-detail-actions .sos-detail-secondary { flex: 0 1 auto; background: transparent; color: #94a3b8; font-weight: 500; font-size: 11px; }
     </style>
-    <link rel="stylesheet" href="/css/global.css?v=20260802-live-rail-triage-isolate">
+    <link rel="stylesheet" href="/css/global.css?v=20260802-anpr-snap-cards-fr-modal">
     <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260731-analytics-grade-filter-compact-chevron-v1">
 </head>
 <body>
@@ -10005,8 +10005,8 @@
                                 <div class="ax-anpr-live-roster-actions">
                                     <button type="button" class="btn btn-action btn-sm" id="ax-anpr-live-start" data-i18n="analytics.anpr.liveStart" disabled>Start watch</button>
                                     <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-live-stop-all" data-i18n="analytics.anpr.liveStopAll" disabled>Stop all</button>
-                                    <span id="ax-anpr-live-meta" class="hint"></span>
                                 </div>
+                                <div id="ax-anpr-live-meta" class="ax-anpr-live-meta-chip" aria-live="polite">Cameras: 0/16 selected &middot; 0/4 live</div>
                                 <input type="search" id="ax-anpr-live-search" class="ax-bl-search" placeholder="Search BWC&hellip;" autocomplete="off" data-i18n-placeholder="analytics.anpr.liveSearchPh">
                                 <div id="ax-anpr-live-roster-list" class="ax-anpr-live-roster-list" role="list"></div>
                             </div>
@@ -10035,7 +10035,7 @@
                             <div class="ax-anpr-live-side">
                                 <div id="ax-anpr-live-rail" class="ax-anpr-live-rail enterprise-card" aria-label="Recent plates">
                                     <h4 class="ax-anpr-live-rail-title" data-i18n="analytics.anpr.liveRailTitle">Recent plates</h4>
-                                    <div id="ax-anpr-live-rail-grid" class="ax-anpr-live-rail-grid" role="list"></div>
+                                    <div id="ax-anpr-live-rail-grid" class="ax-anpr-live-rail-grid grid grid-cols-2 gap-3" role="list"></div>
                                 </div>
                             </div>
                         </div>
@@ -10062,7 +10062,7 @@
                             <div class="ax-anpr-offline-side">
                                 <div id="ax-anpr-offline-rail" class="ax-anpr-live-rail" aria-label="Recent plates">
                                     <h3 class="ax-anpr-live-rail-title" data-i18n="analytics.anpr.liveRailTitle">Recent Plates</h3>
-                                    <div id="ax-anpr-offline-rail-grid" class="ax-anpr-live-rail-grid" role="list"></div>
+                                    <div id="ax-anpr-offline-rail-grid" class="ax-anpr-live-rail-grid grid grid-cols-2 gap-3" role="list"></div>
                                 </div>
                             </div>
                         </div>
@@ -11102,9 +11102,9 @@
     <script src="/js/fr-offline-video.js?v=20260715-threshold-admin"></script>
     <script src="/js/fr-enroll-cropper.js?v=20260710-fr-cropper"></script>
     <script src="/js/anpr-plate-cropper.js?v=20260729-anpr-snapshot-v1"></script>
-    <script src="/js/fr-alarm.js?v=20260802-anpr-fr-global-alert"></script>
+    <script src="/js/fr-alarm.js?v=20260802-anpr-snap-cards-fr-modal"></script>
     <script src="/js/wvp-lab-tile.js?v=20260716-hide-lab-ui"></script>
-    <script src="/js/anpr-live-watch.js?v=20260802-live-rail-triage-isolate"></script>
+    <script src="/js/anpr-live-watch.js?v=20260802-anpr-snap-cards-fr-modal"></script>
     <script src="/js/anpr-offline-match.js?v=20260802-live-rail-triage-isolate"></script>
     <script src="/js/anpr-history.js?v=20260801-anpr-history-v1"></script>
     <script src="/js/analytics-hub.js?v=20260802-live-rail-triage-isolate"></script>
