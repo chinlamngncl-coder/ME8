@@ -14,12 +14,13 @@ import numpy as np
 # Bumper / slogan noise that must not become "the plate"
 BAN_TEXT = re.compile(
     r"UV\s*EXP|EXPRESS|SERVICE|TOUCH|DON'?T|METROMALL|ANTIPOLO|PILIPINAS|"
-    r"NCR\s*UV|PHONE|HTTP|WWW|\d{4}[- ]?\d{3}[- ]?\d{4}",
+    r"NCR\s*UV|PHONE|HTTP|WWW|\d{4}[- ]?\d{3}[- ]?\d{4}|"
+    r"SEBASTIAN|SEBAXYIN|STICKER|DECAL",
     re.I,
 )
 
-MIN_ASPECT = float(os.environ.get("FM_ANPR_ROI_MIN_ASPECT", "1.5") or "1.5")
-MAX_ASPECT = float(os.environ.get("FM_ANPR_ROI_MAX_ASPECT", "5.5") or "5.5")
+MIN_ASPECT = float(os.environ.get("FM_ANPR_ROI_MIN_ASPECT", "2.0") or "2.0")
+MAX_ASPECT = float(os.environ.get("FM_ANPR_ROI_MAX_ASPECT", "5.0") or "5.0")
 MIN_AREA_FRAC = float(os.environ.get("FM_ANPR_ROI_MIN_AREA", "0.0015") or "0.0015")
 MAX_AREA_FRAC = float(os.environ.get("FM_ANPR_ROI_MAX_AREA", "0.06") or "0.06")
 MIN_CROP_H = max(8, int(os.environ.get("FM_ANPR_MIN_CROP_H", "20") or "20"))

@@ -12,8 +12,14 @@
     var RAIL_MAX = 50;
     /** Offline Match recent plates — volatile UI buffer (same cap as live). */
     var OFFLINE_RAIL_MAX = 50;
+    /** Critical Watchlist Alerts banner — top 3 most recent hits. */
+    var CRITICAL_ALERT_MAX = 3;
     var ROTATE_MS = 20000;
     var TILE_SIGNAL_LOST_MS = 15000;
+    /** FLV / Player unavailable → background reconnect (not permanent lock). */
+    var PLAYER_RECOVER_MS = 3000;
+    /** While Live tab open — ping sidecar health every 5s. */
+    var HEALTH_POLL_MS = 5000;
 
     var TILE_STATE = {
         LIVE: 'live',
@@ -44,19 +50,25 @@
     var wvpHandoffSlotInflight = Object.create(null);
     var streamingCams = Object.create(null);
     var tileSignalTimers = [];
+    var tileRecoverTimers = [];
     var tileSignalRetried = Object.create(null);
+    var healthPollTimer = null;
     var socketBound = false;
     var liveRail = [];
     var offlineRail = [];
     /** Offline Match blacklist / suspect hit strip (separate from Recent Plates). */
     var hitRail = [];
     var HIT_RAIL_MAX = 40;
+    /** Critical Watchlist Alerts — Live vs Offline (max CRITICAL_ALERT_MAX each). */
+    var liveCriticalAlerts = [];
+    var offlineCriticalAlerts = [];
     var lastHit = null;
     var toastTimer = null;
     var fleetPollTimer = null;
     var FLEET_POLL_MS = 3000;
     var uiBound = false;
     var focusedSlot = 0;
+    var expandedTileId = null; // click-to-expand (null = 4-grid)
     var presenceUnsub = null;
 
     for (var si = 0; si < LIVE_SLOTS; si++) {
@@ -66,6 +78,7 @@
         pipMinimized[si] = false;
         pipSwapped[si] = false;
         tileSignalTimers[si] = null;
+        tileRecoverTimers[si] = null;
     }
 
     function tr(key, fallback) {
@@ -108,6 +121,24 @@
             return global.DashboardWsUrl.videoWsUrl(camId);
         }
         return 'ws://' + global.location.hostname + ':' + wsPort() + '/?camId=' + encodeURIComponent(camId);
+    }
+
+    function applyAnprTileExpand() {
+        var grid = document.querySelector('#ax-panel-anpr .ax-anpr-live-tiles');
+        if (!grid) return;
+        grid.classList.toggle('is-tile-expanded', !!expandedTileId);
+        grid.querySelectorAll('.ax-anpr-live-tile').forEach(function (tile) {
+            var id = tile.getAttribute('data-tile-id')
+                || ('anpr-' + tile.getAttribute('data-anpr-slot'));
+            var isExp = expandedTileId != null && id === expandedTileId;
+            tile.classList.toggle('is-expanded', isExp);
+            tile.classList.toggle('is-expanded-hidden', !!(expandedTileId && !isExp));
+        });
+    }
+
+    function toggleAnprTileExpand(tileId) {
+        expandedTileId = (expandedTileId === tileId) ? null : tileId;
+        applyAnprTileExpand();
     }
 
     function tileEl(slot) {
@@ -261,20 +292,28 @@
         var name = camId ? deviceName(camId) : '';
         if (label) {
             if (camId) {
-                label.textContent = String(slot + 1) + ' \u00B7 ' + name + ' \u00B7 ' + shortCamId(camId);
+                label.textContent = String(slot + 1) + '  ' + name;
                 label.title = String(camId);
             } else {
                 label.textContent = String(slot + 1);
                 label.removeAttribute('title');
             }
+            label.style.display = '';
         }
         if (camId && stateKey) {
             ph.textContent = tileStatusText(stateKey);
             ph.hidden = stateKey === TILE_STATE.LIVE;
+            if (stateKey === TILE_STATE.LIVE) {
+                ph.style.display = 'none';
+            } else {
+                ph.style.display = '';
+            }
         } else if (!camId) {
             stateKey = watching ? TILE_STATE.WAITING : TILE_STATE.IDLE;
             ph.textContent = tileStatusText(stateKey);
             ph.hidden = false;
+            ph.style.display = '';
+            if (label) label.style.display = '';
         }
         applyTileStateClasses(tile, stateKey);
         tile.setAttribute('data-cam', camId || '');
@@ -296,6 +335,51 @@
 
     function clearSignalRetry(slot, camId) {
         if (camId) delete tileSignalRetried[slot + ':' + camId];
+    }
+
+    function clearRecoverTimer(slot) {
+        if (tileRecoverTimers[slot]) {
+            clearTimeout(tileRecoverTimers[slot]);
+            tileRecoverTimers[slot] = null;
+        }
+    }
+
+    /**
+     * Auto-recover after FLV / Player unavailable — retry in background after 3s
+     * instead of locking the tile permanently.
+     */
+    function schedulePlayerRecover(slot, camId, reason) {
+        camId = normalizeCamId(camId);
+        if (!watching || !camId || slotCam[slot] !== camId) return;
+        clearRecoverTimer(slot);
+        tileRecoverTimers[slot] = setTimeout(function () {
+            tileRecoverTimers[slot] = null;
+            if (!watching || slotCam[slot] !== camId) return;
+            clearSignalRetry(slot, camId);
+            delete wvpHandoffSlotInflight[slot];
+            setTileMeta(slot, camId, TILE_STATE.CONNECTING);
+            var sock = getSocket();
+            if (sock) {
+                try {
+                    sock.emit('start-video', { camId: camId, mode: 'video', surface: SURFACE });
+                } catch (_) { /* ignore */ }
+            }
+            destroyPlayer(slot);
+            var flvUrl = getWvpHandoffFlvUrl(camId);
+            if (flvUrl) {
+                attachWvpHandoffFlvToSlot(slot, camId, flvUrl, { force: true });
+            } else {
+                attachPlayer(slot, camId);
+            }
+            startSignalTimer(slot, camId);
+            try {
+                console.log('[me8-flv] anpr auto-recover', {
+                    slot: slot,
+                    camId: camId,
+                    reason: reason || 'player-error',
+                });
+            } catch (_) { /* ignore */ }
+        }, PLAYER_RECOVER_MS);
     }
 
     function parseStreamError(data) {
@@ -503,7 +587,8 @@
         }
     }
 
-    function attachWvpHandoffFlvToSlot(slot, camId, flvUrl) {
+    function attachWvpHandoffFlvToSlot(slot, camId, flvUrl, opts) {
+        opts = opts || {};
         if (typeof slot !== 'number' || slot < 0 || slot >= LIVE_SLOTS || !camId || !flvUrl) return false;
         camId = normalizeCamId(camId);
         flvUrl = String(flvUrl);
@@ -513,23 +598,26 @@
         }
         var tile = tileEl(slot);
         if (!tile || !watching) return false;
+        var force = !!opts.force;
         var inflight = wvpHandoffSlotInflight[slot];
-        if (inflight && inflight.camId === camId && inflight.flvUrl === flvUrl) {
+        if (!force && inflight && inflight.camId === camId && inflight.flvUrl === flvUrl) {
             return true;
         }
         var existing = players[slot];
-        if (existing && normalizeCamId(slotCam[slot]) === camId && handoffPlayerAttaching(existing)) {
+        if (!force && existing && normalizeCamId(slotCam[slot]) === camId && handoffPlayerAttaching(existing)) {
             return true;
         }
-        if (existing && normalizeCamId(slotCam[slot]) === camId && tile.classList.contains('is-live')
-            && tile.querySelector('video.me8-zlm-primary')) {
+        if (!force && existing && normalizeCamId(slotCam[slot]) === camId && tile.classList.contains('is-live')
+            && tile.querySelector('video.me8-zlm-primary')
+            && !tile.classList.contains('is-tile-error')) {
             return true;
         }
+        clearRecoverTimer(slot);
         destroyPlayer(slot);
         setTileMeta(slot, camId, TILE_STATE.CONNECTING);
         startSignalTimer(slot, camId);
         wvpHandoffSlotInflight[slot] = { camId: camId, flvUrl: flvUrl, at: Date.now() };
-        console.log('[me8-flv] anpr attach once', { slot: slot, camId: camId, url: flvUrl });
+        console.log('[me8-flv] anpr attach once', { slot: slot, camId: camId, url: flvUrl, force: force });
         var handle = global.Me8LivePlayerFactory.attachFlvPrimary(tile, flvUrl, {
             proveMs: 300,
             timeoutMs: 10000,
@@ -538,6 +626,7 @@
                 if (normalizeCamId(slotCam[slot]) !== camId) return;
                 clearSignalTimer(slot);
                 clearSignalRetry(slot, camId);
+                clearRecoverTimer(slot);
                 setTileMeta(slot, camId, TILE_STATE.LIVE);
                 attachPipSecondary(slot, camId);
                 updateMeta();
@@ -550,6 +639,7 @@
                 setTileMeta(slot, camId, TILE_STATE.PLAYER_ERROR);
                 updateMeta();
                 renderRoster();
+                schedulePlayerRecover(slot, camId, 'flv-onFail');
             },
             onVideoFrame: function () {
                 clearSignalTimer(slot);
@@ -559,6 +649,8 @@
         if (!handle) {
             delete wvpHandoffSlotInflight[slot];
             console.log('[me8-flv] anpr attach fail', { camId: camId, url: flvUrl, reason: 'attachFlvPrimary_null' });
+            setTileMeta(slot, camId, TILE_STATE.PLAYER_ERROR);
+            schedulePlayerRecover(slot, camId, 'attachFlvPrimary_null');
             return false;
         }
         players[slot] = handle;
@@ -579,6 +671,7 @@
         var tile = tileEl(slot);
         if (!tile || !camId || typeof JSMpeg === 'undefined') {
             setTileMeta(slot, camId, TILE_STATE.PLAYER_ERROR);
+            if (camId) schedulePlayerRecover(slot, camId, 'jsmpeg-missing');
             return;
         }
         destroyPlayer(slot);
@@ -608,6 +701,7 @@
             setTileMeta(slot, camId, TILE_STATE.PLAYER_ERROR);
             updateMeta();
             renderRoster();
+            schedulePlayerRecover(slot, camId, 'jsmpeg-exception');
         }
     }
 
@@ -627,6 +721,7 @@
     function stopSlot(slot, emitStop) {
         var camId = slotCam[slot];
         clearSignalTimer(slot);
+        clearRecoverTimer(slot);
         if (camId) clearSignalRetry(slot, camId);
         destroyPlayer(slot);
         if (camId) {
@@ -761,6 +856,22 @@
         return '<span class="hint">' + esc(online ? 'online' : 'offline') + '</span>';
     }
 
+    function groupColorForDevice(camId, mapGroup) {
+        var lk = global.dispatchGroupLookup || {};
+        if (camId && lk.byDevice && lk.byDevice[camId] && lk.byDevice[camId].color) {
+            return lk.byDevice[camId].color;
+        }
+        var gk = String(mapGroup || '').toLowerCase();
+        if (gk && lk.byName && lk.byName[gk] && lk.byName[gk].color) {
+            return lk.byName[gk].color;
+        }
+        return '#64748b';
+    }
+
+    function deviceMapGroup(d) {
+        return String((d && (d.mapGroup || d.group)) || '').trim();
+    }
+
     function renderRoster() {
         var host = document.getElementById('ax-anpr-live-roster-list');
         if (!host) return;
@@ -769,27 +880,64 @@
         var rows = fleet.filter(function (d) {
             if (!d || !d.id) return false;
             if (!q) return true;
-            var hay = (String(d.id) + ' ' + String(d.name || '')).toLowerCase();
+            var g = deviceMapGroup(d);
+            var hay = (String(d.id) + ' ' + String(d.name || '') + ' ' + g).toLowerCase();
             return hay.indexOf(q) >= 0;
         });
         if (!rows.length) {
             host.innerHTML = '<div class="hint">' + esc(tr('analytics.anpr.liveNoBwc', 'No BWC devices')) + '</div>';
             return;
         }
-        host.innerHTML = rows.map(function (d) {
+        var byGroup = {};
+        var ungrouped = [];
+        rows.forEach(function (d) {
+            var g = deviceMapGroup(d);
+            if (!g) {
+                ungrouped.push(d);
+                return;
+            }
+            if (!byGroup[g]) byGroup[g] = [];
+            byGroup[g].push(d);
+        });
+        function rowHtml(d) {
             var id = normalizeCamId(d.id);
             var checked = selected.indexOf(id) >= 0;
             var onTile = findSlotByCamId(id) >= 0;
             var disableMore = !checked && selected.length >= MAX_WATCH;
+            var pin = groupColorForDevice(id, deviceMapGroup(d));
             return '<label class="ax-anpr-live-roster-row' +
                 (d.online ? '' : ' is-offline') +
                 (onTile ? ' is-on-tile' : '') + '">' +
                 '<input type="checkbox" data-anpr-cam="' + esc(id) + '"' +
                 (checked ? ' checked' : '') +
                 (disableMore || (!d.online && !checked) ? ' disabled' : '') + '>' +
+                '<span class="ax-anpr-roster-pin" style="background:' + esc(pin) + '"></span>' +
                 '<span>' + esc(d.name || id) + '</span>' +
                 rosterBadgeHtml(id) + '</label>';
-        }).join('');
+        }
+        function groupBlock(gName, devices, color) {
+            var online = 0;
+            devices.forEach(function (d) { if (d && d.online) online += 1; });
+            var html = '<div class="ax-anpr-roster-group">';
+            html += '<div class="ax-anpr-roster-group-head">' +
+                '<span class="ax-anpr-roster-group-dot" style="background:' + esc(color) + '"></span>' +
+                '<span class="ax-anpr-roster-group-name">' + esc(gName) + '</span>' +
+                '<span class="ax-anpr-roster-group-meta">' + esc(String(online) + '/' + String(devices.length) + ' online') +
+                '</span></div>';
+            devices.slice().sort(function (a, b) {
+                return String(a.name || a.id).localeCompare(String(b.name || b.id));
+            }).forEach(function (d) { html += rowHtml(d); });
+            html += '</div>';
+            return html;
+        }
+        var html = '';
+        Object.keys(byGroup).sort(function (a, b) { return a.localeCompare(b); }).forEach(function (gName) {
+            html += groupBlock(gName, byGroup[gName], groupColorForDevice(null, gName));
+        });
+        if (ungrouped.length) {
+            html += groupBlock(tr('fleet.groupUngrouped', 'Ungrouped'), ungrouped, '#64748b');
+        }
+        host.innerHTML = html;
     }
 
     function ingestFleet(list) {
@@ -826,6 +974,7 @@
                         name: d.name,
                         online: !!d.online,
                         group: d.group || d.mapGroup || '',
+                        mapGroup: d.mapGroup || d.group || '',
                     };
                 }));
             });
@@ -858,6 +1007,7 @@
                         name: d.name,
                         online: !!d.online,
                         group: d.group || d.mapGroup || '',
+                        mapGroup: d.mapGroup || d.group || '',
                     };
                 }));
             }
@@ -885,9 +1035,16 @@
                                 ? GlobalDevicePresence.isOnline(id)
                                 : false,
                             group: d.mapGroup || '',
+                            mapGroup: d.mapGroup || '',
                         };
-                    } else if (d.operatorName || d.nickname) {
-                        byId[id].name = d.operatorName || d.nickname || byId[id].name;
+                    } else {
+                        if (d.operatorName || d.nickname) {
+                            byId[id].name = d.operatorName || d.nickname || byId[id].name;
+                        }
+                        if (d.mapGroup) {
+                            byId[id].mapGroup = d.mapGroup;
+                            byId[id].group = d.mapGroup;
+                        }
                     }
                 });
                 if (global.GlobalDevicePresence && GlobalDevicePresence.getList) {
@@ -899,7 +1056,8 @@
                                 id: id,
                                 name: d.name || id,
                                 online: !!d.online,
-                                group: d.group || '',
+                                group: d.group || d.mapGroup || '',
+                                mapGroup: d.mapGroup || d.group || '',
                             };
                         } else {
                             byId[id].online = !!d.online;
@@ -1049,6 +1207,26 @@
         return s;
     }
 
+    /** Full date + time for cards / lightbox (YYYY-MM-DD HH:MM:SS). */
+    function formatWhenFull(at) {
+        if (!at) return '\u2014';
+        var s = String(at).trim();
+        if (!s) return '\u2014';
+        if (/^\d+$/.test(s)) {
+            try {
+                var d = new Date(Number(s));
+                if (!isNaN(d.getTime())) s = d.toISOString();
+            } catch (_) { /* keep */ }
+        }
+        return formatWhen(s);
+    }
+
+    /** Backend may send `time` instead of / in addition to `at`. */
+    function captureWhenRaw(t) {
+        if (!t) return null;
+        return t.at || t.time || t.capturedAt || t.ts || null;
+    }
+
     function listLabel(tick) {
         if (!tick) return tr('analytics.anpr.liveNoListHit', 'No list match');
         var m = tick.listMatch;
@@ -1069,17 +1247,33 @@
         return String(tick.listStatus || '');
     }
 
+    /** Watchlist / blacklist hit → Critical Alerts banner (not plain Recent Plates only). */
+    function isWatchlistHit(tick) {
+        if (!tick) return false;
+        if (tick.isWatchlistHit === true || tick.isBlacklist === true) return true;
+        var st = String(listStatusOf(tick) || '').toLowerCase().replace(/[^a-z]/g, '');
+        return st === 'blacklist' || st === 'wanted' || st === 'suspicious' || st === 'watchlist';
+    }
+
+    function hitSlotsContainer() {
+        return document.getElementById('blacklist-hits-container')
+            || document.getElementById('ax-anpr-offline-hit-row');
+    }
+
     function railPrimaryUrl(t) {
         if (!t) return null;
-        /* Macro preferred; fall back to plate crop so cards never blank */
+        /* Macro preferred (contract + legacy keys); fall back to plate crop */
+        if (t.macroCropUrl) return t.macroCropUrl;
         if (t.vehicleUrl) return t.vehicleUrl;
+        if (t.sceneUrl) return t.sceneUrl;
+        if (t.microCropUrl) return t.microCropUrl;
         if (t.cropUrl) return t.cropUrl;
         return null;
     }
 
     function railPlateUrl(t) {
         if (!t) return null;
-        return t.cropUrl || null;
+        return t.microCropUrl || t.cropUrl || t.plateUrl || null;
     }
 
     function motionLabel(t) {
@@ -1122,17 +1316,35 @@
     }
 
     function copyRailTick(tick, prev) {
+        var whenRaw = captureWhenRaw(tick) || (prev && prev.at) || null;
+        var plateVal = tick.plateText || tick.plate || tick.plateCompact
+            || (prev && (prev.plateText || prev.plate)) || null;
+        var macroVal = tick.macroCropUrl || tick.vehicleUrl || tick.sceneUrl
+            || (prev && (prev.macroCropUrl || prev.vehicleUrl)) || null;
+        var microVal = tick.microCropUrl || tick.cropUrl || tick.plateUrl
+            || (prev && (prev.microCropUrl || prev.cropUrl)) || null;
+        var bwcVal = tick.bwcUser || tick.deviceLabel || tick.camera_name || tick.camName
+            || (prev && (prev.bwcUser || prev.deviceLabel)) || null;
         return {
-            plate: tick.plate || null,
-            vehicleUrl: tick.vehicleUrl || null,
-            cropUrl: tick.cropUrl || null,
+            id: tick.id || tick.hitId || tick.frameUuid || (prev && prev.id)
+                || ('anpr_' + String(tick.camId || 'cam') + '_' + Date.now()),
+            plate: plateVal,
+            plateText: plateVal,
+            plateCompact: tick.plateCompact || (prev && prev.plateCompact) || null,
+            rawText: tick.rawText || (prev && prev.rawText) || null,
+            vehicleUrl: macroVal,
+            cropUrl: microVal,
+            macroCropUrl: macroVal,
+            microCropUrl: microVal,
             vehicleLabel: tick.vehicleLabel || null,
             listMatch: tick.listMatch || null,
             listStatus: tick.listStatus || (tick.listMatch && tick.listMatch.listStatus) || null,
             displayName: tick.displayName || (tick.listMatch && tick.listMatch.displayName) || null,
-            deviceLabel: tick.deviceLabel || null,
+            deviceLabel: bwcVal,
+            bwcUser: bwcVal,
             camId: tick.camId || null,
-            at: tick.at || null,
+            at: whenRaw,
+            time: whenRaw,
             trackId: tick.trackId != null ? tick.trackId : (prev && prev.trackId),
             seq: tick.seq != null ? tick.seq : (prev && prev.seq),
             motion: tick.motion || (prev && prev.motion) || 'Stationary',
@@ -1150,9 +1362,14 @@
             lon: tick.lon != null ? tick.lon : (prev && prev.lon),
             source: tick.source || (prev && prev.source) || null,
             isLive: tick.isLive != null ? tick.isLive : (prev && prev.isLive),
+            isWatchlistHit: !!(tick.isWatchlistHit || (tick.listMatch && tick.listMatch.id)
+                || (prev && prev.isWatchlistHit)),
             hitId: tick.hitId || (prev && prev.hitId) || null,
             confidence: tick.confidence != null ? tick.confidence : (prev && prev.confidence),
             listId: tick.listId || (prev && prev.listId) || null,
+            dwellSeconds: tick.dwellSeconds != null ? tick.dwellSeconds
+                : (prev && prev.dwellSeconds != null ? prev.dwellSeconds : 0),
+            isUpdate: !!tick.isUpdate,
         };
     }
 
@@ -1170,8 +1387,9 @@
 
     function pushRail(tick) {
         if (!tick) return;
-        /* Accept vehicle scene, plate crop, or plate text — never drop a valid capture */
-        if (!tick.vehicleUrl && !tick.cropUrl && !tick.plate) return;
+        /* Accept contract + legacy keys — never drop a valid capture */
+        if (!tick.vehicleUrl && !tick.macroCropUrl && !tick.cropUrl && !tick.microCropUrl
+            && !tick.plate && !tick.plateText && !tick.plateCompact) return;
 
         var offline = isOfflineAnprSource(tick);
         /* DATA ISOLATION: live bucket ignores offline; offline bucket ignores live */
@@ -1184,13 +1402,18 @@
 
         var bucket = offline ? offlineRail : liveRail;
         var maxSlots = offline ? OFFLINE_RAIL_MAX : RAIL_MAX;
+        var watchHit = isWatchlistHit(tick);
 
         if (tick.trackId != null) {
             for (var ri = 0; ri < bucket.length; ri++) {
                 if (bucket[ri] && bucket[ri].trackId === tick.trackId) {
                     bucket[ri] = copyRailTick(tick, bucket[ri]);
                     renderRail(false);
-                    if (listStatusOf(bucket[ri]) && offline) pushHitSlot(bucket[ri]);
+                    if (offline && (watchHit || listStatusOf(bucket[ri]))) {
+                        pushHitSlot(bucket[ri]);
+                    } else if (!offline && watchHit) {
+                        pushCriticalAlert(bucket[ri], false);
+                    }
                     return;
                 }
             }
@@ -1202,7 +1425,148 @@
         if (offline) offlineRail = bucket;
         else liveRail = bucket;
         renderRail(true);
-        if (listStatusOf(tick) && offline) pushHitSlot(tick);
+        /* Offline watchlist hits → bottom #blacklist-hits-container only (no rail banner) */
+        if (offline && (watchHit || listStatusOf(tick))) pushHitSlot(tick);
+        else if (!offline && watchHit) pushCriticalAlert(tick, false);
+    }
+
+    function pushCriticalAlert(tick, offline) {
+        /* Offline rail banner removed — hits use #blacklist-hits-container only */
+        if (offline) {
+            pushHitSlot(tick);
+            return;
+        }
+        if (!tick || !isWatchlistHit(tick)) return;
+        var bucket = liveCriticalAlerts;
+        var copy = copyRailTick(tick, null);
+        if (tick.trackId != null) {
+            for (var i = 0; i < bucket.length; i++) {
+                if (bucket[i] && bucket[i].trackId === tick.trackId) {
+                    bucket[i] = copy;
+                    liveCriticalAlerts = bucket;
+                    paintCriticalAlerts();
+                    return;
+                }
+            }
+        }
+        bucket.unshift(copy);
+        while (bucket.length > CRITICAL_ALERT_MAX) bucket.pop();
+        liveCriticalAlerts = bucket;
+        paintCriticalAlerts();
+    }
+
+    function paintCriticalAlertCard(t, idx, scope) {
+        var st = listStatusOf(t) || 'watchlist';
+        var thumb = railPlateUrl(t) || railPrimaryUrl(t) || '';
+        var plate = t.plate || tr('analytics.anpr.liveRailNoText', 'No plate');
+        var meta = String(st).toUpperCase() + ' \u00B7 ' + (formatWhenShort(t.at) || '\u2014');
+        return (
+            '<div class="ax-anpr-critical-alert-card" role="listitem" data-anpr-critical="' + idx +
+            '" data-anpr-critical-scope="' + esc(scope) + '" title="' +
+            esc(tr('analytics.anpr.liveRailExpandHint', 'Open evidence')) + '">' +
+            (thumb
+                ? '<img class="ax-anpr-critical-alert-thumb" src="' + esc(thumb) + '" alt="">'
+                : '<span class="ax-anpr-critical-alert-thumb" aria-hidden="true"></span>') +
+            '<div class="ax-anpr-critical-alert-body">' +
+            '<div class="ax-anpr-critical-alert-plate">' + esc(plate) + '</div>' +
+            '<div class="ax-anpr-critical-alert-meta">' + esc(meta) + '</div>' +
+            '</div>' +
+            '<button type="button" class="ax-anpr-critical-alert-x" data-anpr-critical-dismiss="' + idx +
+            '" data-anpr-critical-scope="' + esc(scope) + '" title="Dismiss" aria-label="Dismiss">&times;</button>' +
+            '</div>'
+        );
+    }
+
+    function paintCriticalAlerts() {
+        /* Live tab only — Offline has no rail watchlist banner */
+        paintOneCriticalList(
+            document.getElementById('critical-alerts-container'),
+            document.getElementById('active-alerts-list'),
+            document.getElementById('alert-count-badge'),
+            liveCriticalAlerts,
+            'live'
+        );
+        paintSubnavWatchBadge();
+    }
+
+    function paintSubnavWatchBadge() {
+        var badge = document.getElementById('ax-anpr-subnav-watch-badge');
+        if (!badge) return;
+        /* Live only — Offline / Snapshot / History / Lists never show this badge.
+           Offline hits belong in #blacklist-hits-container only. */
+        var livePanel = document.getElementById('ax-anpr-sub-live-panel');
+        var onLive = !!(livePanel && !livePanel.hidden);
+        if (!onLive) {
+            badge.hidden = true;
+            badge.setAttribute('hidden', '');
+            badge.setAttribute('aria-hidden', 'true');
+            badge.classList.remove('is-active');
+            return;
+        }
+        badge.hidden = false;
+        badge.removeAttribute('hidden');
+        badge.setAttribute('aria-hidden', 'false');
+        /* Live critical only — never mix Offline hitRail into "Watchlist" */
+        var n = liveCriticalAlerts ? liveCriticalAlerts.length : 0;
+        badge.textContent = String(n) + ' Active Watchlist Hits';
+        if (n > 0) badge.classList.add('is-active');
+        else badge.classList.remove('is-active');
+    }
+
+    /** Called from analytics-hub on ANPR sub-tab switch. */
+    function syncSubnavWatchBadge() {
+        paintSubnavWatchBadge();
+    }
+
+    function paintOneCriticalList(containerEl, listEl, badgeEl, alerts, scope) {
+        var n = Array.isArray(alerts) ? Math.min(alerts.length, CRITICAL_ALERT_MAX) : 0;
+        if (badgeEl) badgeEl.textContent = String(n) + ' ACTIVE';
+        if (containerEl) {
+            if (n > 0) {
+                containerEl.hidden = false;
+                containerEl.classList.remove('is-collapsed');
+                containerEl.removeAttribute('hidden');
+                containerEl.style.display = '';
+            } else {
+                /* Collapse completely — Recent Plates sits at top of rail */
+                containerEl.hidden = true;
+                containerEl.classList.add('is-collapsed');
+                containerEl.setAttribute('hidden', '');
+                containerEl.style.display = 'none';
+            }
+        }
+        if (!listEl) return;
+        if (!n) {
+            listEl.innerHTML = '';
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < n; i++) {
+            if (!alerts[i]) continue;
+            html += paintCriticalAlertCard(alerts[i], i, scope);
+        }
+        listEl.innerHTML = html;
+    }
+
+    function dismissCriticalAlert(scope, idx) {
+        if (scope === 'offline') return;
+        var bucket = liveCriticalAlerts;
+        var i = parseInt(idx, 10);
+        if (!isFinite(i) || i < 0 || i >= bucket.length) return;
+        bucket.splice(i, 1);
+        liveCriticalAlerts = bucket;
+        paintCriticalAlerts();
+    }
+
+    function clearCriticalAlerts(scope) {
+        if (scope === 'offline') {
+            hitRail = [];
+            paintHitSlots();
+            paintSubnavWatchBadge();
+            return;
+        }
+        liveCriticalAlerts = [];
+        paintCriticalAlerts();
     }
 
     function pushHitSlot(tick) {
@@ -1214,12 +1578,16 @@
         paintHitSlots();
     }
 
+    function blacklistHitSkeletonHtml() {
+        var cell = '<div class="ax-anpr-offline-hit-skel" role="status">Awaiting Hit</div>';
+        return '<div class="ax-anpr-offline-hit-skel-row">' + cell + cell + cell + '</div>';
+    }
+
     function paintHitSlots() {
-        var row = document.getElementById('ax-anpr-offline-hit-row');
+        var row = hitSlotsContainer();
         if (!row) return;
         if (!Array.isArray(hitRail) || hitRail.length === 0) {
-            row.innerHTML = '<div class="ax-anpr-offline-hit-empty" role="status">' +
-                esc(tr('analytics.anpr.hitSlotsEmpty', 'Waiting for list hits\u2026')) + '</div>';
+            row.innerHTML = blacklistHitSkeletonHtml();
             return;
         }
         var html = '';
@@ -1258,6 +1626,8 @@
             recentPlates: offlineRail,
             scope: 'offline',
         });
+        paintCriticalAlerts();
+        paintHitSlots();
     }
 
     function captureImagePath(t) {
@@ -1266,23 +1636,61 @@
 
     function capturePlateText(t) {
         if (!t) return 'UNCLEAR';
+        var text = t.plateText || t.plate || t.plateCompact || t.rawText || null;
+        if (text && String(text).trim()) return String(text).trim();
+        if (t.dual && t.dual.consensus && t.dual.consensus.plate) {
+            return String(t.dual.consensus.plate);
+        }
+        if (t.dual && t.dual.temporal && t.dual.temporal.lockedPlate) {
+            return String(t.dual.temporal.lockedPlate);
+        }
         if (t.unclear) return 'UNCLEAR';
-        return String(t.plate || 'UNCLEAR');
+        return 'UNCLEAR';
     }
 
     function captureMacroUrl(t) {
         if (!t) return '';
-        return t.vehicleUrl || t.macroCropUrl || t.sceneUrl || t.cropUrl || '';
+        return t.macroCropUrl || t.vehicleUrl || t.sceneUrl || t.microCropUrl || t.cropUrl || '';
     }
 
     function captureMicroUrl(t) {
         if (!t) return '';
-        return t.cropUrl || t.microCropUrl || t.plateUrl || t.vehicleUrl || '';
+        return t.microCropUrl || t.cropUrl || t.plateUrl || t.macroCropUrl || t.vehicleUrl || '';
     }
 
     function captureBwcUser(t) {
         if (!t) return '\u2014';
-        return String(t.deviceLabel || t.bwcUser || t.camera_name || t.camName || t.camId || '\u2014');
+        return String(t.bwcUser || t.deviceLabel || t.camera_name || t.camName || t.camId || '\u2014');
+    }
+
+    /** Distinct Live source for multi-cam: Name · camId */
+    function captureBwcBadge(t) {
+        if (!t) return '\u2014';
+        var name = String(t.bwcUser || t.deviceLabel || t.camera_name || t.camName || '').trim();
+        var cam = String(t.camId || '').trim();
+        if (name && cam && name.toLowerCase() !== cam.toLowerCase()) {
+            return name + ' \u00B7 ' + cam;
+        }
+        return name || cam || '\u2014';
+    }
+
+    function captureIdOf(t) {
+        if (!t) return '';
+        return String(t.id || t.hitId || t.frameUuid || '').trim();
+    }
+
+    function captureWhenDisplay(t, shortForm) {
+        var raw = captureWhenRaw(t);
+        /* Cards + lightbox: always prefer full date+time (operator mandate) */
+        if (!shortForm) return formatWhenFull(raw);
+        return formatWhenFull(raw);
+    }
+
+    function captureGpsLine(t) {
+        if (!t) return '';
+        if (t.lat == null || t.lon == null) return '';
+        if (!isFinite(Number(t.lat)) || !isFinite(Number(t.lon))) return '';
+        return Number(t.lat).toFixed(5) + ', ' + Number(t.lon).toFixed(5);
     }
 
     function captureSourceIsLive(t) {
@@ -1299,29 +1707,69 @@
         return cell + cell + cell + cell;
     }
 
-    /* fe26055 dense cards — DO NOT alter HTML / mapping */
-    function paintRailCardHtml(t, idx) {
+    function formatDwellLabel(sec) {
+        sec = Math.max(0, Math.floor(Number(sec) || 0));
+        var m = Math.floor(sec / 60);
+        var s = sec % 60;
+        var ss = (s < 10 ? '0' : '') + String(s);
+        if (m >= 60) {
+            var h = Math.floor(m / 60);
+            m = m % 60;
+            var mm = (m < 10 ? '0' : '') + String(m);
+            return 'Tracked: ' + h + 'h ' + mm + 'm ' + ss + 's';
+        }
+        return 'Tracked: ' + m + 'm ' + ss + 's';
+    }
+
+    function plateMatchKey(t) {
+        if (!t) return '';
+        return String(t.plateCompact || t.plateText || t.plate || '')
+            .replace(/[\s\-_.]/g, '')
+            .toUpperCase();
+    }
+
+    /* ANPR-LIVE-MAG-OPEN-BY-INDEX-V1 — open key = grid index; stamp id on tick */
+    function paintRailCardHtml(t, idx, scope) {
         var plateText = capturePlateText(t);
-        var when = formatWhenShort(t.at) || formatWhen(t.at) || '\u2014';
+        var when = captureWhenDisplay(t, false);
         var macroUrl = captureMacroUrl(t);
         var microUrl = captureMicroUrl(t);
-        var bwcUser = captureBwcUser(t);
+        var bwcBadge = captureBwcBadge(t);
         var isLive = captureSourceIsLive(t);
         var st = listStatusOf(t);
         var hitCls = st ? (' is-hit ' + gradeClass(st)) : '';
         var sourceBadge = isLive
-            ? ('BWC: ' + bwcUser)
+            ? ('BWC: ' + bwcBadge)
             : 'OFFLINE MP4';
+        var sc = scope === 'offline' ? 'offline' : 'live';
+        var capId = captureIdOf(t);
+        if (!capId) {
+            capId = 'idx_' + sc + '_' + idx;
+        }
+        /* Stamp so findRailTick never orphans button ids */
+        t.id = String(t.id || capId);
+        if (!t.frameUuid && capId.indexOf('idx_') !== 0) t.frameUuid = capId;
         var macroHtml = macroUrl
             ? '<img src="' + esc(macroUrl) + '" class="ax-anpr-snap-macro-img" alt="Full Context" loading="lazy">'
             : '<span class="ax-anpr-snap-card-img-empty">\u2014</span>';
         var microHtml = microUrl
             ? '<img src="' + esc(microUrl) + '" class="ax-anpr-snap-micro-img" alt="Zoomed Plate Crop" loading="lazy">'
             : '<span class="ax-anpr-snap-card-img-empty">\u2014</span>';
+        var dwellSec = Number(t.dwellSeconds) || 0;
+        var dwellHtml = '';
+        if (dwellSec > 0) {
+            var dwellCls = dwellSec > 120 ? ' ax-anpr-dwell-badge is-long' : ' ax-anpr-dwell-badge';
+            dwellHtml = '<span class="' + dwellCls.trim() + '" title="' +
+                esc(formatDwellLabel(dwellSec)) + '">' + esc(formatDwellLabel(dwellSec)) + '</span>';
+        }
+        /* data-anpr-open = grid index (primary). capture-id kept as secondary. */
         return (
-            '<div class="ax-anpr-snap-card' + hitCls + '" role="listitem" data-anpr-rail="' + idx + '">' +
+            '<div class="ax-anpr-snap-card' + hitCls + '" role="listitem" data-anpr-rail="' + idx +
+            '" data-anpr-rail-scope="' + sc + '" data-anpr-capture-id="' + esc(capId) + '">' +
             '<div class="ax-anpr-snap-macro">' + macroHtml + '</div>' +
-            '<button type="button" class="ax-anpr-rail-mag" data-anpr-open="' + idx + '" title="' +
+            '<button type="button" class="ax-anpr-rail-mag" data-anpr-open="' + idx +
+            '" data-anpr-rail-scope="' + sc + '" data-anpr-capture-id="' + esc(capId) +
+            '" data-anpr-rail-idx="' + idx + '" title="' +
             esc(tr('analytics.anpr.liveRailExpandHint', 'Open evidence')) + '" aria-label="' +
             esc(tr('analytics.anpr.liveRailExpandHint', 'Open evidence')) + '">' +
             '<svg class="ax-anpr-rail-mag-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">' +
@@ -1331,9 +1779,11 @@
             '<div class="ax-anpr-snap-card-body">' +
             '<div class="ax-anpr-snap-card-row">' +
             '<span class="ax-anpr-snap-card-plate">' + mismatchIconHtml(t) + esc(plateText) + '</span>' +
-            '<span class="ax-anpr-snap-bwc' + (isLive ? ' is-live' : ' is-offline') + '">' +
+            '<span class="ax-anpr-snap-bwc' + (isLive ? ' is-live' : ' is-offline') + '" title="' +
+            esc(sourceBadge) + '">' +
             esc(sourceBadge) + '</span>' +
             '</div>' +
+            dwellHtml +
             '<span class="ax-anpr-snap-card-time">' + esc(when) + '</span>' +
             '</div></div>'
         );
@@ -1365,7 +1815,7 @@
         var limit = Math.min(recentPlates.length, maxSlots);
         for (var i = 0; i < limit; i++) {
             if (!recentPlates[i]) continue;
-            html += paintRailCardHtml(recentPlates[i], i);
+            html += paintRailCardHtml(recentPlates[i], i, scope);
         }
         if (!html) {
             grid.innerHTML = skeletonEmptyHtml();
@@ -1381,60 +1831,145 @@
 
     function clearUiRail(scope) {
         if (scope === 'offline') {
+            /* Clear UI — Recent Plates only; bottom blacklist panel is separate */
             offlineRail = [];
+            offlineCriticalAlerts = [];
         } else {
+            /* Shift Reset — empty recentPlates + re-render skeletons */
             liveRail = [];
+            liveCriticalAlerts = [];
         }
         renderRail(false);
     }
 
-    function openAnprModal(idx, scope) {
-        var i = parseInt(idx, 10);
-        if (!isFinite(i) || i < 0) return;
+    /** ANPR-MAG-RAILBYSCOPE-FIX-V1 — was missing; every glass click crashed here */
+    function railByScope(scope) {
+        return scope === 'offline' ? offlineRail : liveRail;
+    }
+
+    function findRailTick(key, scope) {
         var sc = scope === 'offline' ? 'offline' : 'live';
-        var bucket = railByScope(sc).filter(function (c) {
+        var raw = railByScope(sc) || [];
+        var bucket = raw.filter(function (c) {
             if (!c) return false;
             if (sc === 'live') return !isOfflineAnprSource(c);
             return isOfflineAnprSource(c);
         });
-        var tick = bucket[i];
-        if (!tick) return;
-        var img = captureImagePath(tick) || captureMacroUrl(tick) || captureMicroUrl(tick);
-        var liveHit = sc === 'live' && !!listStatusOf(tick);
-        if (liveHit) {
-            try {
-                if (global.FrAlarm && typeof FrAlarm.showHit === 'function') {
-                    var payload = anprHitToFrAlarmPayload(Object.assign({}, tick, {
-                        isLive: true,
-                        source: tick.source || 'live',
-                    }));
-                    if (payload) FrAlarm.showHit(payload);
-                }
-            } catch (_) { /* ignore */ }
+        if (key == null || key === '') return null;
+        var s = String(key).trim();
+        var i;
+        /* Index-first (ANPR-LIVE-MAG-OPEN-BY-INDEX-V1) */
+        if (/^\d+$/.test(s)) {
+            i = parseInt(s, 10);
+            if (isFinite(i) && i >= 0 && bucket[i]) return bucket[i];
+            if (isFinite(i) && i >= 0 && raw[i]) return raw[i];
         }
+        var syn = /^idx_(live|offline)_(\d+)$/.exec(s);
+        if (syn) {
+            i = parseInt(syn[2], 10);
+            if (isFinite(i) && i >= 0) return bucket[i] || raw[i] || null;
+        }
+        var j;
+        for (j = 0; j < bucket.length; j++) {
+            if (!bucket[j]) continue;
+            if (captureIdOf(bucket[j]) === s
+                || String(bucket[j].id || '') === s
+                || String(bucket[j].hitId || '') === s
+                || String(bucket[j].frameUuid || '') === s) {
+                return bucket[j];
+            }
+        }
+        for (j = 0; j < raw.length; j++) {
+            if (!raw[j]) continue;
+            if (captureIdOf(raw[j]) === s
+                || String(raw[j].id || '') === s
+                || String(raw[j].hitId || '') === s
+                || String(raw[j].frameUuid || '') === s) {
+                return raw[j];
+            }
+        }
+        return null;
+    }
+
+    /** Prefer data-anpr-rail index from mag or card. */
+    function openKeyFromRailEl(el) {
+        if (!el || !el.getAttribute) return null;
+        var card = el.closest ? el.closest('[data-anpr-rail]') : null;
+        if (card && card.getAttribute('data-anpr-rail') != null
+            && String(card.getAttribute('data-anpr-rail')) !== '') {
+            return card.getAttribute('data-anpr-rail');
+        }
+        if (el.getAttribute('data-anpr-rail-idx') != null
+            && String(el.getAttribute('data-anpr-rail-idx')) !== '') {
+            return el.getAttribute('data-anpr-rail-idx');
+        }
+        if (el.getAttribute('data-anpr-open') != null
+            && /^\d+$/.test(String(el.getAttribute('data-anpr-open')))) {
+            return el.getAttribute('data-anpr-open');
+        }
+        return el.getAttribute('data-anpr-capture-id')
+            || el.getAttribute('data-anpr-open')
+            || (card && card.getAttribute('data-anpr-capture-id'))
+            || null;
+    }
+
+    function openAnprModal(idx, scope) {
         try {
-            if (img && global.FrAlarm && typeof FrAlarm.openSnapLightbox === 'function') {
-                FrAlarm.openSnapLightbox({
-                    cropUrl: img,
-                    photoUrl: tick.cropUrl || img,
-                    displayName: capturePlateText(tick),
-                    camId: tick.camId,
-                    deviceLabel: tick.deviceLabel || tick.camId || capturePlateText(tick),
-                    at: tick.at,
-                    lat: tick.lat,
-                    lon: tick.lon,
-                    match: !!listStatusOf(tick),
-                    scorePct: tick.confidence != null ? Number(tick.confidence) : null,
-                    plate: tick.plate,
-                    anpr: true,
-                });
+            var sc = scope === 'offline' ? 'offline' : 'live';
+            var tick = findRailTick(idx, sc);
+            if (!tick) {
+                try {
+                    console.warn('[anpr] openAnprModal miss', { idx: idx, scope: sc });
+                } catch (_) { /* ignore */ }
                 return;
             }
-        } catch (_) { /* fall through */ }
-        openLightbox(tick);
+            /* Magnifier → ANPR lightbox first; FrAlarm after (unchanged) */
+            openLightbox(tick, sc);
+            if (sc === 'live' && listStatusOf(tick)) {
+                try {
+                    if (global.FrAlarm && typeof FrAlarm.showHit === 'function') {
+                        var payload = anprHitToFrAlarmPayload(Object.assign({}, tick, {
+                            isLive: true,
+                            source: tick.source || 'live',
+                        }));
+                        if (payload) FrAlarm.showHit(payload);
+                    }
+                } catch (_) { /* ignore */ }
+            }
+        } catch (err) {
+            try {
+                console.error('[anpr] openAnprModal err', err && err.message ? err.message : err);
+            } catch (_) { /* ignore */ }
+        }
+    }
+
+    function closeAnprLightbox() {
+        var el = document.getElementById('ax-anpr-snap-lightbox');
+        var bd = document.getElementById('ax-anpr-snap-lightbox-backdrop');
+        if (el) {
+            el.hidden = true;
+            el.classList.remove('is-open');
+        }
+        if (bd) {
+            bd.hidden = true;
+            bd.classList.remove('is-open');
+        }
+    }
+
+    function ensureLightboxBackdrop() {
+        var bd = document.getElementById('ax-anpr-snap-lightbox-backdrop');
+        if (bd) return bd;
+        bd = document.createElement('div');
+        bd.id = 'ax-anpr-snap-lightbox-backdrop';
+        bd.className = 'ax-anpr-snap-lightbox-backdrop';
+        bd.hidden = true;
+        bd.addEventListener('click', function () { closeAnprLightbox(); });
+        document.body.appendChild(bd);
+        return bd;
     }
 
     function ensureLightbox() {
+        ensureLightboxBackdrop();
         var el = document.getElementById('ax-anpr-snap-lightbox');
         if (el) {
             if (!el.querySelector('.ax-anpr-lb-download')) {
@@ -1454,6 +1989,17 @@
                     }
                 }
             }
+            if (!el.querySelector('.ax-anpr-lb-zoom-hint')) {
+                var body0 = el.querySelector('.ax-anpr-snap-lb-body');
+                if (body0) {
+                    var hint0 = document.createElement('p');
+                    hint0.className = 'ax-anpr-lb-zoom-hint hint';
+                    hint0.textContent = tr('analytics.anpr.lbZoomHint', 'Hover image to enlarge');
+                    var meta0 = body0.querySelector('.ax-anpr-snap-lb-meta');
+                    if (meta0) body0.insertBefore(hint0, meta0);
+                    else body0.appendChild(hint0);
+                }
+            }
             var scene = el.querySelector('.ax-anpr-lb-scene');
             if (scene && scene.parentElement
                 && !scene.parentElement.classList.contains('ax-anpr-lb-scene-wrap')) {
@@ -1463,11 +2009,28 @@
                 wrapUp.appendChild(scene);
                 el._anprMagBound = false;
             }
+            var pImg = el.querySelector('.ax-anpr-lb-plate-img');
+            if (pImg && pImg.parentElement
+                && !pImg.parentElement.classList.contains('ax-anpr-lb-plate-wrap')) {
+                var pWrapUp = document.createElement('div');
+                pWrapUp.className = 'ax-anpr-lb-plate-wrap';
+                pImg.parentNode.insertBefore(pWrapUp, pImg);
+                pWrapUp.appendChild(pImg);
+                el._anprMagBound = false;
+            }
             if (!el._anprMagBound) bindMacroMagnifier(el);
+            if (!el._anprBigMagCloseBound) {
+                el._anprBigMagCloseBound = true;
+                var closeBtn0 = el.querySelector('.ax-anpr-snap-lb-close');
+                if (closeBtn0) {
+                    closeBtn0.addEventListener('click', function () { closeAnprLightbox(); });
+                }
+            }
             return el;
         }
         el = document.createElement('div');
         el.id = 'ax-anpr-snap-lightbox';
+        el.className = 'ax-anpr-snap-lightbox';
         el.hidden = true;
         el.innerHTML =
             '<div class="ax-anpr-snap-lb-chrome" data-anpr-drag-handle="1">' +
@@ -1475,19 +2038,26 @@
             '<button type="button" class="ax-anpr-snap-lb-close" aria-label="' +
             esc(tr('common.close', 'Close')) + '">\u00D7</button></div>' +
             '<div class="ax-anpr-snap-lb-body">' +
-            '<div class="ax-anpr-lb-scene-wrap">' +
+            '<div class="ax-anpr-lb-scene-wrap" title="' +
+            esc(tr('analytics.anpr.lbZoomHint', 'Hover image to enlarge')) + '">' +
             '<img class="ax-anpr-lb-scene" alt="">' +
             '</div>' +
-            '<div class="ax-anpr-lb-plate-wrap">' +
+            '<div class="ax-anpr-lb-plate-wrap" title="' +
+            esc(tr('analytics.anpr.lbZoomHint', 'Hover image to enlarge')) + '">' +
             '<img class="ax-anpr-lb-plate-img" alt="" hidden>' +
             '</div>' +
+            '<p class="ax-anpr-lb-zoom-hint hint">' +
+            esc(tr('analytics.anpr.lbZoomHint', 'Hover image to enlarge')) + '</p>' +
             '<div class="ax-anpr-snap-lb-meta">' +
             '<p class="ax-anpr-lb-plate"></p>' +
             '<p class="ax-anpr-lb-mmr"></p>' +
             '<p class="ax-anpr-lb-list"></p>' +
             '<p class="ax-anpr-lb-when"></p>' +
             '<p class="ax-anpr-lb-bwc"></p>' +
+            '<p class="ax-anpr-lb-gps" hidden></p>' +
             '<div class="ax-anpr-snap-lb-actions">' +
+            '<button type="button" class="btn btn-sm btn-secondary ax-anpr-lb-copy-loc" hidden>' +
+            esc(tr('analytics.anpr.copyLocation', 'Copy location')) + '</button>' +
             '<button type="button" class="btn btn-sm btn-primary ax-anpr-lb-download">' +
             esc(tr('analytics.anpr.downloadEvidence', 'Download Evidence')) + '</button>' +
             '</div>' +
@@ -1495,8 +2065,9 @@
         document.body.appendChild(el);
         var closeBtn = el.querySelector('.ax-anpr-snap-lb-close');
         if (closeBtn) {
-            closeBtn.addEventListener('click', function () { el.hidden = true; });
+            closeBtn.addEventListener('click', function () { closeAnprLightbox(); });
         }
+        el._anprBigMagCloseBound = true;
         var dlBtn = el.querySelector('.ax-anpr-lb-download');
         if (dlBtn) {
             dlBtn.addEventListener('click', function (e) {
@@ -1504,9 +2075,20 @@
                 downloadAnprEvidence(el._tick);
             });
         }
+        var copyBtn = el.querySelector('.ax-anpr-lb-copy-loc');
+        if (copyBtn && !copyBtn._anprCopyBound) {
+            copyBtn._anprCopyBound = true;
+            copyBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var tick = el._tick;
+                var line = captureGpsLine(tick);
+                if (!line || !global.navigator || !navigator.clipboard) return;
+                navigator.clipboard.writeText(line).catch(function () { /* ignore */ });
+            });
+        }
         bindMacroMagnifier(el);
         document.addEventListener('keydown', function (ev) {
-            if (ev.key === 'Escape' && el && !el.hidden) el.hidden = true;
+            if (ev.key === 'Escape' && el && !el.hidden) closeAnprLightbox();
         });
         /* Native pointer drag on header — not locked to screen center */
         (function bindDrag() {
@@ -1527,6 +2109,7 @@
                 el.style.bottom = 'auto';
                 el.style.left = rect.left + 'px';
                 el.style.top = rect.top + 'px';
+                el.style.transform = 'none';
                 try { handle.setPointerCapture(ev.pointerId); } catch (_) { /* ignore */ }
                 ev.preventDefault();
             });
@@ -1571,7 +2154,7 @@
             var x = Math.max(0, Math.min(100, (ox / w) * 100));
             var y = Math.max(0, Math.min(100, (oy / h) * 100));
             img.style.transformOrigin = x + '% ' + y + '%';
-            img.style.transform = 'scale(2.5)';
+            img.style.transform = 'scale(3)';
             wrap.classList.add('is-zooming');
         });
         wrap.addEventListener('mouseleave', function () {
@@ -1590,7 +2173,7 @@
                 var px = Math.max(0, Math.min(100, ((ev.offsetX != null ? ev.offsetX : 0) / pw) * 100));
                 var py = Math.max(0, Math.min(100, ((ev.offsetY != null ? ev.offsetY : 0) / ph) * 100));
                 pImg.style.transformOrigin = px + '% ' + py + '%';
-                pImg.style.transform = 'scale(2.5)';
+                pImg.style.transform = 'scale(3)';
                 pWrap.classList.add('is-zooming');
             });
             pWrap.addEventListener('mouseleave', function () {
@@ -1638,10 +2221,17 @@
             });
     }
 
-    function openLightbox(tick) {
+    function openLightbox(tick, scopeHint) {
         if (!tick) return;
         var el = ensureLightbox();
+        var bd = ensureLightboxBackdrop();
         el._tick = tick;
+        /* Big centered open — reset any prior drag position */
+        el.style.left = '';
+        el.style.top = '';
+        el.style.right = '';
+        el.style.bottom = '';
+        el.style.transform = '';
         var title = el.querySelector('.ax-anpr-snap-lb-title');
         var img = el.querySelector('.ax-anpr-lb-scene');
         var plateImg = el.querySelector('.ax-anpr-lb-plate-img');
@@ -1649,11 +2239,42 @@
         var list = el.querySelector('.ax-anpr-lb-list');
         var when = el.querySelector('.ax-anpr-lb-when');
         var bwc = el.querySelector('.ax-anpr-lb-bwc');
+        var gpsEl = el.querySelector('.ax-anpr-lb-gps');
+        var copyLoc = el.querySelector('.ax-anpr-lb-copy-loc');
+        if (!gpsEl && el.querySelector('.ax-anpr-snap-lb-meta')) {
+            gpsEl = document.createElement('p');
+            gpsEl.className = 'ax-anpr-lb-gps';
+            gpsEl.hidden = true;
+            var metaIns = el.querySelector('.ax-anpr-snap-lb-meta');
+            var actionsIns = metaIns && metaIns.querySelector('.ax-anpr-snap-lb-actions');
+            if (actionsIns) metaIns.insertBefore(gpsEl, actionsIns);
+            else if (metaIns) metaIns.appendChild(gpsEl);
+        }
+        if (!copyLoc && el.querySelector('.ax-anpr-snap-lb-actions')) {
+            copyLoc = document.createElement('button');
+            copyLoc.type = 'button';
+            copyLoc.className = 'btn btn-sm btn-secondary ax-anpr-lb-copy-loc';
+            copyLoc.hidden = true;
+            copyLoc.textContent = tr('analytics.anpr.copyLocation', 'Copy location');
+            el.querySelector('.ax-anpr-snap-lb-actions').insertBefore(
+                copyLoc,
+                el.querySelector('.ax-anpr-lb-download')
+            );
+            copyLoc.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var line = captureGpsLine(el._tick);
+                if (!line || !global.navigator || !navigator.clipboard) return;
+                navigator.clipboard.writeText(line).catch(function () { /* ignore */ });
+            });
+        }
+        var plateLine = capturePlateText(tick);
+        var bwcLine = captureBwcBadge(tick);
+        var liveSnap = scopeHint === 'live' || (!isOfflineAnprSource(tick) && scopeHint !== 'offline');
         if (title) {
             title.textContent = tr('analytics.anpr.liveSnapTitle', 'Vehicle snap') +
-                ' \u00B7 ' + (tick.plate || tick.vehicleLabel || '\u2014');
+                ' \u00B7 ' + (plateLine !== 'UNCLEAR' ? plateLine : (tick.vehicleLabel || '\u2014'));
         }
-        var sceneUrl = railPrimaryUrl(tick);
+        var sceneUrl = captureMacroUrl(tick) || railPrimaryUrl(tick);
         if (img) {
             if (sceneUrl) {
                 img.src = sceneUrl;
@@ -1664,8 +2285,9 @@
             }
         }
         if (plateImg) {
-            if (tick.cropUrl && tick.vehicleUrl) {
-                plateImg.src = tick.cropUrl;
+            var micro = captureMicroUrl(tick);
+            if (micro) {
+                plateImg.src = micro;
                 plateImg.hidden = false;
             } else {
                 plateImg.removeAttribute('src');
@@ -1673,9 +2295,9 @@
             }
         }
         if (plate) {
-            plate.textContent = tick.unclear
+            plate.textContent = (tick.unclear && plateLine === 'UNCLEAR')
                 ? (tr('analytics.anpr.unclear', 'Unclear / Manual Review'))
-                : (tr('analytics.anpr.liveDetailPlate', 'Plate') + ': ' + (tick.plate || '\u2014'));
+                : (tr('analytics.anpr.liveDetailPlate', 'Plate') + ': ' + plateLine);
         }
         var mmrEl = el.querySelector('.ax-anpr-lb-mmr');
         if (mmrEl) {
@@ -1686,21 +2308,46 @@
             mmrEl.hidden = !ml;
         }
         if (list) list.textContent = tr('analytics.anpr.liveDetailList', 'List') + ': ' + listLabel(tick);
-        if (when) when.textContent = tr('analytics.anpr.liveDetailWhen', 'When') + ': ' + formatWhen(tick.at);
+        if (when) {
+            when.textContent = tr('analytics.anpr.liveDetailWhen', 'When') + ': ' +
+                captureWhenDisplay(tick, false);
+        }
         if (bwc) {
-            var gps = '';
-            if (tick.lat != null && tick.lon != null
-                && isFinite(Number(tick.lat)) && isFinite(Number(tick.lon))) {
-                gps = ' \u00B7 GPS ' + Number(tick.lat).toFixed(5) + ', ' + Number(tick.lon).toFixed(5);
+            bwc.textContent = tr('analytics.anpr.liveDetailCam', 'Camera') + ': ' + bwcLine;
+        }
+        /* Location / GPS — Live enlarge only (Offline does not need it) */
+        var gpsLine = liveSnap ? captureGpsLine(tick) : '';
+        if (gpsEl) {
+            if (gpsLine) {
+                gpsEl.hidden = false;
+                gpsEl.textContent = tr('analytics.anpr.liveDetailGps', 'Location') + ': ' + gpsLine;
+            } else if (liveSnap) {
+                gpsEl.hidden = false;
+                gpsEl.textContent = tr('analytics.anpr.liveDetailGps', 'Location') + ': ' +
+                    tr('analytics.anpr.noLocation', 'No GPS for this unit');
+            } else {
+                gpsEl.hidden = true;
+                gpsEl.textContent = '';
             }
-            bwc.textContent = tr('analytics.anpr.liveDetailCam', 'Camera') + ': ' +
-                (tick.deviceLabel || tick.camId || '\u2014') + gps;
+        }
+        if (copyLoc) {
+            if (liveSnap && gpsLine) {
+                copyLoc.hidden = false;
+            } else {
+                copyLoc.hidden = true;
+            }
+        }
+        if (bd) {
+            bd.hidden = false;
+            bd.classList.add('is-open');
         }
         el.hidden = false;
+        el.classList.add('is-open');
+        if (!el._anprMagBound) bindMacroMagnifier(el);
     }
 
     function openHistoryDetail(tick) {
-        openLightbox(tick);
+        openLightbox(tick, isOfflineAnprSource(tick) ? 'offline' : 'live');
     }
 
     /**
@@ -1806,7 +2453,16 @@
         /* DATA FIREWALL — Live tab ignores offline captures */
         if (String(tick.source || '').toLowerCase() === 'offline') return;
         if (isOfflineAnprSource(tick)) return;
-        pushRail(Object.assign({}, tick, { source: tick.source || 'live', isLive: true }));
+        if (tick.isUpdate) {
+            onCropUpdate(tick);
+            return;
+        }
+        pushRail(Object.assign({}, tick, {
+            source: tick.source || 'live',
+            isLive: true,
+            dwellSeconds: tick.dwellSeconds != null ? tick.dwellSeconds : 0,
+            isUpdate: false,
+        }));
         if (tick.listMatch) {
             setHitBar({
                 plate: tick.plate,
@@ -1818,6 +2474,33 @@
                 hitId: null,
             });
         }
+    }
+
+    /** Dwell update — patch existing rail card; never prepend a new card */
+    function onCropUpdate(payload) {
+        if (!payload) return;
+        if (String(payload.source || '').toLowerCase() === 'offline') return;
+        if (isOfflineAnprSource(payload)) return;
+        var key = plateMatchKey(payload);
+        if (!key) return;
+        var dwellSeconds = Math.max(0, Math.floor(Number(payload.dwellSeconds) || 0));
+        var updated = false;
+        for (var i = 0; i < liveRail.length; i++) {
+            if (!liveRail[i]) continue;
+            if (plateMatchKey(liveRail[i]) !== key) continue;
+            liveRail[i] = Object.assign({}, liveRail[i], {
+                dwellSeconds: dwellSeconds,
+                isUpdate: true,
+                at: payload.at || liveRail[i].at,
+                macroCropUrl: payload.macroCropUrl || payload.vehicleUrl || liveRail[i].macroCropUrl,
+                microCropUrl: payload.microCropUrl || payload.cropUrl || liveRail[i].microCropUrl,
+                vehicleUrl: payload.vehicleUrl || payload.macroCropUrl || liveRail[i].vehicleUrl,
+                cropUrl: payload.cropUrl || payload.microCropUrl || liveRail[i].cropUrl,
+            });
+            updated = true;
+            break;
+        }
+        if (updated) renderRail(false);
     }
 
     function onListHit(hit) {
@@ -1866,12 +2549,18 @@
                     clearSignalTimer(i);
                     destroyPlayer(i);
                     setTileMeta(i, camId, stateKey);
+                    if (stateKey === TILE_STATE.STREAM_ERROR
+                        || stateKey === TILE_STATE.PLAYER_ERROR
+                        || stateKey === TILE_STATE.INVITE_FAILED) {
+                        schedulePlayerRecover(i, camId, 'video-stream-error:' + stateKey);
+                    }
                 }
             }
             updateMeta();
             renderRoster();
         });
         sock.on('anpr-crop-tick', onCropTick);
+        sock.on('anpr-crop-update', onCropUpdate);
         sock.on('anpr-list-hit', onListHit);
     }
 
@@ -1908,6 +2597,8 @@
                 }
                 var s = parseInt(tile.getAttribute('data-anpr-slot'), 10);
                 if (isFinite(s)) focusedSlot = s;
+                var tileId = tile.getAttribute('data-tile-id') || ('anpr-' + s);
+                toggleAnprTileExpand(tileId);
             });
         }
         if (search) search.addEventListener('input', renderRoster);
@@ -1920,7 +2611,8 @@
                 toggleSelect(cam, !!t.checked);
             });
         }
-        if (railHost && !railHost._anprRailBound) {
+        if (railHost && !railHost._anprRailOpenByIndexV1) {
+            railHost._anprRailOpenByIndexV1 = true;
             railHost._anprRailBound = true;
             railHost.addEventListener('click', function (ev) {
                 var mag = ev.target && ev.target.closest
@@ -1928,16 +2620,22 @@
                     : null;
                 if (mag) {
                     ev.preventDefault();
-                    openAnprModal(mag.getAttribute('data-anpr-open'), mag.getAttribute('data-anpr-rail-scope') || 'live');
+                    ev.stopPropagation();
+                    openAnprModal(
+                        openKeyFromRailEl(mag),
+                        mag.getAttribute('data-anpr-rail-scope') || 'live'
+                    );
                     return;
                 }
                 var card = ev.target && ev.target.closest
                     ? ev.target.closest('[data-anpr-rail]')
                     : null;
                 if (!card) return;
-                var idx = parseInt(card.getAttribute('data-anpr-rail'), 10);
-                if (!isFinite(idx)) return;
-                openAnprModal(idx, card.getAttribute('data-anpr-rail-scope') || 'live');
+                ev.preventDefault();
+                openAnprModal(
+                    openKeyFromRailEl(card),
+                    card.getAttribute('data-anpr-rail-scope') || 'live'
+                );
             });
             railHost.addEventListener('dblclick', function (ev) {
                 var card = ev.target && ev.target.closest
@@ -1945,13 +2643,15 @@
                     : null;
                 if (!card) return;
                 ev.preventDefault();
-                var idx = parseInt(card.getAttribute('data-anpr-rail'), 10);
-                if (!isFinite(idx)) return;
-                openAnprModal(idx, card.getAttribute('data-anpr-rail-scope') || 'live');
+                openAnprModal(
+                    openKeyFromRailEl(card),
+                    card.getAttribute('data-anpr-rail-scope') || 'live'
+                );
             });
         }
         var offlineRailEl = document.getElementById('ax-anpr-offline-rail');
-        if (offlineRailEl && !offlineRailEl._anprRailBound) {
+        if (offlineRailEl && !offlineRailEl._anprRailOpenByIndexV1) {
+            offlineRailEl._anprRailOpenByIndexV1 = true;
             offlineRailEl._anprRailBound = true;
             offlineRailEl.addEventListener('click', function (ev) {
                 var mag = ev.target && ev.target.closest
@@ -1959,16 +2659,22 @@
                     : null;
                 if (mag) {
                     ev.preventDefault();
-                    openAnprModal(mag.getAttribute('data-anpr-open'), mag.getAttribute('data-anpr-rail-scope') || 'offline');
+                    ev.stopPropagation();
+                    openAnprModal(
+                        openKeyFromRailEl(mag),
+                        mag.getAttribute('data-anpr-rail-scope') || 'offline'
+                    );
                     return;
                 }
                 var card = ev.target && ev.target.closest
                     ? ev.target.closest('[data-anpr-rail]')
                     : null;
                 if (!card) return;
-                var idx = parseInt(card.getAttribute('data-anpr-rail'), 10);
-                if (!isFinite(idx)) return;
-                openAnprModal(idx, card.getAttribute('data-anpr-rail-scope') || 'offline');
+                ev.preventDefault();
+                openAnprModal(
+                    openKeyFromRailEl(card),
+                    card.getAttribute('data-anpr-rail-scope') || 'offline'
+                );
             });
             offlineRailEl.addEventListener('dblclick', function (ev) {
                 var card = ev.target && ev.target.closest
@@ -1976,12 +2682,38 @@
                     : null;
                 if (!card) return;
                 ev.preventDefault();
-                var idx = parseInt(card.getAttribute('data-anpr-rail'), 10);
-                if (!isFinite(idx)) return;
-                openAnprModal(idx, card.getAttribute('data-anpr-rail-scope') || 'offline');
+                openAnprModal(
+                    openKeyFromRailEl(card),
+                    card.getAttribute('data-anpr-rail-scope') || 'offline'
+                );
             });
         }
-        var hitRow = document.getElementById('ax-anpr-offline-hit-row');
+        /* Capture-phase — index-first; stops older id-first bubble handlers */
+        if (!document.documentElement._anprSnapOpenByIndexV1) {
+            document.documentElement._anprSnapOpenByIndexV1 = true;
+            document.addEventListener('click', function (ev) {
+                var panel = document.getElementById('ax-panel-anpr');
+                if (!panel || panel.hidden) return;
+                var t = ev.target;
+                if (!t || !t.closest) return;
+                if (!panel.contains(t)) return;
+                var mag = t.closest('#ax-anpr-live-rail-grid [data-anpr-open], #ax-anpr-offline-rail-grid [data-anpr-open]');
+                var card = (!mag && t.closest)
+                    ? t.closest('#ax-anpr-live-rail-grid [data-anpr-rail], #ax-anpr-offline-rail-grid [data-anpr-rail]')
+                    : null;
+                var el = mag || card;
+                if (!el) return;
+                ev.preventDefault();
+                ev.stopPropagation();
+                if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
+                openAnprModal(
+                    openKeyFromRailEl(el),
+                    el.getAttribute('data-anpr-rail-scope')
+                        || (el.closest('#ax-anpr-offline-rail') ? 'offline' : 'live')
+                );
+            }, true);
+        }
+        var hitRow = hitSlotsContainer();
         if (hitRow && !hitRow._anprHitBound) {
             hitRow._anprHitBound = true;
             hitRow.addEventListener('click', function (ev) {
@@ -1991,18 +2723,68 @@
                 if (!card) return;
                 var idx = parseInt(card.getAttribute('data-anpr-hit'), 10);
                 if (!isFinite(idx) || !hitRail[idx]) return;
-                openLightbox(hitRail[idx]);
+                openLightbox(hitRail[idx], 'offline');
             });
+        }
+        function bindCriticalList(listId, scope) {
+            var list = document.getElementById(listId);
+            if (!list || list._anprCriticalBound) return;
+            list._anprCriticalBound = true;
+            list.addEventListener('click', function (ev) {
+                var dismissBtn = ev.target && ev.target.closest
+                    ? ev.target.closest('[data-anpr-critical-dismiss]')
+                    : null;
+                if (dismissBtn) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    dismissCriticalAlert(
+                        dismissBtn.getAttribute('data-anpr-critical-scope') || scope,
+                        dismissBtn.getAttribute('data-anpr-critical-dismiss')
+                    );
+                    return;
+                }
+                var card = ev.target && ev.target.closest
+                    ? ev.target.closest('[data-anpr-critical]')
+                    : null;
+                if (!card) return;
+                var idx = parseInt(card.getAttribute('data-anpr-critical'), 10);
+                var bucket = liveCriticalAlerts;
+                if (!isFinite(idx) || !bucket[idx]) return;
+                openLightbox(bucket[idx], 'live');
+            });
+        }
+        bindCriticalList('active-alerts-list', 'live');
+        var railLive = document.getElementById('ax-anpr-live-rail');
+        if (railLive && !railLive._anprCriticalClearBound) {
+            railLive._anprCriticalClearBound = true;
+            railLive.addEventListener('click', function (ev) {
+                var btn = ev.target && ev.target.closest
+                    ? ev.target.closest('[data-anpr-critical-clear]')
+                    : null;
+                if (!btn) return;
+                ev.preventDefault();
+                clearCriticalAlerts(btn.getAttribute('data-anpr-critical-clear') || 'live');
+            });
+        }
+        paintCriticalAlerts();
+        paintHitSlots();
+    }
+
+    function ensureUiBound() {
+        if (!uiBound) {
+            bindUi();
+            uiBound = true;
+        } else {
+            /* Re-ensure Live/Offline rail open listeners (Offline may open before Live) */
+            bindUi();
         }
     }
 
     function onShow() {
-        if (!uiBound) {
-            bindUi();
-            uiBound = true;
-        }
+        ensureUiBound();
         bindSocket();
         startFleetPolling();
+        startLiveHealthPoll();
         if (!socketBound) {
             var n = 0;
             var iv = setInterval(function () {
@@ -2013,12 +2795,69 @@
         refreshEmptyTileHints();
         renderRail();
         paintHitSlots();
+        paintSubnavWatchBadge();
         updateMeta();
         renderRoster();
     }
 
     function onHide() {
         stopFleetPolling();
+        stopLiveHealthPoll();
+        paintSubnavWatchBadge();
+    }
+
+    function paintLiveHealthBadge(kind, text) {
+        var el = document.getElementById('ax-anpr-status');
+        if (!el) return;
+        el.classList.remove('ok', 'bad', 'warn');
+        if (kind === 'ok' || kind === 'bad' || kind === 'warn') el.classList.add(kind);
+        el.textContent = text;
+    }
+
+    function pingAnprHealthOnce() {
+        var el = document.getElementById('ax-anpr-status');
+        if (!el) return;
+        var licensed = !!(global.LicenseFeatures && LicenseFeatures.isEnabled
+            && (LicenseFeatures.isEnabled('analyticsAnpr') || LicenseFeatures.isEnabled('anpr')));
+        if (!licensed) {
+            paintLiveHealthBadge('warn', tr('analytics.anpr.engineNotLicensed', 'ANPR Engine \u2014 Not licensed'));
+            return;
+        }
+        fetch('/api/analytics/anpr/health', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.featureEnabled) {
+                    paintLiveHealthBadge('warn', tr('analytics.anpr.engineNotLicensed', 'ANPR Engine \u2014 Not licensed'));
+                    return;
+                }
+                if (data.runtime && (
+                    data.runtime.ok
+                    || data.runtime.dualEngine === true
+                    || String(data.runtime.engine || '').indexOf('dual') >= 0
+                    || data.runtime.fastalpr === 'ready'
+                    || data.runtime.ocr === 'ready'
+                )) {
+                    paintLiveHealthBadge('ok', tr('analytics.anpr.engineOk', 'ANPR Engine \u2014 OK'));
+                } else {
+                    paintLiveHealthBadge('bad', tr('analytics.anpr.engineDown', 'ANPR Engine \u2014 Not available'));
+                }
+            })
+            .catch(function () {
+                paintLiveHealthBadge('bad', tr('analytics.anpr.engineDown', 'ANPR Engine \u2014 Not available'));
+            });
+    }
+
+    function startLiveHealthPoll() {
+        stopLiveHealthPoll();
+        pingAnprHealthOnce();
+        healthPollTimer = setInterval(pingAnprHealthOnce, HEALTH_POLL_MS);
+    }
+
+    function stopLiveHealthPoll() {
+        if (healthPollTimer) {
+            clearInterval(healthPollTimer);
+            healthPollTimer = null;
+        }
     }
 
     global.addEventListener('beforeunload', function () {
@@ -2035,8 +2874,13 @@
         renderRail: renderRail,
         paintHitSlots: paintHitSlots,
         openAnprModal: openAnprModal,
+        openInspectTick: function (tick, scopeHint) {
+            openLightbox(tick, scopeHint || 'live');
+        },
         clearUiRail: clearUiRail,
         openHistoryDetail: openHistoryDetail,
+        syncSubnavWatchBadge: syncSubnavWatchBadge,
+        ensureUiBound: ensureUiBound,
         MAX_WATCH: MAX_WATCH,
         LIVE_SLOTS: LIVE_SLOTS,
     };

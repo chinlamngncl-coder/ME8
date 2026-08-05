@@ -1219,6 +1219,16 @@
         const handle = global.Me8LivePlayerFactory.attachFlvPrimary(stage, flvUrl, {
             proveMs: 300,
             timeoutMs: 10000,
+            /* Dense mosaic → AxiomFlvManager prefers ZLM sub-stream when grid >16 */
+            gridCount: (function () {
+                try {
+                    var wallEl = document.getElementById('cw-wall') || document.querySelector('.cw-wall');
+                    if (!wallEl) return players.size || undefined;
+                    return wallEl.querySelectorAll('.cw-cell').length || players.size || undefined;
+                } catch (_) {
+                    return players.size || undefined;
+                }
+            })(),
             onProven: function () {
                 wvpHandoffSlotInflight.delete(slot);
                 if (normalizeCamId(slotCamId(slot)) !== camId) return;
@@ -2192,6 +2202,30 @@
         refreshAllOnlineState();
     }
 
+    /** GlobalDevicePresence bridge — same SSOT as Ops / ANPR (additive). */
+    function ingestPresenceList(list) {
+        if (!Array.isArray(list)) return;
+        var changed = false;
+        list.forEach(function (d) {
+            if (!d || !d.id) return;
+            const id = normalizeCamId(d.id);
+            const prev = fleetById[id];
+            const online = d.online === true || d.status === '1';
+            const name = d.name || (prev && prev.name) || id;
+            const mapGroup = d.mapGroup || d.group || (prev && prev.mapGroup) || '';
+            if (!prev || prev.online !== online || prev.name !== name || prev.mapGroup !== mapGroup) {
+                changed = true;
+            }
+            fleetById[id] = {
+                id: id,
+                name: name,
+                online: online,
+                mapGroup: mapGroup,
+            };
+        });
+        if (changed) refreshAllOnlineState();
+    }
+
     function showCwPanel(name) {
         const live = document.getElementById('cw-panel-live') || document.getElementById('panel-live');
         const display = document.getElementById('cw-panel-display') || document.getElementById('panel-display');
@@ -2324,6 +2358,12 @@
                 CallMic.bindSocket(socket);
             }
             if (socket) bindSocketHandlers();
+            if (global.GlobalDevicePresence && GlobalDevicePresence.subscribe && !window._cwPresenceSub) {
+                window._cwPresenceSub = true;
+                GlobalDevicePresence.subscribe(function (list) {
+                    ingestPresenceList(list);
+                });
+            }
         } catch (err) {
             try { console.warn('[command-wall] socket init skipped', err); } catch (_) { /* ignore */ }
         }
@@ -2357,6 +2397,7 @@
             startApp(sharedSocket);
         },
         showPanel: showCwPanel,
+        ingestPresenceList: ingestPresenceList,
         hasLiveForCam: commandWallHasLiveForCam,
         hasActiveLivePlayerForCam: commandWallHasActiveLivePlayerForCam,
         getLiveSlotSummary: getLiveSlotSummary,

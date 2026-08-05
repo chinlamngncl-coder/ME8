@@ -24,6 +24,11 @@ fr-sidecar-fast/*.pyc
 fr-sidecar-seeta/.venv/
 fr-sidecar-seeta/__pycache__/
 fr-sidecar-seeta/*.pyc
+anpr-sidecar/.venv/
+weapon-sidecar/.venv/
+weapon-sidecar/__pycache__/
+weapon-sidecar/models/*.pth
+weapon-sidecar/models/*.part
 **/__pycache__/
 *.pyc
 storage/

@@ -149,6 +149,8 @@ const frBlacklist = require('./lib/frBlacklist');
 const anprPlateList = require('./lib/anprPlateList');
 const anprLivePoller = require('./lib/anprLivePoller');
 const anprCaptureHistory = require('./lib/anprCaptureHistory');
+const weaponSidecarClient = require('./lib/weaponSidecarClient');
+const weaponLivePoller = require('./lib/weaponLivePoller');
 const frLivePoller = require('./lib/frLivePoller');
 const frSnapLedger = require('./lib/frSnapLedger');
 const frKeptEvidence = require('./lib/frKeptEvidence');
@@ -236,7 +238,7 @@ try {
         ensureFrLayout: frStorageWorkspace.ensureManagedLayout,
     });
     try {
-        require('./lib/analyticsCaptureStore').init(STORAGE_DIR);
+        require('./lib/analyticsCaptureStore').init(FR_STORAGE_ROOT);
     } catch (_) { /* ignore */ }
     if (!bootDirs.ok) {
         log.web.warn('analytics evidence mkdir incomplete', {
@@ -928,6 +930,25 @@ anprLivePoller.init({
     },
 });
 anprLivePoller.start();
+weaponLivePoller.init({
+    storageDir: STORAGE_DIR,
+    liveStreamPool,
+    videoWsPort: VIDEO_WS_PORT,
+    log,
+    isWeaponLicensed: () => licenseFeatures.isFeatureEnabled('analyticsWeapon'),
+    deviceLabel: (camId) => {
+        try {
+            const fleet = fleetRegistry.getDashboardFleet && fleetRegistry.getDashboardFleet();
+            if (Array.isArray(fleet)) {
+                const m = fleet.find((x) => x && String(x.id) === String(camId));
+                if (m && m.name) return String(m.name);
+            }
+        } catch (_) { /* ignore */ }
+        return String(camId);
+    },
+    emit: (event, payload, camId) => emitToDashboardSockets(event, payload, camId),
+});
+weaponLivePoller.start();
 frOfflineVideo.init({
     storageDir: FR_STORAGE_ROOT,
     cropsDir: FR_STORAGE_LAYOUT.cropsRoot,
@@ -7361,6 +7382,75 @@ app.get('/api/analytics/fr/health', dashboardAuth.requireDashboardAuth, async (r
     }
 });
 
+app.get('/api/analytics/weapon/health', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    try {
+        const featureEnabled = !!licenseFeatures.isFeatureEnabled('analyticsWeapon');
+        let runtime = { ok: false, mode: 'stub', reason: 'engine_not_ready' };
+        if (featureEnabled) {
+            try {
+                runtime = weaponSidecarClient.isAutoStartEnabled()
+                    ? await weaponSidecarClient.ensureReady()
+                    : await weaponSidecarClient.health();
+            } catch (e) {
+                runtime = { ok: false, error: String(e && e.message || e).slice(0, 160) };
+            }
+        }
+        res.json({
+            ok: true,
+            featureEnabled,
+            runtime,
+        });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.get('/api/analytics/weapon/recent', dashboardAuth.requireDashboardAuth, (req, res) => {
+    try {
+        if (!licenseFeatures.isFeatureEnabled('analyticsWeapon')) {
+            return res.status(403).json({ ok: false, code: 'weapon.not_licensed' });
+        }
+        res.json({ ok: true, hits: weaponLivePoller.listRecent(12) });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.get('/api/analytics/weapon/crop/:file', dashboardAuth.requireDashboardAuth, (req, res) => {
+    try {
+        if (!licenseFeatures.isFeatureEnabled('analyticsWeapon')) {
+            return res.status(403).end();
+        }
+        const abs = weaponLivePoller.cropAbsolutePath(req.params.file);
+        if (!abs) return res.status(404).end();
+        res.type('image/jpeg');
+        res.sendFile(abs);
+    } catch (err) {
+        res.status(500).end();
+    }
+});
+
+app.get('/api/analytics/weapon/already-live', dashboardAuth.requireDashboardAuth, (req, res) => {
+    try {
+        if (!licenseFeatures.isFeatureEnabled('analyticsWeapon')) {
+            return res.status(403).json({ ok: false, code: 'weapon.not_licensed' });
+        }
+        const camId = String(req.query.camId || '').trim();
+        if (!camId) return res.status(400).json({ ok: false, error: 'camId required' });
+        let flvUrl = null;
+        try {
+            const wvp = require('./lib/wvpVideoHandoff');
+            if (wvp.isHandoffEnabled && wvp.isHandoffEnabled() && wvp.getCachedFlv) {
+                flvUrl = wvp.getCachedFlv(camId) || null;
+            }
+        } catch (_) { /* ignore */ }
+        const streaming = !!(liveStreamPool.isStreamingForCam && liveStreamPool.isStreamingForCam(camId));
+        res.json({ ok: true, camId, live: !!(flvUrl || streaming), flvUrl });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
 /** ANPR-SNAPSHOT-CROP-READ-V1 — health + still-image plate read */
 const ANPR_TEMP_DIR = path.join(BASE_DIR, 'storage', 'anpr-temp');
 const anprReadUpload = multer({
@@ -7427,7 +7517,7 @@ app.get('/api/analytics/anpr/evidence', dashboardAuth.requireDashboardAuth, (req
 });
 
 app.get('/api/analytics/fr/evidence', dashboardAuth.requireDashboardAuth, (req, res) => {
-    if (!licenseFeatures.isFeatureEnabled('faceRecognition') && !licenseFeatures.isFeatureEnabled('analyticsFr')) {
+    if (!licenseFeatures.isFeatureEnabled('fr') && !licenseFeatures.isFeatureEnabled('analyticsFr')) {
         return res.status(403).end();
     }
     const analyticsCaptureStore = require('./lib/analyticsCaptureStore');
@@ -7455,7 +7545,11 @@ app.post('/api/analytics/anpr/read', dashboardAuth.requireDashboardAuth, (req, r
                 return res.status(400).json(anprErrors.operatorPayload(anprErrors.CODES.NEED_IMAGE, 400));
             }
             cleanup.push(f.path);
-            const result = await anprPlateRead.readPath(f.path);
+            const ocrRaw = String((req.body && (req.body.ocrPath || req.body.ocr_path)) || '').trim().toLowerCase();
+            const ocrOpts = (ocrRaw === 'live' || ocrRaw === 'fast')
+                ? { ocrPath: 'live' }
+                : (ocrRaw === 'heavy' ? { ocrPath: 'heavy' } : {});
+            const result = await anprPlateRead.readPath(f.path, ocrOpts);
             const classified = anprErrors.classifyReadResult(result);
             auditLog.recordFromRequest(req, 'analytics.anpr_read', {
                 detail: {
@@ -12151,6 +12245,12 @@ io.on('connection', (socket) => {
         anprLivePoller.setWatchSlots(socket.id, cams);
     });
 
+    socket.on('weapon-watch-slots', (payload) => {
+        if (!licenseFeatures.isFeatureEnabled('analyticsWeapon')) return;
+        const cams = payload && Array.isArray(payload.camIds) ? payload.camIds : [];
+        weaponLivePoller.setWatchSlots(socket.id, cams);
+    });
+
     socket.on('fr-alarm-ack', (payload) => {
         if (!payload || !payload.hitId) return;
         const user = socket.dashboardUser;
@@ -12608,6 +12708,7 @@ io.on('connection', (socket) => {
         }
         try { frLivePoller.clearWatch(socket.id); } catch (_) { /* ignore */ }
         try { anprLivePoller.clearSocket(socket.id); } catch (_) { /* ignore */ }
+        try { weaponLivePoller.clearSocket(socket.id); } catch (_) { /* ignore */ }
         const toStop = liveViewers.releaseSocket(socket.id);
         if (!toStop.length) return;
         log.media.info('dashboard disconnect — release live refs', { socketId: socket.id, cams: toStop });

@@ -1,0 +1,17 @@
+---
+description: Lean patches — small diffs only; no full-file rewrites; no autonomous scans
+alwaysApply: true
+---
+
+# ME8 — Token-lean agent patches
+
+**Disc:** `docs/MOB-DISC-TOKEN-LEAN-RULES-FILE-20260802.md`
+
+To reduce token bleed / protect cache:
+
+1. **Never rewrite an entire file.** Only change the exact small blocks that need to change.
+2. In explanations / proposed diffs, use placeholders like `// ... rest of code ...` for unchanged sections.
+3. Explain logic simply, step-by-step (beginner-friendly), when teaching or summarizing.
+4. **Do not** run autonomous codebase-wide scans unless the user explicitly asks.
+
+Still obey `me8-zero-change-without-apply`: discuss / MOB DISC first; code only after `MOB-APPLY` / go ahead for that exact item.

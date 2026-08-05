@@ -25,11 +25,21 @@
  * Speech via VoiceAlerts when available.
  */
 (function (global) {
-    /** Recent rolling faces (16-fit). */
-    var cropRailMax = 16;
-    /** Sticky Matches chips in toolbar (far right). */
-    var hitsBarMax = 5;
+    /** Recent rail buffer — desk shows 12; extra scrolls. */
+    var cropRailDesk = 12;
+    var cropRailMax = 1000;
+    /** Known Subjects desk chips in header band. */
+    var hitsBarMax = 6;
     var hitsOverflowCount = 0;
+    var paintedSurface = 'live';
+    var surfaceBuf = {
+        live: { crops: [], hits: [], hitsOverflow: 0 },
+        offline: { crops: [], hits: [], hitsOverflow: 0 },
+    };
+    var hitUiBySurface = {
+        live: { current: null, queue: [] },
+        offline: { current: null, queue: [] },
+    };
     var hitsChipResizeBound = false;
     var hitsChipResizeTimer = null;
     var bound = false;
@@ -179,10 +189,22 @@
         syncMapGoBtn(document.getElementById('fr-red-toast-map'), hit);
     }
 
+    function syncFieldAlertBtns(hit) {
+        /* Offline video: no physical BWC — hide Alert field (avoids silent bad_cam) */
+        var isOffline = !!(hit && isOfflineVideoHit(hit));
+        var alarmBtn = document.getElementById('fr-alarm-field');
+        var drawerAlarmBtn = document.getElementById('fr-alert-drawer-field');
+        var toastAlarmBtn = document.getElementById('fr-red-toast-field');
+        if (alarmBtn) alarmBtn.style.display = isOffline ? 'none' : '';
+        if (drawerAlarmBtn) drawerAlarmBtn.style.display = isOffline ? 'none' : '';
+        if (toastAlarmBtn) toastAlarmBtn.style.display = isOffline ? 'none' : '';
+    }
+
     function syncRedToastFieldBtn(hit) {
+        syncFieldAlertBtns(hit);
         var btn = document.getElementById('fr-red-toast-field');
         if (!btn) return;
-        if (!hit || !hit.camId || hit._labPreview) {
+        if (!hit || isOfflineVideoHit(hit) || !hit.camId || hit._labPreview) {
             btn.disabled = true;
             if (hit && hit._labPreview) {
                 btn.title = tr('analytics.fr.previewDrawerLabHint', 'Layout preview only \u2014 not a real match');
@@ -270,6 +292,27 @@
 
     function showRedToast(hit) {
         if (!hit) return;
+
+        // --- STRICT BANNER QUARANTINE ---
+        var isOfflineHit = (hit.source && String(hit.source).indexOf('offline') > -1)
+            || (hit.file && String(hit.file).toLowerCase().indexOf('.mp4') > -1)
+            || hit.isOffline
+            || isOfflineVideoHit(hit);
+
+        var isViewingOffline = isViewingFrOfflineTab();
+        if (!isViewingOffline) {
+            var offlineView = document.getElementById('ax-fr-offline-view');
+            if (offlineView) {
+                var isHiddenAttr = offlineView.hasAttribute('hidden') || offlineView.hidden === true;
+                var isDisplayNone = window.getComputedStyle(offlineView).display === 'none';
+                isViewingOffline = !isHiddenAttr && !isDisplayNone;
+            }
+        }
+
+        if (isViewingOffline && !isOfflineHit) return; // Block live banner during offline
+        if (!isViewingOffline && isOfflineHit) return; // Block offline banner during live
+        // --------------------------------
+
         /* FR-HIT-TOAST-SUPPRESS-ALL-ON-FACE-V1 — HQ bar carries grade colour; no float over Known/Recent */
         if (!hit._labPreview && isOnAnalyticsFaceSurface()) {
             minimizeRedToast();
@@ -278,10 +321,84 @@
         ensureRedToast();
         fillRedToast(hit);
         applyGradeChrome(hit);
+        var offline = isOfflineVideoHit(hit);
+        var btnMap = document.getElementById('fr-red-toast-map');
+        var btnPtt = document.getElementById('fr-alarm-standby-ptt');
+        var btnDrawerPtt = document.getElementById('fr-alert-drawer-standby-ptt');
+        var btnHqPtt = document.getElementById('fr-hq-alert-standby-ptt');
+        if (btnMap) btnMap.style.display = offline ? 'none' : '';
+        if (btnPtt) btnPtt.style.display = offline ? 'none' : '';
+        if (btnDrawerPtt) btnDrawerPtt.style.display = offline ? 'none' : '';
+        if (btnHqPtt) btnHqPtt.style.display = offline ? 'none' : '';
         var el = redToastEl();
         if (el) el.hidden = false;
+        makeDraggable(document.getElementById('fr-red-toast'));
         clearRedToastTimer();
         redToastTimer = setTimeout(minimizeRedToast, RED_TOAST_MINIMIZE_MS);
+    }
+
+    function makeDraggable(el) {
+        if (!el || el.dataset.frDragBound === '1') return;
+        el.dataset.frDragBound = '1';
+        var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+        var header = el.querySelector('.toast-header')
+            || el.querySelector('.ax-fr-toast-header')
+            || el.querySelector('.fr-red-toast-head')
+            || el.querySelector('.fr-alert-drawer-header')
+            || el;
+        header.style.cursor = 'move';
+        header.onmousedown = function (e) {
+            e = e || window.event;
+            if (e.target && e.target.closest && e.target.closest('button, a, input, select, textarea')) return;
+            e.preventDefault();
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            document.onmouseup = closeDrag;
+            document.onmousemove = elementDrag;
+        };
+        function elementDrag(e) {
+            e = e || window.event;
+            e.preventDefault();
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            el.style.position = 'fixed';
+            el.style.top = (el.offsetTop - pos2) + 'px';
+            el.style.left = (el.offsetLeft - pos1) + 'px';
+            el.style.bottom = 'auto';
+            el.style.right = 'auto';
+            el.style.transform = 'none';
+        }
+        function closeDrag() {
+            document.onmouseup = null;
+            document.onmousemove = null;
+        }
+    }
+
+    function isViewingFrOfflineTab() {
+        var offlineTab = document.getElementById('ax-fr-sub-offline')
+            || document.querySelector('#ax-hub-fr-subnav .ax-hub-nav-btn[data-fr-sub="offline"]');
+        if (offlineTab && offlineTab.classList.contains('active')) return true;
+        var liveTab = document.querySelector('#ax-hub-fr-subnav .ax-hub-nav-btn[data-fr-sub="live"]');
+        if (liveTab && liveTab.classList.contains('active')) return false;
+        var liveView = document.getElementById('ax-fr-live-view');
+        var offlineView = document.getElementById('ax-fr-offline-view');
+        var liveHidden = !liveView || liveView.hasAttribute('hidden') || liveView.hidden === true;
+        var offlineHidden = !offlineView || offlineView.hasAttribute('hidden') || offlineView.hidden === true;
+        return !offlineHidden && liveHidden;
+    }
+
+    function isViewingAnprOfflineTab() {
+        var offlineTab = document.getElementById('ax-anpr-sub-offline');
+        if (offlineTab && offlineTab.classList.contains('active')) return true;
+        var liveTab = document.getElementById('ax-anpr-sub-live');
+        if (liveTab && liveTab.classList.contains('active')) return false;
+        var livePanel = document.getElementById('ax-anpr-sub-live-panel');
+        var offlinePanel = document.getElementById('ax-anpr-sub-offline-panel');
+        var liveHidden = !livePanel || livePanel.hasAttribute('hidden') || livePanel.hidden === true;
+        var offlineHidden = !offlinePanel || offlinePanel.hasAttribute('hidden') || offlinePanel.hidden === true;
+        return !offlineHidden && liveHidden;
     }
 
     function viewVisible(id) {
@@ -596,6 +713,16 @@
         if (hit.isLive === true) return false;
         var s = String(hit.source || '').trim().toLowerCase();
         return s === 'offline-video' || s === 'offline';
+    }
+
+    function promoteLiveHitCam(hit) {
+        if (!hit || isOfflineVideoHit(hit)) return;
+        if (!global.FrLiveWatch) return;
+        if (typeof FrLiveWatch.promoteHitToSlot0 === 'function') {
+            FrLiveWatch.promoteHitToSlot0(hit.camId);
+            return;
+        }
+        if (FrLiveWatch.flashCam) FrLiveWatch.flashCam(hit.camId);
     }
 
     function goOpsOnHit(hit, opts) {
@@ -939,6 +1066,7 @@
             jobId: card.dataset.jobId || '',
             playUrl: card.dataset.playUrl || '',
             tSec: Number.isFinite(tSec) ? tSec : null,
+            unacked: card.classList.contains('is-unacked'),
         };
     }
 
@@ -1060,13 +1188,46 @@
         }
     }
 
+    function frMagButtonHtml() {
+        return (
+            '<button type="button" class="ax-fr-rail-mag btn-magnify" title="' +
+            esc(tr('analytics.fr.railExpandHint', 'Open high-resolution inspect')) +
+            '" aria-label="' +
+            esc(tr('analytics.fr.railExpandHint', 'Open high-resolution inspect')) +
+            '">' +
+            '<svg class="ax-fr-rail-mag-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">' +
+            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>' +
+            '</button>'
+        );
+    }
+
+    function openFrHighResInspect(slot) {
+        if (!slot || !slot.cropUrl) return;
+        if (global.AnprLiveWatch && typeof AnprLiveWatch.openInspectTick === 'function') {
+            AnprLiveWatch.openInspectTick({
+                cropUrl: slot.cropUrl,
+                sceneUrl: slot.cropUrl,
+                plate: slot.displayName || tr('analytics.fr.snapFloatTitle', 'Snapshot'),
+                camId: slot.camId || '',
+                deviceLabel: slot.deviceLabel || '',
+                at: slot.at || '',
+                lat: slot.lat,
+                lon: slot.lon,
+                source: 'fr',
+                unclear: false,
+            }, 'live');
+            return;
+        }
+        openSnapLightbox(slot);
+    }
+
     function buildMatchCardInner(url, tick) {
         var isMatch = !!(tick && tick.match);
         var scoreNum = tick && tick.scorePct != null && Number.isFinite(Number(tick.scorePct))
             ? Number(tick.scorePct) : null;
         /* mob-fr-rail-window-score + mob-fr-snap-hide-zero-score */
         var showScore = scoreNum != null && (isMatch || scoreNum > 0);
-        var inner = '<img src="' + esc(url) + '" alt="">';
+        var inner = '<img src="' + esc(url) + '" alt="">' + frMagButtonHtml();
         if (tick && tick.playUrl && tick.tSec != null) {
             inner += '<span class="ax-fr-crop-play-badge">' +
                 esc(tr('analytics.fr.snapPlayBadge', 'Play')) + '</span>';
@@ -1113,9 +1274,23 @@
             card.classList.add('is-grade-' + grade);
         }
         card.classList.remove('is-alert-active');
+        if (url && isMatch && tick && tick.unacked !== false) {
+            card.classList.add('is-unacked');
+        } else {
+            card.classList.remove('is-unacked');
+        }
         if (url) {
             card.innerHTML = buildMatchCardInner(url, tick);
-            card.onclick = function () {
+            var magBtn = card.querySelector('.ax-fr-rail-mag, .btn-magnify');
+            if (magBtn) {
+                magBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openFrHighResInspect(readCropSlot(card));
+                });
+            }
+            card.onclick = function (e) {
+                if (e && e.target && e.target.closest && e.target.closest('.ax-fr-rail-mag, .btn-magnify')) return;
                 if (isMatch && current && card.dataset.hitId && card.dataset.hitId === current.hitId) {
                     openAlertDrawerShell(current);
                 } else {
@@ -1162,9 +1337,6 @@
                 }
             }
         } catch (_) { /* keep fallback */ }
-        /* Keep usable on tiny windows; avoid runaway on huge monitors */
-        w = Math.max(72, Math.min(120, w));
-        h = Math.max(56, Math.min(110, h));
         list.style.setProperty('--fr-hit-chip-w', w + 'px');
         list.style.setProperty('--fr-hit-chip-h', h + 'px');
     }
@@ -1226,24 +1398,105 @@
         return -1;
     }
 
+    function snapshotSurface(key) {
+        if (key !== 'live' && key !== 'offline') return;
+        var cropList = document.querySelector('#ax-fr-crop-rail .ax-fr-crop-list');
+        var hitsList = document.getElementById('ax-fr-hits-list');
+        var crops = [];
+        var hits = [];
+        var i;
+        if (cropList) {
+            for (i = 0; i < cropList.children.length; i++) {
+                crops.push(readCropSlot(cropList.children[i]));
+            }
+        }
+        if (hitsList) {
+            for (i = 0; i < hitsList.children.length; i++) {
+                hits.push(readCropSlot(hitsList.children[i]));
+            }
+        }
+        surfaceBuf[key] = {
+            crops: crops,
+            hits: hits,
+            hitsOverflow: hitsOverflowCount,
+        };
+        hitUiBySurface[key] = { current: current, queue: queue.slice() };
+    }
+
+    function paintSurface(key) {
+        if (key !== 'live' && key !== 'offline') return;
+        var buf = surfaceBuf[key] || { crops: [], hits: [], hitsOverflow: 0 };
+        hitsOverflowCount = buf.hitsOverflow || 0;
+        var cropList = ensureCropRail();
+        var hitsList = ensureHitsBar();
+        var i;
+        var card;
+        if (cropList) {
+            cropList.innerHTML = '';
+            var crops = (buf.crops && buf.crops.length) ? buf.crops.slice() : [];
+            while (crops.length < cropRailDesk) crops.push({ cropUrl: '', match: false });
+            for (i = 0; i < crops.length; i++) {
+                card = makeEmptyCropCard();
+                fillCropSlot(card, crops[i]);
+                cropList.appendChild(card);
+            }
+        }
+        if (hitsList) {
+            hitsList.innerHTML = '';
+            var hits = (buf.hits && buf.hits.length) ? buf.hits.slice() : [];
+            while (hits.length < hitsBarMax) hits.push({ cropUrl: '', match: false });
+            while (hits.length > hitsBarMax) hits.pop();
+            for (i = 0; i < hits.length; i++) {
+                card = makeEmptyCropCard();
+                fillCropSlot(card, hits[i]);
+                hitsList.appendChild(card);
+            }
+            syncHitsOverflowBadge();
+            syncHitsChipSizeToSnap();
+        }
+        var st = hitUiBySurface[key] || { current: null, queue: [] };
+        current = st.current || null;
+        queue = (st.queue || []).slice();
+        if (current) {
+            updateHqBar(current);
+            showRedToast(current);
+        } else {
+            updateHqBar(null);
+            hideRedToast();
+            try { closeAlertDrawer(); } catch (_) { /* ignore */ }
+        }
+        paintedSurface = key;
+    }
+
+    function syncLiveOfflineSurface(wantOffline) {
+        var next = wantOffline ? 'offline' : 'live';
+        ensureCropRail();
+        ensureHitsBar();
+        if (paintedSurface === next) return;
+        snapshotSurface(paintedSurface);
+        paintSurface(next);
+    }
+
     function pushSubjectMatch(tick) {
         var list = ensureHitsBar();
         if (!list || !tick || !tick.cropUrl) return;
         var payload = Object.assign({}, tick, { match: true });
         var idx = findHitsSlotByKey(list, payload);
         if (idx >= 0) {
+            payload.unacked = true;
             fillCropSlot(list.children[idx], payload);
             return;
         }
-        var last = readCropSlot(list.children[hitsBarMax - 1]);
+        var last = list.children.length ? readCropSlot(list.children[list.children.length - 1]) : null;
         if (last && last.cropUrl && last.match) {
             hitsOverflowCount += 1;
             syncHitsOverflowBadge();
         }
         var i;
-        for (i = hitsBarMax - 1; i > 0; i--) {
+        for (i = list.children.length - 1; i > 0; i--) {
             fillCropSlot(list.children[i], readCropSlot(list.children[i - 1]));
         }
+        payload.unacked = true;
         fillCropSlot(list.children[0], payload);
     }
 
@@ -1262,8 +1515,14 @@
         var list = ensureCropRail();
         if (!list) return;
         ensureRailSlots(list);
+        var n = list.children.length;
+        var lastCard = n ? list.children[n - 1] : null;
+        if (lastCard && lastCard.dataset.cropUrl && n < cropRailMax) {
+            list.appendChild(makeEmptyCropCard());
+            n = list.children.length;
+        }
         var i;
-        for (i = cropRailMax - 1; i > 0; i--) {
+        for (i = n - 1; i > 0; i--) {
             fillCropSlot(list.children[i], readCropSlot(list.children[i - 1]));
         }
         fillCropSlot(list.children[0], tick);
@@ -1271,7 +1530,7 @@
 
     function ensureRailSlots(list) {
         if (!list) return;
-        while (list.children.length < cropRailMax) {
+        while (list.children.length < cropRailDesk) {
             list.appendChild(makeEmptyCropCard());
         }
         while (list.children.length > cropRailMax) {
@@ -1393,7 +1652,7 @@
     function fillSnapPanelContent(el, slot) {
         if (!el || !slot) return;
         el._tick = slot;
-        var img = el.querySelector('img');
+        var img = el.querySelector('.fr-snap-scene') || el.querySelector('img');
         if (img) img.src = slot.cropUrl || '';
         var name = slot.deviceLabel || (slot.camId ? friendlyCamName(slot.camId) : '\u2014');
         var titleEl = el.querySelector('.fr-snap-float-title');
@@ -1457,7 +1716,11 @@
             '</div>' +
             '<div class="fr-snap-lightbox-body">' +
             '<div class="fr-snap-lightbox-inner">' +
-            '<img alt="">' +
+            '<div class="fr-snap-scene-wrap" title="' +
+            esc(tr('analytics.fr.railExpandHint', 'Open high-resolution inspect')) + '">' +
+            '<img class="fr-snap-scene" alt="">' +
+            frMagButtonHtml() +
+            '</div>' +
             '<div class="fr-snap-lightbox-meta">' +
             '<p class="fr-snap-meta-line fr-snap-meta-bwc"></p>' +
             '<p class="fr-snap-meta-line fr-snap-meta-time"></p>' +
@@ -1562,7 +1825,46 @@
                 downloadSnapEvidence(el._tick);
             });
         }
+        var magBtn = el.querySelector('.fr-snap-scene-wrap .ax-fr-rail-mag');
+        if (magBtn) {
+            magBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                openFrHighResInspect(el._tick);
+            });
+        }
+        bindFrSnapHoverZoom(el);
         bindSnapFloatDrag(el);
+    }
+
+    function bindFrSnapHoverZoom(el) {
+        if (!el || el._frSnapMagBound) return;
+        var wrap = el.querySelector('.fr-snap-scene-wrap');
+        var img = el.querySelector('.fr-snap-scene');
+        if (!wrap || !img) return;
+        el._frSnapMagBound = true;
+        wrap.addEventListener('mousemove', function (ev) {
+            if (!img.src) return;
+            var w = wrap.offsetWidth || img.offsetWidth || 1;
+            var h = wrap.offsetHeight || img.offsetHeight || 1;
+            var ox = (ev.offsetX != null) ? ev.offsetX : 0;
+            var oy = (ev.offsetY != null) ? ev.offsetY : 0;
+            if (ev.target !== wrap && ev.target !== img) {
+                var rect = wrap.getBoundingClientRect();
+                ox = ev.clientX - rect.left;
+                oy = ev.clientY - rect.top;
+            }
+            var x = Math.max(0, Math.min(100, (ox / w) * 100));
+            var y = Math.max(0, Math.min(100, (oy / h) * 100));
+            img.style.transformOrigin = x + '% ' + y + '%';
+            img.style.transform = 'scale(3)';
+            wrap.classList.add('is-zooming');
+        });
+        wrap.addEventListener('mouseleave', function () {
+            img.style.transform = '';
+            img.style.transformOrigin = '';
+            wrap.classList.remove('is-zooming');
+        });
     }
 
     /** mob-fr-offline-crop-play-at \u2014 investigation Play (match not required) */
@@ -1764,7 +2066,9 @@
         /* recreate if missing Keep / Download / Play (evidence + offline play-at) or chrome */
         if (el && (!el.querySelector('.fr-snap-float-chrome') || !el.querySelector('.fr-snap-keep')
             || !el.querySelector('.fr-snap-download')
-            || !el.querySelector('.fr-snap-play'))) {
+            || !el.querySelector('.fr-snap-play')
+            || !el.querySelector('.fr-snap-scene-wrap')
+            || !el.querySelector('.ax-fr-rail-mag'))) {
             el.parentNode.removeChild(el);
             el = null;
         }
@@ -2055,6 +2359,7 @@
         if (mapBtn) syncDrawerMapBtn(hit);
         if (fieldStatus) fieldStatus.hidden = true;
         syncDrawerStandbyUi();
+        syncFieldAlertBtns(hit);
     }
 
     function syncDrawerStandbyUi() {
@@ -2077,6 +2382,7 @@
         setDrawerVideoCollapsed(true);
         applyDrawerExpandPref();
         el.hidden = false;
+        makeDraggable(el);
     }
 
     function closeAlertDrawer() {
@@ -2099,6 +2405,26 @@
             });
             return;
         }
+        // --- STRICT BANNER QUARANTINE (top red HQ bar) ---
+        var isOfflineHit = (hit.source && String(hit.source).indexOf('offline') > -1)
+            || (hit.file && String(hit.file).toLowerCase().indexOf('.mp4') > -1)
+            || hit.isOffline
+            || isOfflineVideoHit(hit);
+        var isViewingOffline = isViewingFrOfflineTab();
+        if (!isViewingOffline) {
+            var offlineView = document.getElementById('ax-fr-offline-view');
+            if (offlineView) {
+                var isHiddenAttr = offlineView.hasAttribute('hidden') || offlineView.hidden === true;
+                var isDisplayNone = window.getComputedStyle(offlineView).display === 'none';
+                isViewingOffline = !isHiddenAttr && !isDisplayNone;
+            }
+        }
+        if ((isViewingOffline && !isOfflineHit) || (!isViewingOffline && isOfflineHit)) {
+            bar.hidden = true;
+            document.body.classList.remove('fr-hq-alert-active');
+            return;
+        }
+        // --------------------------------
         var labelEl = bar.querySelector('.fr-hq-alert-label');
         if (labelEl) {
             labelEl.textContent = (hit.kind === 'anpr' || hit.anpr)
@@ -2171,10 +2497,30 @@
             photoEl.src = hit.photoUrl || '';
             photoEl.hidden = !hit.photoUrl;
         }
+        syncFieldAlertBtns(hit);
+        var offlineChrome = isOfflineVideoHit(hit);
+        var btnPtt = document.getElementById('fr-alarm-standby-ptt');
+        var btnDrawerPtt = document.getElementById('fr-alert-drawer-standby-ptt');
+        var btnHqPtt = document.getElementById('fr-hq-alert-standby-ptt');
+        if (btnPtt) btnPtt.style.display = offlineChrome ? 'none' : '';
+        if (btnDrawerPtt) btnDrawerPtt.style.display = offlineChrome ? 'none' : '';
+        if (btnHqPtt) btnHqPtt.style.display = offlineChrome ? 'none' : '';
     }
 
     function showHit(hit) {
         if (!hit) return;
+
+        // --- STRICT HARD-STOP FIREWALL (verified tab IDs) ---
+        var isOfflineHit = isOfflineVideoHit(hit)
+            || !!hit.isOffline
+            || (hit.source && String(hit.source).toLowerCase().indexOf('offline') > -1);
+        var isAnprHit = !!(hit.kind === 'anpr' || hit.anpr);
+        var isViewingOffline = isAnprHit ? isViewingAnprOfflineTab() : isViewingFrOfflineTab();
+
+        if (isViewingOffline && !isOfflineHit) return; // Drop live hit during offline
+        if (!isViewingOffline && isOfflineHit) return; // Drop offline hit during live
+        // ---------------------------------
+
         current = hit;
         fillModal(hit);
         updateHqBar(hit);
@@ -2182,9 +2528,7 @@
         goOpsOnHit(hit);
         markRailAlertActive(hit);
         playChimeForHit(hit);
-        if (!isOfflineVideoHit(hit) && global.FrLiveWatch && FrLiveWatch.flashCam) {
-            FrLiveWatch.flashCam(hit.camId);
-        }
+        promoteLiveHitCam(hit);
         /* Triage shell on screen: Ack / Dismiss / Keep */
         try { openAlertDrawerShell(hit); } catch (_) { /* ignore */ }
     }
@@ -2195,7 +2539,28 @@
         openAlertDrawerShell(current);
     }
 
+    function clearHitsUnackedForHit(hit) {
+        var list = document.getElementById('ax-fr-hits-list');
+        if (!list || !hit) return;
+        var hitId = String(hit.hitId || '');
+        var bl = String(hit.blacklistId || '');
+        var cam = String(hit.camId || '');
+        var i;
+        for (i = 0; i < list.children.length; i++) {
+            var card = list.children[i];
+            if (!card.classList.contains('is-match')) continue;
+            if (hitId && card.dataset.hitId === hitId) {
+                card.classList.remove('is-unacked');
+                continue;
+            }
+            if (bl && cam && card.dataset.blacklistId === bl && String(card.dataset.camId || '') === cam) {
+                card.classList.remove('is-unacked');
+            }
+        }
+    }
+
     function clearActive() {
+        if (current) clearHitsUnackedForHit(current);
         current = null;
         updateHqBar(null);
         hideRedToast();
@@ -2314,13 +2679,15 @@
         /* Soft chime once on upgrade — full siren only if blacklist high */
         playChimeForHit(hit);
         goOpsOnHit(hit);
-        if (!isOfflineVideoHit(hit) && global.FrLiveWatch && FrLiveWatch.flashCam) {
-            FrLiveWatch.flashCam(hit.camId);
-        }
+        promoteLiveHitCam(hit);
     }
 
     function onHit(hit) {
         if (!hit || !hit.hitId) return;
+        var hitOffline = isOfflineVideoHit(hit)
+            || !!hit.isOffline
+            || (hit.source && String(hit.source).toLowerCase().indexOf('offline') > -1);
+        if (isViewingFrOfflineTab() !== !!hitOffline) return;
         pushSubjectMatch({
             camId: hit.camId,
             deviceLabel: hit.deviceLabel,
@@ -2336,6 +2703,7 @@
             lat: hit.lat,
             lon: hit.lon,
             gpsAt: hit.gpsAt,
+            source: hit.source || (hitOffline ? 'offline-video' : ''),
         });
         /*
          * FR-BLACKLIST-SCORE-UPGRADE-DISPATCH-V1 — bar already open on weak hit;
@@ -2397,6 +2765,7 @@
 
     function onFrFieldAlertClick() {
         if (!current || !current.camId) return;
+        if (isOfflineVideoHit(current)) return;
         if (current._labPreview) {
             showDrawerFieldStatus(false, 'lab');
             showStandbyToast(tr('analytics.fr.previewDrawerLabHint', 'Layout preview only \u2014 not a real match'), 5000);
@@ -2539,12 +2908,22 @@
         bindFrLabPreviewGateSocket(sock);
         sock.on('fr-blacklist-hit', onHit);
         sock.on('fr-crop-tick', function (tick) {
-            pushCrop(tick || {});
+            tick = tick || {};
+            /* MASTER-CONSOLIDATION-PATCH-V1 — same live/offline firewall as showHit();
+               fr-crop-tick had no tab gate, so offline scan crops leaked into the
+               live tab's Known Subjects bar + Recent rail (and vice versa). */
+            var isTickOffline = isOfflineVideoHit(tick);
+            var isUserOnOfflineTab = isViewingFrOfflineTab();
+            if (isUserOnOfflineTab && !isTickOffline) return;
+            if (!isUserOnOfflineTab && isTickOffline) return;
+            pushCrop(tick);
         });
         sock.on('fr-alarm-acked', function (p) {
+            if (p) clearHitsUnackedForHit(p);
             if (current && p && p.hitId === current.hitId) hideModal();
         });
         sock.on('fr-alarm-dismissed', function (p) {
+            if (p) clearHitsUnackedForHit(p);
             if (current && p && p.hitId === current.hitId) hideModal();
         });
         sock.on('fr-field-alert-result', function (p) {
@@ -2635,6 +3014,7 @@
         openSnapLightbox: openSnapLightbox,
         toast: showStandbyToast,
         applyLabPreviewGate: applyFrLabPreviewGate,
+        syncLiveOfflineSurface: syncLiveOfflineSurface,
     };
 
     (function frLabPreviewGateBoot() {

@@ -1,10 +1,7 @@
 /**
  * mob-track-b2-two-wvp-tiles \u2014 two independent WVP live tiles (lab only).
  * Same B1 lessons: absolute FLV URL, allowlist token path, hasAudio:false (G.711).
- * Does not touch command wall / Open All / pool FFmpeg.
- *
- * mob-wvp-lab-mpegts-live-chase \u2014 soft live-edge (playbackRate), emergency jump >10s,
- * focus snap. Bundled mpegts has no liveSync; do not turn liveBufferLatencyChasing on.
+ * FLV attach + soft-chase live in AxiomFlvManager only (no local playbackRate loop).
  */
 (function (global) {
     'use strict';
@@ -13,18 +10,12 @@
     var bound = false;
     var deviceList = [];
     var slots = {
-        a: { player: null, playing: null, autoReopen: false, reopenCount: 0 },
-        b: { player: null, playing: null, autoReopen: false, reopenCount: 0 },
+        a: { player: null, video: null, playing: null, autoReopen: false, reopenCount: 0 },
+        b: { player: null, video: null, playing: null, autoReopen: false, reopenCount: 0 },
     };
     var MAX_REOPEN = 12;
     var REOPEN_GAP_MS = 8000;
     var STALL_MS = 22000;
-    /* Soft catch-up band (seconds of buffered.end - currentTime) */
-    var CHASE_SOFT_SEC = 1.5;
-    var CHASE_SOFT_RATE = 1.12;
-    var CHASE_HARD_SEC = 10;
-    var CHASE_TICK_MS = 1000;
-    var CHASE_LOG_COOL_MS = 8000;
 
     function $(id) {
         return document.getElementById(id);
@@ -74,65 +65,6 @@
         slot._reopenTimer = null;
     }
 
-    function bufferDelaySec(video) {
-        try {
-            if (!video || !video.buffered || !video.buffered.length) return 0;
-            var end = video.buffered.end(video.buffered.length - 1);
-            var ct = video.currentTime || 0;
-            var d = end - ct;
-            return d > 0 ? d : 0;
-        } catch (_) {
-            return 0;
-        }
-    }
-
-    /** Soft-first live edge: rate catch-up; hard seek only if debt > CHASE_HARD_SEC. */
-    function chaseLiveEdge(key, video, reason) {
-        var slot = slots[key];
-        if (!slot || !video || slot.player == null) return;
-        if (document.hidden && reason !== 'focus') return;
-        var delay = bufferDelaySec(video);
-        var now = Date.now();
-        try {
-            if (delay > CHASE_HARD_SEC) {
-                var end = video.buffered.end(video.buffered.length - 1);
-                var pad = 0.25;
-                video.currentTime = Math.max(0, end - pad);
-                video.playbackRate = 1;
-                if (!slot._lastChaseLog || now - slot._lastChaseLog > CHASE_LOG_COOL_MS) {
-                    slot._lastChaseLog = now;
-                    log('Tile ' + key.toUpperCase() + ': live snap ' + delay.toFixed(1) + 's' +
-                        (reason ? ' (' + reason + ')' : ''));
-                }
-                return;
-            }
-            if (delay > CHASE_SOFT_SEC) {
-                if (video.playbackRate !== CHASE_SOFT_RATE) {
-                    video.playbackRate = CHASE_SOFT_RATE;
-                    if (!slot._lastChaseLog || now - slot._lastChaseLog > CHASE_LOG_COOL_MS) {
-                        slot._lastChaseLog = now;
-                        log('Tile ' + key.toUpperCase() + ': soft chase ' + delay.toFixed(1) + 's @' +
-                            CHASE_SOFT_RATE + 'x' + (reason ? ' (' + reason + ')' : ''));
-                    }
-                }
-                return;
-            }
-            if (video.playbackRate !== 1) video.playbackRate = 1;
-        } catch (_) {}
-    }
-
-    function armLiveChase(key, video) {
-        var slot = slots[key];
-        if (!slot || !video) return;
-        if (slot._chaseIv) {
-            try { clearInterval(slot._chaseIv); } catch (_) {}
-            slot._chaseIv = null;
-        }
-        slot._chaseIv = setInterval(function () {
-            chaseLiveEdge(key, video, 'tick');
-        }, CHASE_TICK_MS);
-    }
-
     function destroySlot(key) {
         var slot = slots[key];
         if (!slot) return;
@@ -141,23 +73,17 @@
             try { clearInterval(slot._keepIv); } catch (_) {}
             slot._keepIv = null;
         }
-        if (slot._chaseIv) {
-            try { clearInterval(slot._chaseIv); } catch (_) {}
-            slot._chaseIv = null;
-        }
         if (slot._onVis) {
             try { document.removeEventListener('visibilitychange', slot._onVis); } catch (_) {}
             slot._onVis = null;
         }
         slot._lastCt = null;
         slot._lastCtAt = 0;
-        slot._lastChaseLog = 0;
-        if (slot.player) {
-            try { slot.player.pause(); } catch (_) {}
-            try { slot.player.unload(); } catch (_) {}
-            try { slot.player.detachMediaElement(); } catch (_) {}
-            try { slot.player.destroy(); } catch (_) {}
-            slot.player = null;
+        var video = slot.video;
+        slot.video = null;
+        slot.player = null;
+        if (video && global.AxiomFlvManager && typeof global.AxiomFlvManager.detach === 'function') {
+            try { global.AxiomFlvManager.detach(video); } catch (_) {}
         }
         var stage = $('me8-wvp-lab-stage-' + key);
         if (stage) stage.innerHTML = '';
@@ -218,7 +144,7 @@
             try { document.removeEventListener('visibilitychange', slot._onVis); } catch (_) {}
         }
         function kick() {
-            if (!slots[key] || slots[key].player == null) return;
+            if (!slots[key] || slots[key].video == null) return;
             try {
                 if (video.muted) {
                     video.muted = false;
@@ -246,8 +172,6 @@
         slot._onVis = function () {
             if (document.hidden) return;
             kick();
-            /* Tab back: clear background buffer debt (soft or emergency snap) */
-            chaseLiveEdge(key, video, 'focus');
         };
         document.addEventListener('visibilitychange', slot._onVis);
         slot._keepIv = setInterval(kick, 15000);
@@ -261,8 +185,8 @@
     function playFlv(key, url, opts) {
         opts = opts || {};
         destroySlot(key);
-        if (!global.mpegts || !mpegts.getFeatureList().mseLivePlayback) {
-            log('Tile ' + key.toUpperCase() + ': mpegts.js not available');
+        if (!global.AxiomFlvManager || typeof global.AxiomFlvManager.attach !== 'function') {
+            log('Tile ' + key.toUpperCase() + ': AxiomFlvManager not available');
             setBadge('no player', false);
             return;
         }
@@ -286,27 +210,47 @@
         video.playsInline = true;
         video.autoplay = true;
         stage.appendChild(video);
-        var player = mpegts.createPlayer({
-            type: 'flv',
-            isLive: true,
-            url: abs,
-            hasAudio: false,
-            hasVideo: true,
+
+        function onPlayerError(errType, errDetail) {
+            log('Tile ' + key.toUpperCase() + ' mpegts: ' + errType + ' ' + (errDetail || ''));
+            var chain = opts._chain || null;
+            var idx = typeof opts._chainIdx === 'number' ? opts._chainIdx : -1;
+            if (chain && idx >= 0 && idx < chain.length) {
+                var next = chain[idx];
+                log('Tile ' + key.toUpperCase() + ': ' + (opts.via || 'play') + ' failed \u2192 ' + next.via);
+                playFlv(key, next.url, {
+                    via: next.via,
+                    _chain: chain,
+                    _chainIdx: idx + 1,
+                    autoReopen: opts.autoReopen,
+                });
+                return;
+            }
+            if (opts.fallbackUrl && !opts._fellBack) {
+                opts._fellBack = true;
+                log('Tile ' + key.toUpperCase() + ': fallback \u2192 proxy');
+                playFlv(key, opts.fallbackUrl, { via: 'proxy-fallback', autoReopen: opts.autoReopen });
+                return;
+            }
+            scheduleReopen(key);
+        }
+
+        var handle = global.AxiomFlvManager.attach(video, abs, {
             withCredentials: withCred,
-        }, {
-            enableWorker: false,
-            lazyLoad: false,
-            enableStashBuffer: false,
-            stashInitialSize: 128,
-            /* Hard mpegts chase OFF \u2014 soft rate + emergency >10s in chaseLiveEdge */
-            liveBufferLatencyChasing: false,
+            pauseWhenHidden: false,
+            preferSubstream: false,
+            quality: 'main',
+            onError: onPlayerError,
         });
-        player.attachMediaElement(video);
-        player.load();
+        if (!handle) {
+            log('Tile ' + key.toUpperCase() + ': AxiomFlvManager.attach failed');
+            setBadge('no player', false);
+            try { if (video.parentNode) video.parentNode.removeChild(video); } catch (_) {}
+            return;
+        }
         var p = video.play();
         if (p && p.catch) {
             p.catch(function () {
-                /* fallback mute only if autoplay blocks unmuted */
                 try {
                     video.muted = true;
                     video.play().catch(function () {});
@@ -314,35 +258,10 @@
                 log('Tile ' + key.toUpperCase() + ': click video if blocked');
             });
         }
+        slots[key].video = video;
+        slots[key].player = handle;
         armLiveKeepalive(key, video);
-        armLiveChase(key, video);
-        slots[key].player = player;
         log('Tile ' + key.toUpperCase() + ' ' + (opts.via || 'play') + ' ' + abs);
-        try {
-            player.on(mpegts.Events.ERROR, function (errType, errDetail) {
-                log('Tile ' + key.toUpperCase() + ' mpegts: ' + errType + ' ' + (errDetail || ''));
-                var chain = opts._chain || null;
-                var idx = typeof opts._chainIdx === 'number' ? opts._chainIdx : -1;
-                if (chain && idx >= 0 && idx < chain.length) {
-                    var next = chain[idx];
-                    log('Tile ' + key.toUpperCase() + ': ' + (opts.via || 'play') + ' failed \u2192 ' + next.via);
-                    playFlv(key, next.url, {
-                        via: next.via,
-                        _chain: chain,
-                        _chainIdx: idx + 1,
-                        autoReopen: opts.autoReopen,
-                    });
-                    return;
-                }
-                if (opts.fallbackUrl && !opts._fellBack) {
-                    opts._fellBack = true;
-                    log('Tile ' + key.toUpperCase() + ': fallback \u2192 proxy');
-                    playFlv(key, opts.fallbackUrl, { via: 'proxy-fallback', autoReopen: opts.autoReopen });
-                    return;
-                }
-                scheduleReopen(key);
-            });
-        } catch (_) {}
     }
 
     function startPlayback(key, data) {

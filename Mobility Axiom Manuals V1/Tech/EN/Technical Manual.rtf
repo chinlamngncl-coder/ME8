@@ -1,0 +1,859 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Calibri;}}
+\paperw12240\paperh15840\margl1440\margr1440\margt1440\margb1440
+\fs22
+\pard\qc\b\fs36 Ubitron Mobility Axiom\par
+\pard\qc\b\fs28 Technical Manual\par
+\pard\qc\fs20 On-Premises configuration and operations\par
+\pard\qc\fs20 Audience: Customer IT administrators\par
+\pard\qc\fs20 Language: English\par
+\pard\qc\fs20 Version 2.1\par
+\pard\qc\fs20 Revision date: July 2026\par
+\pard\sa360\par
+
+\pard\b Part A \emdash Orientation\par
+\pard\sa240\par
+
+\pard\b 1. About this manual\par
+\pard\b0\par
+\pard\b 1.1 Purpose\par
+\pard This Technical Manual is the IT reference for Ubitron Mobility Axiom after the server is installed and licensed. It explains how to configure Server Config, register body-worn cameras, plan firewall rules, manage evidence storage, operate the service, and recover from common faults.\par
+\pard\sa120\par
+\pard\b 1.2 Who should use this manual\par
+\pard 1. Customer IT administrators who own the production server\par
+\pard 2. System integrators configuring networking, cameras, and storage\par
+\pard 3. Site technical leads who create operator accounts and maintain the runbook\par
+\pard\sa120\par
+\pard Control-room operators should use the Quick Start Guide and User Manual for daily work. They do not need this book for routine dispatch tasks.\par
+\pard\sa120\par
+\pard\b 1.3 How to use this manual\par
+\pard 1. Complete the Installation Guide first on a new site.\par
+\pard 2. Use Part B in order for a first full configuration.\par
+\pard 3. Use later chapters as reference when you change SIP, firewall, storage, or users.\par
+\pard 4. Every major procedure includes Purpose, Before you start, Steps, Expected result, Notes, and Common problems.\par
+\pard 5. Screenshot placeholders mark where product screens will appear in the published PDF.\par
+\pard\sa120\par
+\pard\b 1.4 Related manuals\par
+\pard 1. Installation Guide (On-Premises) \emdash service install, Setup, license file, first administrator password, handoff\par
+\pard 2. Quick Start Guide \emdash first operator tasks after handoff\par
+\pard 3. User Manual \emdash daily control-room use\par
+\pard 4. Managed Cloud and Hybrid installation guides \emdash when your contract is not pure on-premises\par
+\pard\sa120\par
+\pard\b 1.5 Out of scope\par
+\pard 1. Day-to-day operator procedures (User Manual)\par
+\pard 2. First-time Windows Server or Linux service install steps (Installation Guide)\par
+\pard 3. Ubitron internal license signing tools\par
+\pard 4. Migration from an older site (Migration Guide)\par
+\pard\sa360\par
+
+\pard\b 2. System architecture\par
+\pard\b0\par
+\pard\b 2.1 Components\par
+\pard Mobility Axiom is a server application that runs as a background service on Windows Server or a supported Linux host.\par
+\pard\sa120\par
+\pard The production site typically includes:\par
+\pard 1. The Mobility Axiom server service (always on)\par
+\pard 2. Operator workstations that open a web browser to the Operator portal URL\par
+\pard 3. Body-worn cameras that register to the server Device registration IPv4 and SIP port\par
+\pard 4. Evidence storage on local disk or a NAS/SAN mount prepared by IT\par
+\pard 5. Optional reverse proxy and TLS termination in front of the portal (WAN or hardened LAN designs)\par
+\pard 6. Optional licensed modules (for example PTT, video conference, analytics, \b CAD / RMS\b0  \emdash Computer-Aided Dispatch / Records Management) when your license includes them\par
+\pard 7. Supporting services on some sites (container engine and related helpers) \emdash see Chapter 18\par
+\pard\sa120\par
+\pard\b 2.2 How traffic flows (plain language)\par
+\pard 1. Operators reach the dashboard through the Operator portal URL.\par
+\pard 2. Cameras reach the server through Device registration IPv4 and the SIP port shown in Settings.\par
+\pard 3. Live video and related media use additional ports listed in the firewall readiness checklist.\par
+\pard 4. Evidence files land in the storage paths you configure under Evidence.\par
+\pard\sa120\par
+\pard These are three different doors. Mixing them is the most common network mistake on new sites. Chapter 15 explains each door in detail.\par
+\pard\sa120\par
+\pard\b 2.3 What operators never do\par
+\pard Operators do not start Mobility Axiom from a desktop window each day. They do not open Setup. They do not manage supporting container services. They sign in through the browser only.\par
+\pard\sa120\par
+\pard [Insert diagram: Server service, operator browsers, body-worn cameras, evidence storage]\par
+\pard\sa360\par
+
+\pard\b 3. Roles and access\par
+\pard\b0\par
+\pard\b 3.1 Super administrator\par
+\pard The super administrator can open Settings \emdash Server Config, change networking and SIP values, manage users, and change evidence storage. Protect this account in your password vault.\par
+\pard\sa120\par
+\pard On a new install, the first administrator account is typically global. After the mandatory password change, continue to use global as the site super administrator unless your policy creates a different named account with the same rights.\par
+\pard\sa120\par
+\pard\b 3.2 Operators\par
+\pard Operators use the portal for live video, maps, evidence review, and other licensed features. They normally cannot change Server Config. When a non\emdash super-admin opens Server Config, fields appear read-only.\par
+\pard\sa120\par
+\pard\b 3.3 Recommended separation\par
+\pard 1. Keep super administrator credentials for IT only.\par
+\pard 2. Create named operator accounts for dispatch staff.\par
+\pard 3. Do not share the global password with the whole control room.\par
+\pard\sa360\par
+
+\pard\b 4. Setup Mode versus production dashboard\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Understand when the server is in Setup and when it is in normal production so you do not send operators to the wrong URL.\par
+\pard\sa120\par
+\pard\b 4.1 Setup Mode\par
+\pard Setup appears when a valid license is not yet installed, or when the server must stop for a start-up fault that only Setup can clear.\par
+\pard\sa120\par
+\pard Setup is available on the server itself at:\par
+\pard http://127.0.0.1:13988\par
+\pard (Use the Setup port from the service log if it differs.)\par
+\pard\sa120\par
+\pard You need the 6-digit Setup PIN from the service log (search for ACTION REQUIRED or Setup Mode). The PIN changes each time Setup starts.\par
+\pard\sa120\par
+\pard\b Important\par
+\pard Do not publish Setup to the public internet. Remote Desktop or a secure tunnel to localhost on the server is acceptable.\par
+\pard\sa120\par
+\pard Full first-time Setup and license install steps are in the Installation Guide.\par
+\pard\sa120\par
+\pard\b 4.2 Production dashboard\par
+\pard After a valid license and network mode are in place, operators and administrators use the dashboard on the package dashboard ports (often HTTP 3988 unless your README states otherwise), or the Operator portal URL you configure in Settings.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard Daily staff bookmark the Operator portal URL. IT uses Setup only for license and first-start recovery tasks.\par
+\pard\sa120\par
+\pard [Insert screenshot: Setup page on localhost]\par
+\pard [Insert screenshot: Dashboard login page]\par
+\pard\sa360\par
+
+\pard\b 5. Licensing for IT (day-2)\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Keep the site license healthy after go-live and know what to do when Hardware ID or entitlements change.\par
+\pard\sa120\par
+\pard\b 5.1 How licensing works\par
+\pard 1. The license file is locked to this server Hardware ID.\par
+\pard 2. Ubitron issues the signed license file. You do not create or sign licenses on the customer server.\par
+\pard 3. Install the license on the Setup page (not on the daily Operations dashboard).\par
+\pard 4. Do not edit the license file. Editing breaks the signature.\par
+\pard\sa120\par
+\pard\b 5.2 Entitlements\par
+\pard Your license may enable optional modules such as PTT, redaction, analytics, video conference, tactical views, or \b CAD / RMS\b0  (Computer-Aided Dispatch / Records Management) \emdash an optional integration. Features that are not licensed appear locked in the product. Contact Ubitron to change entitlements; do not try to unlock features by editing files.\par
+\pard\sa120\par
+\pard\b 5.3 If the license is rejected\par
+\pard 1. Confirm the Hardware ID on Setup still matches the ID you sent to Ubitron.\par
+\pard 2. Confirm the file was not edited or re-saved in a way that changes contents.\par
+\pard 3. Contact Ubitron with the Hardware ID and the exact error text.\par
+\pard\sa120\par
+\pard First-time license request and install steps remain in the Installation Guide, Chapter 5.\par
+\pard\sa360\par
+
+\pard\b Part B \emdash Server Config\par
+\pard\sa240\par
+
+\pard\b 6. Server Config overview\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Server Config is the control surface for site identity, networking, portal access, camera protocol, resiliency, and readiness.\par
+\pard\sa120\par
+\pard\b 6.1 How to open Server Config\par
+\pard 1. Sign in as super administrator.\par
+\pard 2. Open Settings.\par
+\pard 3. Open Server Config.\par
+\pard\sa120\par
+\pard\b 6.2 Main areas\par
+\pard Under Network and deployment you work through six phases:\par
+\pard 1. Identity\par
+\pard 2. Networking\par
+\pard 3. Access and Security\par
+\pard 4. Storage and Devices\par
+\pard 5. Resiliency\par
+\pard 6. Diagnostics\par
+\pard\sa120\par
+\pard Related Server Config areas (sibling tabs):\par
+\pard 1. BWCs \emdash device list for body-worn cameras\par
+\pard 2. Map groups \emdash grouping for map operations\par
+\pard 3. Dashboard Authentication \emdash users, roles, and site security\par
+\pard\sa120\par
+\pard\b 6.3 Save and restart rule\par
+\pard After you save network or SIP changes in Server Config, restart the Mobility Axiom service so cameras and operators pick up the new details. Then update firewall rules and update each camera that already uses the old values.\par
+\pard\sa120\par
+\pard\b Important\par
+\pard Saving alone is not enough for SIP or device IP changes. Restart, firewall, and Type on BWC must follow.\par
+\pard\sa120\par
+\pard [Insert screenshot: Server Config with six phase navigation]\par
+\pard\sa360\par
+
+\pard\b 7. Phase 1 \emdash Identity\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Record how this site is deployed and optionally name the tenant or customer for this server.\par
+\pard\sa120\par
+\pard\b Before you start\par
+\pard 1. Know whether this server is on-premises LAN, WAN public edge, or a Ubitron managed/hybrid design.\par
+\pard 2. Have super administrator access.\par
+\pard\sa120\par
+\pard\b Steps\par
+\pard 1. Open Settings \emdash Server Config \emdash Identity.\par
+\pard 2. Set Deployment type to match this site.\par
+\pard 3. For a typical on-premises control room on the private network, use the LAN server style deployment described on screen.\par
+\pard 4. If your contract is Ubitron Managed Cloud or Hybrid, stop and use that installation guide instead of forcing cloud settings into an on-premises-only runbook.\par
+\pard 5. Optionally enter Tenant / customer name.\par
+\pard 6. Save.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard Identity fields match the real site model. Later phases show hints that match that model.\par
+\pard\sa120\par
+\pard\b Notes\par
+\pard Deployment type changes how the product describes Device registration IPv4 and Operator portal URL. It does not replace correct firewall design.\par
+\pard\sa120\par
+\pard\b Common problems\par
+\pard 1. Choosing a cloud-style deployment for a pure LAN site confuses portal and device addressing. Match the real design.\par
+\pard\sa120\par
+\pard [Insert screenshot: Identity phase]\par
+\pard\sa360\par
+
+\pard\b 8. Phase 2 \emdash Networking\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Set LAN and WAN planning fields and, most importantly, the Device registration IPv4 that body-worn cameras must dial.\par
+\pard\sa120\par
+\pard\b Before you start\par
+\pard 1. Record the server real LAN IPv4 from the operating system (Ethernet preferred).\par
+\pard 2. Confirm you are not copying a virtual adapter address in the range 172.17 to 172.31.\par
+\pard 3. Know subnet, gateway, and DNS if you document static addressing.\par
+\pard\sa120\par
+\pard\b Steps\par
+\pard 1. Open Settings \emdash Server Config \emdash Networking.\par
+\pard 2. Under LAN Network, set IP assignment (Static IPv4 or DHCP) to match how the host OS is configured.\par
+\pard 3. Enter Server IP Address, subnet mask, default gateway, and DNS to match the OS when you use static addressing. If DHCP is used, record the assigned address accurately.\par
+\pard 4. Optionally enter Server hostname.\par
+\pard 5. Under WAN / Internet, complete public IPv4, DDNS, edge router, or VPN endpoint only when your site design uses them.\par
+\pard 6. Set Device registration IPv4 to the address cameras must type. On a LAN site this is normally the server real LAN IPv4.\par
+\pard 7. Review SIP listen address. Use 0.0.0.0 to listen on all interfaces unless your multi-NIC design requires a specific LAN IP.\par
+\pard 8. Save.\par
+\pard 9. Restart the Mobility Axiom service.\par
+\pard 10. Update firewall rules if the device address or related ports changed.\par
+\pard 11. Update Type on BWC values on every camera that was already programmed.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard Device registration IPv4 matches the address cameras can reach on the real network. Operator bookmarks are not required to equal this field.\par
+\pard\sa120\par
+\pard\b Important\par
+\pard 1. Device registration IPv4 must be IPv4 only (digits and dots). Body-worn keypads cannot enter hostnames.\par
+\pard 2. Never use 172.17 to 172.31 for Device registration IPv4 or operator bookmarks. Those ranges are commonly used by virtualisation and container adapters and will break field devices.\par
+\pard 3. Operator portal URL is configured in Access and Security, not as a substitute for Device registration IPv4.\par
+\pard\sa120\par
+\pard\b Common problems\par
+\pard 1. Cameras offline because Device registration IPv4 points at a laptop Wi-Fi guest address that changed.\par
+\pard 2. Cameras offline because IT pasted a Docker or WSL virtual address.\par
+\pard 3. Portal works from IT PC but cameras cannot route to the server IP \emdash routing or VLAN issue, not a failed save.\par
+\pard\sa120\par
+\pard [Insert screenshot: Networking phase with Device registration IPv4]\par
+\pard\sa360\par
+
+\pard\b 9. Phase 3 \emdash Access and Security\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Set the Operator portal URL staff will bookmark, and configure reverse-proxy trust and certificates when your design terminates HTTPS in front of Mobility Axiom.\par
+\pard\sa120\par
+\pard\b Before you start\par
+\pard 1. Decide the exact URL dispatch will use (for example https://dispatch.example.com).\par
+\pard 2. Know whether TLS stops at nginx, Caddy, IIS, or another reverse proxy in front of this server.\par
+\pard\sa120\par
+\pard\b Steps\par
+\pard 1. Open Settings \emdash Server Config \emdash Access and Security.\par
+\pard 2. Set Operator portal URL to the address staff will bookmark.\par
+\pard 3. If HTTPS terminates on a reverse proxy in front of this server, turn Trust reverse proxy ON, then Save.\par
+\pard 4. If operators connect directly to the application TLS listener with no front proxy, leave Trust reverse proxy OFF unless your package instructions say otherwise.\par
+\pard 5. When your package supports on-prem certificate upload, use the Certificate and Private key controls as described on screen and in the package README.\par
+\pard 6. Note the Dashboard port value shown as runtime information. This listen port is usually fixed at install time.\par
+\pard 7. Save.\par
+\pard 8. Restart the service if network access behaviour changed.\par
+\pard 9. From an operator workstation, open the Operator portal URL and confirm the login page loads.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard Staff have one clear bookmark. Trust reverse proxy matches the real TLS design. Dashboard port display matches the running service.\par
+\pard\sa120\par
+\pard\b Notes \emdash portal URL versus listen port\par
+\pard 1. Operator portal URL is the human door. It may hide the raw port behind HTTPS on 443 through a reverse proxy.\par
+\pard 2. Dashboard listen port is what the Mobility Axiom service binds on the host. It often appears read-only in Settings.\par
+\pard 3. To change the listen port, follow the delivery package README (environment or package setting), then restart the service. Do not expect a daily toggle inside Server Config for that value.\par
+\pard\sa120\par
+\pard\b Common problems\par
+\pard 1. Bookmark uses http while only https is published \emdash browser fails.\par
+\pard 2. Trust reverse proxy OFF while nginx terminates TLS \emdash login or redirect behaviour looks wrong.\par
+\pard 3. Staff still use the raw server IP and port after you published a clean hostname \emdash update the runbook and retrain bookmarks.\par
+\pard\sa120\par
+\pard [Insert screenshot: Operator portal URL and Trust reverse proxy]\par
+\pard\sa360\par
+
+\pard\b 10. Phase 4 \emdash Storage and Devices\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Configure camera protocol values (especially SIP), use Type on BWC as the device programming checklist, set site timezone, and open the path to Evidence storage configuration.\par
+\pard\sa120\par
+\pard\b Before you start\par
+\pard 1. Device registration IPv4 is already correct in Networking.\par
+\pard 2. You know whether cameras must use a non-default SIP port for this network.\par
+\pard 3. Super administrator access is available.\par
+\pard\sa120\par
+
+\pard\b 10.1 Protocol and Type on BWC\par
+\pard\b Steps\par
+\pard 1. Open Settings \emdash Server Config \emdash Storage and Devices.\par
+\pard 2. Review SIP port, Platform / server ID, Realm, SIP register password, Alt SIP password, and Media transport.\par
+\pard 3. Change SIP port only if your network design requires it.\par
+\pard 4. Complete ONVIF fields only when your deployment uses ONVIF devices as described on screen.\par
+\pard 5. Open Type on BWC. This checklist shows the server values each camera must receive on its SIP screen.\par
+\pard 6. Set site timezone for this location.\par
+\pard 7. Save.\par
+\pard 8. If you changed SIP port, passwords, realm, media transport, or Device registration IPv4: restart the Mobility Axiom service.\par
+\pard 9. Update host and upstream firewall rules to match the live firewall checklist.\par
+\pard 10. On every body-worn camera, enter the Type on BWC values (server IP, SIP port, passwords, and related fields).\par
+\pard 11. Confirm devices show Online when they are powered and in range.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard Type on BWC matches what is programmed on devices. Cameras register. Live views can start for online units.\par
+\pard\sa120\par
+\pard\b Important \emdash changing SIP port\par
+\pard Use this full sequence every time:\par
+\pard 1. Change SIP port in Storage and Devices.\par
+\pard 2. Save.\par
+\pard 3. Restart the Mobility Axiom service.\par
+\pard 4. Update firewall rules for the new SIP port (and related media ports from the checklist).\par
+\pard 5. Update every camera.\par
+\pard 6. Verify Online status and one live view.\par
+\pard\sa120\par
+\pard Skipping camera updates after a SIP change is the most common cause of mass offline devices.\par
+\pard\sa120\par
+
+\pard\b 10.2 Evidence storage link\par
+\pard Storage paths for dock FTP and live capture are configured under Evidence \emdash Storage. Use the link or navigation from this phase when shown, then follow Chapter 17.\par
+\pard\sa120\par
+\pard\b Notes\par
+\pard 1. Always type Device registration IPv4 and SIP port from live Settings, not from memory of another site.\par
+\pard 2. Media transport (UDP or TCP) affects which media firewall rows you must open. Read the checklist after save.\par
+\pard\sa120\par
+\pard\b Common problems\par
+\pard 1. Password on camera does not match SIP register password.\par
+\pard 2. Camera still points at old SIP port after a change.\par
+\pard 3. Firewall still allows only the old SIP port.\par
+\pard\sa120\par
+\pard [Insert screenshot: Storage and Devices SIP fields]\par
+\pard [Insert screenshot: Type on BWC checklist]\par
+\pard\sa360\par
+
+\pard\b 11. Phase 5 \emdash Resiliency\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Record node identity and peer information when your site design uses more than a single standalone server node.\par
+\pard\sa120\par
+\pard\b Before you start\par
+\pard Most on-premises sites run a single Mobility Axiom node. Complete this phase with defaults unless Ubitron or your design document specifies peer settings.\par
+\pard\sa120\par
+\pard\b Steps\par
+\pard 1. Open Settings \emdash Server Config \emdash Resiliency.\par
+\pard 2. Review Node ID and peer URL fields.\par
+\pard 3. Enter peer values only when your approved design requires them.\par
+\pard 4. Save site node settings.\par
+\pard 5. Use local and peer health displays as status only.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard Single-node sites show healthy local status. Peer fields remain empty or unused unless designed otherwise.\par
+\pard\sa120\par
+\pard\b Notes\par
+\pard Do not invent a multi-site topology in this screen without a Ubitron-approved design. Wrong peer URLs create confusing health states without improving cameras.\par
+\pard\sa120\par
+\pard [Insert screenshot: Resiliency phase]\par
+\pard\sa360\par
+
+\pard\b 12. Phase 6 \emdash Diagnostics\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Use site configuration status and the readiness checklist to confirm the server is fit for go-live or fit after a change.\par
+\pard\sa120\par
+\pard\b Before you start\par
+\pard Complete Identity, Networking, Access and Security, and Storage and Devices for the values you intend to run.\par
+\pard\sa120\par
+\pard\b Steps\par
+\pard 1. Open Settings \emdash Server Config \emdash Diagnostics.\par
+\pard 2. Review Site configuration status.\par
+\pard 3. Open the site readiness checklist.\par
+\pard 4. Resolve each failing item (device IP, portal URL, proxy trust, and other checks named on screen).\par
+\pard 5. Refresh after corrections.\par
+\pard 6. When the checklist is acceptable for your go-live bar, continue to BWCs and acceptance testing.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard You can explain every remaining warning. Critical networking and portal checks pass before operator handoff.\par
+\pard\sa120\par
+\pard\b Notes\par
+\pard Diagnostics does not replace the firewall readiness checklist or a real camera Online test. Use all three.\par
+\pard\sa120\par
+\pard [Insert screenshot: Diagnostics readiness checklist]\par
+\pard\sa360\par
+
+\pard\b Part C \emdash Devices, users, storage, network doors\par
+\pard\sa240\par
+
+\pard\b 13. Body-worn cameras and map groups\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Register each camera in Mobility Axiom and keep device identity aligned with what is typed on the hardware.\par
+\pard\sa120\par
+\pard\b Before you start\par
+\pard 1. Device registration IPv4 and SIP values are saved.\par
+\pard 2. Type on BWC checklist is current.\par
+\pard 3. Firewall allows BWC SIP and related media ports.\par
+\pard\sa120\par
+\pard\b 13.1 Register devices\par
+\pard\b Steps\par
+\pard 1. Open Settings \emdash Server Config \emdash BWCs (or the BWCs area in Server Config).\par
+\pard 2. Add each Device ID exactly as it will be entered on the camera.\par
+\pard 3. Enter officer or unit name as required by site policy.\par
+\pard 4. Assign map groups when your operations design uses them.\par
+\pard 5. Save the BWC list.\par
+\pard 6. On the physical camera, enter Type on BWC server values and the same Device ID.\par
+\pard 7. Power the camera on the correct network segment.\par
+\pard 8. Confirm the device shows Online in the product.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard Registered devices can come Online. Operators can open live views for online units according to their role and license.\par
+\pard\sa120\par
+\pard\b 13.2 Map groups\par
+\pard Map groups help organise units on the map and in operations views. Create groups that match real teams or districts. Incorrect groups rarely break registration, but they confuse dispatch.\par
+\pard\sa120\par
+\pard\b Common problems\par
+\pard 1. Device ID on camera does not match the BWC list.\par
+\pard 2. SIP password mismatch.\par
+\pard 3. Camera uses hostname; product requires IPv4 for registration.\par
+\pard 4. Camera VLAN cannot route to Device registration IPv4.\par
+\pard\sa120\par
+\pard [Insert screenshot: BWC list with Online device]\par
+\pard\sa360\par
+
+\pard\b 14. Dashboard Authentication (IT)\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Create operator accounts, assign roles, and maintain site security settings after the first administrator sign-in.\par
+\pard\sa120\par
+\pard\b IMPORTANT \emdash First sign-in (new server)\par
+\pard 1. On a new server, the first administrator account is typically username global with password global123.\par
+\pard 2. Mobility Axiom requires a password change before normal use. You cannot keep the factory password.\par
+\pard 3. After change, global123 stops working. Store the new password in the site vault.\par
+\pard 4. Full first-sign-in steps are in the Installation Guide.\par
+\pard\sa120\par
+\pard\b Steps \emdash create operators\par
+\pard 1. Sign in as super administrator.\par
+\pard 2. Open Settings \emdash Server Config \emdash Dashboard Authentication.\par
+\pard 3. Create a user for each operator who needs access.\par
+\pard 4. Assign the role that matches their duties.\par
+\pard 5. Set or confirm site security options required by your policy.\par
+\pard 6. If the product requires an IT PIN for Diagnostics or related elevated tools, set that PIN and store it separately from login passwords.\par
+\pard 7. Save.\par
+\pard 8. Have each operator sign in once and confirm their landing rights.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard Operators work under named accounts. Super administrator credentials stay with IT.\par
+\pard\sa120\par
+\pard\b Common problems\par
+\pard 1. Operators share one password \emdash audit and lockout risk.\par
+\pard 2. Operator account cannot open Server Config \emdash expected for non\emdash super-admin.\par
+\pard\sa120\par
+\pard [Insert screenshot: Dashboard Authentication user list]\par
+\pard\sa360\par
+
+\pard\b 15. Ports and network doors\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Give IT a single clear model of how portal access, camera registration, and service listen ports relate.\par
+\pard\sa120\par
+
+\pard\b 15.1 Three doors\par
+\pard\b Door A \emdash Operator portal URL\par
+\pard What staff type in the browser. Set in Access and Security. May be an HTTPS hostname on 443 through a reverse proxy.\par
+\pard\sa120\par
+\pard\b Door B \emdash Device registration\par
+\pard Device registration IPv4 plus SIP port (and related Type on BWC fields). Cameras use this door. Set in Networking and Storage and Devices.\par
+\pard\sa120\par
+\pard\b Door C \emdash Dashboard listen ports\par
+\pard The ports the Mobility Axiom service binds on the host. Often shown read-only as Dashboard port in Settings. Changed through package or environment settings per README, then service restart.\par
+\pard\sa120\par
+\pard\b Warning\par
+\pard Do not assume Door A, Door B, and Door C are the same string. On many professional sites they intentionally differ.\par
+\pard\sa120\par
+
+\pard\b 15.2 Typical defaults (confirm in README and live Settings)\par
+\pard 1. Setup (server only): 13988 \emdash localhost; not for operators\par
+\pard 2. Dashboard HTTP: often 3988 \emdash package may differ\par
+\pard 3. Dashboard HTTPS: package-specific\par
+\pard 4. SIP (cameras): the value shown in Settings / Type on BWC\par
+\pard 5. Live video WebSocket, live audio WebSocket, Message Center, RTP ranges, PTT, FTP, and related rows: read from the live firewall checklist after your settings are saved\par
+\pard\sa120\par
+\pard Always prefer live Settings and the firewall checklist over memory of another site.\par
+\pard\sa120\par
+
+\pard\b 15.3 After any SIP or network save\par
+\pard 1. Restart the Mobility Axiom service.\par
+\pard 2. Update firewall rules from the live checklist.\par
+\pard 3. Update Type on BWC on every affected camera.\par
+\pard 4. Verify Online status and one live view.\par
+\pard\sa120\par
+\pard [Insert screenshot: Firewall readiness checklist with BWC SIP row]\par
+\pard\sa360\par
+
+\pard\b 16. Firewall planning\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Open only the inbound services this site needs, using the product checklist as the source of truth.\par
+\pard\sa120\par
+\pard\b Before you start\par
+\pard 1. Know who owns host firewall rules and who owns upstream firewall rules.\par
+\pard 2. Know whether the site is LAN-Only or WAN Public Edge.\par
+\pard\sa120\par
+\pard\b Steps\par
+\pard 1. Sign in as super administrator.\par
+\pard 2. Open the firewall readiness / inbound services checklist in Settings (Diagnostics or Cloud Deployment checklist area when shown).\par
+\pard 3. For each required row, create a matching allow rule on the host firewall.\par
+\pard 4. Repeat on upstream firewalls for the networks that must reach the server (control room, camera VLAN, VPN as designed).\par
+\pard 5. Do not publish Setup (13988) beyond the server itself.\par
+\pard 6. For LAN-Only, restrict operator and camera sources to private ranges whenever policy allows.\par
+\pard 7. For WAN Public Edge, publish only the reverse-proxy HTTPS front door and the camera/media ports your design requires. Keep Setup closed.\par
+\pard 8. Record rules in the site runbook with the date and the Settings values used.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard Checklist ports that are required for your license and features are open from the correct source networks. Setup remains local.\par
+\pard\sa120\par
+\pard\b Planning worksheet (fill with your values)\par
+\pard 1. Operator portal URL: ____________________\par
+\pard 2. Device registration IPv4: ____________________\par
+\pard 3. SIP port: ____________________\par
+\pard 4. Dashboard listen port: ____________________\par
+\pard 5. Camera source networks: ____________________\par
+\pard 6. Operator source networks: ____________________\par
+\pard 7. Reverse proxy host (if any): ____________________\par
+\pard\sa120\par
+\pard\b Common problems\par
+\pard 1. Host firewall updated but upstream firewall forgotten.\par
+\pard 2. SIP port changed in Settings but firewall still allows only the old port.\par
+\pard 3. RTP media range not opened \emdash register works, live video fails.\par
+\pard\sa120\par
+\pard [Insert screenshot: Inbound services checklist]\par
+\pard\sa360\par
+
+\pard\b 17. Evidence storage and FTP\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Configure where evidence files are stored and, when used, how docks and cameras upload by FTP.\par
+\pard\sa120\par
+\pard\b Before you start\par
+\pard 1. If you use NAS or SAN, mount it on the server operating system first and confirm the path is writable by the service account.\par
+\pard 2. Super administrator access is required to change storage.\par
+\pard\sa120\par
+\pard\b Steps \emdash storage paths\par
+\pard 1. Open Evidence \emdash Storage (super administrator).\par
+\pard 2. Review IP SAN / NAS mount status if applicable.\par
+\pard 3. Set upload paths for dock FTP and live capture as required by your design.\par
+\pard 4. Understand that the evidence index (catalog) stays on the server while video archive files follow the archive path you set.\par
+\pard 5. Save storage settings.\par
+\pard 6. Use path test / status badges when available to confirm Ready or Mounted.\par
+\pard\sa120\par
+\pard\b Steps \emdash FTP ingest (when used)\par
+\pard 1. In Evidence storage, open FTP upload service settings.\par
+\pard 2. Enable FTP ingest if docks or cameras upload by FTP.\par
+\pard 3. Set FTP password and related credentials. Enter the same values on each device FTP screen.\par
+\pard 4. Save FTP settings. Restart if the product reports that the FTP service restarted.\par
+\pard 5. Open firewall rows for FTP control and passive data ranges from the live checklist when FTP is enabled.\par
+\pard 6. Run an upload test from one dock or camera and confirm the file appears in the configured folder and index.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard Evidence paths are writable. FTP devices authenticate. Files appear for operators according to their rights.\par
+\pard\sa120\par
+\pard\b Notes\par
+\pard 1. Mobility Axiom writes to the folders you configure. It does not replace OS-level NAS mounting.\par
+\pard 2. Backup of evidence media and the install folder is a site policy task. Schedule it after go-live.\par
+\pard 3. Password may not be shown again after save. Store device FTP credentials in your vault.\par
+\pard\sa120\par
+\pard\b Common problems\par
+\pard 1. Path Not found or Read-only \emdash fix OS mount and permissions.\par
+\pard 2. FTP enabled in product but passive port range closed on firewall.\par
+\pard 3. Device FTP password out of sync after a credential rotation.\par
+\pard\sa120\par
+\pard [Insert screenshot: Evidence Storage paths]\par
+\pard [Insert screenshot: FTP upload service settings]\par
+\pard\sa360\par
+
+\pard\b 18. Supporting services (container engine)\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Explain how Mobility Axiom relates to the optional container engine used for some supporting services, what must stay running, and what IT checks when those services fail.\par
+\pard\sa120\par
+
+\pard\b 18.1 Plain model\par
+\pard Mobility Axiom itself runs as a normal Windows Server or Linux service. That service is the main product: dashboard, Settings, licensing, camera registration values, evidence paths, and operator access.\par
+\pard\sa120\par
+\pard Some supporting components for certain site designs run as containers managed by a container engine (commonly called Docker Engine on Linux Server, or Docker Desktop on some Windows deliveries). The delivery package may include a docker configuration folder. That folder is not the same thing as installing the engine on the operating system.\par
+\pard\sa120\par
+\pard\b Important\par
+\pard 1. Operators never manage the container engine.\par
+\pard 2. IT does not start containers by hand every morning on a correct production install.\par
+\pard 3. When supporting containers are part of the site design, the engine and those containers must start at boot and stay running in the background.\par
+\pard\sa120\par
+
+\pard\b 18.2 When the container engine is required\par
+\pard Use your contract, license entitlements, and package README for this order. Typical cases:\par
+\pard\sa80\par
+\pard\b Required\par
+\pard 1. Video Conference is licensed and this package hosts conference services in containers.\par
+\pard 2. Your Ubitron delivery states that live media helpers for this site run as supporting containers.\par
+\pard\sa80\par
+\pard\b Not required for core alone\par
+\pard Dashboard login, Setup, license install, Server Config, user accounts, and evidence path configuration do not require IT to open a container console every day.\par
+\pard\sa120\par
+\pard If Ubitron delivered a pre-built server image where the engine and required containers already auto-start, you may never open a container UI during normal operations. Still keep this chapter for recovery.\par
+\pard\sa120\par
+
+\pard\b 18.3 What must run in the background\par
+\pard\b Steps \emdash production expectation\par
+\pard 1. Install or confirm the container engine according to the package README for this order (or confirm the Ubitron appliance image already includes it).\par
+\pard 2. Configure the engine to start when the server starts.\par
+\pard 3. Start the supporting containers named in the README for this site.\par
+\pard 4. Confirm those containers are set to restart automatically after reboot.\par
+\pard 5. Confirm the Mobility Axiom server service is also set to start automatically.\par
+\pard 6. Reboot once during commissioning and verify: Mobility Axiom service Running, required containers running, Operator portal opens, and licensed Video Conference or live media checks succeed.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard After a cold reboot, both the Mobility Axiom service and the required supporting containers return without manual clicks.\par
+\pard\sa120\par
+\pard\b Notes\par
+\pard 1. On some Windows deliveries the engine is Docker Desktop. Enable start with Windows and wait until the engine reports ready after boot before testing conference or media helpers.\par
+\pard 2. On Linux Server, prefer the native Docker Engine service (or the runtime named in the README), enabled for boot.\par
+\pard 3. Prefer pre-staged images from Ubitron for air-gap sites. Do not treat public internet image pulls as the primary enterprise method unless your cover letter says otherwise.\par
+\pard\sa120\par
+
+\pard\b 18.4 Relationship to Device registration IPv4\par
+\pard\b Warning\par
+\pard Never use virtual adapter addresses in the range 172.17 to 172.31 as Device registration IPv4 or as operator bookmarks. Container and virtualisation adapters commonly use those ranges. Cameras must use the server real LAN (or designed) IPv4 from Networking / Type on BWC.\par
+\pard\sa120\par
+
+\pard\b 18.5 IT checks when supporting services fail\par
+\pard\b Before you start\par
+\pard Confirm the symptom: Video Conference will not start, or live media helpers fail while the Mobility Axiom service itself is Running.\par
+\pard\sa120\par
+\pard\b Steps\par
+\pard 1. Confirm the Mobility Axiom service is Running.\par
+\pard 2. Confirm the container engine is running.\par
+\pard 3. Confirm the containers listed in the package README for this site are running (not stopped or restarting in a loop).\par
+\pard 4. Restart only the failed supporting containers using the README procedure, then retest.\par
+\pard 5. If Engine was stopped, start Engine, wait until ready, confirm containers, then retest.\par
+\pard 6. Recheck firewall rows for the licensed module (for example conference ports) from the live checklist.\par
+\pard 7. If still failing, capture Mobility Axiom logs plus container status names from the README and contact Ubitron.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard Licensed conference or media helpers work again without reinstalling Mobility Axiom.\par
+\pard\sa120\par
+\pard\b Common problems\par
+\pard 1. Engine set not to start at boot \emdash works until the first reboot.\par
+\pard 2. Mobility Axiom service Running but conference containers stopped \emdash portal works, conference fails.\par
+\pard 3. IT uses a container virtual address as Device registration IPv4 \emdash cameras fail.\par
+\pard\sa120\par
+\pard [Insert screenshot: Package README supporting services section]\par
+\pard [Insert screenshot: Container engine running with required containers healthy]\par
+\pard\sa360\par
+
+\pard\b 19. Optional licensed modules\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Understand that some modules appear only when your license includes them.\par
+\pard\sa120\par
+\pard Depending on entitlement, the product may offer modules such as:\par
+\pard 1. PTT\par
+\pard 2. Redaction\par
+\pard 3. Analytics (for example face, plate, or weapon analytics as licensed)\par
+\pard 4. Video conference\par
+\pard 5. Tactical overwatch\par
+\pard 6. \b CAD / RMS\b0  (Computer-Aided Dispatch / Records Management) \emdash optional integration\par
+\pard\sa120\par
+\pard\b Steps for IT\par
+\pard 1. After license install, open the product and note which modules are available versus locked.\par
+\pard 2. For available modules, complete any module-specific Settings and firewall rows from the live checklist.\par
+\pard 3. For Video Conference and any module that depends on supporting containers, complete Chapter 18 before operator handoff.\par
+\pard 4. For \b CAD / RMS\b0 , confirm the optional integration entitlement is present before operators rely on that tab.\par
+\pard 5. For locked modules, contact Ubitron to change the license. Do not attempt to bypass locks.\par
+\pard\sa120\par
+\pard\b Notes\par
+\pard Follow the package README for module-specific host steps. Chapter 18 covers the container engine pattern used by several supporting stacks. After first mention in this manual, the tab is written as \b CAD / RMS\b0 .\par
+\pard\sa120\par
+\pard [Insert screenshot: Licensed feature available versus locked]\par
+\pard\sa360\par
+
+\pard\b Part D \emdash Operations and recovery\par
+\pard\sa240\par
+
+\pard\b 20. Service operations\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Start, stop, and restart Mobility Axiom safely.\par
+\pard\sa120\par
+\pard\b Windows Server\par
+\pard 1. Open Services.\par
+\pard 2. Locate the Mobility Axiom server service.\par
+\pard 3. Use Start, Stop, or Restart.\par
+\pard 4. Confirm Startup type remains Automatic (or the value required by the README).\par
+\pard\sa120\par
+\pard\b Linux\par
+\pard 1. Use systemctl to start, stop, restart, and status the unit named in your package README.\par
+\pard 2. Confirm the unit is enabled for boot.\par
+\pard\sa120\par
+\pard\b When restart is mandatory\par
+\pard 1. After network or SIP changes in Server Config\par
+\pard 2. After listen-port changes from the package README\par
+\pard 3. After certain FTP service credential changes when the product reports a restart\par
+\pard 4. After recovering from license or clock faults that required Setup\par
+\pard\sa120\par
+\pard\b Notes\par
+\pard Restarting Mobility Axiom does not always restart supporting containers. If conference or media helpers stay down after an app restart, use Chapter 18.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard Service returns to Running / active. Dashboard login responds. Cameras can re-register.\par
+\pard\sa120\par
+\pard [Insert screenshot: Service Running after restart]\par
+\pard\sa360\par
+
+\pard\b 21. Logs and what to capture for support\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Collect the right evidence when you escalate to Ubitron.\par
+\pard\sa120\par
+\pard\b Where to look\par
+\pard 1. Windows: service log file under the install folder (path in the README)\par
+\pard 2. Linux: journalctl for the service unit, or the log path in the README\par
+\pard 3. Additional operational logs under the install storage area as named in the README\par
+\pard 4. When supporting containers are involved: container names and status from the package README procedure\par
+\pard\sa120\par
+\pard\b What to send\par
+\pard 1. Customer and site name\par
+\pard 2. Contract or purchase order reference\par
+\pard 3. Hardware ID\par
+\pard 4. Server OS and version\par
+\pard 5. Package version from the delivery README\par
+\pard 6. Short description of expected versus actual behaviour\par
+\pard 7. Recent service log excerpt (remove secrets if policy requires)\par
+\pard 8. Supporting container status when the fault is conference or media-helper related\par
+\pard\sa120\par
+\pard If the log shows a structured fault with what happened, why, and how to fix, include that full block and follow How to fix first.\par
+\pard\sa360\par
+
+\pard\b 22. Start-up and runtime recovery\par
+\pard\b0\par
+\pard\b 22.1 Cannot open Setup\par
+\pard 1. Confirm the service is running.\par
+\pard 2. Browse on the server or tunnel to localhost.\par
+\pard 3. Read the service log for Setup port and bind errors.\par
+\pard 4. Free the port if another process owns it, then restart.\par
+\pard\sa120\par
+\pard\b 22.2 No Setup PIN\par
+\pard 1. Search the log for Setup Mode or ACTION REQUIRED.\par
+\pard 2. Restart once and search again.\par
+\pard 3. Confirm you are reading the log for this install path.\par
+\pard\sa120\par
+\pard\b 22.3 Port already in use\par
+\pard 1. Identify which port the log names.\par
+\pard 2. Stop the conflicting application or follow the README to select an alternate port.\par
+\pard 3. Restart Mobility Axiom.\par
+\pard\sa120\par
+\pard\b 22.4 Hardware clock / date and time\par
+\pard If the server clock is wrong (especially stuck in the past), the product may refuse a normal start until BIOS/UEFI and operating system time are corrected and time sync is restored. Fix time first, then restart the service.\par
+\pard\sa120\par
+\pard\b 22.5 License rejected\par
+\pard Confirm Hardware ID match, do not edit the file, contact Ubitron with the error text.\par
+\pard\sa120\par
+\pard\b 22.6 Structured how-to-fix log blocks\par
+\pard When the service log shows a structured fault with three lines (what happened / why / how to fix), follow How to fix before opening a support case. Ubitron support may ask you for that log block.\par
+\pard\sa120\par
+\pard\b 22.7 Service will not stay running\par
+\pard 1. Check date and time.\par
+\pard 2. Check port conflicts.\par
+\pard 3. Read how-to-fix lines in the log.\par
+\pard 4. Confirm the license is still present.\par
+\pard 5. Escalate with log excerpt if unresolved.\par
+\pard\sa120\par
+\pard\b 22.8 Supporting containers down\par
+\pard See Chapter 18. Confirm engine running, required containers running, then retest the licensed module.\par
+\pard\sa360\par
+
+\pard\b 23. Camera and SIP path check (advanced IT)\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Verify that cameras and the server agree on registration address and port after networking changes.\par
+\pard\sa120\par
+\pard\b Steps\par
+\pard 1. In Settings, copy Device registration IPv4 and SIP port from Type on BWC.\par
+\pard 2. On one camera, confirm the same IPv4 and SIP port are programmed.\par
+\pard 3. Confirm the camera network can route to that IPv4.\par
+\pard 4. Confirm firewall allows BWC SIP and required media ports from the camera network.\par
+\pard 5. Restart the camera radio or power-cycle once.\par
+\pard 6. Confirm Online in Mobility Axiom.\par
+\pard 7. Open one live view.\par
+\pard 8. If registration succeeds but live video fails, re-check media/RTP firewall rows, media transport setting, and Chapter 18 if your site uses supporting media containers.\par
+\pard\sa120\par
+\pard\b When to escalate\par
+\pard If one known-good camera still fails after IP, SIP port, password, routing, and firewall all match Type on BWC, collect logs and contact Ubitron. Do not invent alternate ports from another site.\par
+\pard\sa360\par
+
+\pard\b 24. Go-live acceptance checklist\par
+\pard\b0\par
+\pard Confirm each item before you declare the site ready for operators:\par
+\pard\sa80\par
+\pard 1. Mobility Axiom service is Running / active and set to start automatically.\par
+\pard 2. License is accepted; Setup is not required for daily start.\par
+\pard 3. Administrator password changed; factory password rejected.\par
+\pard 4. Operator portal URL opens from a control-room workstation.\par
+\pard 5. Device registration IPv4 is the real LAN (or designed) address \emdash not 172.17 to 172.31.\par
+\pard 6. At least one body-worn camera shows Online.\par
+\pard 7. At least one live view succeeds.\par
+\pard 8. Evidence storage path is Ready or Mounted and a test file can be stored or uploaded.\par
+\pard 9. Firewall rules match the live checklist for required services.\par
+\pard 10. Setup is not published to the public internet.\par
+\pard 11. Operator accounts exist for dispatch staff.\par
+\pard 12. If this order uses supporting containers: engine starts at boot and required containers are running after a reboot test (Chapter 18).\par
+\pard 13. Site runbook lists portal URL, SIP port, restart procedure, and Ubitron support contact.\par
+\pard 14. Quick Start Guide and User Manual are issued to operators.\par
+\pard\sa120\par
+\pard [Insert screenshot: Online camera and live view during acceptance]\par
+\pard\sa360\par
+
+\pard\b 25. Troubleshooting index\par
+\pard\b0\par
+\pard\b Portal unreachable from control room\par
+\pard Check Operator portal URL, DNS, reverse proxy, host and upstream firewall, and service Running state.\par
+\pard\sa120\par
+\pard\b Device offline\par
+\pard Check Device ID, Type on BWC IP and SIP port, SIP password, routing, and BWC SIP firewall row.\par
+\pard\sa120\par
+\pard\b Live video fails while device Online\par
+\pard Check media/RTP firewall rows, media transport setting, operator workstation path to live video ports, and Chapter 18 if supporting media containers are part of this site.\par
+\pard\sa120\par
+\pard\b Video Conference fails\par
+\pard Confirm entitlement, then Chapter 18 (engine and conference containers), then conference firewall rows.\par
+\pard\sa120\par
+\pard\b License faults\par
+\pard Hardware ID mismatch or edited file \emdash see Chapter 5 and 22.\par
+\pard\sa120\par
+\pard\b Clock faults\par
+\pard Correct BIOS and OS time; restore NTP; restart service.\par
+\pard\sa120\par
+\pard\b Password / first sign-in\par
+\pard Meet on-screen rules; factory password cannot be kept; see Installation Guide.\par
+\pard\sa120\par
+\pard\b Reverse proxy login oddities\par
+\pard Align Trust reverse proxy with real TLS termination; re-save; restart if instructed.\par
+\pard\sa120\par
+\pard\b Optional module missing\par
+\pard Confirm license entitlement; contact Ubitron if the module should be present.\par
+\pard\sa360\par
+
+\pard\b 26. Document control\par
+\pard\b0\par
+\pard Product: Ubitron Mobility Axiom\par
+\pard Manual: Technical Manual (On-Premises configuration and operations)\par
+\pard Language: English\par
+\pard Audience: Customer IT administrators\par
+\pard Version: 2.1\par
+\pard Revision date: July 2026\par
+\pard Related: Installation Guide, User Manual, Quick Start Guide\par
+\pard Changes in 2.1: Added Chapter 18 Supporting services (container engine); renumbered later chapters; go-live and troubleshooting updated for supporting containers.\par
+}

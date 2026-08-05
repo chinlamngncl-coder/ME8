@@ -118,6 +118,14 @@ class OnnxPlateYolo:
                 continue
             out_boxes.append({"x0": xa, "y0": ya, "x1": xb, "y1": yb, "conf": scores[i]})
         out_boxes.sort(key=lambda b: b["conf"], reverse=True)
+        try:
+            from vehicle_detect import filter_watermark_deadzone
+            from dual_lpr import filter_plate_boxes_geometry
+
+            out_boxes = filter_watermark_deadzone(out_boxes, h0)
+            out_boxes = filter_plate_boxes_geometry(out_boxes, vehicle_h=h0)
+        except Exception:  # noqa: BLE001
+            pass
         return out_boxes
 
 
@@ -147,6 +155,14 @@ class UltralyticsPlateYolo:
                 continue
             out.append({"x0": x0, "y0": y0, "x1": x1, "y1": y1, "conf": conf})
         out.sort(key=lambda b: b["conf"], reverse=True)
+        try:
+            from vehicle_detect import filter_watermark_deadzone
+            from dual_lpr import filter_plate_boxes_geometry
+
+            out = filter_watermark_deadzone(out, h0)
+            out = filter_plate_boxes_geometry(out, vehicle_h=h0)
+        except Exception:  # noqa: BLE001
+            pass
         return out
 
 

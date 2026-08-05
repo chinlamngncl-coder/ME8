@@ -25,7 +25,9 @@
 
     function status(msg) {
         var el = document.getElementById('ax-anpr-offline-status');
-        if (el) el.textContent = msg || '';
+        if (!el) return;
+        el.textContent = msg || '';
+        el.hidden = !msg;
     }
 
     function stopSample() {
@@ -33,18 +35,25 @@
             clearInterval(sampleTimer);
             sampleTimer = null;
         }
+        if (videoEl && (videoEl.paused || videoEl.ended)) {
+            var el = document.getElementById('ax-anpr-offline-status');
+            if (el && /Matching/i.test(el.textContent || '')) status('');
+        }
     }
 
     function canvasJpegBlob(video) {
         return new Promise(function (resolve, reject) {
             try {
-                var c = document.createElement('canvas');
-                c.width = video.videoWidth || 640;
-                c.height = video.videoHeight || 360;
-                if (c.width < 8 || c.height < 8) {
+                var vw = video.videoWidth || 640;
+                var vh = video.videoHeight || 360;
+                if (vw < 8 || vh < 8) {
                     reject(new Error('no_frame'));
                     return;
                 }
+                var scale = vw > 1280 ? (1280 / vw) : 1;
+                var c = document.createElement('canvas');
+                c.width = Math.max(8, Math.round(vw * scale));
+                c.height = Math.max(8, Math.round(vh * scale));
                 var ctx = c.getContext('2d');
                 ctx.drawImage(video, 0, 0, c.width, c.height);
                 c.toBlob(function (blob) {
@@ -98,10 +107,12 @@
             mmrMismatchDetail: data.mmrMismatchDetail || null,
             listMatch: listMatch,
             listStatus: listMatch && listMatch.listStatus,
+            isWatchlistHit: !!(listMatch && (listMatch.id || listMatch.listStatus)),
             trackId: 'off-' + (plateCompact || seqLocal),
             seq: seqLocal,
             motion: 'Stationary',
             source: 'offline',
+            isLive: false,
         };
         AnprLiveWatch.pushRail(tick);
         try {
@@ -115,13 +126,15 @@
     }
 
     function sampleOnce() {
-        if (busy || !videoEl || videoEl.paused || videoEl.ended) return;
+        if (!videoEl || videoEl.paused || videoEl.ended) return;
+        if (busy) return;
         busy = true;
         var whenIso = new Date().toISOString();
         canvasJpegBlob(videoEl)
             .then(function (blob) {
                 var fd = new FormData();
                 fd.append('photo', blob, 'offline-frame.jpg');
+                fd.append('ocrPath', 'fast');
                 return fetch('/api/analytics/anpr/read', {
                     method: 'POST',
                     credentials: 'same-origin',
@@ -130,18 +143,6 @@
             })
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                /* Status line stays quiet during sampling (no Sampled @ Xs jargon) */
-                if (data && data.ok && data.plate) {
-                    status(tr('analytics.anpr.offlineHit', 'Plate matched') + ': ' + String(data.plate));
-                    var st = document.getElementById('ax-anpr-offline-status');
-                    if (st) st.hidden = false;
-                } else if (data && (data.error === 'ocr_exception' || data.error === 'engine_missing')) {
-                    status(tr('analytics.anpr.offlineOcrErr', 'OCR error') + ': ' +
-                        String(data.message || data.error || '').slice(0, 120));
-                    var stErr = document.getElementById('ax-anpr-offline-status');
-                    if (stErr) stErr.hidden = false;
-                    try { console.warn('[anpr-offline] OCR fail', data); } catch (_) { /* ignore */ }
-                }
                 pushFromRead(data, whenIso);
             })
             .catch(function (err) {
@@ -152,6 +153,7 @@
 
     function startSample() {
         stopSample();
+        status(tr('analytics.anpr.offlineMatching', 'Matching...'));
         sampleTimer = setInterval(sampleOnce, SAMPLE_MS);
         sampleOnce();
     }

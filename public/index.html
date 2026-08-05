@@ -226,8 +226,30 @@
         #app-view-conference[hidden] { display: none !important; }
         .ax-hub { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 10px 12px; gap: 8px; }
         .ax-hub > h2 { margin: 0; font-size: 15px; font-weight: 700; color: #f1f5f9; }
-        .ax-hub-nav { display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
-        .ax-hub-nav-btn { padding: 6px 12px; font-size: 11px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: #cbd5e1; cursor: pointer; }
+        .ax-hub-header-band {
+            display: flex;
+            flex-direction: row;
+            align-items: stretch;
+            justify-content: space-between;
+            gap: 12px;
+            flex-shrink: 0;
+            min-width: 0;
+        }
+        .ax-hub-nav { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; flex-shrink: 0; margin-bottom: 0; padding-bottom: 0; }
+        .ax-hub-nav-primary { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .ax-hub-nav-fr-sub { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 0; width: 100%; }
+        .ax-hub-nav-fr-sub[hidden] { display: none !important; }
+        .ax-hub-nav-btn { font-family: inherit; padding: 6px 12px; font-size: 11px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: #cbd5e1; cursor: pointer; }
+        .ax-hub-nav-primary-btn {
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: normal;
+            text-transform: none;
+            padding: 6px 12px;
+            line-height: 1.2;
+        }
+        .ax-hub-nav-sub-btn { font-size: 11px; padding: 6px 12px; }
         .ax-hub-nav-btn.active { background: #2563eb; border-color: #3b82f6; color: #fff; }
         .ax-hub-nav-btn:disabled { opacity: 0.45; cursor: not-allowed; }
         .ax-hub-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -306,6 +328,11 @@
             box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.35);
         }
         .ax-fr-offline-status { max-width: 420px; }
+        #ax-fr-offline-status {
+            display: inline-block !important;
+            margin-left: 15px;
+            vertical-align: middle;
+        }
         .ax-fr-offline-status.is-err { color: #fca5a5; }
         .ax-fr-offline-status.is-ok { color: #86efac; }
         /* FR main/left/grid/tile chrome: public/css/global.css (END-TO-END-UI-CONSOLIDATION-V1) */
@@ -326,6 +353,10 @@
             gap: var(--space-sm, 8px);
             overflow: hidden;
         }
+        .ax-fr-grid.is-tile-expanded {
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr;
+        }
         .ax-fr-tile {
             position: relative;
             min-height: 0;
@@ -339,6 +370,113 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            cursor: pointer;
+        }
+        .ax-fr-grid.is-tile-expanded .ax-fr-tile {
+            height: 100%;
+        }
+        .ax-fr-tile.is-expanded-hidden { display: none !important; }
+        .ax-fr-tile.is-expanded {
+            grid-column: 1 / -1;
+            grid-row: 1 / -1;
+            width: 100%;
+            height: 100%;
+        }
+        .ax-fr-live-view {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow: hidden !important;
+        }
+        .ax-fr-live-view[hidden] { display: none !important; }
+        .ax-fr-offline-view {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .ax-fr-offline-view[hidden] { display: none !important; }
+        .ax-fr-offline-main.enterprise-card {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px;
+            overflow: hidden;
+        }
+        .ax-fr-offline-upload {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        .ax-fr-offline-video-wrap {
+            flex: 1 1 auto;
+            min-height: 0;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: center;
+            pointer-events: auto;
+            position: relative;
+            z-index: 1;
+            padding-bottom: 8px;
+        }
+        .ax-fr-offline-video {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            height: auto;
+            max-height: calc(100% - 48px);
+            object-fit: contain;
+            background-color: #000;
+            border-radius: 8px;
+            pointer-events: auto;
+            position: relative;
+            z-index: 2;
+        }
+        .ax-fr-offline-video-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+            padding: 8px 10px 0;
+            background: #0b1220;
+        }
+        .ax-fr-offline-scrub {
+            flex: 1 1 180px;
+            min-width: 120px;
+            max-width: 420px;
+        }
+        .ax-anpr-live-tiles.is-tile-expanded {
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr;
+        }
+        .ax-anpr-live-tile {
+            position: relative; min-height: 160px; min-width: 0; width: 100%; height: 100%;
+            aspect-ratio: 16 / 9;
+            background: #020617; border: 1px solid #334155;
+            border-radius: 6px; overflow: hidden;
+            cursor: pointer;
+        }
+        .ax-anpr-live-tiles.is-tile-expanded .ax-anpr-live-tile {
+            aspect-ratio: auto;
+            min-height: 250px;
+        }
+        .ax-anpr-live-tile.is-expanded-hidden { display: none !important; }
+        .ax-anpr-live-tile.is-expanded {
+            grid-column: 1 / -1;
+            grid-row: 1 / -1;
+            width: 100%;
+            height: 100%;
         }
         .ax-fr-tile.is-live { border-color: #2563eb; cursor: pointer; }
         .ax-fr-tile.is-focused {
@@ -405,6 +543,7 @@
         .ax-fr-tile video.me8-zlm-primary { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; z-index: 1; }
         .ax-fr-watch {
             flex: 0 0 auto;
+            min-height: 0;
             display: flex; flex-direction: column; overflow: hidden;
             /* card chrome: .enterprise-card + global.css consolidation */
             background: var(--bg-surface, #1e293b);
@@ -412,9 +551,19 @@
         .ax-fr-watch.enterprise-card {
             padding: var(--space-md, 16px);
             margin: 0;
-            border: 1px solid var(--border-subtle, rgba(51, 65, 85, 0.75));
+            background: transparent;
+            border: 1px solid #475569;
             border-radius: var(--radius-lg, 12px);
             box-shadow: none;
+        }
+        #ax-fr-watch-list .btn.btn-ghost {
+            background: transparent;
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            box-shadow: none;
+        }
+        #ax-fr-watch-list .ax-fr-roster-summary {
+            color: #e2e8f0;
         }
         .ax-fr-watch-bar {
             display: flex; flex-wrap: nowrap; align-items: center; gap: 6px 8px;
@@ -432,33 +581,52 @@
         }
         .ax-fr-roster-search:focus { outline: none; border-color: #2563eb; }
         .ax-fr-roster-filter {
-            width: 88px; padding: 4px 6px; font-size: 10px; border-radius: 6px;
+            width: auto; min-width: 148px; max-width: 180px;
+            padding: 4px 8px; font-size: 11px; border-radius: 6px;
             border: 1px solid #334155; background: #0b1220; color: #cbd5e1;
         }
         .ax-fr-roster-wrap {
-            flex: 0 0 auto; min-height: 210px; max-height: 210px;
-            overflow-x: hidden; overflow-y: auto;
-            border: 1px solid #334155; border-radius: 6px; background: #0b1220;
-            padding: 6px;
+            --fr-roster-level-h: calc(26px + 22px * 5);
+            flex: 0 0 auto;
+            height: var(--fr-roster-level-h);
+            max-height: var(--fr-roster-level-h);
+            min-height: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
+            border: none;
+            border-radius: 0;
+            background: transparent;
+            padding: 0;
+            box-shadow: none;
+            scroll-snap-type: y mandatory;
+            scroll-behavior: smooth;
+        }
+        .ax-fr-roster-level {
+            height: var(--fr-roster-level-h);
+            min-height: var(--fr-roster-level-h);
+            scroll-snap-align: start;
+            scroll-snap-stop: always;
+            box-sizing: border-box;
         }
         .ax-fr-roster-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 8px;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 4px 10px;
             align-items: start;
-        }
-        @media (max-width: 1279px) {
-            .ax-fr-roster-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        }
-        @media (max-width: 959px) {
-            .ax-fr-roster-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            height: 100%;
         }
         .ax-fr-roster-group-card {
-            min-width: 0; border: 1px solid #334155; border-radius: 6px;
-            background: #111827; overflow: hidden;
+            min-width: 0;
+            border: none;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            overflow: hidden;
+            height: 100%;
         }
+        .ax-fr-roster-group-card.is-empty-col { visibility: hidden; }
         .ax-fr-roster-card-head {
-            padding: 4px 6px; background: #151d2e; border-bottom: 1px solid #334155;
+            padding: 4px 2px; background: transparent; border-bottom: none;
         }
         .ax-fr-roster-card-table { width: 100%; table-layout: fixed; font-size: 10px; }
         .ax-fr-roster-card-table .ax-fr-roster-row { height: 22px; }
@@ -566,12 +734,15 @@
         .ax-fr-tile.is-fr-hit { border-color: #dc2626 !important; box-shadow: inset 0 0 0 2px #dc2626; }
         /* mob-fr-matches-chip-snap-size — drop redundant Analytics title (nav tab is enough) */
         #analytics-panel > h2 { display: none !important; }
-        /* mob-fr-snap-rail-16-fit — 16 slots fill column; no scroll */
-        /* mob-fr-hits-toolbar-chips + mob-fr-matches-chip-snap-size — far-right; size = Recent snap */
+        /* Recent: 2×6 = 12 desk tiles; scroll when more */
         .ax-fr-crop-list {
             flex: 1; min-height: 0; height: 100%;
             display: grid; grid-template-columns: 1fr 1fr;
-            grid-template-rows: repeat(8, minmax(0, 1fr)); gap: 4px;
+            grid-template-rows: repeat(6, minmax(56px, 1fr));
+            grid-auto-rows: minmax(72px, 1fr);
+            gap: 5px;
+            overflow-x: hidden;
+            overflow-y: auto;
         }
         .ax-fr-snapshot-title {
             margin: 0 0 6px; font-size: 11px; font-weight: 600;
@@ -579,17 +750,28 @@
             flex-shrink: 0;
         }
         .ax-fr-hits-bar {
-            display: inline-flex; align-items: center; gap: 8px;
+            display: flex !important;
+            flex-direction: row;
+            flex-wrap: nowrap !important;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
             margin-left: auto;
-            flex-shrink: 0;
-            max-width: 100%;
+            margin-top: 0;
+            flex: 1 1 auto;
+            min-width: 0 !important;
+            max-width: none;
+            overflow-x: auto !important;
+            overflow-y: hidden;
             padding: 0;
             border: none;
             background: transparent;
         }
+        .ax-fr-hits-bar[hidden] { display: none !important; }
         .ax-fr-hits-bar-head {
-            display: inline-flex; flex-direction: column; align-items: flex-end; gap: 2px;
+            display: inline-flex; flex-direction: row; align-items: center; gap: 6px;
             flex-shrink: 0;
+            justify-content: flex-end;
         }
         .ax-fr-hits-bar-title {
             margin: 0; font-size: 10px; font-weight: 700;
@@ -604,19 +786,24 @@
         }
         .ax-fr-hits-overflow[hidden] { display: none !important; }
         .ax-fr-hits-list {
-            --fr-hit-chip-w: 104px;
-            --fr-hit-chip-h: 72px;
-            display: grid;
-            grid-template-columns: repeat(5, var(--fr-hit-chip-w));
-            grid-auto-rows: var(--fr-hit-chip-h);
-            gap: 4px;
-            min-height: 0;
-            max-height: none;
+            display: flex !important;
+            flex-wrap: nowrap !important;
+            gap: 12px;
+            min-width: 0;
+            max-width: none;
+            overflow: visible;
         }
         .ax-fr-hits-list .ax-fr-crop-card {
+            width: var(--fr-hit-chip-w, 104px) !important;
+            height: var(--fr-hit-chip-h, 72px) !important;
+            min-width: var(--fr-hit-chip-w, 104px) !important;
+            flex-shrink: 0 !important;
+            max-height: none;
+        }
+        .ax-fr-hits-list .ax-fr-crop-card img {
             width: 100%;
             height: 100%;
-            max-height: none;
+            object-fit: cover;
         }
         .ax-fr-hits-list .ax-fr-crop-match-badge {
             font-size: 7px; padding: 2px 4px; top: 3px; left: 3px;
@@ -665,7 +852,8 @@
             border-color: #dc2626; border-style: solid; opacity: 1;
             box-shadow: 0 0 0 1px #dc2626, 0 0 12px rgba(220, 38, 38, 0.35);
         }
-        .ax-fr-crop-card.is-match.is-alert-active {
+        .ax-fr-crop-card.is-match.is-alert-active,
+        .ax-fr-hits-list .ax-fr-crop-card.is-match.is-unacked {
             animation: ax-fr-rail-match-pulse 1.4s ease-in-out infinite;
         }
         @keyframes ax-fr-rail-match-pulse {
@@ -724,8 +912,15 @@
         }
         .ax-fr-crop-match-score { flex-shrink: 0; color: #fff; }
         .ax-fr-crop-card img {
-            display: block; width: 100%; height: 100%;
-            object-fit: contain; background: #020617;
+            display: block; width: 100% !important; height: 100% !important;
+            object-fit: cover !important; background: #020617;
+        }
+        #ax-fr-crop-rail img,
+        #ax-fr-crop-rail .ax-fr-crop-card img,
+        .ax-fr-crop-list .ax-fr-crop-card img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
         }
         .ax-fr-crop-ph {
             width: 100%; height: 100%;
@@ -1246,7 +1441,14 @@
         #fr-hq-alert-bar .fr-hq-alert-actions .btn { font-size: 11px; padding: 4px 10px; }
         body.fr-hq-alert-active #header { margin-top: 40px; }
         body.fr-hq-alert-active #app-top-nav { top: auto; }
-        .ax-fr-right { width: 240px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+        .ax-fr-right {
+            width: 300px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 0;
+        }
         .ax-fr-verify-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin: 10px 0; }
         .ax-fr-verify-file { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #94a3b8; max-width: 280px; }
         /* Dark file picker — same pattern as Evidence detail (no OS white chrome) */
@@ -1450,6 +1652,61 @@
         .ax-fr-verify-result.is-nomatch { border-color: #64748b; }
         .ax-fr-verify-result.is-err { border-color: #b91c1c; }
         .ax-bl-enroll { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin: 10px 0; }
+        #ax-panel-blacklist .ax-bl-enroll { flex-shrink: 0; width: 100%; margin: 4px 0 8px; }
+        #ax-panel-blacklist .ax-bl-notes-wrap {
+            flex: 1 1 280px;
+            min-width: 200px;
+            max-width: none;
+        }
+        #ax-panel-blacklist .ax-bl-notes-wrap #ax-bl-notes {
+            width: 100%;
+            max-width: none;
+            min-height: 34px;
+            height: 34px;
+            resize: vertical;
+            font-family: inherit;
+        }
+        .ax-bl-photo-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 12px;
+            width: 100%;
+            flex-shrink: 0;
+            margin: 0 0 8px;
+        }
+        .ax-bl-photo-row .ax-bl-photo-file {
+            max-width: 280px;
+            flex: 0 0 280px;
+        }
+        .ax-bl-photo-row .ax-bl-photo-file input[type="file"] {
+            max-width: 100%;
+            margin-top: 0;
+            min-height: 34px;
+            padding: 4px 10px;
+        }
+        .ax-bl-photo-row .btn {
+            min-height: 34px;
+            height: 34px;
+            box-sizing: border-box;
+            padding: 0 12px;
+            display: inline-flex;
+            align-items: center;
+            margin: 0;
+            font-size: 12px;
+        }
+        #ax-panel-blacklist .ax-bl-toolbar { flex-shrink: 0; }
+        #ax-panel-blacklist #ax-bl-threshold-meta,
+        #ax-panel-blacklist #ax-bl-count {
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 700;
+            color: #e2e8f0;
+            letter-spacing: normal;
+        }
+        #ax-panel-blacklist #ax-bl-crop-preview,
+        #ax-panel-blacklist #ax-bl-msg { flex-shrink: 0; }
+        #ax-panel-blacklist .ax-bl-table-wrap { flex: 1 1 0; min-height: 0; overflow: auto; }
         .ax-bl-enroll input[type="text"] {
             width: 200px; max-width: 100%; padding: 7px 10px; border-radius: 6px;
             border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 12px; box-sizing: border-box;
@@ -1558,17 +1815,19 @@
         .ax-bl-grade.is-blacklist { border-color: #dc2626; color: #fca5a5; background: rgba(220, 38, 38, 0.15); }
         .ax-bl-grade.is-wanted { border-color: #ea580c; color: #fdba74; background: rgba(234, 88, 12, 0.15); }
         .ax-bl-grade.is-suspicious { border-color: #8b5cf6; color: #c4b5fd; background: rgba(139, 92, 246, 0.15); }
-        .ax-anpr-subnav { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+        .ax-anpr-subnav { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 0 0 12px; width: 100%; }
+        .ax-anpr-subnav-tabs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
         .ax-anpr-subnav-btn {
-            padding: 6px 12px; font-size: 11px; border-radius: 6px; border: 1px solid #475569;
-            background: #1e293b; color: #cbd5e1; cursor: pointer;
+            padding: 6px 12px; font-size: 11px; font-weight: 400; font-family: inherit;
+            border-radius: 6px; border: 1px solid #64748b;
+            background: #334155; color: #f1f5f9; cursor: pointer;
         }
         .ax-anpr-subnav-btn.active { background: #2563eb; border-color: #3b82f6; color: #fff; }
         .ax-anpr-subnav-btn:disabled { opacity: 0.45; cursor: not-allowed; }
         .ax-anpr-live-layout {
             /* height/grid: global.css ANPR-LIVE-BALANCE-4X4-SIZE-V1 */
             display: grid;
-            grid-template-columns: minmax(140px, 170px) minmax(0, 1fr) minmax(0, 1.2fr);
+            grid-template-columns: minmax(140px, 170px) minmax(0, 1.35fr) minmax(0, 0.95fr);
             gap: 8px;
             align-items: stretch;
             min-height: 0;
@@ -1603,9 +1862,22 @@
             grid-template-rows: 1fr 1fr;
         }
         .ax-anpr-live-tile {
-            position: relative; min-height: 0; min-width: 0; width: 100%; height: 100%;
+            position: relative; min-height: 160px; min-width: 0; width: 100%; height: 100%;
+            aspect-ratio: 16 / 9;
             background: #020617; border: 1px solid #334155;
             border-radius: 6px; overflow: hidden;
+            cursor: pointer;
+        }
+        .ax-anpr-live-tiles.is-tile-expanded .ax-anpr-live-tile {
+            aspect-ratio: auto;
+            min-height: 250px;
+        }
+        .ax-anpr-live-tile.is-expanded-hidden { display: none !important; }
+        .ax-anpr-live-tile.is-expanded {
+            grid-column: 1 / -1;
+            grid-row: 1 / -1;
+            width: 100%;
+            height: 100%;
         }
         .ax-anpr-live-tile.is-live { border-color: #2563eb; }
         .ax-anpr-live-tile.is-tile-warn { border-color: #ca8a04; }
@@ -1624,6 +1896,10 @@
         .ax-anpr-live-tile-label {
             position: absolute; left: 6px; top: 6px; z-index: 3; font-size: 10px; padding: 2px 6px;
             border-radius: 4px; background: rgba(15, 23, 42, 0.85); color: #e2e8f0;
+        }
+        /* Placeholder only — name stays on the bottom bar while live */
+        .ax-anpr-live-tile.is-live > .ax-fr-tile-ph {
+            display: none !important;
         }
         /* Thin hit strip under tiles — retired: triage is FrAlarm toast/drawer only */
         .ax-anpr-live-hit-bar {
@@ -1693,40 +1969,50 @@
         .ax-anpr-live-rail-card .ax-anpr-rail-meta {
             line-height: 1.2; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0;
         }
+        #ax-anpr-snap-lightbox-backdrop {
+            position: fixed; inset: 0; z-index: 28005;
+            background: rgba(2, 6, 23, 0.72);
+        }
+        #ax-anpr-snap-lightbox-backdrop[hidden] { display: none !important; }
         #ax-anpr-snap-lightbox {
-            position: fixed; right: 16px; bottom: 16px; z-index: 28010;
-            width: min(420px, 92vw); max-height: min(78vh, 640px);
+            position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+            z-index: 28010;
+            width: min(720px, 94vw); max-height: min(88vh, 860px);
             display: flex; flex-direction: column; overflow: hidden;
             background: #0f172a; border: 1px solid #475569; border-radius: 10px;
-            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
         }
         #ax-anpr-snap-lightbox[hidden] { display: none !important; }
         .ax-anpr-snap-lb-chrome {
             display: flex; align-items: center; gap: 8px; padding: 8px 10px;
             border-bottom: 1px solid #334155; flex-shrink: 0; cursor: move;
         }
-        .ax-anpr-snap-lb-title { flex: 1; margin: 0; font-size: 12px; font-weight: 700; color: #e2e8f0; }
+        .ax-anpr-snap-lb-title { flex: 1; margin: 0; font-size: 13px; font-weight: 700; color: #e2e8f0; }
         .ax-anpr-snap-lb-close {
             width: 28px; height: 28px; border: 1px solid #475569; border-radius: 6px;
             background: #1e293b; color: #e2e8f0; cursor: pointer; font-size: 16px; line-height: 1;
         }
-        .ax-anpr-snap-lb-body { padding: 10px; overflow: auto; min-height: 0; }
+        .ax-anpr-snap-lb-body { padding: 12px; overflow: auto; min-height: 0; }
         .ax-anpr-snap-lb-body .ax-anpr-lb-scene-wrap {
             overflow: hidden; border-radius: 6px; background: #020617; cursor: zoom-in;
+            width: 100%; max-width: none;
         }
         .ax-anpr-snap-lb-body img.ax-anpr-lb-scene {
-            display: block; width: 100%; max-height: 360px; object-fit: contain; background: #020617; border-radius: 6px;
+            display: block; width: 100%; max-height: min(52vh, 480px); object-fit: contain; background: #020617; border-radius: 6px;
             transition: transform 0.08s linear;
         }
         .ax-anpr-snap-lb-body .ax-anpr-lb-scene-wrap.is-zooming img.ax-anpr-lb-scene { max-height: none; }
+        .ax-anpr-snap-lb-body .ax-anpr-lb-plate-wrap {
+            overflow: hidden; border-radius: 6px; background: #020617; cursor: zoom-in;
+            margin-top: 10px; width: 100%;
+        }
         .ax-anpr-snap-lb-body img.ax-anpr-lb-plate-img {
-            display: block; width: min(240px, 45%); max-height: 72px; object-fit: contain;
-            margin-top: 8px; background: #020617; border-radius: 4px; border: 1px solid #475569;
+            display: block; width: 100%; max-height: min(22vh, 180px); object-fit: contain;
+            background: #020617; border-radius: 4px; border: 1px solid #475569;
             transition: transform 0.08s linear;
         }
-        .ax-anpr-snap-lb-body img {
-            display: block; width: 100%; max-height: 360px; object-fit: contain; background: #020617; border-radius: 6px;
-        }
+        .ax-anpr-snap-lb-body .ax-anpr-lb-plate-wrap.is-zooming img.ax-anpr-lb-plate-img { max-height: none; }
+        .ax-anpr-lb-zoom-hint { margin: 8px 0 0; font-size: 11px; color: #94a3b8; }
         .ax-anpr-snap-lb-meta { margin: 8px 0 0; font-size: 12px; color: #cbd5e1; line-height: 1.45; }
         .ax-anpr-snap-lb-meta p { margin: 0 0 4px; }
         .ax-anpr-live-toast {
@@ -8084,7 +8370,7 @@
         .sos-detail-actions button { flex: 1; min-width: 100px; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; background: #334155; color: #e2e8f0; }
         .sos-detail-actions .sos-detail-secondary { flex: 0 1 auto; background: transparent; color: #94a3b8; font-weight: 500; font-size: 11px; }
     </style>
-    <link rel="stylesheet" href="/css/global.css?v=20260802-anpr-skeleton-firewall">
+    <link rel="stylesheet" href="/css/global.css?v=20260806-wd-detect-stills-v1">
     <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260731-analytics-grade-filter-compact-chevron-v1">
 </head>
 <body>
@@ -9759,42 +10045,66 @@
                 </div>
             </div>
             <div id="ax-hub-body">
+                <div class="ax-hub-header-band">
                 <nav class="ax-hub-nav" aria-label="Analytics sections">
-                    <button type="button" class="ax-hub-nav-btn active" data-panel="face" data-i18n="analytics.navFace">Face recognition</button>
-                    <button type="button" class="ax-hub-nav-btn" data-panel="verify" data-i18n="analytics.navVerify">Verify 1:1</button>
-                    <button type="button" class="ax-hub-nav-btn" data-panel="blacklist" data-i18n="analytics.navWatchlist">Watchlist</button>
-                    <button type="button" class="ax-hub-nav-btn" data-panel="anpr" data-i18n="analytics.navAnpr" disabled>ANPR</button>
-                    <button type="button" class="ax-hub-nav-btn" data-panel="weapon" data-i18n="analytics.navWeapon" disabled>Weapon detection</button>
+                    <div class="ax-hub-nav-primary" role="tablist" aria-label="Analytics modules">
+                        <button type="button" class="ax-hub-nav-btn ax-hub-nav-primary-btn active" data-panel="face" data-i18n="analytics.navFace">Face recognition</button>
+                        <button type="button" class="ax-hub-nav-btn ax-hub-nav-primary-btn" data-panel="anpr" data-i18n="analytics.navAnpr" disabled>ANPR</button>
+                        <button type="button" class="ax-hub-nav-btn ax-hub-nav-primary-btn" data-panel="weapon" data-i18n="analytics.navWeapon" disabled>Weapon detection</button>
+                    </div>
+                    <div class="ax-hub-nav-fr-sub" id="ax-hub-fr-subnav" role="tablist" aria-label="Face recognition sections">
+                        <button type="button" class="ax-hub-nav-btn ax-hub-nav-sub-btn active" data-panel="face" data-fr-sub="live" data-i18n="analytics.fr.subLive">Live Watch</button>
+                        <button type="button" class="ax-hub-nav-btn ax-hub-nav-sub-btn" data-panel="face" data-fr-sub="offline" id="ax-fr-sub-offline" data-i18n="analytics.fr.loadVideo">Load video (offline)</button>
+                        <button type="button" class="ax-hub-nav-btn ax-hub-nav-sub-btn" data-panel="verify" data-fr-sub="verify" data-i18n="analytics.navVerify">Verify 1:1</button>
+                        <button type="button" class="ax-hub-nav-btn ax-hub-nav-sub-btn" data-panel="blacklist" data-fr-sub="blacklist" data-i18n="analytics.navWatchlist">Watchlist</button>
+                        <p id="ax-fr-sidecar-status" class="ax-engine-health" aria-live="polite">&mdash;</p>
+                    </div>
                 </nav>
+                        <div id="ax-fr-hits-bar" class="ax-fr-hits-bar" aria-label="Known subjects">
+                            <div class="ax-fr-hits-bar-head">
+                                <h4 class="ax-fr-hits-bar-title" id="ax-fr-hits-bar-title" data-i18n="analytics.fr.matchesShort">Known subjects</h4>
+                                <span id="ax-fr-hits-overflow" class="ax-fr-hits-overflow" hidden title="Additional matches beyond the six on-desk slots">+0</span>
+                            </div>
+                            <div id="ax-fr-hits-list" class="ax-fr-hits-list" role="list"></div>
+                        </div>
+                </div>
                 <div id="ax-panel-face" class="ax-hub-panel enterprise-scope">
                     <div class="ax-fr-toolbar">
-                        <span class="hint" data-i18n="analytics.fr.layoutHint">6 live tiles Â&middot; up to 32 in watch set Â&middot; rotate ~20s</span>
-                        <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-load-video" data-i18n="analytics.fr.loadVideo">Load video (offline)</button>
-                        <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-offline-cancel" hidden data-i18n="analytics.fr.offlineCancel">Cancel</button>
                         <input type="file" id="ax-fr-offline-file" accept=".mp4,.mov,.webm,.mkv,video/mp4,video/quicktime,video/webm" hidden>
                         <span id="ax-fr-offline-status" class="hint ax-fr-offline-status" hidden></span>
                         <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-preview-drawer" data-i18n="analytics.fr.previewDrawerLab">Preview alert (lab)</button>
                         <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-preview-toast" data-i18n="analytics.fr.previewToastLab">Preview toast (lab)</button>
-                        <!-- mob-fr-hits-rename: Known subjects (watchlist tray; not alert list) -->
-                        <div id="ax-fr-hits-bar" class="ax-fr-hits-bar" aria-label="Known subjects">
-                            <div class="ax-fr-hits-bar-head">
-                                <h4 class="ax-fr-hits-bar-title" id="ax-fr-hits-bar-title" data-i18n="analytics.fr.matchesShort">Known subjects</h4>
-                                <span id="ax-fr-hits-overflow" class="ax-fr-hits-overflow" hidden title="Additional matches beyond the five on-desk slots">+0</span>
-                            </div>
-                            <div id="ax-fr-hits-list" class="ax-fr-hits-list" role="list"></div>
-                        </div>
                     </div>
                     <div class="ax-fr-main">
                         <div class="ax-fr-left">
+                            <div id="ax-fr-live-view" class="ax-fr-live-view">
                             <div class="ax-fr-grid" aria-label="Face recognition live tiles">
-                                <div class="ax-fr-tile" data-slot="0"><span class="ax-fr-tile-label">1</span><button type="button" class="ax-fr-tile-stop" hidden aria-label="Stop this tile">&times;</button><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdle">Waiting</span></div>
-                                <div class="ax-fr-tile" data-slot="1"><span class="ax-fr-tile-label">2</span><button type="button" class="ax-fr-tile-stop" hidden aria-label="Stop this tile">&times;</button><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdle">Waiting</span></div>
-                                <div class="ax-fr-tile" data-slot="2"><span class="ax-fr-tile-label">3</span><button type="button" class="ax-fr-tile-stop" hidden aria-label="Stop this tile">&times;</button><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdle">Waiting</span></div>
-                                <div class="ax-fr-tile" data-slot="3"><span class="ax-fr-tile-label">4</span><button type="button" class="ax-fr-tile-stop" hidden aria-label="Stop this tile">&times;</button><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdle">Waiting</span></div>
-                                <div class="ax-fr-tile" data-slot="4"><span class="ax-fr-tile-label">5</span><button type="button" class="ax-fr-tile-stop" hidden aria-label="Stop this tile">&times;</button><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdle">Waiting</span></div>
-                                <div class="ax-fr-tile" data-slot="5"><span class="ax-fr-tile-label">6</span><button type="button" class="ax-fr-tile-stop" hidden aria-label="Stop this tile">&times;</button><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdle">Waiting</span></div>
+                                <div class="ax-fr-tile" data-slot="0" data-tile-id="fr-0"><span class="ax-fr-tile-label">1</span><button type="button" class="ax-fr-tile-stop" hidden aria-label="Stop this tile">&times;</button><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdleHint">Select officers/cameras and Start watch</span></div>
+                                <div class="ax-fr-tile" data-slot="1" data-tile-id="fr-1"><span class="ax-fr-tile-label">2</span><button type="button" class="ax-fr-tile-stop" hidden aria-label="Stop this tile">&times;</button><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdleHint">Select officers/cameras and Start watch</span></div>
+                                <div class="ax-fr-tile" data-slot="2" data-tile-id="fr-2"><span class="ax-fr-tile-label">3</span><button type="button" class="ax-fr-tile-stop" hidden aria-label="Stop this tile">&times;</button><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdleHint">Select officers/cameras and Start watch</span></div>
+                                <div class="ax-fr-tile" data-slot="3" data-tile-id="fr-3"><span class="ax-fr-tile-label">4</span><button type="button" class="ax-fr-tile-stop" hidden aria-label="Stop this tile">&times;</button><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdleHint">Select officers/cameras and Start watch</span></div>
+                                <div class="ax-fr-tile" data-slot="4" data-tile-id="fr-4"><span class="ax-fr-tile-label">5</span><button type="button" class="ax-fr-tile-stop" hidden aria-label="Stop this tile">&times;</button><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdleHint">Select officers/cameras and Start watch</span></div>
+                                <div class="ax-fr-tile" data-slot="5" data-tile-id="fr-5"><span class="ax-fr-tile-label">6</span><button type="button" class="ax-fr-tile-stop" hidden aria-label="Stop this tile">&times;</button><span class="ax-fr-tile-ph" data-i18n="analytics.fr.tileIdleHint">Select officers/cameras and Start watch</span></div>
                             </div>
                             <div id="ax-fr-watch-list" class="ax-fr-watch enterprise-card"></div>
+                            </div>
+                            <div id="ax-fr-offline-view" class="ax-fr-offline-view" hidden>
+                                <div class="ax-fr-offline-main enterprise-card">
+                                    <div class="ax-fr-offline-upload">
+                                        <button type="button" class="btn btn-action btn-sm" id="ax-fr-load-video" data-i18n="analytics.fr.loadVideo">Load video (offline)</button>
+                                        <p id="ax-fr-offline-drop-hint" class="hint" data-i18n="analytics.fr.offlineDropHint">Upload a video to scan faces offline. Preview plays here.</p>
+                                    </div>
+                                    <div class="ax-fr-offline-video-wrap">
+                                        <video id="ax-fr-offline-video" class="ax-fr-offline-video" controls controlsList="nodownload noplaybackrate" playsinline></video>
+                                        <div class="ax-fr-offline-video-bar" id="ax-fr-offline-video-bar">
+                                            <button type="button" class="btn btn-action btn-sm" id="ax-fr-offline-play">Play</button>
+                                            <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-offline-pause">Pause</button>
+                                            <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-offline-stop">Stop</button>
+                                            <input type="range" id="ax-fr-offline-scrub" class="fm-range ax-fr-offline-scrub" min="0" max="1000" value="0" step="1" aria-label="Video timeline">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="ax-fr-right">
                             <div id="ax-fr-crop-rail" class="ax-fr-crop-rail"></div>
@@ -9803,7 +10113,6 @@
                 </div>
                 <div id="ax-panel-verify" class="ax-hub-panel" hidden>
                     <p class="setup-hint" data-i18n="analytics.verify.hint">Compare two photos (for example an ID photo and a field photo). Face matching must be running on this server.</p>
-                    <p id="ax-fr-sidecar-status" class="ax-engine-health" aria-live="polite">&mdash;</p>
                     <div class="ax-fr-verify-workspace enterprise-card">
                         <div class="ax-fr-verify-compare" aria-label="Verify 1:1 compare">
                             <div class="ax-fr-dropzone" id="ax-fr-dropzone-1" data-slot="1">
@@ -9876,10 +10185,12 @@
                         <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.lastIncident">Last incident (optional)</span>
                             <input type="text" id="ax-bl-last-incident" maxlength="200" data-i18n-placeholder="analytics.bl.lastIncidentPh" placeholder="e.g. Attempted entry without pass" autocomplete="off">
                         </label>
-                        <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.notes">Notes (optional)</span>
+                        <label class="ax-fr-verify-file ax-bl-notes-wrap"><span data-i18n="analytics.bl.notes">Notes (optional)</span>
                             <textarea id="ax-bl-notes" maxlength="500" data-i18n-placeholder="analytics.bl.notesPh" placeholder="What operators should know&hellip;"></textarea>
                         </label>
-                        <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.photo">Photo</span>
+                    </div>
+                    <div class="ax-bl-photo-row">
+                        <label class="ax-fr-verify-file ax-bl-photo-file"><span data-i18n="analytics.bl.photo">Photo</span>
                             <input type="file" id="ax-bl-photo" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
                         </label>
                         <button type="button" class="btn btn-ghost btn-sm" id="ax-bl-crop-open" data-i18n="analytics.bl.cropOpen">Crop &amp; check</button>
@@ -9990,14 +10301,19 @@
                     </div>
                 </div>
                 <div id="ax-panel-anpr" class="ax-hub-panel" hidden>
-                    <p id="ax-anpr-status" class="ax-engine-health" aria-live="polite">&mdash;</p>
+                    <div class="ax-anpr-subnav-bar">
                     <nav class="ax-anpr-subnav" aria-label="ANPR sections">
-                        <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="live" id="ax-anpr-sub-live" data-i18n="analytics.anpr.subLive">Live</button>
-                        <button type="button" class="ax-anpr-subnav-btn active" data-anpr-sub="snapshot" id="ax-anpr-sub-snapshot" data-i18n="analytics.anpr.subSnapshot">Snapshot</button>
-                        <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="offline" id="ax-anpr-sub-offline" data-i18n="analytics.anpr.subOffline">Offline Match</button>
-                        <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="history" id="ax-anpr-sub-history" data-i18n="analytics.anpr.subHistory">Search &amp; History</button>
-                        <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="lists" id="ax-anpr-sub-lists" data-i18n="analytics.anpr.subLists">Plate lists</button>
+                        <div class="ax-anpr-subnav-tabs">
+                            <button type="button" class="ax-anpr-subnav-btn active" data-anpr-sub="live" id="ax-anpr-sub-live" data-i18n="analytics.anpr.subLive">Live</button>
+                            <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="snapshot" id="ax-anpr-sub-snapshot" data-i18n="analytics.anpr.subSnapshot">Snapshot</button>
+                            <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="offline" id="ax-anpr-sub-offline" data-i18n="analytics.anpr.subOffline">Offline Match</button>
+                            <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="history" id="ax-anpr-sub-history" data-i18n="analytics.anpr.subHistory">Search &amp; History</button>
+                            <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="lists" id="ax-anpr-sub-lists" data-i18n="analytics.anpr.subLists">Plate lists</button>
+                        </div>
+                        <span id="ax-anpr-subnav-watch-badge" class="ax-anpr-subnav-watch-badge" aria-live="polite" hidden aria-hidden="true">0 Active Watchlist Hits</span>
                     </nav>
+                    <p id="ax-anpr-status" class="ax-engine-health" aria-live="polite">&mdash;</p>
+                    </div>
                     <div id="ax-anpr-sub-live-panel" class="ax-anpr-sub-panel" hidden>
                         <p class="setup-hint" data-i18n="analytics.anpr.liveHint">Watch live BWC video. Plates are read from the stream and matched to Plate lists. List hits raise an alert.</p>
                         <div class="ax-anpr-live-layout">
@@ -10012,19 +10328,19 @@
                             </div>
                             <div class="ax-anpr-live-main">
                                 <div class="ax-anpr-live-tiles ax-anpr-live-tiles--4" aria-label="ANPR live tiles">
-                                    <div class="ax-anpr-live-tile" data-anpr-slot="0" id="ax-anpr-live-tile-0">
+                                    <div class="ax-anpr-live-tile" data-anpr-slot="0" data-tile-id="anpr-0" id="ax-anpr-live-tile-0">
                                         <span class="ax-anpr-live-tile-label">1</span>
                                         <span class="ax-fr-tile-ph" data-i18n="analytics.anpr.tileIdleHint">Select BWCs and Start watch</span>
                                     </div>
-                                    <div class="ax-anpr-live-tile" data-anpr-slot="1" id="ax-anpr-live-tile-1">
+                                    <div class="ax-anpr-live-tile" data-anpr-slot="1" data-tile-id="anpr-1" id="ax-anpr-live-tile-1">
                                         <span class="ax-anpr-live-tile-label">2</span>
                                         <span class="ax-fr-tile-ph" data-i18n="analytics.anpr.tileIdleHint">Select BWCs and Start watch</span>
                                     </div>
-                                    <div class="ax-anpr-live-tile" data-anpr-slot="2" id="ax-anpr-live-tile-2">
+                                    <div class="ax-anpr-live-tile" data-anpr-slot="2" data-tile-id="anpr-2" id="ax-anpr-live-tile-2">
                                         <span class="ax-anpr-live-tile-label">3</span>
                                         <span class="ax-fr-tile-ph" data-i18n="analytics.anpr.tileIdleHint">Select BWCs and Start watch</span>
                                     </div>
-                                    <div class="ax-anpr-live-tile" data-anpr-slot="3" id="ax-anpr-live-tile-3">
+                                    <div class="ax-anpr-live-tile" data-anpr-slot="3" data-tile-id="anpr-3" id="ax-anpr-live-tile-3">
                                         <span class="ax-anpr-live-tile-label">4</span>
                                         <span class="ax-fr-tile-ph" data-i18n="analytics.anpr.tileIdleHint">Select BWCs and Start watch</span>
                                     </div>
@@ -10034,7 +10350,21 @@
                             </div>
                             <div class="ax-anpr-live-side">
                                 <div id="ax-anpr-live-rail" class="ax-anpr-live-rail enterprise-card" aria-label="Recent plates">
-                                    <div class="ax-anpr-live-rail-head">
+                                    <!-- Watchlist alerts: collapsed when 0 — no wasted rail height -->
+                                    <div id="critical-alerts-container" class="ax-anpr-critical-alerts is-collapsed" aria-label="Critical Watchlist Hits" hidden>
+                                        <div class="ax-anpr-critical-alerts-head">
+                                            <span class="ax-anpr-critical-alerts-title">
+                                                <span class="ax-anpr-critical-ping" aria-hidden="true"></span>
+                                                Critical Watchlist Hits
+                                            </span>
+                                            <span class="ax-anpr-critical-head-actions">
+                                                <span id="alert-count-badge" class="ax-anpr-critical-badge">0 ACTIVE</span>
+                                                <button type="button" class="btn btn-ghost btn-sm ax-anpr-critical-dismiss-all" data-anpr-critical-clear="live" title="Dismiss all alerts">Dismiss</button>
+                                            </span>
+                                        </div>
+                                        <div id="active-alerts-list" class="ax-anpr-critical-alerts-list" role="list"></div>
+                                    </div>
+                                    <div id="recent-plates-header" class="ax-anpr-live-rail-head">
                                         <h4 class="ax-anpr-live-rail-title" data-i18n="analytics.anpr.liveRailTitle">Recent plates</h4>
                                         <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-live-rail-clear" title="Clear UI buffer">Clear UI</button>
                                     </div>
@@ -10045,6 +10375,11 @@
                         <div id="ax-anpr-live-toast" class="ax-anpr-live-toast" hidden role="alert"></div>
                     </div>
                     <div id="ax-anpr-sub-offline-panel" class="ax-anpr-sub-panel" hidden>
+                        <nav class="ax-anpr-offline-mode-nav" aria-label="Offline Match modes">
+                            <button type="button" class="ax-anpr-offline-mode-btn active" data-offline-mode="video" id="ax-anpr-offline-mode-video" data-i18n="analytics.anpr.offlineModeVideo">Offline Video</button>
+                            <button type="button" class="ax-anpr-offline-mode-btn" data-offline-mode="image" id="ax-anpr-offline-mode-image" data-i18n="analytics.anpr.offlineModeImage">Image Investigation</button>
+                        </nav>
+                        <div id="ax-anpr-offline-video-view" class="ax-anpr-offline-video-view">
                         <div class="ax-anpr-offline-layout">
                             <div class="ax-anpr-offline-main enterprise-card">
                                 <div class="ax-anpr-offline-upload shrink-0">
@@ -10057,18 +10392,53 @@
                                 <div class="ax-anpr-offline-video-wrap">
                                     <video id="ax-anpr-offline-video" class="ax-anpr-offline-video" controls playsinline></video>
                                 </div>
-                                <div id="ax-anpr-offline-hit-slots" class="ax-anpr-offline-hit-slots" aria-label="Blacklist / Suspect Hits">
+                                <div id="ax-anpr-offline-hit-slots" class="ax-anpr-offline-hit-slots shrink-0" aria-label="Blacklist / Suspect Hits">
                                     <span class="ax-anpr-offline-hit-title">Blacklist / Suspect Hits</span>
-                                    <div id="ax-anpr-offline-hit-row" class="ax-anpr-offline-hit-row" role="list"></div>
+                                    <div id="blacklist-hits-container" class="ax-anpr-offline-hit-row" role="list"></div>
                                 </div>
                             </div>
                             <div class="ax-anpr-offline-side">
                                 <div id="ax-anpr-offline-rail" class="ax-anpr-live-rail" aria-label="Recent plates">
-                                    <div class="ax-anpr-live-rail-head">
+                                    <div id="recent-plates-header-offline" class="ax-anpr-live-rail-head">
                                         <h3 class="ax-anpr-live-rail-title" data-i18n="analytics.anpr.liveRailTitle">Recent Plates</h3>
                                         <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-offline-rail-clear" title="Clear UI buffer">Clear UI</button>
                                     </div>
                                     <div id="ax-anpr-offline-rail-grid" class="ax-anpr-live-rail-grid grid grid-cols-2 gap-3" role="list"></div>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+                        <div id="ax-anpr-offline-image-view" class="ax-anpr-offline-image-view" hidden>
+                            <p class="setup-hint" data-i18n="analytics.anpr.imageInvestHint">Upload a still or pick a file from the FTP inbox, then run AI scan (ANPR / FR).</p>
+                            <div class="ax-anpr-image-invest-layout enterprise-layout-2col">
+                                <div class="enterprise-card ax-anpr-image-invest-main">
+                                    <h4 class="ax-anpr-image-invest-h" data-i18n="analytics.anpr.imageManualUpload">Manual upload</h4>
+                                    <div id="ax-anpr-image-dropzone" class="ax-anpr-image-dropzone" tabindex="0" role="button" aria-label="Drop image here">
+                                        <div id="ax-anpr-image-drop-empty" class="ax-anpr-image-drop-empty" data-i18n="analytics.anpr.imageDropHint">Drop .jpg / .png here, or click to browse</div>
+                                        <img id="ax-anpr-image-preview" class="ax-anpr-image-preview" alt="Selected investigation image" hidden>
+                                        <input type="file" id="ax-anpr-image-file" class="ax-anpr-image-file-input" accept=".jpg,.jpeg,.png,.webp,.bmp,image/jpeg,image/png,image/webp,image/bmp">
+                                    </div>
+                                    <p id="ax-anpr-image-selected-meta" class="hint ax-anpr-image-selected-meta" aria-live="polite"></p>
+                                    <div class="ax-anpr-image-actions">
+                                        <button type="button" class="btn btn-primary" id="ax-anpr-image-run-scan" data-i18n="analytics.anpr.imageRunScan" disabled>Run Scan</button>
+                                        <button type="button" class="btn btn-secondary" id="ax-anpr-image-clear" data-i18n="analytics.anpr.imageClear" disabled>Clear</button>
+                                        <span id="ax-anpr-image-scan-spinner" class="ax-anpr-image-scan-spinner" hidden aria-hidden="true"></span>
+                                        <span id="ax-anpr-image-scan-status" class="hint" aria-live="polite"></span>
+                                    </div>
+                                    <div id="ax-anpr-image-scan-result" class="ax-anpr-image-scan-result enterprise-card" hidden>
+                                        <h4 class="ax-anpr-image-invest-h" data-i18n="analytics.anpr.imageScanResult">Scan result</h4>
+                                        <pre id="ax-anpr-image-scan-json" class="ax-anpr-image-scan-json"></pre>
+                                    </div>
+                                </div>
+                                <div class="enterprise-card ax-anpr-image-invest-inbox">
+                                    <div class="ax-anpr-image-inbox-head">
+                                        <h4 class="ax-anpr-image-invest-h" data-i18n="analytics.anpr.imageFtpInbox">FTP inbox</h4>
+                                        <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-image-inbox-refresh" data-i18n="analytics.anpr.imageFtpRefresh">Refresh</button>
+                                    </div>
+                                    <p class="hint" data-i18n="analytics.anpr.imageFtpHint">Recent files from the server FTP upload folder. Click a thumbnail to select.</p>
+                                    <div id="ax-anpr-image-ftp-grid" class="ax-anpr-image-ftp-grid" role="list" aria-label="FTP inbox thumbnails">
+                                        <div class="ax-anpr-image-ftp-empty" data-i18n="analytics.anpr.imageFtpEmpty">No inbox files yet</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -10231,8 +10601,32 @@
                         </div>
                     </div>
                 </div>
-                <div id="ax-panel-weapon" class="ax-hub-panel" hidden>
-                    <div class="ax-coming"><p data-i18n="analytics.weaponComing">Weapon detection &mdash; coming when licensed.</p></div>
+                <div id="ax-panel-weapon" class="ax-hub-panel enterprise-scope" hidden>
+                    <p id="ax-wd-engine-health" class="ax-engine-health" aria-live="polite">&mdash;</p>
+                    <div class="ax-fr-main">
+                        <div class="ax-fr-left">
+                            <div class="ax-fr-grid" aria-label="Weapon live tiles">
+                                <div class="ax-wd-tile" data-wd-slot="0" data-tile-id="wd-0"><span class="ax-wd-tile-label">1</span><span class="ax-fr-tile-ph" data-i18n="analytics.weapon.tileIdle">Select cameras and Start watch</span></div>
+                                <div class="ax-wd-tile" data-wd-slot="1" data-tile-id="wd-1"><span class="ax-wd-tile-label">2</span><span class="ax-fr-tile-ph" data-i18n="analytics.weapon.tileIdle">Select cameras and Start watch</span></div>
+                                <div class="ax-wd-tile" data-wd-slot="2" data-tile-id="wd-2"><span class="ax-wd-tile-label">3</span><span class="ax-fr-tile-ph" data-i18n="analytics.weapon.tileIdle">Select cameras and Start watch</span></div>
+                                <div class="ax-wd-tile" data-wd-slot="3" data-tile-id="wd-3"><span class="ax-wd-tile-label">4</span><span class="ax-fr-tile-ph" data-i18n="analytics.weapon.tileIdle">Select cameras and Start watch</span></div>
+                                <div class="ax-wd-tile" data-wd-slot="4" data-tile-id="wd-4"><span class="ax-wd-tile-label">5</span><span class="ax-fr-tile-ph" data-i18n="analytics.weapon.tileIdle">Select cameras and Start watch</span></div>
+                                <div class="ax-wd-tile" data-wd-slot="5" data-tile-id="wd-5"><span class="ax-wd-tile-label">6</span><span class="ax-fr-tile-ph" data-i18n="analytics.weapon.tileIdle">Select cameras and Start watch</span></div>
+                            </div>
+                            <div id="ax-wd-watch-list" class="ax-fr-watch enterprise-card"></div>
+                        </div>
+                        <div class="ax-fr-right">
+                            <div id="ax-wd-crop-rail" class="ax-fr-crop-rail" aria-label="Recent weapon detections">
+                                <h4 class="ax-wd-rail-title" data-i18n="analytics.weapon.railTitle">Recent</h4>
+                                <div id="ax-wd-detect-grid" class="ax-wd-detect-grid" role="list">
+                                    <div class="ax-wd-detect-slot" role="listitem"></div>
+                                    <div class="ax-wd-detect-slot" role="listitem"></div>
+                                    <div class="ax-wd-detect-slot" role="listitem"></div>
+                                    <div class="ax-wd-detect-slot" role="listitem"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -11071,8 +11465,9 @@
     <!-- mob-me8-restore-8wc-v2-ops: v2 inline ops boot + ME8 enterprise glue; VC via vc-lazy -->
     <script src="/vendor/jsmpeg.min.js"></script>
     <script src="/vendor/mpegts.min.js"></script>
+    <script src="/js/shared-flv-player.js?v=20260802-lab-chase-unify-v1"></script>
     <script src="/js/ax-select-wrap.js?v=20260731-select-caret-unify-all-ui-v1"></script>
-    <script src="/js/live-player-factory.js?v=20260730-cw-fill-cover-v1"></script>
+    <script src="/js/live-player-factory.js?v=20260802-lab-chase-unify-v1"></script>
     <script src="/js/dashboard-ws-url.js?v=20260723-wss-video-audio-sockets-v1"></script>
     <script src="/js/i18n.js?v=20260723-reverse-proxy-ui-polish-v1"></script>
     <script src="/js/session-bus.js?v=20260702-settings-session-sync"></script>
@@ -11104,16 +11499,18 @@
     <script src="/js/audit-trail-hub.js?v=20260630-audit-preset-ux"></script>
     <script src="/js/license-features.js?v=20260728-unify-8-features"></script>
     <script src="/js/cad-hub.js?v=20260728-cad-rms-fomo"></script>
-    <script src="/js/fr-live-watch.js?v=20260723-wss-video-audio-sockets-v1"></script>
-    <script src="/js/fr-offline-video.js?v=20260715-threshold-admin"></script>
+    <script src="/js/fr-live-watch.js?v=20260805-fr-watch-hub-class-v1"></script>
+    <script src="/js/fr-offline-video.js?v=20260805-fr-offline-isolate-v1"></script>
     <script src="/js/fr-enroll-cropper.js?v=20260710-fr-cropper"></script>
     <script src="/js/anpr-plate-cropper.js?v=20260729-anpr-snapshot-v1"></script>
-    <script src="/js/fr-alarm.js?v=20260802-anpr-snap-cards-fr-modal"></script>
-    <script src="/js/wvp-lab-tile.js?v=20260716-hide-lab-ui"></script>
-    <script src="/js/anpr-live-watch.js?v=20260802-anpr-skeleton-firewall"></script>
-    <script src="/js/anpr-offline-match.js?v=20260802-anpr-skeleton-firewall"></script>
+    <script src="/js/fr-alarm.js?v=20260805-fr-engine-ks-filter-v1"></script>
+    <script src="/js/wvp-lab-tile.js?v=20260802-lab-chase-unify-v1"></script>
+    <script src="/js/anpr-live-watch.js?v=20260805-engine-name-tab-v1"></script>
+    <script src="/js/anpr-offline-match.js?v=20260805-offline-status-matching-v1"></script>
+    <script src="/js/anpr-image-investigation.js?v=20260804-image-invest-scaffold-v1"></script>
     <script src="/js/anpr-history.js?v=20260801-anpr-history-v1"></script>
-    <script src="/js/analytics-hub.js?v=20260802-live-rail-triage-isolate"></script>
+    <script src="/js/weapon-live-watch.js?v=20260806-wd-detect-stills-v1"></script>
+    <script src="/js/analytics-hub.js?v=20260806-wd-detect-stills-v1"></script>
     <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/operator-ui.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/ev-context-rail.js?v=20260627-rail-trim"></script>
@@ -11122,7 +11519,7 @@
     <script src="/js/case-files-ui.js?v=20260722-cf-list-one-view-v5"></script>
     <script src="/js/fr-kept-ui.js?v=20260801-delete-superadmin-rbac"></script>
     <script src="/js/evidence-hub.js?v=20260723-redacted-exports-empty-hint-v1"></script>
-    <script src="/js/system-health-plain.js?v=20260712-health-plain"></script>
+    <script src="/js/system-health-plain.js?v=20260804-global-heartbeat-v1"></script>
     <script src="/js/missed-activity.js?v=20260712-alerts-copy"></script>
     <script src="/js/evidence-manager.js?v=20260728-cad-tab-shell"></script>
     <script src="/js/chat-ui.js"></script>

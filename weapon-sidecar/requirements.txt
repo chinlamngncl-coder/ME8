@@ -1,0 +1,7 @@
+fastapi>=0.110
+uvicorn>=0.27
+pydantic>=2.0
+pillow>=10.0
+requests>=2.31
+rfdetr==1.2.1
+supervision>=0.26.1

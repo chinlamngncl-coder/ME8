@@ -1,0 +1,18 @@
+---
+description: Portable token-lean patches — small diffs only; no full-file rewrites; no autonomous scans
+alwaysApply: true
+---
+
+# Token-lean agent patches (portable)
+
+Copy this file into any project as `.cursor/rules/token-lean.mdc`.
+
+1. **Never rewrite an entire file.** Change only the exact small blocks that must change.
+2. In replies / diffs, use placeholders like `// ... rest of code ...` for unchanged sections.
+3. Explain simply, short step-by-step, when teaching or summarizing.
+4. **Do not** run autonomous codebase-wide scans unless the user explicitly asks.
+5. **No drive-by work:** no refactors, docs, or files the user did not ask for.
+6. If the project uses APPLY / go ahead / MOB-APPLY: edit product code only after that exact approval.
+7. Prefer **one clear next step** over long A/B option lists.
+
+Prefer putting the same rules in **Cursor User Rules** once so every project inherits them without copying.

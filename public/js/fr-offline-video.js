@@ -4,6 +4,7 @@
 (function (global) {
     var pollTimer = null;
     var busy = false;
+    var previewUrl = null;
 
     function tr(key, fallback, vars) {
         var s = fallback || key;
@@ -23,6 +24,39 @@
         return document.getElementById('ax-fr-offline-status');
     }
 
+    function videoEl() {
+        return document.getElementById('ax-fr-offline-video');
+    }
+
+    function clearPreview() {
+        var v = videoEl();
+        if (v) {
+            try { v.pause(); } catch (_) { /* ignore */ }
+            v.removeAttribute('src');
+            try { v.load(); } catch (_) { /* ignore */ }
+        }
+        if (previewUrl) {
+            try { URL.revokeObjectURL(previewUrl); } catch (_) { /* ignore */ }
+            previewUrl = null;
+        }
+    }
+
+    function setLocalPreview(file) {
+        clearPreview();
+        if (!file) return;
+        var v = videoEl();
+        if (!v) return;
+        previewUrl = URL.createObjectURL(file);
+        v.src = previewUrl;
+        var vidEl = document.getElementById('ax-fr-offline-video');
+        if (vidEl) {
+            vidEl.controls = true;
+            vidEl.setAttribute('controls', '');
+            vidEl.style.pointerEvents = 'auto';
+        }
+        try { v.play().catch(function () { /* ignore autoplay */ }); } catch (_) { /* ignore */ }
+    }
+
     function setStatus(text, cls) {
         var el = statusEl();
         if (!el) return;
@@ -34,9 +68,7 @@
     function setBusy(on) {
         busy = !!on;
         var btn = document.getElementById('ax-fr-load-video');
-        var cancel = document.getElementById('ax-fr-offline-cancel');
         if (btn) btn.disabled = busy;
-        if (cancel) cancel.hidden = !busy;
     }
 
     function stopPoll() {
@@ -109,6 +141,7 @@
 
     function uploadFile(file) {
         if (!file || busy) return;
+        setLocalPreview(file);
         var fd = new FormData();
         fd.append('video', file);
         setBusy(true);
@@ -146,10 +179,69 @@
         input.click();
     }
 
+    function syncScrub() {
+        var v = videoEl();
+        var scrub = document.getElementById('ax-fr-offline-scrub');
+        if (!v || !scrub) return;
+        var dur = v.duration;
+        if (!dur || !isFinite(dur) || dur <= 0) {
+            scrub.value = '0';
+            return;
+        }
+        scrub.value = String(Math.round((v.currentTime / dur) * 1000));
+    }
+
+    function bindTransport() {
+        var v = videoEl();
+        var playBtn = document.getElementById('ax-fr-offline-play');
+        var pauseBtn = document.getElementById('ax-fr-offline-pause');
+        var stopBtn = document.getElementById('ax-fr-offline-stop');
+        var scrub = document.getElementById('ax-fr-offline-scrub');
+        if (v) {
+            v.controls = true;
+            v.setAttribute('controls', '');
+            v.style.pointerEvents = 'auto';
+            v.addEventListener('timeupdate', syncScrub);
+            v.addEventListener('loadedmetadata', syncScrub);
+        }
+        if (playBtn) {
+            playBtn.addEventListener('click', function () {
+                var el = videoEl();
+                if (!el || !el.src) return;
+                try { el.play().catch(function () { /* ignore */ }); } catch (_) { /* ignore */ }
+            });
+        }
+        if (pauseBtn) {
+            pauseBtn.addEventListener('click', function () {
+                var el = videoEl();
+                if (!el) return;
+                try { el.pause(); } catch (_) { /* ignore */ }
+            });
+        }
+        if (stopBtn) {
+            stopBtn.addEventListener('click', function () {
+                var el = videoEl();
+                if (!el) return;
+                try { el.pause(); } catch (_) { /* ignore */ }
+                try { el.currentTime = 0; } catch (_) { /* ignore */ }
+                syncScrub();
+            });
+        }
+        if (scrub) {
+            scrub.addEventListener('input', function () {
+                var el = videoEl();
+                if (!el) return;
+                var dur = el.duration;
+                if (!dur || !isFinite(dur) || dur <= 0) return;
+                el.currentTime = (Number(scrub.value) / 1000) * dur;
+            });
+        }
+    }
+
     function bindUi() {
+        bindTransport();
         var btn = document.getElementById('ax-fr-load-video');
         var input = document.getElementById('ax-fr-offline-file');
-        var cancel = document.getElementById('ax-fr-offline-cancel');
         if (btn) {
             btn.disabled = false;
             btn.addEventListener('click', onPick);
@@ -159,9 +251,6 @@
                 var f = input.files && input.files[0];
                 if (f) uploadFile(f);
             });
-        }
-        if (cancel) {
-            cancel.addEventListener('click', cancelJob);
         }
     }
 

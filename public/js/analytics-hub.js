@@ -145,20 +145,68 @@
         return tr(entry[0], entry[1]);
     }
 
+    function isFrFamilyPanel(panel) {
+        return panel === 'face' || panel === 'verify' || panel === 'blacklist';
+    }
+
+    var frLiveSub = 'live';
+
+    function showFrLiveOffline(sub) {
+        frLiveSub = (sub === 'offline') ? 'offline' : 'live';
+        document.querySelectorAll('#ax-hub-fr-subnav .ax-hub-nav-btn').forEach(function (btn) {
+            var frSub = btn.getAttribute('data-fr-sub');
+            var panel = btn.getAttribute('data-panel');
+            var active = false;
+            if (panel === 'face' && (frSub === 'live' || frSub === 'offline')) {
+                active = frSub === frLiveSub && currentPanel === 'face';
+            } else if (panel === currentPanel) {
+                active = true;
+            }
+            btn.classList.toggle('active', active);
+        });
+        var liveView = document.getElementById('ax-fr-live-view');
+        var offlineView = document.getElementById('ax-fr-offline-view');
+        var isOfflineSub = currentPanel === 'face' && frLiveSub === 'offline';
+        if (liveView) liveView.hidden = !(currentPanel === 'face' && frLiveSub === 'live');
+        if (offlineView) offlineView.hidden = !isOfflineSub;
+        /* MASTER-CONSOLIDATION-PATCH-V1 — offline job status is shared toolbar chrome;
+           don't let "Done — N face crop(s)" from a finished offline scan bleed into Live Watch. */
+        var offlineStatusEl = document.getElementById('ax-fr-offline-status');
+        if (offlineStatusEl) offlineStatusEl.hidden = !isOfflineSub || !offlineStatusEl.textContent;
+        if (global.FrAlarm && typeof FrAlarm.syncLiveOfflineSurface === 'function') {
+            FrAlarm.syncLiveOfflineSurface(isOfflineSub);
+        }
+    }
+
     function showPanel(panel) {
         currentPanel = panel || 'face';
-        document.querySelectorAll('.ax-hub-nav > .ax-hub-nav-btn[data-panel]').forEach(function (btn) {
-            btn.classList.toggle('active', btn.getAttribute('data-panel') === currentPanel);
+        var primaryKey = isFrFamilyPanel(currentPanel) ? 'face' : currentPanel;
+        document.querySelectorAll('.ax-hub-nav-primary > .ax-hub-nav-btn[data-panel]').forEach(function (btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-panel') === primaryKey);
         });
+        var frSubNav = document.getElementById('ax-hub-fr-subnav');
+        if (frSubNav) frSubNav.hidden = !isFrFamilyPanel(currentPanel);
+        var frHealth = document.getElementById('ax-fr-sidecar-status');
+        if (frHealth) frHealth.hidden = !isFrFamilyPanel(currentPanel);
         document.querySelectorAll('.ax-hub-panel').forEach(function (el) {
             var id = el.id || '';
             var name = id.replace(/^ax-panel-/, '');
             el.hidden = name !== currentPanel;
         });
-        if (currentPanel === 'verify') refreshSidecarStatus();
+        var ksBar = document.getElementById('ax-fr-hits-bar');
+        if (ksBar) ksBar.hidden = currentPanel !== 'face';
+        if (currentPanel === 'face') {
+            showFrLiveOffline(frLiveSub || 'live');
+        } else {
+            showFrLiveOffline('live');
+            document.querySelectorAll('#ax-hub-fr-subnav .ax-hub-nav-btn').forEach(function (btn) {
+                btn.classList.toggle('active', btn.getAttribute('data-panel') === currentPanel);
+            });
+        }
+        if (currentPanel === 'verify' || currentPanel === 'blacklist') refreshSidecarStatus();
         if (currentPanel === 'anpr') {
             refreshAnprStatus();
-            showAnprSub(anprSubPanel || 'snapshot');
+            showAnprSub(anprSubPanel || 'live');
         }
         if (currentPanel === 'blacklist') {
             refreshBlStatus();
@@ -167,8 +215,12 @@
         }
         if (currentPanel === 'face') {
             if (global.FrAlarm && FrAlarm.init) FrAlarm.init();
-            if (global.FrLiveWatch && FrLiveWatch.onShow) FrLiveWatch.onShow();
+            if (frLiveSub === 'live' && global.FrLiveWatch && FrLiveWatch.onShow) FrLiveWatch.onShow();
             refreshSidecarStatus();
+        }
+        if (currentPanel === 'weapon') {
+            refreshWeaponStatus();
+            if (global.WeaponLiveWatch && WeaponLiveWatch.onShow) WeaponLiveWatch.onShow();
         }
     }
 
@@ -203,11 +255,33 @@
             });
     }
 
+    function refreshWeaponStatus() {
+        var el = document.getElementById('ax-wd-engine-health');
+        if (!el) return;
+        paintEngineHealth(el, '', tr('analytics.weapon.engineChecking', 'Checking Weapon Engine\u2026'));
+        fetch('/api/analytics/weapon/health', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.featureEnabled) {
+                    paintEngineHealth(el, 'warn', tr('analytics.weapon.engineNotLicensed', 'Weapon Engine \u2014 Not licensed'));
+                    return;
+                }
+                if (data.runtime && data.runtime.ok) {
+                    paintEngineHealth(el, 'ok', tr('analytics.weapon.engineOk', 'Weapon Engine \u2014 OK'));
+                    return;
+                }
+                paintEngineHealth(el, 'warn', tr('analytics.weapon.engineNotReady', 'Weapon Engine \u2014 Not ready'));
+            })
+            .catch(function () {
+                paintEngineHealth(el, 'bad', tr('analytics.weapon.engineNotReady', 'Weapon Engine \u2014 Not ready'));
+            });
+    }
+
     var anprSourceFile = null;
     var anprCropFile = null;
     var anprPreviewUrl = null;
     var anprCropPreviewUrl = null;
-    var anprSubPanel = 'snapshot';
+    var anprSubPanel = 'live';
     var plRemoveId = null;
 
     function plateGradeLabel(code) {
@@ -251,6 +325,10 @@
             AnprLiveWatch.onHide();
         }
         if (anprSubPanel === 'offline') {
+            /* Bind glass/card open even if Live was never opened */
+            if (global.AnprLiveWatch && typeof AnprLiveWatch.ensureUiBound === 'function') {
+                AnprLiveWatch.ensureUiBound();
+            }
             /* Paint Recent Plates empty state even when Live watch is not active */
             if (global.AnprLiveWatch && typeof AnprLiveWatch.renderRail === 'function') {
                 AnprLiveWatch.renderRail();
@@ -261,11 +339,21 @@
             if (global.AnprOfflineMatch && AnprOfflineMatch.onShow) {
                 AnprOfflineMatch.onShow();
             }
+            if (global.AnprImageInvestigation && AnprImageInvestigation.onShow) {
+                AnprImageInvestigation.onShow();
+            }
         } else if (global.AnprOfflineMatch && AnprOfflineMatch.onHide) {
             AnprOfflineMatch.onHide();
+            if (global.AnprImageInvestigation && AnprImageInvestigation.onHide) {
+                AnprImageInvestigation.onHide();
+            }
         }
         if (anprSubPanel === 'history' && global.AnprHistory && AnprHistory.onShow) {
             AnprHistory.onShow();
+        }
+        /* Offline (and non-Live): hide subnav "Active Watchlist Hits" — Live only */
+        if (global.AnprLiveWatch && typeof AnprLiveWatch.syncSubnavWatchBadge === 'function') {
+            AnprLiveWatch.syncSubnavWatchBadge();
         }
     }
 
@@ -470,7 +558,13 @@
                     paintEngineHealth(el, 'warn', tr('analytics.anpr.engineNotLicensed', 'ANPR Engine \u2014 Not licensed'));
                     return;
                 }
-                if (data.runtime && data.runtime.ok) {
+                if (data.runtime && (
+                    data.runtime.ok
+                    || data.runtime.dualEngine === true
+                    || String(data.runtime.engine || '').indexOf('dual') >= 0
+                    || data.runtime.fastalpr === 'ready'
+                    || data.runtime.ocr === 'ready'
+                )) {
                     paintEngineHealth(el, 'ok', tr('analytics.anpr.engineOk', 'ANPR Engine \u2014 OK'));
                 } else {
                     paintEngineHealth(el, 'bad', tr('analytics.anpr.engineDown', 'ANPR Engine \u2014 Not available'));
@@ -2058,10 +2152,23 @@
     function bindUi() {
         if (bound) return;
         bound = true;
-        document.querySelectorAll('.ax-hub-nav > .ax-hub-nav-btn[data-panel]').forEach(function (btn) {
+        document.querySelectorAll('.ax-hub-nav-primary > .ax-hub-nav-btn[data-panel]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 if (btn.disabled) return;
                 showPanel(btn.getAttribute('data-panel'));
+            });
+        });
+        document.querySelectorAll('#ax-hub-fr-subnav .ax-hub-nav-btn[data-panel]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                if (btn.disabled) return;
+                var panel = btn.getAttribute('data-panel');
+                var frSub = btn.getAttribute('data-fr-sub');
+                if (panel === 'face' && (frSub === 'live' || frSub === 'offline')) {
+                    frLiveSub = frSub;
+                    showPanel('face');
+                    return;
+                }
+                showPanel(panel);
             });
         });
         var blThr = document.getElementById('ax-bl-threshold');

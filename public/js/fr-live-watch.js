@@ -19,6 +19,7 @@
     var wvpHandoffFlvByCam = Object.create(null);
     var wvpHandoffSlotInflight = Object.create(null);
     var focusedSlot = -1; // mob-fr-stop-video-selected \u2014 tile click target for Stop video
+    var expandedTileId = null; // click-to-expand live tile (null = 6-grid)
     var rotateTimer = null;
     var rotateCursor = 0;
     var fleetById = Object.create(null);
@@ -30,7 +31,10 @@
     var rosterSearchFocused = false;
     var rosterGroupExpanded = Object.create(null); // groupName -> true|false (user override)
 
-    var ROSTER_EXPAND_INLINE_MAX = 4;
+    var ROSTER_EXPAND_INLINE_MAX = 6;
+    var ROSTER_COLS = 5;
+    var ROSTER_ROWS = 6;
+    var ROSTER_MEMBERS_PER_COL = ROSTER_ROWS - 1;
     var TILE_SIGNAL_LOST_MS = 15000;
 
     var TILE_STATE = {
@@ -166,6 +170,7 @@
             var d = fleetById[id];
             if (!d) return;
             if (rosterFilter === 'online' && !d.online) return;
+            if (rosterFilter === 'offline' && d.online) return;
             if (rosterFilter === 'selected' && selected.indexOf(id) < 0) return;
             if (q) {
                 var hay = (String(d.name || '') + ' ' + String(d.id || '') + ' ' + String(d.mapGroup || '')).toLowerCase();
@@ -325,6 +330,23 @@
         renderWatchList();
     }
 
+    function applyFrTileExpand() {
+        var grid = document.querySelector('#ax-panel-face .ax-fr-grid');
+        if (!grid) return;
+        grid.classList.toggle('is-tile-expanded', !!expandedTileId);
+        grid.querySelectorAll('.ax-fr-tile').forEach(function (tile) {
+            var id = tile.getAttribute('data-tile-id') || ('fr-' + tile.getAttribute('data-slot'));
+            var isExp = expandedTileId != null && id === expandedTileId;
+            tile.classList.toggle('is-expanded', isExp);
+            tile.classList.toggle('is-expanded-hidden', !!(expandedTileId && !isExp));
+        });
+    }
+
+    function toggleFrTileExpand(tileId) {
+        expandedTileId = (expandedTileId === tileId) ? null : tileId;
+        applyFrTileExpand();
+    }
+
     function tileEl(slot) {
         return document.querySelector('.ax-fr-tile[data-slot="' + slot + '"]');
     }
@@ -334,7 +356,7 @@
             case TILE_STATE.LIVE:
                 return 'Live';
             case TILE_STATE.IDLE:
-                return tr('analytics.fr.tileIdleHint', 'Select officers and Start watch');
+                return tr('analytics.fr.tileIdleHint', 'Select officers/cameras and Start watch');
             case TILE_STATE.WAITING:
                 return tr('analytics.fr.tileWaiting', 'Waiting for slot');
             case TILE_STATE.CONNECTING:
@@ -425,7 +447,7 @@
         var name = camId ? deviceName(camId) : '';
         if (label) {
             if (camId) {
-                label.textContent = String(slot + 1) + ' \u00B7 ' + name + ' \u00B7 ' + shortCamId(camId);
+                label.textContent = String(slot + 1) + '  ' + name;
                 label.title = String(camId);
             } else {
                 label.textContent = String(slot + 1);
@@ -677,9 +699,9 @@
     }
 
     function flashCam(camId) {
-        camId = String(camId || '');
+        camId = normalizeFrCamId(camId);
         for (var i = 0; i < LIVE_SLOTS; i++) {
-            if (slotCam[i] !== camId) continue;
+            if (normalizeFrCamId(slotCam[i]) !== camId) continue;
             (function (tile) {
                 if (!tile) return;
                 tile.classList.add('is-fr-hit');
@@ -688,6 +710,56 @@
                 }, 4000);
             })(tileEl(i));
         }
+    }
+
+    function slotIndexOfCam(camId) {
+        var id = normalizeFrCamId(camId);
+        if (!id) return -1;
+        var i;
+        for (i = 0; i < LIVE_SLOTS; i++) {
+            if (normalizeFrCamId(slotCam[i]) === id) return i;
+        }
+        return -1;
+    }
+
+    function promoteHitToSlot0(camId) {
+        camId = normalizeFrCamId(camId);
+        if (!camId || !watching) return;
+        var i;
+        var known = false;
+        for (i = 0; i < selected.length; i++) {
+            if (normalizeFrCamId(selected[i]) === camId) {
+                camId = selected[i];
+                known = true;
+                break;
+            }
+        }
+        if (!known) {
+            if (selected.length >= MAX_WATCH) {
+                flashCam(camId);
+                return;
+            }
+            selected.push(camId);
+        }
+        pinned[camId] = true;
+        var fromSlot = slotIndexOfCam(camId);
+        if (fromSlot === 0) {
+            flashCam(camId);
+            renderWatchList();
+            return;
+        }
+        if (fromSlot > 0) {
+            var other = slotCam[0];
+            stopSlot(0, true);
+            stopSlot(fromSlot, true);
+            startSlot(0, camId);
+            if (other && normalizeFrCamId(other) !== camId) startSlot(fromSlot, other);
+        } else {
+            startSlot(0, camId);
+        }
+        flashCam(camId);
+        updateWatchButtons();
+        renderWatchList();
     }
 
     function attachPlayer(slot, camId) {
@@ -1075,11 +1147,36 @@
             '</label></div></div>';
     }
 
+    function buildGroupColumnSlices(blocks) {
+        var slices = [];
+        (blocks || []).forEach(function (block) {
+            if (!block || !block.header) return;
+            var expanded = isGroupExpanded(block);
+            var members = (block.members || []).slice();
+            if (!expanded) {
+                slices.push({ header: block.header, members: [], collapsed: true });
+                return;
+            }
+            if (!members.length) {
+                slices.push({ header: block.header, members: [] });
+                return;
+            }
+            var i;
+            for (i = 0; i < members.length; i += ROSTER_MEMBERS_PER_COL) {
+                slices.push({
+                    header: block.header,
+                    members: members.slice(i, i + ROSTER_MEMBERS_PER_COL),
+                });
+            }
+        });
+        return slices;
+    }
+
     function buildGroupCardHtml(block) {
-        var expanded = isGroupExpanded(block);
+        var expanded = !block.collapsed;
         var gName = block.header.groupName;
         var html = '<div class="ax-fr-roster-group-card" data-group="' + esc(gName) + '">';
-        html += rosterGroupCardHeadHtml(block.header, expanded, block.members);
+        html += rosterGroupCardHeadHtml(block.header, expanded, block.header.devices || block.members);
         if (expanded && block.members.length) {
             html += '<table class="ax-fr-roster-table ax-fr-roster-card-table"><tbody>';
             block.members.forEach(function (d) {
@@ -1092,12 +1189,82 @@
     }
 
     function buildGroupGridHtml(blocks) {
-        var html = '<div class="ax-fr-roster-grid">';
-        blocks.forEach(function (block) {
-            html += buildGroupCardHtml(block);
-        });
-        html += '</div>';
+        var slices = buildGroupColumnSlices(blocks);
+        var html = '';
+        var i;
+        for (i = 0; i < slices.length; i += ROSTER_COLS) {
+            html += '<div class="ax-fr-roster-level">';
+            html += '<div class="ax-fr-roster-grid">';
+            var j;
+            for (j = 0; j < ROSTER_COLS; j++) {
+                var slice = slices[i + j];
+                if (slice) html += buildGroupCardHtml(slice);
+                else html += '<div class="ax-fr-roster-group-card is-empty-col"></div>';
+            }
+            html += '</div></div>';
+        }
         return html;
+    }
+
+    function watchBarHtml(groupCount) {
+        return '<div class="ax-fr-watch-bar">' +
+            '<div class="ax-fr-roster-actions">' +
+            '<button type="button" class="ax-hub-nav-btn ax-hub-nav-sub-btn active" id="ax-fr-watch-start"' +
+            (watching || selected.length === 0 ? ' disabled' : '') + '>' +
+            esc(tr('analytics.fr.watchStart', 'Start watch')) + '</button>' +
+            '<button type="button" class="ax-hub-nav-btn ax-hub-nav-sub-btn" id="ax-fr-watch-stop"' +
+            (watching ? '' : ' disabled') + '>' +
+            esc(tr('analytics.fr.stopVideo', 'Stop video')) + '</button>' +
+            '<button type="button" class="ax-hub-nav-btn ax-hub-nav-sub-btn" id="ax-fr-watch-stop-all"' +
+            (!watching && selected.length === 0 ? ' disabled' : '') + '>' +
+            esc(tr('analytics.fr.stopAll', 'Stop all')) + '</button>' +
+            '<button type="button" class="ax-hub-nav-btn ax-hub-nav-sub-btn" id="ax-fr-roster-clear"' +
+            (selected.length === 0 ? ' disabled' : '') + '>' +
+            esc(tr('analytics.fr.clearWatch', 'Clear')) + '</button>' +
+            '</div>' +
+            '<span id="ax-fr-watch-meta" class="hint ax-fr-roster-summary">' +
+            esc(watchMetaText(groupCount)) +
+            '</span>' +
+            '<div class="ax-fr-roster-tools">' +
+            '<input type="search" id="ax-fr-roster-search" class="ax-fr-roster-search" autocomplete="off" ' +
+            'placeholder="' + esc(tr('analytics.fr.rosterSearch', 'Search officers\u2026')) + '" value="' + esc(rosterSearch) + '">' +
+            '<select id="ax-fr-roster-filter" class="ax-fr-roster-filter">' +
+            '<option value="all"' + (rosterFilter === 'all' ? ' selected' : '') + '>' +
+            esc(tr('analytics.fr.rosterFilterAll', 'All')) + '</option>' +
+            '<option value="online"' + (rosterFilter === 'online' ? ' selected' : '') + '>' +
+            esc(tr('analytics.fr.rosterFilterOnline', 'Online')) + '</option>' +
+            '<option value="selected"' + (rosterFilter === 'selected' ? ' selected' : '') + '>' +
+            esc(tr('analytics.fr.rosterFilterSelected', 'In watch')) + '</option>' +
+            '<option value="offline"' + (rosterFilter === 'offline' ? ' selected' : '') + '>' +
+            esc(tr('analytics.fr.rosterFilterOffline', 'Offline')) + '</option>' +
+            '</select>' +
+            '</div></div>';
+    }
+
+    function watchMetaText(groupCount) {
+        return tr('analytics.fr.rosterMeta', '{n}/{max} selected \u00B7 {live}/{slots} live')
+            .replace('{n}', String(selected.length))
+            .replace('{max}', String(MAX_WATCH))
+            .replace('{live}', String(activeSlotCams().length))
+            .replace('{slots}', String(LIVE_SLOTS)) +
+            (groupCount ? (' \u00B7 ' + String(groupCount) + ' ' + tr('analytics.fr.rosterGroups', 'groups')) : '');
+    }
+
+    function syncWatchBar(groupCount) {
+        var startBtn = document.getElementById('ax-fr-watch-start');
+        var stopBtn = document.getElementById('ax-fr-watch-stop');
+        var stopAllBtn = document.getElementById('ax-fr-watch-stop-all');
+        var clearBtn = document.getElementById('ax-fr-roster-clear');
+        if (startBtn) startBtn.disabled = !!(watching || selected.length === 0);
+        if (stopBtn) stopBtn.disabled = !watching;
+        if (stopAllBtn) stopAllBtn.disabled = !!(!watching && selected.length === 0);
+        if (clearBtn) clearBtn.disabled = selected.length === 0;
+        var meta = document.getElementById('ax-fr-watch-meta');
+        if (meta) meta.textContent = watchMetaText(groupCount);
+        var searchEl = document.getElementById('ax-fr-roster-search');
+        if (searchEl && document.activeElement !== searchEl) searchEl.value = rosterSearch;
+        var filterEl = document.getElementById('ax-fr-roster-filter');
+        if (filterEl && filterEl.value !== rosterFilter) filterEl.value = rosterFilter;
     }
 
     function renderWatchList() {
@@ -1112,61 +1279,38 @@
         var groupCount = 0;
         grouped.forEach(function (e) { if (e.type === 'header') groupCount += 1; });
 
-        var head = '<div class="ax-fr-watch-bar">' +
-            '<div class="ax-fr-roster-actions">' +
-            '<button type="button" class="btn btn-action btn-sm" id="ax-fr-watch-start"' +
-            (watching || selected.length === 0 ? ' disabled' : '') + '>' +
-            esc(tr('analytics.fr.watchStart', 'Start watch')) + '</button>' +
-            '<button type="button" class="btn btn-ghost btn-sm" id="ax-fr-watch-stop"' +
-            (watching ? '' : ' disabled') + '>' +
-            esc(tr('analytics.fr.stopVideo', 'Stop video')) + '</button>' +
-            '<button type="button" class="btn btn-ghost btn-sm" id="ax-fr-watch-stop-all"' +
-            (!watching && selected.length === 0 ? ' disabled' : '') + '>' +
-            esc(tr('analytics.fr.stopAll', 'Stop all')) + '</button>' +
-            '<button type="button" class="btn btn-ghost btn-sm" id="ax-fr-roster-clear"' +
-            (selected.length === 0 ? ' disabled' : '') + '>' +
-            esc(tr('analytics.fr.clearWatch', 'Clear')) + '</button>' +
-            '</div>' +
-            '<span id="ax-fr-watch-meta" class="hint ax-fr-roster-summary">' +
-            esc(tr('analytics.fr.rosterMeta', '{n}/{max} selected \u00B7 {live}/{slots} live')
-                .replace('{n}', String(selected.length))
-                .replace('{max}', String(MAX_WATCH))
-                .replace('{live}', String(activeSlotCams().length))
-                .replace('{slots}', String(LIVE_SLOTS))) +
-            (groupCount ? (' \u00B7 ' + esc(String(groupCount)) + ' ' + esc(tr('analytics.fr.rosterGroups', 'groups'))) : '') +
-            '</span>' +
-            '<div class="ax-fr-roster-tools">' +
-            '<input type="search" id="ax-fr-roster-search" class="ax-fr-roster-search" autocomplete="off" ' +
-            'placeholder="' + esc(tr('analytics.fr.rosterSearch', 'Search officers\u2026')) + '" value="' + esc(rosterSearch) + '">' +
-            '<select id="ax-fr-roster-filter" class="ax-fr-roster-filter">' +
-            '<option value="all"' + (rosterFilter === 'all' ? ' selected' : '') + '>' +
-            esc(tr('analytics.fr.rosterFilterAll', 'All')) + '</option>' +
-            '<option value="online"' + (rosterFilter === 'online' ? ' selected' : '') + '>' +
-            esc(tr('analytics.fr.rosterFilterOnline', 'Online')) + '</option>' +
-            '<option value="selected"' + (rosterFilter === 'selected' ? ' selected' : '') + '>' +
-            esc(tr('analytics.fr.rosterFilterSelected', 'In watch set')) + '</option>' +
-            '</select>' +
-            '</div></div>';
+        if (!el.querySelector('.ax-fr-watch-bar')) {
+            el.innerHTML = watchBarHtml(groupCount);
+        } else {
+            syncWatchBar(groupCount);
+        }
+
+        var node = el.firstChild;
+        while (node) {
+            var next = node.nextSibling;
+            if (!(node.classList && node.classList.contains('ax-fr-watch-bar'))) {
+                el.removeChild(node);
+            }
+            node = next;
+        }
 
         if (!Object.keys(fleetById).length) {
-            el.innerHTML = head + '<p class="hint ax-fr-roster-empty">' +
-                esc(tr('analytics.fr.rosterNoFleet', 'No BWCs registered.')) + '</p>';
+            el.insertAdjacentHTML('beforeend', '<p class="hint ax-fr-roster-empty">' +
+                esc(tr('analytics.fr.rosterNoFleet', 'No BWCs registered.')) + '</p>');
             bindWatchRoster();
             return;
         }
 
         if (!filtered.length) {
-            el.innerHTML = head + '<p class="hint ax-fr-roster-empty">' +
-                esc(tr('analytics.fr.rosterNoMatch', 'No BWCs match this filter.')) + '</p>';
+            el.insertAdjacentHTML('beforeend', '<p class="hint ax-fr-roster-empty">' +
+                esc(tr('analytics.fr.rosterNoMatch', 'No BWCs match this filter.')) + '</p>');
             bindWatchRoster();
             return;
         }
 
-        var blocks = buildRosterGroupBlocks(grouped);
-
-        el.innerHTML = head +
+        el.insertAdjacentHTML('beforeend',
             '<div class="ax-fr-roster-wrap ax-fr-roster-scroll">' +
-            buildGroupGridHtml(blocks) + '</div>';
+            buildGroupGridHtml(buildRosterGroupBlocks(grouped)) + '</div>');
 
         bindWatchRoster();
     }
@@ -1198,6 +1342,8 @@
                 if (ev.target && ev.target.closest && ev.target.closest('.ax-fr-tile-stop')) return;
                 var slot = parseInt(tile.getAttribute('data-slot'), 10);
                 if (isNaN(slot) || slot < 0) return;
+                var tileId = tile.getAttribute('data-tile-id') || ('fr-' + slot);
+                toggleFrTileExpand(tileId);
                 if (!slotCam[slot]) {
                     setFocusedSlot(-1);
                     return;
@@ -1298,6 +1444,23 @@
                 cb.indeterminate = st === 'indeterminate';
             }
         });
+        bindRosterLevelScroll(el.querySelector('.ax-fr-roster-wrap'));
+    }
+
+    function bindRosterLevelScroll(wrap) {
+        if (!wrap || wrap._frLevelScroll) return;
+        wrap._frLevelScroll = true;
+        wrap.addEventListener('wheel', function (ev) {
+            if (wrap.scrollHeight <= wrap.clientHeight + 2) return;
+            ev.preventDefault();
+            var h = wrap.clientHeight || 1;
+            var dir = ev.deltaY > 0 ? 1 : -1;
+            var level = Math.round(wrap.scrollTop / h) + dir;
+            var max = Math.max(0, Math.round((wrap.scrollHeight - h) / h));
+            if (level < 0) level = 0;
+            if (level > max) level = max;
+            wrap.scrollTo({ top: level * h, behavior: 'smooth' });
+        }, { passive: false });
     }
 
     function ingestFleet(list) {
@@ -1447,6 +1610,7 @@
         isWatching: function () { return watching; },
         getActiveSlotCams: activeSlotCams,
         flashCam: flashCam,
+        promoteHitToSlot0: promoteHitToSlot0,
         emitWatchSlots: emitWatchSlots,
     };
 })(window);

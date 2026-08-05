@@ -1,14 +1,17 @@
 /**
- * Live player factory \u2014 Gate D pieces + mob-zlm-wall-safe-no-wipe.
- * Soft ZLM: overlay only after prove; never wipe host. Wall keeps JSMpeg underneath.
+ * Live player factory — Gate D + UNIFIED AXIOM STREAM ENGINE adapter.
+ * Soft ZLM overlay never wipes JSMpeg host. Primary FLV via AxiomFlvManager
+ * (lab-proven soft-chase 1.5s/1.12x/10s, detach hygiene, dense-grid substream option).
  */
 (function (global) {
     'use strict';
 
     function absolutizeUrl(url) {
+        if (global.AxiomFlvManager && typeof global.AxiomFlvManager.absolutizeUrl === 'function') {
+            return global.AxiomFlvManager.absolutizeUrl(url);
+        }
         if (!url) return url;
         var s = String(url);
-        /* SAME-ORIGIN-MEDIA-PROXY-V1 — keep /api/lab on this page origin; wrap raw ZLM http */
         if (s.charAt(0) === '/') {
             var baseRel = global.location && global.location.origin
                 ? global.location.origin
@@ -71,7 +74,6 @@
         return once();
     }
 
-    /* COMMAND-WALL-FILL-COVER-V1 — CW mosaic fills cell; other surfaces keep contain */
     function objectFitCssForHost(host) {
         try {
             if (host && host.closest && (
@@ -86,14 +88,20 @@
         return 'object-fit:contain';
     }
 
+    function axiomAttach(video, flvUrl, attachOpts) {
+        if (!global.AxiomFlvManager || typeof global.AxiomFlvManager.attach !== 'function') {
+            console.log('[me8-flv] attach fail', { reason: 'axiom_flv_missing' });
+            return null;
+        }
+        return global.AxiomFlvManager.attach(video, flvUrl, attachOpts || {});
+    }
+
     /**
-     * Soft ZLM overlay \u2014 does NOT clear host. JSMpeg canvas stays.
-     * Shows video only after prove (playing + short hold). Fail \u2192 remove overlay only.
+     * Soft ZLM overlay — does NOT clear host. JSMpeg canvas stays.
      */
     function softAttachZlmOverlay(host, desc, opts) {
         opts = opts || {};
         if (!host || !desc || !desc.flvUrl) return null;
-        if (typeof mpegts === 'undefined' || !mpegts.isSupported()) return null;
 
         var flvUrl = absolutizeUrl(desc.flvUrl);
         var proveMs = typeof opts.proveMs === 'number' ? opts.proveMs : 500;
@@ -122,35 +130,16 @@
         ].join(';');
         host.appendChild(video);
 
-        var player = mpegts.createPlayer({
-            type: 'flv',
-            isLive: true,
-            url: flvUrl,
-            withCredentials: true,
-        }, {
-            enableWorker: false,
-            lazyLoad: false,
-            liveBufferLatencyChasing: false,
-        });
-        player.attachMediaElement(video);
-
         var settled = false;
         var proveTimer = null;
         var failTimer = null;
 
         function cleanupOverlayOnly() {
-            if (proveTimer) {
-                clearTimeout(proveTimer);
-                proveTimer = null;
-            }
-            if (failTimer) {
-                clearTimeout(failTimer);
-                failTimer = null;
-            }
-            try { player.pause(); } catch (_) { /* ignore */ }
-            try { player.unload(); } catch (_) { /* ignore */ }
-            try { player.detachMediaElement(); } catch (_) { /* ignore */ }
-            try { player.destroy(); } catch (_) { /* ignore */ }
+            if (proveTimer) { clearTimeout(proveTimer); proveTimer = null; }
+            if (failTimer) { clearTimeout(failTimer); failTimer = null; }
+            try {
+                if (global.AxiomFlvManager) global.AxiomFlvManager.detach(video);
+            } catch (_) { /* ignore */ }
             try {
                 if (video.parentNode) video.parentNode.removeChild(video);
             } catch (_) { /* ignore */ }
@@ -166,14 +155,8 @@
         function prove() {
             if (settled) return;
             settled = true;
-            if (proveTimer) {
-                clearTimeout(proveTimer);
-                proveTimer = null;
-            }
-            if (failTimer) {
-                clearTimeout(failTimer);
-                failTimer = null;
-            }
+            if (proveTimer) { clearTimeout(proveTimer); proveTimer = null; }
+            if (failTimer) { clearTimeout(failTimer); failTimer = null; }
             video.style.opacity = '1';
             if (typeof onProven === 'function') onProven();
         }
@@ -188,9 +171,20 @@
             }, proveMs);
         }
 
-        player.on(mpegts.Events.ERROR, function () {
-            fail('zlm_player_error');
+        var handle = axiomAttach(video, flvUrl, {
+            withCredentials: true,
+            pauseWhenHidden: true,
+            gridCount: opts.gridCount,
+            preferSubstream: opts.preferSubstream,
+            focusUpgrade: opts.focusUpgrade,
+            quality: opts.quality,
+            onError: function () { fail('zlm_player_error'); },
         });
+        if (!handle) {
+            fail('axiom_attach_null');
+            return null;
+        }
+
         video.addEventListener('playing', armProve);
         video.addEventListener('timeupdate', function () {
             if (!settled && video.currentTime > 0.05) armProve();
@@ -200,14 +194,9 @@
             fail('zlm_prove_timeout');
         }, typeof opts.timeoutMs === 'number' ? opts.timeoutMs : 8000);
 
-        player.load();
-        var playP = player.play();
-        if (playP && typeof playP.catch === 'function') {
-            playP.catch(function () { fail('zlm_play_reject'); });
-        }
-
         return {
             engine: 'zlm',
+            video: video,
             destroy: function () {
                 settled = true;
                 cleanupOverlayOnly();
@@ -216,22 +205,17 @@
     }
 
     /**
-     * Primary FLV player \u2014 no JSMpeg underneath (MOB-APPLY-BACKEND-VIDEO-UI-FLV-ON-READY-V1).
+     * Primary FLV — all panels (Ops / FR / ANPR / Tactical / CW) via AxiomFlvManager.
      */
     function attachFlvPrimary(host, flvUrl, opts) {
         opts = opts || {};
         if (!host || !flvUrl) return null;
-        if (typeof mpegts === 'undefined' || !mpegts.isSupported()) {
-            console.log('[me8-flv] attach fail', { url: flvUrl, reason: 'mpegts_unsupported' });
-            return null;
-        }
 
         var url = absolutizeUrl(flvUrl);
         console.log('[me8-flv] attach start', { url: url });
         var proveMs = typeof opts.proveMs === 'number' ? opts.proveMs : 300;
         var onProven = opts.onProven;
         var onFail = opts.onFail;
-        /* After prove, ERROR must still notify — mid-stream die (BWC stop) used to no-op because settled. */
         var onStreamLost = opts.onStreamLost;
         var onVideoFrame = opts.onVideoFrame;
 
@@ -258,21 +242,6 @@
         ].join(';');
         host.appendChild(video);
 
-        /* MOB-APPLY-MPEGTS-AUDIO-DROP-AND-MUTED \u2014 PCMA in FLV crashes MSE; drop audio track. */
-        var player = mpegts.createPlayer({
-            type: 'flv',
-            isLive: true,
-            url: url,
-            hasAudio: false,
-            hasVideo: true,
-            withCredentials: true,
-        }, {
-            enableWorker: false,
-            lazyLoad: false,
-            liveBufferLatencyChasing: false,
-        });
-        player.attachMediaElement(video);
-
         var settled = false;
         var attaching = true;
         var proveTimer = null;
@@ -280,18 +249,11 @@
         var lastFrameTime = 0;
 
         function cleanup() {
-            if (proveTimer) {
-                clearTimeout(proveTimer);
-                proveTimer = null;
-            }
-            if (failTimer) {
-                clearTimeout(failTimer);
-                failTimer = null;
-            }
-            try { player.pause(); } catch (_) { /* ignore */ }
-            try { player.unload(); } catch (_) { /* ignore */ }
-            try { player.detachMediaElement(); } catch (_) { /* ignore */ }
-            try { player.destroy(); } catch (_) { /* ignore */ }
+            if (proveTimer) { clearTimeout(proveTimer); proveTimer = null; }
+            if (failTimer) { clearTimeout(failTimer); failTimer = null; }
+            try {
+                if (global.AxiomFlvManager) global.AxiomFlvManager.detach(video);
+            } catch (_) { /* ignore */ }
             try {
                 if (video.parentNode) video.parentNode.removeChild(video);
             } catch (_) { /* ignore */ }
@@ -310,14 +272,8 @@
             if (settled) return;
             settled = true;
             attaching = false;
-            if (proveTimer) {
-                clearTimeout(proveTimer);
-                proveTimer = null;
-            }
-            if (failTimer) {
-                clearTimeout(failTimer);
-                failTimer = null;
-            }
+            if (proveTimer) { clearTimeout(proveTimer); proveTimer = null; }
+            if (failTimer) { clearTimeout(failTimer); failTimer = null; }
             video.style.opacity = '1';
             console.log('[me8-flv] attach ok', { url: url });
             if (typeof onProven === 'function') onProven();
@@ -333,16 +289,46 @@
             }, proveMs);
         }
 
-        player.on(mpegts.Events.ERROR, function () {
-            if (!settled) {
-                fail('zlm_player_error');
-                return;
-            }
-            /* MOB-APPLY-WVP-HANDOFF-STOP-UI-PARITY-V1 — live FLV died after prove */
-            if (typeof onStreamLost === 'function') {
-                try { onStreamLost('zlm_player_error'); } catch (_) { /* never break player */ }
-            }
+        /* Infer dense grid from host when caller did not pass gridCount */
+        var gridCount = opts.gridCount;
+        if (gridCount == null) {
+            try {
+                var wall = host.closest && (
+                    host.closest('#cw-wall')
+                    || host.closest('.cw-wall')
+                    || host.closest('#video-wall')
+                    || host.closest('.ax-anpr-live-tiles')
+                    || host.closest('.ax-fr-tiles')
+                );
+                if (wall) {
+                    var cells = wall.querySelectorAll('video.me8-zlm-primary, .cw-cell, .ax-anpr-live-tile, .ax-fr-tile');
+                    gridCount = cells && cells.length ? cells.length : undefined;
+                }
+            } catch (_) { /* ignore */ }
+        }
+
+        var handle = axiomAttach(video, url, {
+            withCredentials: true,
+            pauseWhenHidden: opts.pauseWhenHidden !== false,
+            gridCount: gridCount,
+            preferSubstream: opts.preferSubstream,
+            focusUpgrade: opts.focusUpgrade === true,
+            quality: opts.quality,
+            onError: function () {
+                if (!settled) {
+                    fail('zlm_player_error');
+                    return;
+                }
+                if (typeof onStreamLost === 'function') {
+                    try { onStreamLost('zlm_player_error'); } catch (_) { /* ignore */ }
+                }
+            },
         });
+        if (!handle) {
+            fail('axiom_attach_null');
+            return null;
+        }
+
         video.addEventListener('playing', armProve);
         video.addEventListener('timeupdate', function () {
             if (!settled && video.currentTime > 0.05) armProve();
@@ -357,7 +343,7 @@
         video.addEventListener('ended', function () {
             if (!settled) return;
             if (typeof onStreamLost === 'function') {
-                try { onStreamLost('zlm_ended'); } catch (_) { /* never break player */ }
+                try { onStreamLost('zlm_ended'); } catch (_) { /* ignore */ }
             }
         });
 
@@ -365,17 +351,16 @@
             fail('zlm_prove_timeout');
         }, typeof opts.timeoutMs === 'number' ? opts.timeoutMs : 10000);
 
-        player.load();
-        var playP = player.play();
-        if (playP && typeof playP.catch === 'function') {
-            playP.catch(function () { fail('zlm_play_reject'); });
-        }
-
         return {
             engine: 'zlm',
             video: video,
             wvpHandoffAttaching: true,
+            axiom: handle,
             isHandoffAttaching: function () { return attaching && !settled; },
+            upgradeToMain: function () {
+                if (handle && typeof handle.upgradeToMain === 'function') return handle.upgradeToMain();
+                return null;
+            },
             destroy: function () {
                 settled = true;
                 attaching = false;

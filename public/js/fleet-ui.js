@@ -1035,9 +1035,57 @@
         return !!fleetById[camId];
     }
 
+    function patchPresenceBatch(list, reason) {
+        if (!Array.isArray(list) || !list.length) return;
+        var changed = false;
+        list.forEach(function (d) {
+            if (!d || !d.id) return;
+            var id = String(d.id);
+            var m = fleetById[id];
+            var wantOnline = !!d.online || d.status === '1';
+            if (!m) {
+                /* New device appeared — additive insert without wiping others */
+                m = {
+                    id: id,
+                    name: d.name || id,
+                    status: wantOnline ? '1' : '0',
+                    mapGroup: d.mapGroup || d.group || '',
+                };
+                fleetById[id] = m;
+                fleetList.push(m);
+                changed = true;
+                return;
+            }
+            if ((m.status === '1') !== wantOnline) {
+                m.status = wantOnline ? '1' : '0';
+                changed = true;
+            }
+            if (d.name && m.name !== d.name) {
+                m.name = d.name;
+                changed = true;
+            }
+            if ((d.mapGroup || d.group) && m.mapGroup !== (d.mapGroup || d.group)) {
+                m.mapGroup = d.mapGroup || d.group;
+                changed = true;
+            }
+        });
+        if (!changed) return;
+        updateSummary();
+        applySelectedPanel();
+        if (typeof global.refreshMapToolbarBwcList === 'function') global.refreshMapToolbarBwcList();
+        if (global.BwcDevices && BwcDevices.refreshEmbeddedOnlineDots) BwcDevices.refreshEmbeddedOnlineDots();
+        if (global.VideoWall && VideoWall.onFleetUpdate) VideoWall.onFleetUpdate();
+        if (typeof global.refreshAllDeviceMarkerStyles === 'function') {
+            global.refreshAllDeviceMarkerStyles();
+        }
+        /* Re-render roster so Online dots turn green without F5 */
+        if (typeof renderTable === 'function') renderTable();
+    }
+
     global.FleetUi = {
         init,
         ingestFleet,
+        patchPresenceBatch,
         pick,
         onDeviceStatus,
         onHeartbeat,

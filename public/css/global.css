@@ -324,6 +324,53 @@ select.enterprise-form-control {
     width: 180px;
     flex: 0 0 auto;
 }
+#ax-panel-blacklist .ax-bl-enroll,
+#ax-panel-blacklist .ax-bl-photo-row,
+#ax-panel-blacklist .ax-bl-toolbar,
+#ax-panel-blacklist #ax-bl-crop-preview,
+#ax-panel-blacklist #ax-bl-msg {
+    flex-shrink: 0;
+}
+#ax-panel-blacklist .ax-bl-notes-wrap {
+    flex: 1 1 280px;
+    min-width: 200px;
+    max-width: none;
+}
+#ax-panel-blacklist .ax-bl-notes-wrap #ax-bl-notes {
+    width: 100%;
+    max-width: none;
+    min-height: 34px;
+    font-family: inherit;
+}
+#ax-panel-blacklist .ax-bl-photo-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    width: 100%;
+}
+#ax-panel-blacklist .ax-bl-photo-row .btn {
+    min-height: 34px;
+    height: 34px;
+    box-sizing: border-box;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+}
+#ax-panel-blacklist #ax-bl-threshold-meta,
+#ax-panel-blacklist #ax-bl-count {
+    font-family: var(--font-ui, inherit);
+    font-size: 12px;
+    font-weight: 700;
+    color: #e2e8f0;
+    letter-spacing: normal;
+}
+#ax-panel-blacklist .ax-bl-table-wrap {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: auto;
+}
 #app-view-analytics .ax-bl-toolbar > .ax-select-wrap > select {
     width: 100%;
 }
@@ -615,6 +662,19 @@ input[type="file"]:focus {
     overflow: hidden;
 }
 
+#ax-panel-face.enterprise-scope .ax-fr-right,
+#ax-panel-face.enterprise-scope #ax-fr-crop-rail.ax-fr-crop-rail {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    width: 300px;
+    min-width: 300px;
+    max-width: 300px;
+    min-height: 0;
+    gap: 8px;
+    z-index: 10;
+}
+
 #ax-panel-face.enterprise-scope .ax-fr-grid {
     flex-grow: 1;
     flex-shrink: 1;
@@ -625,6 +685,11 @@ input[type="file"]:focus {
     grid-template-rows: 1fr 1fr;
     gap: var(--space-sm);
     overflow: hidden;
+}
+
+#ax-panel-face.enterprise-scope .ax-fr-grid.is-tile-expanded {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
 }
 
 #ax-panel-face.enterprise-scope .ax-fr-tile {
@@ -640,17 +705,219 @@ input[type="file"]:focus {
     display: flex;
     align-items: center;
     justify-content: center;
+    cursor: pointer;
+}
+
+#ax-panel-face.enterprise-scope .ax-fr-tile.is-expanded-hidden {
+    display: none !important;
+}
+
+#ax-panel-face.enterprise-scope .ax-fr-tile.is-expanded {
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
+    height: 100%;
 }
 
 #ax-panel-face.enterprise-scope .ax-fr-watch.enterprise-card {
     flex: 0 0 auto;
+    min-height: 0;
     margin: 0;
     padding: var(--space-md);
-    background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
+    background: transparent;
+    border: 1px solid #475569;
     border-radius: var(--radius-lg);
     box-shadow: none;
     overflow: hidden;
+}
+
+#ax-panel-weapon.enterprise-scope {
+    min-height: 0;
+    overflow: hidden;
+}
+
+#ax-panel-weapon.enterprise-scope .ax-fr-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    gap: var(--space-sm);
+    overflow: hidden;
+}
+
+#ax-panel-weapon.enterprise-scope .ax-fr-left {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    overflow: hidden;
+}
+
+#ax-panel-weapon.enterprise-scope .ax-fr-right,
+#ax-panel-weapon.enterprise-scope #ax-wd-crop-rail.ax-fr-crop-rail {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    width: 300px;
+    min-width: 300px;
+    max-width: 300px;
+    min-height: 0;
+    gap: 8px;
+}
+
+#ax-panel-weapon.enterprise-scope .ax-fr-grid {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: 1fr 1fr;
+    gap: var(--space-sm);
+    overflow: hidden;
+}
+
+#ax-panel-weapon.enterprise-scope .ax-wd-tile {
+    position: relative;
+    min-height: 0;
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: #0b1220;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#ax-panel-weapon.enterprise-scope .ax-wd-tile.is-live { border-color: #2563eb; }
+#ax-panel-weapon.enterprise-scope .ax-wd-tile.is-tile-warn { border-color: #d97706; }
+#ax-panel-weapon.enterprise-scope .ax-wd-tile.is-tile-error { border-color: #dc2626; }
+#ax-panel-weapon.enterprise-scope .ax-wd-tile.is-tile-connecting { border-color: #2563eb; }
+#ax-panel-face .ax-fr-tile-label,
+#ax-panel-anpr .ax-anpr-live-tile-label,
+#ax-panel-weapon.enterprise-scope .ax-wd-tile-label {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    max-width: none;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #f8fafc;
+    text-shadow: none;
+    background: rgba(15, 23, 42, 0.82);
+    z-index: 3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    box-sizing: border-box;
+    border-radius: 0;
+}
+#ax-panel-weapon.enterprise-scope .ax-wd-tile video.me8-zlm-primary {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+    z-index: 1;
+}
+#ax-panel-weapon.enterprise-scope .ax-wd-rail-title {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+#ax-panel-weapon.enterprise-scope .ax-wd-detect-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+#ax-panel-weapon.enterprise-scope .ax-wd-detect-slot {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    border: 2px dashed #374151;
+    border-radius: 8px;
+    background: rgba(17, 24, 39, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+#ax-panel-weapon.enterprise-scope .ax-wd-detect-slot.is-hit {
+    border-style: solid;
+    border-color: #b45309;
+    background: #111827;
+}
+#ax-panel-weapon.enterprise-scope .ax-wd-detect-slot.is-hit img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+#ax-panel-weapon.enterprise-scope .ax-wd-detect-meta {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #f8fafc;
+    background: rgba(0, 0, 0, 0.65);
+}
+#ax-wd-watch-list .btn.btn-ghost {
+    background: transparent;
+    border: 1px solid #475569;
+    color: #e2e8f0;
+    box-shadow: none;
+}
+#ax-wd-watch-list .btn.btn-ghost:hover:not(:disabled) {
+    background: transparent;
+    border-color: #94a3b8;
+    color: #f8fafc;
+}
+#ax-wd-watch-list .ax-fr-roster-summary,
+#ax-wd-watch-list .hint.ax-fr-roster-summary {
+    color: #e2e8f0;
+}
+#ax-panel-weapon.enterprise-scope .ax-fr-watch.enterprise-card {
+    flex: 0 0 auto;
+    min-height: 0;
+    margin: 0;
+    padding: var(--space-md);
+    background: transparent;
+    border: 1px solid #475569;
+    border-radius: var(--radius-lg);
+    box-shadow: none;
+    overflow: hidden;
+}
+
+#ax-fr-watch-list .btn.btn-ghost {
+    background: transparent;
+    border: 1px solid #475569;
+    color: #e2e8f0;
+    box-shadow: none;
+}
+
+#ax-fr-watch-list .btn.btn-ghost:hover:not(:disabled) {
+    background: transparent;
+    border-color: #94a3b8;
+    color: #f8fafc;
+}
+
+#ax-fr-watch-list .ax-fr-roster-summary,
+#ax-fr-watch-list .hint.ax-fr-roster-summary {
+    color: #e2e8f0;
 }
 /* DESTROY-SCROLL-LOCK-V1 — Storage Settings document scroll (Ops map keeps body lock) */
 html.ev-storage-scroll-unlock body {
@@ -2267,7 +2534,15 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     overflow: auto;
 }
 
-/* ANALYTICS-ENGINE-HEALTH-PILL-V1 — same language as header System OK */
+/* ANALYTICS-ENGINE-HEALTH-PILL-V1 — FR pill lives inside FR subnav only */
+#ax-hub-fr-subnav #ax-fr-sidecar-status.ax-engine-health {
+    margin: 0 0 0 auto;
+    align-self: center;
+}
+#ax-fr-sidecar-status[hidden],
+#ax-hub-fr-subnav[hidden] #ax-fr-sidecar-status {
+    display: none !important;
+}
 .ax-engine-health {
     display: inline-flex;
     align-items: center;
@@ -2311,9 +2586,63 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     overflow: hidden;
 }
 
-#ax-panel-anpr > .ax-engine-health,
-#ax-panel-anpr > .ax-anpr-subnav {
+#ax-panel-anpr > .ax-anpr-subnav-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 8px 12px;
+    margin: 0 0 8px;
+    padding-bottom: 0;
     flex-shrink: 0;
+    box-sizing: border-box;
+}
+
+/* ANPR sub-nav: tabs left, engine health far right (same row) */
+#ax-panel-anpr .ax-anpr-subnav-bar .ax-anpr-subnav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px 12px;
+    margin: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    box-sizing: border-box;
+}
+#ax-panel-anpr .ax-anpr-subnav-bar .ax-engine-health {
+    margin: 0;
+    flex: 0 0 auto;
+}
+#ax-panel-anpr .ax-anpr-subnav-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
+}
+#ax-panel-anpr .ax-anpr-subnav-watch-badge {
+    margin-left: auto;
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid #334155;
+    border-radius: 4px;
+    padding: 4px 10px;
+    white-space: nowrap;
+}
+#ax-panel-anpr .ax-anpr-subnav-watch-badge[hidden] {
+    display: none !important;
+}
+#ax-panel-anpr .ax-anpr-subnav-watch-badge.is-active {
+    color: #fca5a5;
+    background: rgba(69, 10, 10, 0.55);
+    border-color: #991b1b;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.25);
 }
 
 #ax-panel-anpr .ax-anpr-sub-panel {
@@ -2346,7 +2675,7 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     max-height: 100%;
     display: grid;
     /* ANPR-LIVE-BALANCE-4X4-SIZE-V1 — live + rail share row (neither postage) */
-    grid-template-columns: minmax(140px, 170px) minmax(0, 1fr) minmax(0, 1.2fr);
+    grid-template-columns: 280px minmax(0, 1.40fr) minmax(0, 0.72fr);
     gap: var(--space-sm, 8px);
     align-items: stretch;
     overflow: hidden;
@@ -2384,6 +2713,38 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     max-height: none;
     overflow: auto;
     font-size: 12px;
+}
+#ax-panel-anpr .ax-anpr-roster-group {
+    margin: 0 0 8px;
+}
+#ax-panel-anpr .ax-anpr-roster-group-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 2px 2px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+#ax-panel-anpr .ax-anpr-roster-group-dot,
+#ax-panel-anpr .ax-anpr-roster-pin {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+}
+#ax-panel-anpr .ax-anpr-roster-group-meta {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 500;
+    color: #94a3b8;
+}
+#ax-panel-anpr .ax-anpr-live-roster-row > span:not(.hint):not(.ax-anpr-roster-pin) {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 #ax-panel-anpr .ax-anpr-live-main {
@@ -2452,10 +2813,171 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     border: 1px solid #334155;
 }
 
+/* Critical Watchlist Alerts — auto-collapse when empty (Recent Plates takes top) */
+#ax-panel-anpr .ax-anpr-critical-alerts {
+    flex: 0 0 auto;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 0 8px;
+    box-sizing: border-box;
+}
+#ax-panel-anpr .ax-anpr-critical-alerts.is-collapsed,
+#ax-panel-anpr .ax-anpr-critical-alerts[hidden] {
+    display: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+    border: none !important;
+    gap: 0 !important;
+}
+#ax-panel-anpr .ax-anpr-critical-alerts-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 4px;
+    gap: 8px;
+}
+#ax-panel-anpr .ax-anpr-critical-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+#ax-panel-anpr .ax-anpr-critical-alerts-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #ef4444;
+}
+#ax-panel-anpr .ax-anpr-critical-ping {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ef4444;
+    flex: 0 0 auto;
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55);
+    animation: ax-anpr-critical-ping 1.4s ease-out infinite;
+}
+@keyframes ax-anpr-critical-ping {
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); opacity: 1; }
+    70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); opacity: 0.85; }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); opacity: 1; }
+}
+#ax-panel-anpr .ax-anpr-critical-badge {
+    font-size: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-weight: 600;
+    color: #f87171;
+    background: #450a0a;
+    border: 1px solid #991b1b;
+    border-radius: 4px;
+    padding: 2px 6px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+#ax-panel-anpr .ax-anpr-critical-alerts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+    max-height: 220px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+#ax-panel-anpr .ax-anpr-critical-empty {
+    display: none !important; /* never reserve empty-box height */
+}
+#ax-panel-anpr .ax-anpr-critical-alert-card {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    min-height: 56px;
+    padding: 8px 10px;
+    box-sizing: border-box;
+    border-radius: 8px;
+    border: 1px solid #ef4444;
+    background: rgba(69, 10, 10, 0.45);
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.35), 0 0 0 1px rgba(220, 38, 38, 0.4);
+    cursor: pointer;
+    animation: ax-anpr-critical-slide 0.22s ease-out;
+}
+@keyframes ax-anpr-critical-slide {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+#ax-panel-anpr .ax-anpr-critical-alert-thumb {
+    width: 56px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: #0f172a;
+    flex: 0 0 auto;
+}
+#ax-panel-anpr .ax-anpr-critical-alert-body {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+#ax-panel-anpr .ax-anpr-critical-alert-plate {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fecaca;
+    letter-spacing: 0.04em;
+}
+#ax-panel-anpr .ax-anpr-critical-alert-meta {
+    font-size: 10px;
+    color: #fca5a5;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#ax-panel-anpr .ax-anpr-critical-alert-x {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border: 1px solid #7f1d1d;
+    border-radius: 4px;
+    background: rgba(15, 23, 42, 0.55);
+    color: #fca5a5;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+}
+#ax-panel-anpr .ax-anpr-critical-alert-x:hover {
+    background: rgba(127, 29, 29, 0.65);
+    color: #fff;
+}
+
+/* Recent Plates header sits ~10px from rail top when alerts collapsed */
+#ax-panel-anpr .ax-anpr-live-rail-head,
+#ax-panel-anpr #recent-plates-header.ax-anpr-live-rail-head,
+#ax-panel-anpr #recent-plates-header-offline.ax-anpr-live-rail-head {
+    margin-top: 0;
+    margin-bottom: 8px;
+    padding-top: 2px;
+}
+
 #ax-panel-anpr .ax-anpr-live-rail-grid,
 #ax-panel-anpr #ax-anpr-live-rail-grid.ax-anpr-live-rail-grid {
     flex: 1 1 0;
     min-height: 0;
+    max-height: calc(100vh - 280px);
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: none;
@@ -2464,6 +2986,7 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     align-content: start;
     overflow-x: hidden;
     overflow-y: auto;
+    padding-right: 4px;
 }
 #ax-panel-anpr .ax-anpr-rail-skeleton {
     height: 160px;
@@ -2583,6 +3106,27 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     line-height: 1.2;
     min-width: 0;
 }
+#ax-panel-anpr .ax-anpr-dwell-badge {
+    display: inline-flex;
+    align-self: flex-start;
+    align-items: center;
+    max-width: 100%;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    line-height: 1.2;
+    padding: 3px 8px;
+    border-radius: 999px;
+    color: #78350f;
+    background: #fbbf24;
+    border: 1px solid #d97706;
+    white-space: nowrap;
+}
+#ax-panel-anpr .ax-anpr-dwell-badge.is-long {
+    color: #fff;
+    background: #dc2626;
+    border-color: #b91c1c;
+}
 #ax-panel-anpr .ax-anpr-snap-bwc {
     flex: 0 0 auto;
     max-width: 48%;
@@ -2634,6 +3178,107 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     width: 16px;
     height: 16px;
 }
+
+/* FR Recent / snap magnifier — parity with ANPR glass */
+.ax-fr-crop-card .ax-fr-rail-mag,
+#fr-snap-lightbox .ax-fr-rail-mag {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 10;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    border-radius: 6px;
+    border: 1px solid #475569;
+    background: rgba(17, 24, 39, 0.9);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+.ax-fr-crop-card .ax-fr-rail-mag:hover,
+#fr-snap-lightbox .ax-fr-rail-mag:hover {
+    background: #3b82f6;
+    border-color: #3b82f6;
+}
+.ax-fr-rail-mag-icon {
+    display: block;
+    width: 14px;
+    height: 14px;
+}
+#fr-snap-lightbox .fr-snap-scene-wrap {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    background: #000;
+    cursor: zoom-in;
+}
+#fr-snap-lightbox .fr-snap-scene-wrap.is-zooming .fr-snap-scene {
+    will-change: transform;
+}
+#fr-snap-lightbox .fr-snap-scene {
+    width: 100%;
+    max-height: min(42vh, 360px);
+    object-fit: contain;
+    display: block;
+    border: none;
+    border-radius: 0;
+    transition: transform 0.05s linear;
+}
+#app-view-analytics .ax-hub-nav-btn {
+    background: #1e293b;
+    color: #cbd5e1;
+    border-color: #475569;
+    font-weight: 400;
+}
+#app-view-analytics .ax-hub-nav-btn.active {
+    background: #2563eb;
+    border-color: #3b82f6;
+    color: #fff;
+}
+#app-view-analytics .ax-hub-nav-primary-btn {
+    font-family: var(--font-ui, inherit);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: normal;
+    text-transform: none;
+}
+#app-view-analytics .ax-hub-nav-sub-btn {
+    font-family: var(--font-ui, inherit);
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: normal;
+    text-transform: none;
+}
+#ax-fr-watch-start:disabled,
+#ax-fr-watch-stop:disabled,
+#ax-fr-watch-stop-all:disabled,
+#ax-fr-roster-clear:disabled,
+#ax-wd-watch-start:disabled,
+#ax-wd-watch-stop:disabled,
+#ax-wd-watch-stop-all:disabled,
+#ax-wd-roster-clear:disabled {
+    opacity: 1;
+    cursor: not-allowed;
+}
+#ax-panel-anpr .ax-anpr-subnav-btn {
+    font-family: var(--font-ui, inherit);
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: normal;
+    text-transform: none;
+}
+#app-view-analytics .ax-hub-nav {
+    gap: 8px;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+#ax-panel-anpr.ax-hub-panel {
+    gap: 8px;
+}
+
 
 #ax-panel-anpr .ax-anpr-live-rail-card {
     padding: 4px;
@@ -2814,10 +3459,204 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     object-fit: cover;
 }
 
+/* Offline Match — Image Investigation scaffold + mode toggle
+   ================================================================ */
+#ax-panel-anpr .ax-anpr-offline-mode-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 8px;
+    padding-bottom: 0;
+    max-width: none;
+    flex: 0 0 auto;
+}
+#ax-panel-anpr .ax-anpr-offline-mode-btn {
+    appearance: none;
+    border: 1px solid var(--border-color, #334155);
+    background: var(--bg-surface, #1e293b);
+    color: var(--text-secondary, #94a3b8);
+    font-family: var(--font-ui, inherit);
+    font-weight: 500;
+    font-size: 0.85rem;
+    padding: 4px 12px;
+    height: auto;
+    line-height: 1.2;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#ax-panel-anpr .ax-anpr-offline-mode-btn.active {
+    color: #fff;
+    background: var(--accent-blue, #2563eb);
+    border-color: var(--accent-blue, #2563eb);
+}
+#ax-panel-anpr .ax-anpr-offline-video-view:not([hidden]) {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+#ax-panel-anpr .ax-anpr-offline-image-view:not([hidden]) {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: auto;
+    padding-bottom: 16px;
+}
+#ax-panel-anpr .ax-anpr-image-invest-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 24px;
+    align-items: start;
+}
+#ax-panel-anpr .ax-anpr-image-invest-h {
+    margin: 0 0 12px;
+    font-size: 15px;
+    font-weight: 700;
+}
+#ax-panel-anpr .ax-anpr-image-dropzone {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 180px;
+    max-width: 420px;
+    border: 2px dashed var(--border-color, #475569);
+    border-radius: 8px;
+    background: var(--bg-elevated, #0f172a);
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    cursor: pointer;
+}
+#ax-panel-anpr .ax-anpr-image-dropzone.is-drag {
+    border-color: var(--accent-blue, #2563eb);
+    background: rgba(37, 99, 235, 0.12);
+}
+#ax-panel-anpr .ax-anpr-image-drop-empty {
+    color: var(--text-secondary, #94a3b8);
+    text-align: center;
+    font-size: 13px;
+}
+#ax-panel-anpr .ax-anpr-image-preview {
+    max-width: 100%;
+    max-height: 220px;
+    object-fit: contain;
+    border-radius: 4px;
+}
+#ax-panel-anpr .ax-anpr-image-file-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+#ax-panel-anpr .ax-anpr-image-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    max-width: 520px;
+}
+#ax-panel-anpr .ax-anpr-image-actions .btn-primary,
+#ax-panel-anpr .ax-anpr-image-actions .btn-secondary {
+    max-width: 180px;
+}
+#ax-panel-anpr .ax-anpr-image-scan-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(148, 163, 184, 0.35);
+    border-top-color: var(--accent-blue, #2563eb);
+    border-radius: 50%;
+    animation: ax-anpr-spin 0.8s linear infinite;
+}
+@keyframes ax-anpr-spin {
+    to { transform: rotate(360deg); }
+}
+#ax-panel-anpr .ax-anpr-image-scan-result {
+    margin-top: 16px;
+    max-width: 520px;
+    padding: 12px 14px;
+}
+#ax-panel-anpr .ax-anpr-image-scan-json {
+    margin: 0;
+    max-height: 240px;
+    overflow: auto;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text-primary, #e2e8f0);
+}
+#ax-panel-anpr .ax-anpr-image-inbox-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+#ax-panel-anpr .ax-anpr-image-ftp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+    max-height: 420px;
+    overflow: auto;
+}
+#ax-panel-anpr .ax-anpr-image-ftp-empty {
+    grid-column: 1 / -1;
+    color: var(--text-secondary, #94a3b8);
+    font-size: 13px;
+    padding: 12px 0;
+}
+#ax-panel-anpr .ax-anpr-image-ftp-card {
+    appearance: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border: 1px solid var(--border-color, #334155);
+    border-radius: 8px;
+    background: var(--bg-elevated, #0f172a);
+    color: inherit;
+    padding: 8px;
+    cursor: pointer;
+    text-align: left;
+    max-width: 160px;
+}
+#ax-panel-anpr .ax-anpr-image-ftp-card.is-selected {
+    border-color: var(--accent-blue, #2563eb);
+    box-shadow: 0 0 0 1px var(--accent-blue, #2563eb);
+}
+#ax-panel-anpr .ax-anpr-image-ftp-thumb {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 72px;
+    border-radius: 4px;
+    background: #111827;
+    overflow: hidden;
+}
+#ax-panel-anpr .ax-anpr-image-ftp-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+#ax-panel-anpr .ax-anpr-image-ftp-ph {
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+}
+#ax-panel-anpr .ax-anpr-image-ftp-name {
+    font-size: 11px;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* Offline Match — bulletproof layout (Tailwind structure → global.css)
-   Main: flex-row h-[calc(100vh-100px)] overflow-hidden
-   Left 65%: flex-col min-h-0; upload shrink-0; video flex-1 min-h-0; blacklist shrink-0 h-180
-   Right 35%: independent overflow-y-auto; grid-cols-2 safe empty */
+   Main: flex-row h-[calc(100vh-80px)] overflow-hidden
+   Left 65%: flex-col min-h-0; upload shrink-0; video flex-1 min-h-0; blacklist shrink-0 h-36
+   Right 35%: Recent Plates only (no critical banner); grid-cols-2 */
 #ax-panel-anpr #ax-anpr-sub-offline-panel.ax-anpr-sub-panel:not([hidden]) {
     flex: 1 1 0;
     min-height: 0;
@@ -2826,13 +3665,16 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     overflow: hidden;
     height: auto;
     max-height: 100%;
+    gap: 8px;
+    padding-top: 0;
+    margin-top: 0;
 }
 #ax-panel-anpr .ax-anpr-offline-layout {
     display: flex;
     flex-direction: row;
     width: 100%;
-    height: calc(100vh - 100px);
-    max-height: calc(100vh - 100px);
+    height: calc(100vh - 80px);
+    max-height: calc(100vh - 80px);
     gap: 16px;
     padding: 16px;
     box-sizing: border-box;
@@ -2904,9 +3746,6 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     flex: 0 0 auto;
     flex-shrink: 0;
     width: 100%;
-    height: 180px;
-    min-height: 180px;
-    max-height: 180px;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -2926,9 +3765,15 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     text-transform: uppercase;
     color: #9ca3af;
 }
-#ax-panel-anpr .ax-anpr-offline-hit-row {
-    flex: 1 1 0;
-    min-height: 0;
+/* Sole offline hits strip — h-36 (9rem), never cut off by viewport */
+#ax-panel-anpr .ax-anpr-offline-hit-row,
+#ax-panel-anpr #blacklist-hits-container,
+#ax-panel-anpr #blacklist-hits-container.ax-anpr-offline-hit-row {
+    flex: 0 0 auto;
+    flex-shrink: 0;
+    height: 9rem;
+    min-height: 9rem;
+    max-height: 9rem;
     width: 100%;
     display: flex;
     flex-direction: row;
@@ -2936,8 +3781,10 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     gap: 12px;
     overflow-x: auto;
     overflow-y: hidden;
+    white-space: nowrap;
     align-items: center;
-    padding: 2px 0;
+    padding: 4px;
+    box-sizing: border-box;
 }
 #ax-panel-anpr .ax-anpr-offline-hit-empty {
     flex: 1 1 auto;
@@ -2948,13 +3795,49 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     color: #6b7280;
     font-size: 13px;
 }
-#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-offline-hit-card,
-#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-live-rail-card.is-hit {
+/* Offline blacklist empty — red-dashed skeleton boxes (not plain text) */
+#ax-panel-anpr .ax-anpr-offline-hit-skel-row {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 12px;
+    align-items: center;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 4px;
+    box-sizing: border-box;
+}
+#ax-panel-anpr .ax-anpr-offline-hit-skel {
     flex: 0 0 auto;
-    min-width: 300px;
-    width: 300px;
-    height: 140px;
-    max-height: 140px;
+    min-width: 260px;
+    width: 260px;
+    height: 7.5rem;
+    box-sizing: border-box;
+    border: 2px dashed rgba(127, 29, 29, 0.45);
+    background: rgba(69, 10, 10, 0.12);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(153, 27, 27, 0.55);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    white-space: normal;
+    text-align: center;
+}
+#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-offline-hit-card,
+#ax-panel-anpr .ax-anpr-offline-hit-row .ax-anpr-live-rail-card.is-hit,
+#ax-panel-anpr #blacklist-hits-container .ax-anpr-offline-hit-card,
+#ax-panel-anpr #blacklist-hits-container .ax-anpr-live-rail-card.is-hit {
+    flex: 0 0 auto;
+    min-width: 260px;
+    width: 260px;
+    height: 7.5rem;
+    max-height: 7.5rem;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -3009,7 +3892,8 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
 }
 #ax-panel-anpr #ax-anpr-offline-rail.ax-anpr-live-rail,
 #ax-panel-anpr #ax-anpr-offline-rail.ax-anpr-live-rail.enterprise-card {
-    display: block;
+    display: flex;
+    flex-direction: column;
     flex: none;
     height: auto;
     max-height: none;
@@ -3018,6 +3902,7 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     padding: 0;
     background: transparent;
     border: none;
+    gap: 0;
 }
 #ax-panel-anpr #ax-anpr-offline-rail .ax-anpr-live-rail-title {
     margin: 0 0 12px;
@@ -3046,11 +3931,12 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     gap: 12px;
     align-content: start;
     height: auto;
-    max-height: none;
+    max-height: calc(100vh - 280px);
     min-height: 120px;
-    overflow: visible;
+    overflow-x: hidden;
+    overflow-y: auto;
     flex: none;
-    padding-right: 0;
+    padding-right: 4px;
 }
 #ax-panel-anpr #ax-anpr-offline-rail-grid .ax-anpr-live-rail-card {
     height: 168px;
@@ -3140,12 +4026,55 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
 #ax-panel-anpr .ax-anpr-live-tile-stop[hidden] {
     display: none !important;
 }
+/* UNIFIED AXIOM STREAM — no LIVE watermark / corner chrome over video FOV (all tabs) */
+#ax-panel-anpr .ax-anpr-live-tile.is-live > .ax-fr-tile-ph,
+#ax-panel-face .ax-fr-tile.is-live > .ax-fr-tile-ph,
+#ax-panel-weapon .ax-wd-tile.is-live > .ax-fr-tile-ph,
+#ax-panel-tactical .ax-tactical-live-tile.is-live > .ax-tactical-bank-tile-label,
+#app-view-command-wall .cw-cell.is-live .cw-live-badge,
+#app-view-command-wall .cw-cell-stage .cw-live-badge,
+.me8-zlm-primary ~ .live-watermark,
+.me8-zlm-primary ~ .ax-live-badge,
+[data-live-watermark="1"],
+.ax-video-live-watermark {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
 
-/* Vehicle snap — macro-crop (full vehicle) hover magnifier */
+/* Vehicle snap lightbox — big centered + hover magnify (ANPR-SNAP-LIGHTBOX-BIG-MAG-V1) */
+#ax-anpr-snap-lightbox-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 28005;
+    background: rgba(2, 6, 23, 0.72);
+}
+#ax-anpr-snap-lightbox-backdrop[hidden] {
+    display: none !important;
+}
+#ax-anpr-snap-lightbox {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 28010;
+    width: min(720px, 94vw);
+    max-height: min(88vh, 860px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #0f172a;
+    border: 1px solid #475569;
+    border-radius: 10px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
+}
+#ax-anpr-snap-lightbox[hidden] {
+    display: none !important;
+}
 #ax-anpr-snap-lightbox .ax-anpr-lb-scene-wrap {
     position: relative;
     width: 100%;
-    max-width: 420px;
+    max-width: none;
     overflow: hidden;
     border-radius: 6px;
     background: #020617;
@@ -3155,7 +4084,7 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     display: block;
     width: 100%;
     height: auto;
-    max-height: 360px;
+    max-height: min(52vh, 480px);
     object-fit: contain;
     transition: transform 0.08s linear;
     transform-origin: center center;
@@ -3163,28 +4092,32 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
 #ax-anpr-snap-lightbox .ax-anpr-lb-scene-wrap.is-zooming .ax-anpr-lb-scene {
     max-height: none;
 }
-/* Vehicle snap — plate scrap secondary magnifier */
 #ax-anpr-snap-lightbox .ax-anpr-lb-plate-wrap {
     position: relative;
     width: 100%;
-    max-width: 420px;
+    max-width: none;
     overflow: hidden;
     border-radius: 6px;
     background: #020617;
     cursor: zoom-in;
-    margin-top: 8px;
+    margin-top: 10px;
 }
 #ax-anpr-snap-lightbox .ax-anpr-lb-plate-img {
     display: block;
     width: 100%;
     height: auto;
-    max-height: 160px;
+    max-height: min(22vh, 180px);
     object-fit: contain;
     transition: transform 0.08s linear;
     transform-origin: center center;
 }
 #ax-anpr-snap-lightbox .ax-anpr-lb-plate-wrap.is-zooming .ax-anpr-lb-plate-img {
     max-height: none;
+}
+#ax-anpr-snap-lightbox .ax-anpr-lb-zoom-hint {
+    margin: 8px 0 0;
+    font-size: 11px;
+    color: #94a3b8;
 }
 #ax-anpr-snap-lightbox .ax-anpr-snap-lb-chrome {
     cursor: move;
@@ -3474,5 +4407,41 @@ button#fleet-clear-pins.btn.btn-ghost.fleet-clear-pins {
     margin-top: 8px;
 }
 #ax-anpr-crop-status.is-bad { color: #fca5a5; }
+
+/* Global fleet heartbeat — sticky critical banner when Node is unreachable */
+.ax-global-server-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: #dc2626;
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    letter-spacing: 0.02em;
+}
+.ax-global-server-banner[hidden] {
+    display: none !important;
+}
+.ax-global-server-banner-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    animation: ax-server-banner-pulse 1.2s ease-in-out infinite;
+}
+.ax-global-server-banner-text {
+    line-height: 1.35;
+}
+@keyframes ax-server-banner-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}
 
 

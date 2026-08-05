@@ -1,0 +1,558 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Calibri;}}
+\paperw12240\paperh15840\margl1440\margr1440\margt1440\margb1440
+\fs22
+\pard\qc\b\fs36 Ubitron Mobility Axiom\par
+\pard\qc\b\fs28 Installation Guide\par
+\pard\qc\fs20 On-Premises Server\par
+\pard\qc\fs20 Audience: Customer IT administrators\par
+\pard\qc\fs20 Language: English\par
+\pard\qc\fs20 Version 1.1\par
+\pard\qc\fs20 Revision date: July 2026\par
+\pard\sa360\par
+
+\pard\b 1. About this guide\par
+\pard\b0\par
+\pard\b 1.1 Purpose\par
+\pard This guide explains how to install Ubitron Mobility Axiom on a new on-premises server, complete first-start Setup, install the site license, create the first administrator account, and hand the Operator portal to control-room staff.\par
+\pard\sa120\par
+\pard Mobility Axiom is a server application. After installation it runs as a background service. Operators do not start the product from a desktop window each day. They open a web browser to the Operator portal URL that IT provides.\par
+\pard\sa120\par
+\pard\b 1.2 Who should use this guide\par
+\pard 1. Customer IT administrators responsible for the production server\par
+\pard 2. System integrators installing Mobility Axiom under a Ubitron contract\par
+\pard 3. Site technical leads who will own service, firewall, and first administrator access\par
+\pard\sa120\par
+\pard Control-room operators and supervisors should use the Quick Start Guide and User Manual after IT handoff. They do not need this Installation Guide for daily work.\par
+\pard\sa120\par
+\pard\b 1.3 Scope\par
+\pard This guide covers:\par
+\pard 1. Preparing a supported Windows Server or Linux host\par
+\pard 2. Installing Mobility Axiom as a system service\par
+\pard 3. Completing Setup on the server (PIN, Hardware ID, license)\par
+\pard 4. Choosing on-premises network mode (LAN-Only or WAN Public Edge)\par
+\pard 5. First administrator sign-in and mandatory password change\par
+\pard 6. Minimum Settings before operator handoff\par
+\pard 7. Installation verification and common fault recovery\par
+\pard\sa120\par
+\pard This guide does not cover:\par
+\pard 1. Body-worn camera provisioning and device templates (Technical Manual)\par
+\pard 2. Full firewall port matrices and reverse-proxy design (Technical Manual)\par
+\pard 3. Daily operator procedures (User Manual / Quick Start Guide)\par
+\pard 4. Ubitron Managed Cloud or Hybrid deployments (separate installation guides)\par
+\pard 5. Migration from an older site or evaluation package (Migration Guide)\par
+\pard\sa120\par
+\pard\b 1.4 Related manuals\par
+\pard 1. Technical Manual \emdash network, ports, cameras, Server Config phases, recovery detail\par
+\pard 2. Quick Start Guide \emdash first operator tasks after handoff\par
+\pard 3. User Manual \emdash daily control-room use\par
+\pard\sa120\par
+\pard If your contract is Ubitron Managed Cloud or Hybrid, stop and use the installation guide for that model.\par
+\pard\sa120\par
+\pard\b 1.5 How to read this guide\par
+\pard 1. Complete chapters in order for a first install.\par
+\pard 2. Numbered lists are actions. Complete them in sequence.\par
+\pard 3. Expected result sections describe what success looks like before you continue.\par
+\pard 4. Notes clarify behaviour. Important and Warning callouts prevent common site failures.\par
+\pard 5. Screenshot placeholders mark where product screens will appear in the published PDF. They are not extra tasks.\par
+\pard\sa120\par
+\pard\b 1.6 Roles and responsibilities\par
+\pard\b Customer IT\par
+\pard Installs and maintains the server service, firewall rules, time sync, backups of the install folder (per site policy), and first administrator credentials.\par
+\pard\sa80\par
+\pard\b Ubitron license desk\par
+\pard Issues the signed license file for the Hardware ID you send. Customers do not create or sign licenses on the server.\par
+\pard\sa80\par
+\pard\b Control-room staff\par
+\pard Use the Operator portal URL and accounts that IT creates. They do not manage Setup or the service installer.\par
+\pard\sa360\par
+
+\pard\b 2. Before you begin\par
+\pard\b0\par
+\pard Treat this chapter as a readiness gate. Do not start the installer until the checklist items that apply to your site are complete.\par
+\pard\sa120\par
+
+\pard\b 2.1 System requirements \emdash operating system\par
+\pard\b0\par
+\pard\b Windows Server (recommended for most sites)\par
+\pard 1. Windows Server 2019 (64-bit) or Windows Server 2022 (64-bit)\par
+\pard 2. Local Administrator rights to install the service and configure Windows Firewall\par
+\pard 3. Fixed IPv4 address or DHCP reservation for the server network adapter\par
+\pard 4. Remote Desktop access for administrators who will complete Setup on the server\par
+\pard\sa120\par
+\pard\b Linux (64-bit, systemd)\par
+\pard One of the following distributions:\par
+\pard 1. Ubuntu Server 22.04 LTS or Ubuntu Server 24.04 LTS\par
+\pard 2. Red Hat Enterprise Linux 9, or compatible Rocky Linux 9 / AlmaLinux 9\par
+\pard 3. Debian 12\par
+\pard\sa120\par
+\pard Sign in with an account that has administrator privileges (often called root, or use sudo for elevated commands). You need these privileges to install the Mobility Axiom service and to open firewall ports. This is the same idea as Run as administrator on Windows.\par
+\pard\sa120\par
+\pard\b Warning\par
+\pard Desktop editions of Windows are not recommended as the production Mobility Axiom server. Use Windows Server or a listed Linux server distribution.\par
+\pard\sa120\par
+
+\pard\b 2.2 Capacity and host sizing\par
+\pard\b0\par
+\pard Exact CPU, memory, and disk sizing depend on camera count, retention policy, evidence volume, and optional modules on your order. Use the sizing sheet or cover letter in your Ubitron delivery package for the contracted capacity.\par
+\pard\sa120\par
+\pard As a planning baseline for a small to medium on-premises site:\par
+\pard 1. Dedicate a server (physical or virtual) that is not shared with unrelated heavy workloads.\par
+\pard 2. Provide enough free disk for the application folder plus evidence and recording growth defined in your contract.\par
+\pard 3. Prefer SSD or equivalent storage for the application and active evidence paths when your package recommends it.\par
+\pard 4. Plan backup of the install folder and evidence storage according to site policy after go-live (Technical Manual).\par
+\pard\sa120\par
+\pard If your order includes high camera counts or long retention, confirm sizing with Ubitron before you finalise hardware purchase.\par
+\pard\sa120\par
+
+\pard\b 2.3 Network and time\par
+\pard\b0\par
+\pard 1. Record the server LAN IPv4 address (Ethernet preferred; Wi-Fi only if your site design requires it).\par
+\pard 2. Confirm name resolution and routing between the server, operator workstations, and the network segment used by body-worn cameras.\par
+\pard 3. Do not use virtual adapter addresses in the range 172.17 to 172.31 for camera registration or operator bookmarks. Those ranges are commonly used by virtualisation and container adapters and will break field devices.\par
+\pard 4. Set the server date and time correctly in both BIOS/UEFI and the operating system. Enable NTP or equivalent time sync where site policy allows.\par
+\pard 5. If the server clock is wrong (especially stuck in the past), Mobility Axiom may refuse a normal start until time is corrected.\par
+\pard\sa120\par
+
+\pard\b 2.4 Firewall and security preparation\par
+\pard\b0\par
+\pard 1. Confirm who may change firewall rules on this host and on any upstream firewall.\par
+\pard 2. Plan which networks may reach the Operator portal (control-room LAN, VPN, or public edge as designed).\par
+\pard 3. Plan that Setup remains reachable only on the server itself (localhost). Do not publish Setup to the public internet.\par
+\pard 4. If endpoint protection or antivirus is installed, add temporary exclusions for the Mobility Axiom install folder during installation if your security policy allows, then replace them with permanent exclusions recommended in the Technical Manual after go-live.\par
+\pard 5. Keep an administrator contact path to Ubitron support for license and start-up faults.\par
+\pard\sa120\par
+
+\pard\b 2.5 Delivery package and license readiness\par
+\pard\b0\par
+\pard Before you install, confirm you have:\par
+\pard 1. The complete Ubitron delivery package for this site (installer, service scripts, README)\par
+\pard 2. Contract or purchase order reference\par
+\pard 3. Customer and site name exactly as Ubitron should print on the license request\par
+\pard 4. Contact method for the Ubitron license desk\par
+\pard 5. Feature and capacity notes from your order if Ubitron asked for them with the Hardware ID\par
+\pard\sa120\par
+\pard Body-worn cameras are configured after the server is licensed and the administrator has set device registration values. You do not need cameras online to finish this Installation Guide.\par
+\pard\sa120\par
+
+\pard\b 2.6 Pre-install checklist\par
+\pard\b0\par
+\pard Confirm each item before Chapter 3:\par
+\pard 1. Supported OS installed and patched per site policy\par
+\pard 2. Administrator rights available for service and firewall changes\par
+\pard 3. Fixed IPv4 or DHCP reservation recorded\par
+\pard 4. Server date and time verified\par
+\pard 5. Delivery package extracted to a working folder\par
+\pard 6. License desk contact known\par
+\pard 7. Upstream firewall change window booked if required for later camera and portal traffic\par
+\pard\sa120\par
+\pard [Insert screenshot: Server network adapter showing fixed IPv4]\par
+\pard\sa360\par
+
+\pard\b 3. Install the server software\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Install Mobility Axiom once as a background service so it starts automatically when the server starts, and so operators never depend on a logged-on desktop session.\par
+\pard\sa120\par
+\pard Follow the README in your delivery package for the exact installer file names and production options for your order. Package layouts can differ by contract; the README is authoritative for file names.\par
+\pard\sa120\par
+\pard\b Important\par
+\pard Install to the permanent path stated in the README. Do not run production from a temporary Downloads folder.\par
+\pard\sa240\par
+
+\pard\b 3.1 Windows Server\par
+\pard\b0\par
+\pard\b Before you start\par
+\pard 1. Sign in as a local administrator.\par
+\pard 2. Close unrelated installers that might lock files in the target path.\par
+\pard 3. Open the package README and note the service installer command for production.\par
+\pard\sa120\par
+\pard\b Steps\par
+\pard 1. Extract the delivery package to the permanent path stated in the README (commonly under Program Files).\par
+\pard 2. Open PowerShell as Administrator.\par
+\pard 3. Change to the folder that contains the Windows service installer for your package.\par
+\pard 4. Run the Windows service installer using the production options described in the README.\par
+\pard 5. Open Services (services.msc).\par
+\pard 6. Locate the Mobility Axiom server service.\par
+\pard 7. Confirm Status is Running and Startup type is Automatic (or Automatic Delayed Start if the README specifies it).\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard The Mobility Axiom server service is installed, running, and set to start with Windows. No operator console window is required for daily use.\par
+\pard\sa120\par
+\pard\b Notes\par
+\pard 1. If the service stops immediately, open the service log described in the README and continue with Chapter 12.\par
+\pard 2. Keep the install folder permissions under IT control. Operators do not need write access to the server install path.\par
+\pard\sa120\par
+\pard [Insert screenshot: Services showing Mobility Axiom running and Automatic]\par
+\pard\sa240\par
+
+\pard\b 3.2 Linux\par
+\pard\b0\par
+\pard\b Before you start\par
+\pard 1. Sign in with administrator privileges (root, or sudo as needed).\par
+\pard 2. Confirm systemd is available (standard on the listed distributions).\par
+\pard 3. Open the package README and note the install path, service user, and unit file name.\par
+\pard\sa120\par
+\pard\b Steps\par
+\pard 1. Place the application files under the permanent path stated in the README.\par
+\pard 2. Create the service user and group if the README requires them.\par
+\pard 3. Set ownership and permissions on the install folder as the README describes.\par
+\pard 4. Install the systemd unit supplied with the package.\par
+\pard 5. Reload systemd units.\par
+\pard 6. Enable the service so it starts on boot.\par
+\pard 7. Start the service.\par
+\pard 8. Confirm the service is active (running).\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard The service is active. The service log shows either Setup instructions (license not yet installed) or a normal licensed start.\par
+\pard\sa120\par
+\pard\b Notes\par
+\pard 1. Use the exact unit name from your package. Do not invent a different service name.\par
+\pard 2. Prefer journalctl for the Mobility Axiom service unit when troubleshooting start-up on Linux.\par
+\pard\sa120\par
+\pard [Insert screenshot: systemctl status showing Mobility Axiom active]\par
+\pard\sa360\par
+
+\pard\b 4. Complete Setup on the server\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard When a valid license is not yet installed, Mobility Axiom starts in Setup. Full operations stay locked until Setup is finished. Setup is the only place where you install the first site license.\par
+\pard\sa120\par
+\pard\b Before you start\par
+\pard 1. Confirm the Mobility Axiom service is running.\par
+\pard 2. Work on the server itself, or use Remote Desktop / an SSH tunnel that reaches localhost on the server.\par
+\pard 3. Have access to the service log so you can read the Setup PIN.\par
+\pard\sa120\par
+\pard\b Steps\par
+\pard 1. On the server, open a web browser to:\par
+\pard    http://127.0.0.1:13988\par
+\pard 2. If the page does not open, read the service log for the Setup port. If the log shows a different port, use that port instead.\par
+\pard 3. Open the service log and find the line that shows the Setup PIN. Search for ACTION REQUIRED or Setup Mode.\par
+\pard 4. Enter the 6-digit PIN on the Setup page.\par
+\pard 5. Confirm the Hardware ID is displayed and remains stable on this server.\par
+\pard\sa120\par
+\pard\b Where to find the service log\par
+\pard Windows: service log file under the install folder (path in the README).\par
+\pard Linux: journalctl for the Mobility Axiom service unit, or the log path in the README.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard The PIN is accepted. Hardware ID and license install controls are visible on the Setup page.\par
+\pard\sa120\par
+\pard\b Important\par
+\pard 1. Setup is available on the server only (localhost). Do not publish Setup to the public internet.\par
+\pard 2. The PIN is generated when Setup starts. It changes each time Setup starts. Always copy the current PIN from the log.\par
+\pard 3. Remote Desktop or a secure tunnel to localhost is acceptable. Opening Setup on a public URL is not.\par
+\pard\sa120\par
+\pard [Insert screenshot: Setup page PIN field]\par
+\pard [Insert screenshot: Service log showing Setup PIN]\par
+\pard\sa360\par
+
+\pard\b 5. Request and install your license\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Your license is locked to this server Hardware ID. Ubitron issues a signed license file for that ID. You install the file on the Setup page. You do not create or edit the license on the customer server.\par
+\pard\sa240\par
+
+\pard\b 5.1 Request the license\par
+\pard\b0\par
+\pard\b Steps\par
+\pard 1. On the Setup page, copy the Hardware ID exactly as shown.\par
+\pard 2. Send the following to the Ubitron license desk:\par
+\pard    a. Hardware ID\par
+\pard    b. Customer legal name and site name\par
+\pard    c. Contract or purchase order reference\par
+\pard    d. Feature and capacity requirements from your order (when Ubitron requests them)\par
+\pard 3. Keep the Setup page available. Do not rebuild the server onto new hardware while waiting, or the Hardware ID may change and the license will not match.\par
+\pard 4. Wait for Ubitron to return the license file (license.lic).\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard You receive a license.lic file issued for this exact Hardware ID.\par
+\pard\sa120\par
+\pard\b Notes\par
+\pard 1. Store the license file in a controlled IT location until you install it.\par
+\pard 2. Do not rename the file to a different extension unless Ubitron instructs you to.\par
+\pard\sa120\par
+\pard [Insert screenshot: Setup page showing Hardware ID]\par
+\pard\sa240\par
+
+\pard\b 5.2 Install the license\par
+\pard\b0\par
+\pard Install the license on the Setup page on the server (http://127.0.0.1:13988 or the Setup port shown in the log). This is not the daily dashboard login page.\par
+\pard\sa120\par
+\pard\b Steps\par
+\pard 1. On the Setup page, enter a valid PIN if prompted.\par
+\pard 2. Choose Install license (or the file control labelled for license.lic).\par
+\pard 3. Select the license.lic file you received from Ubitron.\par
+\pard 4. Wait for the page to confirm that the license is accepted for this Hardware ID.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard The Setup page shows that the license is valid for this Hardware ID. You may continue with network mode selection.\par
+\pard\sa120\par
+\pard\b Important\par
+\pard 1. Do not edit the license file. Editing breaks the signature and the server will refuse to start.\par
+\pard 2. Do not attempt to install the first site license through the normal Operations dashboard. Use Setup only.\par
+\pard 3. If Ubitron already installed the license before delivery, your package README will say so. In that case you may skip the file selection step and continue when Setup shows a valid license.\par
+\pard\sa120\par
+\pard [Insert screenshot: Setup page Install license control]\par
+\pard [Insert screenshot: Setup page after successful license install]\par
+\pard\sa360\par
+
+\pard\b 6. Select site network mode\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Tell Mobility Axiom how this on-premises site will be reached. Choose the mode that matches your network design, then restart so full services start under that design.\par
+\pard\sa120\par
+\pard\b LAN-Only\par
+\pard Use when operators and cameras stay on the private network (LAN or site VPN treated as private). This is the common choice for a single-site control room on the same network as the server.\par
+\pard\sa120\par
+\pard\b WAN (Public Edge)\par
+\pard Use when your organisation hosts the server and provides controlled remote access from outside the private LAN. This usually requires reverse proxy, certificates, and stricter firewall rules. Complete those network tasks with the Technical Manual after this guide.\par
+\pard\sa120\par
+\pard\b Steps\par
+\pard 1. On Setup, select LAN-Only or WAN (Public Edge).\par
+\pard 2. Save the selection.\par
+\pard 3. Restart the Mobility Axiom service so the full application starts.\par
+\pard 4. Confirm the service returns to Running / active.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard The dashboard login page is available on the dashboard ports configured for this package. Setup is no longer the primary entry page for daily work.\par
+\pard\sa120\par
+\pard\b Notes\par
+\pard 1. Cloud-hosted or hybrid deployments are covered in separate Ubitron guides.\par
+\pard 2. Changing between LAN and WAN later may require Settings changes, firewall updates, and a service restart. Plan that change with the Technical Manual.\par
+\pard\sa120\par
+\pard [Insert screenshot: Setup network mode selection]\par
+\pard\sa360\par
+
+\pard\b 7. First administrator sign-in\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Create the site administrator password. Mobility Axiom ships with a one-time factory account so IT can enter the system. The factory password cannot be kept for production.\par
+\pard\sa120\par
+\pard\b IMPORTANT \emdash First sign-in\par
+\pard 1. On a new server, the first administrator account is typically:\par
+\pard    Username: global\par
+\pard    Password: global123\par
+\pard 2. Use these credentials once only, for the mandatory password change.\par
+\pard 3. Mobility Axiom requires you to change the password before normal use. You cannot keep the factory password.\par
+\pard 4. The new password must meet the rules on the screen (at least 12 characters, with upper case, lower case, a number, and a symbol).\par
+\pard 5. After you save, sign in with global and your new password. The factory password stops working immediately.\par
+\pard 6. Store the new password in your site password vault. Loss of this password may require Ubitron-assisted recovery.\par
+\pard\sa120\par
+\pard\b Steps\par
+\pard 1. Open the dashboard login page from an administrator workstation that can reach the server.\par
+\pard 2. Use the HTTP or HTTPS address from your package README. A common default HTTP port is 3988 unless your package specifies another port.\par
+\pard 3. Sign in with username global and password global123.\par
+\pard 4. On Change your password, enter the current factory password, then set and confirm the new password.\par
+\pard 5. Save and continue.\par
+\pard 6. Sign in again with global and the new password.\par
+\pard 7. Confirm the dashboard opens for the administrator.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard The administrator reaches the dashboard with the new password. A second attempt with global123 fails.\par
+\pard\sa120\par
+\pard\b Notes\par
+\pard 1. Create additional user accounts for operators after this first sign-in (Technical Manual / User administration).\par
+\pard 2. Do not share the global administrator password with daily operators unless site policy requires a single account (not recommended).\par
+\pard\sa120\par
+\pard [Insert screenshot: Dashboard login page]\par
+\pard [Insert screenshot: Change your password screen]\par
+\pard\sa360\par
+
+\pard\b 8. Minimum settings before handoff\par
+\pard\b0\par
+\pard\b Purpose\par
+\pard Set the values operators and cameras will depend on before you hand the portal to the control room. Full Server Config phases remain in the Technical Manual. This chapter is the minimum for a clean handoff.\par
+\pard\sa120\par
+\pard Sign in as the administrator and open Settings, then Server Config.\par
+\pard\sa120\par
+\pard\b Steps\par
+\pard 1. Set the Operator portal URL to the address dispatch staff will bookmark (include https:// when you terminate TLS in front of the server).\par
+\pard 2. Confirm the IPv4 address used for body-worn camera registration is the server real LAN address (not a 172.17 to 172.31 virtual address).\par
+\pard 3. Review the SIP port shown in Settings. Change it only if your network design requires a different port.\par
+\pard 4. Open the firewall readiness checklist in Settings (when shown) and note every port that must be allowed for this site.\par
+\pard 5. Save changes.\par
+\pard 6. Restart the Mobility Axiom service after network or SIP changes.\par
+\pard 7. Update host and upstream firewall rules to match the ports now in use.\par
+\pard 8. Record the Operator portal URL and SIP port in the site runbook.\par
+\pard\sa120\par
+\pard\b Expected result\par
+\pard Operators have a clear portal URL. Device registration values are ready for the Technical Manual camera steps. Firewall owners know which ports to allow.\par
+\pard\sa120\par
+\pard\b What you can change later in Settings\par
+\pard 1. Operator portal URL\par
+\pard 2. SIP port for camera registration\par
+\pard 3. Device registration IPv4\par
+\pard 4. Related protocol and access options described in the Technical Manual\par
+\pard\sa120\par
+\pard After those changes: save, restart the service, update the firewall, and update each camera that already points at the old values.\par
+\pard\sa120\par
+\pard\b What is usually set at install time\par
+\pard Dashboard listen ports are often fixed in the delivery package or environment for this server. They may appear as runtime information in Settings. Change them only by following the package README, then restart the service. Full detail is in the Technical Manual.\par
+\pard\sa120\par
+\pard\b Typical default ports on a new package (confirm in README)\par
+\pard 1. Setup (server only): 13988\par
+\pard 2. Dashboard HTTP: often 3988\par
+\pard 3. Dashboard HTTPS: often package-specific (commonly documented next to HTTP)\par
+\pard 4. SIP (cameras): shown in Settings after start; change there if required\par
+\pard\sa120\par
+\pard Always prefer the live values in Settings and the package README over memory of another site.\par
+\pard\sa120\par
+\pard [Insert screenshot: Operator portal URL in Server Config]\par
+\pard [Insert screenshot: Device IP and SIP port in Server Config]\par
+\pard [Insert screenshot: Firewall readiness checklist in Settings]\par
+\pard\sa360\par
+
+\pard\b 9. Installation verification checklist\par
+\pard\b0\par
+\pard Complete this checklist before you declare the install ready for operator handoff.\par
+\pard\sa120\par
+\pard\b Service and Setup\par
+\pard 1. Mobility Axiom service is Running / active and set to start automatically.\par
+\pard 2. Setup is no longer required for daily start (license accepted).\par
+\pard 3. Service log shows a normal licensed start (no repeating Setup PIN demand).\par
+\pard\sa120\par
+\pard\b Access and accounts\par
+\pard 4. Administrator can sign in with the new password.\par
+\pard 5. Factory password global123 is rejected.\par
+\pard 6. Settings and Server Config open for the administrator.\par
+\pard\sa120\par
+\pard\b Network handoff readiness\par
+\pard 7. Operator portal URL is recorded for staff and opens from an operator workstation.\par
+\pard 8. Device registration IPv4 is the real LAN address.\par
+\pard 9. SIP port is recorded for camera provisioning.\par
+\pard 10. Firewall rules match the ports in use (host and upstream as required).\par
+\pard 11. Server date and time are correct and syncing.\par
+\pard\sa120\par
+\pard\b Documentation\par
+\pard 12. Site runbook lists portal URL, SIP port, service restart procedure, and Ubitron support contact.\par
+\pard 13. Quick Start Guide and User Manual are ready to give operators.\par
+\pard\sa120\par
+\pard [Insert screenshot: Dashboard after successful administrator sign-in]\par
+\pard\sa360\par
+
+\pard\b 10. What to give operators\par
+\pard\b0\par
+\pard Before control-room go-live, provide:\par
+\pard 1. Operator portal URL (exact bookmark)\par
+\pard 2. User accounts and roles for their duties (create accounts per Technical Manual)\par
+\pard 3. Quick Start Guide\par
+\pard 4. User Manual\par
+\pard 5. Site contacts for IT and Ubitron support\par
+\pard\sa120\par
+\pard Tell operators:\par
+\pard 1. They sign in through the browser only.\par
+\pard 2. They never need the Setup page.\par
+\pard 3. They must not share administrator credentials.\par
+\pard\sa120\par
+\pard IT continues with camera registration, evidence storage paths, retention, and detailed firewall design in the Technical Manual.\par
+\pard\sa360\par
+
+\pard\b 11. Security and operating rules\par
+\pard\b0\par
+\pard\b You may\par
+\pard 1. Install on supported Windows Server or listed Linux distributions.\par
+\pard 2. Run Mobility Axiom as a background service with automatic start.\par
+\pard 3. Complete Setup on the server, or through a secure tunnel to localhost on the server.\par
+\pard 4. Request a license from Ubitron using the Hardware ID shown in Setup.\par
+\pard 5. Choose LAN-Only or WAN (Public Edge) for on-premises.\par
+\pard 6. Change SIP port, device server IP, and Operator portal URL in Settings after login.\par
+\pard 7. Restart the service after network or SIP changes so cameras and operators pick up new values.\par
+\pard\sa120\par
+\pard\b You must not\par
+\pard 1. Use 172.17 to 172.31 addresses for cameras or operator bookmarks.\par
+\pard 2. Edit the license file.\par
+\pard 3. Keep the factory password after first sign-in.\par
+\pard 4. Expose the Setup page to the public internet.\par
+\pard 5. Ask operators to start the product from a console window each day.\par
+\pard 6. Create or sign licenses on the customer server.\par
+\pard 7. Install the first site license through the normal Operations dashboard (use Setup only).\par
+\pard 8. Assume ports from another site without checking this package README and Settings.\par
+\pard\sa120\par
+\pard\b Take note\par
+\pard 1. After network or SIP changes: restart the service, update the firewall, and update each camera.\par
+\pard 2. Wrong server clock can block start. Fix date and time first.\par
+\pard 3. If a port is already in use, free it or follow the README to select an alternate port, then restart the service.\par
+\pard 4. If the service log shows a fault with what happened, why, and how to fix, follow how to fix before opening a support case.\par
+\pard 5. Protect administrator credentials and the install folder with the same care as other critical site systems.\par
+\pard\sa360\par
+
+\pard\b 12. If something goes wrong\par
+\pard\b0\par
+\pard Work through the matching section. Collect the service log excerpt and Hardware ID before you contact Ubitron.\par
+\pard\sa120\par
+
+\pard\b 12.1 Cannot open Setup\par
+\pard 1. Confirm the Mobility Axiom service is running.\par
+\pard 2. Confirm you browse on the server (or tunnel to localhost on the server).\par
+\pard 3. Read the service log for the Setup port and any bind errors.\par
+\pard 4. Confirm nothing else is already using that port.\par
+\pard\sa120\par
+
+\pard\b 12.2 No Setup PIN in the log\par
+\pard 1. Search for Setup Mode or ACTION REQUIRED.\par
+\pard 2. Restart the service once and search again.\par
+\pard 3. Confirm you are reading the log for this install path, not an old copy.\par
+\pard\sa120\par
+
+\pard\b 12.3 License rejected\par
+\pard 1. Confirm the file was issued for this exact Hardware ID.\par
+\pard 2. Confirm you did not edit or re-save the file in a way that alters contents.\par
+\pard 3. Re-copy the Hardware ID from Setup and compare character by character with your license request.\par
+\pard 4. Contact Ubitron with the Hardware ID and the exact error text from Setup or the log.\par
+\pard\sa120\par
+
+\pard\b 12.4 Cannot finish password change\par
+\pard 1. Meet all password rules shown on the screen.\par
+\pard 2. You cannot keep the factory password.\par
+\pard 3. Clear browser cache for the login page and try again if the form does not advance.\par
+\pard\sa120\par
+
+\pard\b 12.5 Factory password no longer works\par
+\pard This is normal after the first successful password change. Use the new administrator password from your vault.\par
+\pard\sa120\par
+
+\pard\b 12.6 Dashboard page will not open after license\par
+\pard 1. Confirm the service restarted after network mode selection.\par
+\pard 2. Confirm you are using the dashboard port from the README, not the Setup port.\par
+\pard 3. Confirm firewall allows your administrator workstation to the dashboard port.\par
+\pard 4. Read the service log for listen address and port conflicts.\par
+\pard\sa120\par
+
+\pard\b 12.7 Service will not start\par
+\pard 1. Check date and time.\par
+\pard 2. Check for port already in use.\par
+\pard 3. Read the service log how-to-fix lines.\par
+\pard 4. Confirm the license is still present and was not deleted from the server.\par
+\pard 5. Contact Ubitron support if the fault remains, and include the log excerpt.\par
+\pard\sa120\par
+
+\pard\b 12.8 Cameras or portal work from IT PC but not from the control room\par
+\pard This is usually routing or firewall scope, not a failed install. Verify Operator portal URL, LAN routing, and upstream firewall rules. Continue with the Technical Manual network chapters.\par
+\pard\sa360\par
+
+\pard\b 13. Getting support\par
+\pard\b0\par
+\pard When you contact Ubitron, include:\par
+\pard 1. Customer and site name\par
+\pard 2. Contract or purchase order reference\par
+\pard 3. Hardware ID (from Setup or Settings when available)\par
+\pard 4. Server OS and version\par
+\pard 5. Mobility Axiom package version from the delivery README\par
+\pard 6. Short description of what you expected and what happened\par
+\pard 7. Recent service log excerpt (remove secrets if your policy requires)\par
+\pard\sa120\par
+\pard Use the support contact method in your contract or delivery cover letter.\par
+\pard\sa360\par
+
+\pard\b 14. Document control\par
+\pard\b0\par
+\pard Product: Ubitron Mobility Axiom\par
+\pard Manual: Installation Guide (On-Premises)\par
+\pard Language: English\par
+\pard Audience: Customer IT (new install)\par
+\pard Version: 1.1\par
+\pard Revision date: July 2026\par
+\pard Related: Technical Manual, User Manual, Quick Start Guide\par
+\pard Changes in 1.1: Expanded install planning, roles, firewall readiness, verification, support, and license install wording for customer IT.\par
+}

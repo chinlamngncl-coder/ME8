@@ -35,7 +35,7 @@ $Models = Join-Path $Root 'models'
 New-Item -ItemType Directory -Force -Path $Models | Out-Null
 
 Write-Host 'Warming FastALPR power-crop models (512 + 384 fallback; first download may take a minute)...'
-& $VenvPy -c "from fast_alpr import ALPR; ALPR(detector_model='yolo-v9-t-512-license-plate-end2end', ocr_model='cct-xs-v2-global-model', ocr_device='cpu', detector_conf_thresh=0.18); ALPR(detector_model='yolo-v9-t-384-license-plate-end2end', ocr_model='cct-xs-v2-global-model', ocr_device='cpu', detector_conf_thresh=0.14); print('FastALPR power-crop warm OK')"
+& $VenvPy -c "from fast_alpr import ALPR; ALPR(detector_model='yolo-v9-t-512-license-plate-end2end', ocr_model='cct-s-v2-global-model', ocr_device='cpu', detector_conf_thresh=0.18); ALPR(detector_model='yolo-v9-t-384-license-plate-end2end', ocr_model='cct-s-v2-global-model', ocr_device='cpu', detector_conf_thresh=0.14); print('FastALPR cct-s-v2-global warm OK')"
 if ($LASTEXITCODE -ne 0) {
     Write-Host 'WARN: FastALPR warm failed — first START-ANPR.bat will download models.'
 }
@@ -67,6 +67,13 @@ if (-not (Test-Path $VehicleOnnx)) {
     Write-Host "Vehicle ONNX present: $VehicleOnnx"
 }
 
+$WpodOnnx = Join-Path $Models 'wpod.onnx'
+if (Test-Path $WpodOnnx) {
+    Write-Host "WPOD ONNX present: $WpodOnnx (neural un-warp enabled)"
+} else {
+    Write-Host 'WPOD: cascade affine fallback (optional models/wpod.onnx for neural WPOD-NET).'
+}
+
 Write-Host ''
-Write-Host 'INSTALL OK. Ship: vehicle scene + FastALPR plate (FM_ANPR_ENGINE=fastalpr).'
+Write-Host 'INSTALL OK. Ship: vehicle scene + WPOD double-crop + FastALPR OCR (FM_ANPR_ENGINE=fastalpr).'
 Write-Host 'Start with START-ANPR.bat from ME8 root.'

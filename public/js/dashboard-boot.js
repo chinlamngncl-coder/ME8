@@ -174,6 +174,10 @@
             }
         });
         FleetUi.init(socket);
+        window.__mobilityDashboardSocket = socket;
+        if (typeof GlobalDevicePresence !== 'undefined' && GlobalDevicePresence.bind) {
+            GlobalDevicePresence.bind(socket);
+        }
         if (typeof VoiceAlerts !== 'undefined') VoiceAlerts.init({ socket: socket });
         ChatUi.init(socket);
         if (typeof PttRx !== 'undefined') PttRx.init(socket);
@@ -3821,6 +3825,9 @@
 
         socket.on('fleet-roster', function (fleet) {
             FleetUi.ingestFleet(fleet);
+            if (typeof GlobalDevicePresence !== 'undefined' && GlobalDevicePresence.ingestFleetRoster) {
+                GlobalDevicePresence.ingestFleetRoster(fleet);
+            }
             (fleet || []).forEach(function (m) {
                 if (!m || !m.id || !deviceMarkers[m.id]) return;
                 var ll = deviceMarkers[m.id].getLatLng();

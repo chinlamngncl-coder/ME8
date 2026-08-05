@@ -18,8 +18,9 @@ _alpr_fb_error: Optional[str] = None
 DET_MODEL = (
     os.environ.get("FM_ANPR_FASTALPR_DET") or "yolo-v9-t-512-license-plate-end2end"
 ).strip()
+# ANPR-OCR-CCT-S-GLOBAL-V1 — stronger MIT plate OCR (was cct-xs-v2-global-model)
 OCR_MODEL = (
-    os.environ.get("FM_ANPR_FASTALPR_OCR") or "cct-xs-v2-global-model"
+    os.environ.get("FM_ANPR_FASTALPR_OCR") or "cct-s-v2-global-model"
 ).strip()
 DET_CONF = float(os.environ.get("FM_ANPR_FASTALPR_DET_CONF", "0.18") or "0.18")
 FALLBACK_DET = (
@@ -150,6 +151,13 @@ def read_with_fastalpr(img_bgr: np.ndarray) -> dict[str, Any]:
         }
 
     candidates = _candidates_from_results(results, det_source="fastalpr-512")
+    try:
+        from vehicle_detect import filter_watermark_deadzone
+
+        fh = int(img_bgr.shape[0])
+        candidates = filter_watermark_deadzone(candidates, fh)
+    except Exception:  # noqa: BLE001
+        pass
 
     # Power crop: if 512 finds nothing, try MIT 384 at lower conf (small / bike / far)
     if not candidates:
@@ -158,6 +166,12 @@ def read_with_fastalpr(img_bgr: np.ndarray) -> dict[str, Any]:
             try:
                 fb_results = fb.predict(img_bgr)
                 candidates = _candidates_from_results(fb_results, det_source="fastalpr-384-fb")
+                try:
+                    from vehicle_detect import filter_watermark_deadzone
+
+                    candidates = filter_watermark_deadzone(candidates, int(img_bgr.shape[0]))
+                except Exception:  # noqa: BLE001
+                    pass
                 if candidates:
                     used_model = FALLBACK_DET
             except Exception:  # noqa: BLE001

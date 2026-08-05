@@ -200,6 +200,7 @@
                 pttDownlinkMode: String((row.querySelector('[data-field="pttDownlinkMode"]') || {}).value || 'auto').trim() || 'auto',
                 pttAudioCmdMode: String((row.querySelector('[data-field="pttAudioCmdMode"]') || {}).value || 'auto').trim() || 'auto',
                 protocol: (row.querySelector('[data-field="protocol"]') || {}).value === 'onvif' ? 'onvif' : 'sip',
+                pairedSecondaryCameraId: String((row.querySelector('[data-field="pairedSecondaryCameraId"]') || {}).value || '').trim(),
             });
         });
         return next;
@@ -245,12 +246,25 @@
         return data;
     }
 
+    function pipSecondaryOptionsHtml(selfId, selectedId) {
+        const self = String(selfId || '').trim();
+        const sel = String(selectedId || '').trim();
+        let html = '<option value="">' + esc(tr('bwc.pip.none', '(None)')) + '</option>';
+        devices.forEach(function (d) {
+            const id = d && d.deviceId ? String(d.deviceId).trim() : '';
+            if (!id || id === self) return;
+            const label = (d.operatorName || id) + ' · ' + id.slice(-6);
+            html += '<option value="' + esc(id) + '"' + (id === sel ? ' selected' : '') + '>' + esc(label) + '</option>';
+        });
+        return html;
+    }
+
     function buildEmbeddedTable() {
         const tbody = document.getElementById('ss-bwc-table-body');
         if (!tbody) return;
         const list = devices.length
             ? devices.slice()
-            : [{ deviceId: '', operatorName: '', unitCode: '', mapGroup: '', userName: '', password: '', protocol: 'sip', status: 'active' }];
+            : [{ deviceId: '', operatorName: '', unitCode: '', mapGroup: '', userName: '', password: '', protocol: 'sip', status: 'active', pairedSecondaryCameraId: '' }];
         tbody.innerHTML = list.map(function (d) {
             const on = deviceOnline(d.deviceId);
             const st = (d.status || 'active');
@@ -276,6 +290,9 @@
                 '<td><select data-field="protocol">' +
                 '<option value="sip"' + (d.protocol !== 'onvif' ? ' selected' : '') + '>SIP</option>' +
                 '<option value="onvif"' + (d.protocol === 'onvif' ? ' selected' : '') + '>ONVIF</option>' +
+                '</select></td>' +
+                '<td><select data-field="pairedSecondaryCameraId" title="' + esc(tr('bwc.col.pipSecondary', 'Assign PIP / Rear Camera')) + '">' +
+                pipSecondaryOptionsHtml(d.deviceId, d.pairedSecondaryCameraId) +
                 '</select></td>' +
                 '<td><span class="ss-bwc-status ' + esc(st) + '">' + esc(deviceStatusLabel(d)) + '</span></td>' +
                 '<td>' + lifecycleActionHtml(d) + '</td>' +

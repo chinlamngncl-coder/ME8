@@ -15,12 +15,21 @@ import numpy as np
 REGION = (os.environ.get("FM_ANPR_REGION") or "ph").strip().lower() or "ph"
 # ANPR-FASTALPR-SHIP-DEFAULT-V1 — ship core; set FM_ANPR_ENGINE=paddle for lab hatch only
 ANPR_ENGINE = (os.environ.get("FM_ANPR_ENGINE") or "fastalpr").strip().lower() or "fastalpr"
-CONF_FLOOR = float(os.environ.get("FM_ANPR_CONF_FLOOR", "0.80") or "0.80")
+# Live temporary floor — was 0.80 / 0.70 rejecting clean mid-conf reads
+CONF_FLOOR = float(os.environ.get("FM_ANPR_CONF_FLOOR", "0.50") or "0.50")
+LIVE_CONF_FLOOR = float(os.environ.get("FM_ANPR_LIVE_CONF_FLOOR", "0.50") or "0.50")
 MEDIAN_K = int(os.environ.get("FM_ANPR_MEDIAN_K", "3") or "3")
 if MEDIAN_K % 2 == 0:
     MEDIAN_K += 1
 MEDIAN_K = max(3, min(9, MEDIAN_K))
 UPSCALE_H = max(40, int(os.environ.get("FM_ANPR_UPSCALE_H", "80") or "80"))
+# SVTR recognition input height — must normalize before PaddleOCR.ocr() (tensor safety)
+SVTR_INPUT_H = max(32, min(64, int(os.environ.get("FM_ANPR_SVTR_H", "48") or "48")))
+OCR_CONF_FLOOR = float(os.environ.get("FM_ANPR_OCR_CONF_FLOOR", "0.50") or "0.50")
+# Hatch: FM_ANPR_STRICT_REGEX=1 restores hard country lock (reject if no regex hit)
+STRICT_REGEX = (os.environ.get("FM_ANPR_STRICT_REGEX") or "0").strip().lower() in (
+    "1", "true", "yes", "on",
+)
 PREPROCESS_MODE = (os.environ.get("FM_ANPR_PREPROCESS") or "auto").strip().lower()
 MAIN_LINE_BAND = float(os.environ.get("FM_ANPR_MAIN_LINE_BAND", "0.6") or "0.6")
 MAIN_LINE_TRIM_TOP = float(os.environ.get("FM_ANPR_MAIN_LINE_TRIM", "0.08") or "0.08")
@@ -36,6 +45,14 @@ REGION_FINDERS: dict[str, re.Pattern[str]] = {
     "en": re.compile(r"([A-Z0-9]{5,10})"),
 }
 
+# LTO / PH standard plate — emit gate (ANPR-DECAL-GLARE-SYNTAX-V1)
+PLATE_REGEX = re.compile(r"^[A-Z]{3}\s?\d{3,4}$")
+# Fallback formats (compact, no space) — always 3 letters + 3–4 digits (len 6–7)
+PLATE_REGEX_FALLBACKS: tuple[re.Pattern[str], ...] = (
+    PLATE_REGEX,
+    re.compile(r"^[A-Z]{3}\d{3,4}$"),
+)
+
 REGION_TRAILING_TAGS = ("NCR", "NIR", "CAR", "BAR", "ARMM")
 
 ALLOW_OK_SOURCES = frozenset({"opencv", "paddle_line", "yolo", "full_tight", "full_skip", "fastalpr"})
@@ -48,6 +65,68 @@ _ocr_error: Optional[str] = None
 
 def _compact_alnum(s: str) -> str:
     return re.sub(r"[^A-Z0-9]", "", (s or "").upper())
+
+
+def _json_safe(obj: Any) -> Any:
+    """
+    FastAPI/Pydantic JSON boundary — never leave numpy.ndarray / np scalars in responses.
+    Arrays → .tolist(); np.float32/int64 → float()/int(); drop huge image buffers.
+    """
+    if obj is None or isinstance(obj, (str, bool)):
+        return obj
+    if isinstance(obj, (bytes, bytearray)):
+        return None
+    if isinstance(obj, np.ndarray):
+        # Image buffers must not enter JSON (use JPEG b64 paths instead)
+        if obj.ndim >= 2 and obj.size > 64:
+            return None
+        try:
+            return obj.tolist()
+        except Exception:  # noqa: BLE001
+            return None
+    if isinstance(obj, np.generic):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        try:
+            return obj.item()
+        except Exception:  # noqa: BLE001
+            return str(obj)
+    if isinstance(obj, float):
+        return float(obj)
+    if isinstance(obj, int):
+        return int(obj)
+    if isinstance(obj, dict):
+        out: dict[str, Any] = {}
+        for k, v in obj.items():
+            # Internal CV buffers — never serialize
+            if k in ("uiMicro", "uiMacro", "nativeMicro", "micro", "warped"):
+                continue
+            safe = _json_safe(v)
+            if safe is not None or v is None:
+                out[k] = safe
+        return out
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(x) for x in obj]
+    # Torch / other tensors with .tolist
+    if hasattr(obj, "tolist") and not isinstance(obj, (str, bytes)):
+        try:
+            return _json_safe(obj.tolist())
+        except Exception:  # noqa: BLE001
+            return str(obj)[:120]
+    return obj
+
+
+def _pop_cv_buffers(payload: dict[str, Any]) -> dict[str, Any]:
+    """Remove ndarray image keys before payload mapping / FastAPI return."""
+    if not isinstance(payload, dict):
+        return payload
+    for k in ("uiMicro", "uiMacro", "nativeMicro", "micro", "warped"):
+        payload.pop(k, None)
+    return payload
 
 
 def normalize_ph_badge_separators(raw_text: str) -> str:
@@ -176,6 +255,109 @@ def lock_plate_from_raw(
     return None
 
 
+def soft_plate_from_raw(
+    raw_text: str,
+    region: Optional[str] = None,
+    *,
+    prefer_3_digit: bool = False,
+) -> Optional[str]:
+    """
+    Live lock — LTO syntax only (no slogan / decal / glare hallucinations).
+    Emits only strings matching PLATE_REGEX (or region lock / fallbacks).
+    """
+    return validate_lto_plate_syntax(
+        raw_text, region=region, prefer_3_digit=prefer_3_digit
+    )
+
+
+def passes_emit_length_alpha_guard(repaired_text: str) -> bool:
+    """
+    Seal short/junk leaks (POZ71, NHK5):
+      clean_length must be 6 or 7; first 3 chars must be A–Z after positional repair.
+    """
+    repaired = (repaired_text or "").upper()
+    clean = re.sub(r"[^A-Z0-9]", "", repaired)
+    clean_length = len(clean.replace(" ", ""))
+    if clean_length < 6 or clean_length > 7:
+        return False
+    if len(clean) < 3 or not re.match(r"^[A-Z]{3}", clean):
+        return False
+    return True
+
+
+def validate_lto_plate_syntax(
+    raw_text: str,
+    region: Optional[str] = None,
+    *,
+    prefer_3_digit: bool = False,
+) -> Optional[str]:
+    """
+    Strict emit gate: PLATE_REGEX /^[A-Z]{3}\\s?\\d{3,4}$/ (+ fallbacks / region lock).
+    Rejects SEBASTIAN / SEBAXYIN / M3W111 / POZ71 / NHK5 / truncated junk.
+    """
+    if not (raw_text or "").strip():
+        return None
+    reg = (region or REGION).lower()
+
+    def _disp(compact: str) -> str:
+        c = _compact_alnum(compact)
+        m = re.match(r"^([A-Z]{3})(\d{3,4})$", c)
+        if m:
+            return f"{m.group(1)} {m.group(2)}"
+        return c
+
+    def _accept(compact: str) -> Optional[str]:
+        c = _compact_alnum(compact)
+        if not c:
+            return None
+        # Length + alpha head guard — AFTER strip spaces/specials
+        if not passes_emit_length_alpha_guard(c):
+            return None
+        # First 3 strictly alphabetic (reject digit bleed into letter slots)
+        if not re.match(r"^[A-Z]{3}\d{3,4}$", c):
+            if reg == "ph":
+                return None
+        return c
+
+    # Prefer country lock first (PH finder = LLL### / LLL####)
+    locked = lock_plate_from_raw(raw_text, reg, prefer_3_digit=prefer_3_digit)
+    if locked:
+        compact = _compact_alnum(locked)
+        disp = _disp(locked)
+        if any(rx.match(disp) or rx.match(compact) for rx in PLATE_REGEX_FALLBACKS):
+            return _accept(compact)
+        # Non-PH region locks — still enforce length 6–7 + alpha head when alnum
+        if reg != "ph":
+            return _accept(compact) or (compact if passes_emit_length_alpha_guard(compact) else None)
+    if STRICT_REGEX and reg == "ph":
+        return None
+    for cand in _candidate_lock_texts(raw_text):
+        t = normalize_ph_badge_separators(cand).upper().strip()
+        t = re.sub(r"\s+", " ", t)
+        compact = _strip_trailing_region_tags(_compact_alnum(t))
+        for rx in PLATE_REGEX_FALLBACKS:
+            if rx.match(t) or rx.match(compact):
+                m = re.fullmatch(r"([A-Z]{3})(\d{3,4})", compact)
+                if m:
+                    return _accept(m.group(1) + m.group(2))
+                return _accept(compact)
+    return None
+
+
+def unclear_syntax_reject(raw_text: str = "", *, error: str = "syntax_reject") -> dict[str, Any]:
+    """Node-facing UNCLEAR payload when OCR text fails LTO syntax."""
+    return {
+        "ok": False,
+        "unclear": True,
+        "plate": None,
+        "plateCompact": None,
+        "plateText": "UNCLEAR",
+        "rawText": (raw_text or "")[:200],
+        "error": error,
+        "reviewStatus": "Unclear / Manual Review",
+    }
+
+
 def _models_dir() -> str:
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 
@@ -209,6 +391,7 @@ def get_yolo():
 
 
 def get_ocr():
+    """PP-OCRv4 + SVTR recognition (Stage 3 sequence OCR)."""
     global _ocr, _ocr_error
     if _ocr is not None:
         return _ocr
@@ -217,14 +400,115 @@ def get_ocr():
     try:
         from paddleocr import PaddleOCR
 
-        try:
-            _ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
-        except TypeError:
-            _ocr = PaddleOCR(use_textline_orientation=True, lang="en")
-        return _ocr
+        # Prefer PP-OCRv4 / SVTR; fall back through API variants across paddleocr 2.x
+        attempts = [
+            dict(use_angle_cls=True, lang="en", show_log=False, ocr_version="PP-OCRv4", rec_algorithm="SVTR_LCNet"),
+            dict(use_angle_cls=True, lang="en", show_log=False, ocr_version="PP-OCRv4"),
+            dict(use_textline_orientation=True, lang="en", ocr_version="PP-OCRv4"),
+            dict(use_angle_cls=True, lang="en", show_log=False),
+            dict(use_textline_orientation=True, lang="en"),
+        ]
+        last_err = None
+        for kwargs in attempts:
+            try:
+                _ocr = PaddleOCR(**kwargs)
+                return _ocr
+            except TypeError as exc:
+                last_err = exc
+                continue
+            except Exception as exc:  # noqa: BLE001
+                last_err = exc
+                continue
+        _ocr_error = str(last_err or "paddleocr_init_failed")[:200]
+        return None
     except Exception as exc:  # noqa: BLE001
         _ocr_error = str(exc)[:200]
         return None
+
+
+def read_with_ppocrv4(img_bgr: np.ndarray) -> dict[str, Any]:
+    """
+    Stage 3 — PP-OCRv4 (SVTR) on a DEEP COPY of the micro-crop.
+    Caller UI uint8 buffer is never resized/normalized in place.
+    Failures → unclear + traceback on sidecar console.
+    """
+    unclear_fail = {
+        "ok": False,
+        "unclear": True,
+        "reviewStatus": "Unclear / Manual Review",
+        "engine": "pp-ocrv4",
+        "ocrModel": "PP-OCRv4-SVTR",
+    }
+    if img_bgr is None or getattr(img_bgr, "size", 0) == 0:
+        return {**unclear_fail, "error": "bad_file"}
+    if get_ocr() is None:
+        print("[anpr-ppocrv4] engine_missing:", _ocr_error or "PaddleOCR not installed", flush=True)
+        return {
+            **unclear_fail,
+            "error": "engine_missing",
+            "message": (_ocr_error or "PaddleOCR not installed")[:160],
+        }
+    # Inference-only deep copy (UI keeps the original uint8 crop)
+    work = _ensure_ui_uint8(img_bgr)
+    if work is None:
+        return {**unclear_fail, "error": "bad_file", "message": "ui_uint8_copy_failed"}
+    try:
+        raw_text, conf01, lines, prof, ocr_mode = _ocr_crop_attempt(
+            work, region=REGION, use_main_band=True
+        )
+    except Exception as exc:  # noqa: BLE001
+        import traceback
+        print("[anpr-ppocrv4] OCR exception:", repr(exc), flush=True)
+        traceback.print_exc()
+        return {
+            **unclear_fail,
+            "error": "ocr_exception",
+            "message": str(exc)[:220],
+        }
+    text = str(raw_text or "").strip()
+    conf = float(conf01 or 0)
+    # Mandate: conf < 0.70 → Unclear; otherwise pass detected string to UI
+    if not text or conf < OCR_CONF_FLOOR:
+        print(
+            f"[anpr-ppocrv4] Unclear — text={text!r} conf={conf:.3f} floor={OCR_CONF_FLOOR}",
+            flush=True,
+        )
+        return {
+            **unclear_fail,
+            "error": "low_confidence" if text else "plate_not_found",
+            "rawText": text,
+            "conf": conf,
+            "preprocess": prof,
+            "ocrMode": ocr_mode,
+            "lines": lines,
+            "det": {
+                "x": 0,
+                "y": 0,
+                "w": int(img_bgr.shape[1]),
+                "h": int(img_bgr.shape[0]),
+                "score": conf,
+                "source": "pp-ocrv4-strip",
+            },
+        }
+    return {
+        "ok": True,
+        "rawText": text,
+        "conf": conf,
+        "engine": "pp-ocrv4",
+        "ocrModel": "PP-OCRv4-SVTR",
+        "preprocess": prof,
+        "ocrMode": ocr_mode,
+        "lines": lines,
+        "unclear": False,
+        "det": {
+            "x": 0,
+            "y": 0,
+            "w": int(img_bgr.shape[1]),
+            "h": int(img_bgr.shape[0]),
+            "score": conf,
+            "source": "pp-ocrv4-strip",
+        },
+    }
 
 
 def detect_preprocess_profile(crop_bgr: np.ndarray) -> str:
@@ -306,79 +590,163 @@ def format_display(plate_compact: str) -> str:
     return c
 
 
+def _resize_for_svtr(img_bgr: np.ndarray, target_h: int = SVTR_INPUT_H) -> np.ndarray:
+    """
+    Resize inference buffer to SVTR height (48). Always returns a NEW array —
+    never mutates the UI uint8 micro-crop.
+    """
+    if img_bgr is None or getattr(img_bgr, "size", 0) == 0:
+        return img_bgr
+    h, w = img_bgr.shape[:2]
+    if h <= 0 or w <= 0:
+        return img_bgr
+    if h == target_h:
+        return np.ascontiguousarray(img_bgr).copy()
+    scale = float(target_h) / float(h)
+    new_w = max(8, int(round(w * scale)))
+    max_w = int(os.environ.get("FM_ANPR_SVTR_MAX_W", "640") or "640")
+    if new_w > max_w:
+        new_w = max_w
+    interp = cv2.INTER_AREA if h > target_h else cv2.INTER_CUBIC
+    return cv2.resize(img_bgr, (new_w, target_h), interpolation=interp)
+
+
+def _parse_paddle_ocr_results(results: Any) -> tuple[str, float, list[dict[str, Any]]]:
+    """
+    PaddleOCR v4 classic shape:
+      results = ocr.ocr(img, cls=True)
+      for line in results[0]:
+          box, (text, confidence) = line
+    Also tolerates dict / OCRResult rec_texts variants.
+    Picks the highest-confidence line as detected_text.
+    """
+    lines_out: list[dict[str, Any]] = []
+    detected_text = ""
+    max_conf = 0.0
+
+    if results is None:
+        return "", 0.0, lines_out
+
+    # Newer paddleocr may return [OCRResult] or dict-like
+    if isinstance(results, dict):
+        rec_texts = results.get("rec_texts") or results.get("text") or []
+        rec_scores = results.get("rec_scores") or results.get("score") or []
+        for t, s in zip(rec_texts, rec_scores if rec_scores else [0.0] * len(rec_texts)):
+            conf = float(s or 0)
+            text = str(t or "").strip()
+            if not text:
+                continue
+            lines_out.append({"text": text, "conf": conf})
+            if conf > max_conf:
+                max_conf = conf
+                detected_text = text
+        return detected_text, max_conf, lines_out
+
+    if not isinstance(results, (list, tuple)) or not results:
+        return "", 0.0, lines_out
+
+    page0 = results[0]
+    if page0 is None:
+        return "", 0.0, lines_out
+
+    # OCRResult object with attributes
+    if hasattr(page0, "rec_texts") or (isinstance(page0, dict) and ("rec_texts" in page0 or "text" in page0)):
+        obj = page0 if not isinstance(page0, dict) else page0
+        if isinstance(obj, dict):
+            rec_texts = obj.get("rec_texts") or obj.get("text") or []
+            rec_scores = obj.get("rec_scores") or obj.get("score") or []
+        else:
+            rec_texts = getattr(obj, "rec_texts", None) or getattr(obj, "text", None) or []
+            rec_scores = getattr(obj, "rec_scores", None) or getattr(obj, "score", None) or []
+        for t, s in zip(list(rec_texts), list(rec_scores) if rec_scores is not None else [0.0] * len(list(rec_texts))):
+            conf = float(s or 0)
+            text = str(t or "").strip()
+            if not text:
+                continue
+            lines_out.append({"text": text, "conf": conf})
+            if conf > max_conf:
+                max_conf = conf
+                detected_text = text
+        return detected_text, max_conf, lines_out
+
+    # Mandated nested list: [[box, (text, conf)], ...]
+    try:
+        for line in page0:
+            if not line:
+                continue
+            text = ""
+            conf = 0.0
+            try:
+                # box, (text, confidence) = line
+                _box, info = line[0], line[1]
+                if isinstance(info, (list, tuple)) and len(info) >= 2:
+                    text = str(info[0] or "").strip()
+                    conf = float(info[1] or 0)
+                elif isinstance(info, str):
+                    text = info.strip()
+                    conf = 0.0
+                elif isinstance(info, dict):
+                    text = str(info.get("text") or "").strip()
+                    conf = float(info.get("score") or info.get("confidence") or 0)
+            except (TypeError, ValueError, IndexError):
+                # Alternate: line is already (text, conf)
+                if isinstance(line, (list, tuple)) and len(line) >= 2 and isinstance(line[0], str):
+                    text = str(line[0] or "").strip()
+                    conf = float(line[1] or 0)
+                else:
+                    continue
+            if not text:
+                continue
+            lines_out.append({"text": text, "conf": conf})
+            if conf > max_conf:
+                max_conf = conf
+                detected_text = text
+    except TypeError:
+        # page0 not iterable — last resort stringify
+        pass
+
+    return detected_text, max_conf, lines_out
+
+
 def run_paddle(cleaned_gray: np.ndarray) -> tuple[str, float, list[dict[str, Any]]]:
     ocr = get_ocr()
     if ocr is None:
         raise RuntimeError(_ocr_error or "ocr_missing")
-    bgr = cv2.cvtColor(cleaned_gray, cv2.COLOR_GRAY2BGR)
-    try:
-        result = ocr.ocr(bgr, cls=True)
-    except TypeError:
-        result = ocr.ocr(bgr)
-
-    lines_out: list[dict[str, Any]] = []
-    if not result:
-        return "", 0.0, lines_out
-    lines = result[0] if isinstance(result, list) and result else result
-    if lines is None:
-        return "", 0.0, lines_out
-    if isinstance(lines, dict):
-        rec_texts = lines.get("rec_texts") or lines.get("text") or []
-        rec_scores = lines.get("rec_scores") or lines.get("score") or []
-        for t, s in zip(rec_texts, rec_scores if rec_scores else [0.0] * len(rec_texts)):
-            lines_out.append({"text": str(t), "conf": float(s)})
+    if cleaned_gray is None or getattr(cleaned_gray, "size", 0) == 0:
+        return "", 0.0, []
+    if len(cleaned_gray.shape) == 2:
+        bgr = cv2.cvtColor(cleaned_gray, cv2.COLOR_GRAY2BGR)
     else:
-        for item in lines:
-            if not item:
-                continue
-            if isinstance(item, (list, tuple)) and len(item) >= 2:
-                info = item[1]
-                if isinstance(info, (list, tuple)) and len(info) >= 2:
-                    lines_out.append({"text": str(info[0]), "conf": float(info[1])})
-                elif isinstance(info, str):
-                    lines_out.append({"text": info, "conf": 0.0})
+        bgr = cleaned_gray
+    bgr = _resize_for_svtr(bgr, SVTR_INPUT_H)
+    try:
+        results = ocr.ocr(bgr, cls=True)
+    except TypeError:
+        try:
+            results = ocr.ocr(bgr)
+        except Exception as exc:  # noqa: BLE001
+            import traceback
+            print("[anpr-ppocrv4] run_paddle ocr() failed:", repr(exc),
+                  "shape=", getattr(bgr, "shape", None), flush=True)
+            traceback.print_exc()
+            raise
+    except Exception as exc:  # noqa: BLE001
+        import traceback
+        print("[anpr-ppocrv4] run_paddle ocr() failed:", repr(exc),
+              "shape=", getattr(bgr, "shape", None), flush=True)
+        traceback.print_exc()
+        raise
 
-    from plate_roi import BAN_TEXT
-
-    best_text = ""
-    best_conf = 0.0
-    best_score = -1.0
-    for ln in lines_out:
-        text = normalize_ph_badge_separators(ln.get("text") or "")
-        conf = float(ln.get("conf") or 0)
-        if BAN_TEXT.search(text):
-            continue
-        letters = re.sub(r"[^A-Za-z]", "", text)
-        digits = re.sub(r"[^0-9]", "", text)
-        if len(letters) >= 10 and len(digits) == 0:
-            continue
-        if len(digits) < 2:
-            continue
-        compact = _compact_alnum(text)
-        score = conf
-        if re.search(r"[A-Z]{2,3}\d{2,4}", compact):
-            score += 0.5
-        if apply_region_regex(text):
-            score += 1.0
-        if score > best_score:
-            best_score = score
-            best_text = text
-            best_conf = conf
-    if not best_text and lines_out:
-        kept = []
-        for ln in lines_out:
-            t = normalize_ph_badge_separators(ln.get("text") or "")
-            if BAN_TEXT.search(t):
-                continue
-            if len(re.sub(r"[^0-9]", "", t)) < 1:
-                continue
-            kept.append({**ln, "text": t})
-        if kept:
-            # Prefer shortest digit-bearing line (main plate) over slogan join
-            kept.sort(key=lambda ln: len(_compact_alnum(ln.get("text") or "")))
-            best_text = kept[0]["text"]
-            best_conf = float(kept[0].get("conf") or 0)
-    return best_text, best_conf, lines_out
+    detected_text, max_conf, lines_out = _parse_paddle_ocr_results(results)
+    if detected_text:
+        detected_text = normalize_ph_badge_separators(detected_text)
+        print(
+            f"[anpr-ppocrv4] parsed text={detected_text!r} conf={max_conf:.3f} lines={len(lines_out)}",
+            flush=True,
+        )
+    else:
+        print(f"[anpr-ppocrv4] parse empty — raw type={type(results).__name__}", flush=True)
+    return detected_text, max_conf, lines_out
 
 
 def _attach_debug(payload: dict[str, Any], **extra: Any) -> dict[str, Any]:
@@ -561,13 +929,38 @@ def _det_crop_jpeg_b64(img_bgr: np.ndarray, det: Optional[dict[str, Any]]) -> Op
         return None
 
 
+def _ensure_ui_uint8(img_bgr: np.ndarray) -> Optional[np.ndarray]:
+    """
+    Deep-copy contiguous uint8 BGR for UI / DB / magnifier.
+    Never returns a shared view of an OCR tensor / normalized buffer.
+    """
+    if img_bgr is None or getattr(img_bgr, "size", 0) == 0:
+        return None
+    try:
+        arr = np.ascontiguousarray(img_bgr)
+        if arr.dtype != np.uint8:
+            if np.issubdtype(arr.dtype, np.floating):
+                mx = float(np.max(arr)) if arr.size else 0.0
+                if mx <= 1.5:
+                    arr = (np.clip(arr, 0.0, 1.0) * 255.0).astype(np.uint8)
+                else:
+                    arr = np.clip(arr, 0.0, 255.0).astype(np.uint8)
+            else:
+                arr = np.clip(arr, 0, 255).astype(np.uint8)
+        # Independent buffer — OCR may mutate its own copy later
+        return arr.copy()
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _ndarray_jpeg_b64(crop_bgr: np.ndarray) -> Optional[str]:
     import base64
 
-    if crop_bgr is None or getattr(crop_bgr, "size", 0) == 0:
+    ui = _ensure_ui_uint8(crop_bgr)
+    if ui is None:
         return None
     try:
-        ok, buf = cv2.imencode(".jpg", crop_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 88])
+        ok, buf = cv2.imencode(".jpg", ui, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
         if not ok or buf is None:
             return None
         return base64.b64encode(buf.tobytes()).decode("ascii")
@@ -585,11 +978,13 @@ def _attach_crop(payload: dict[str, Any], img_bgr: np.ndarray, det: Optional[dic
 
 
 def _attach_crop_array(payload: dict[str, Any], crop_bgr: np.ndarray) -> dict[str, Any]:
+    """Attach UI micro-crop from raw uint8 only (never SVTR-resized OCR buffer)."""
     out = dict(payload or {})
     b64 = _ndarray_jpeg_b64(crop_bgr)
     if b64:
         out["cropJpegB64"] = b64
         out["hasCrop"] = True
+        out["uiCropUint8"] = True
     return out
 
 
@@ -636,6 +1031,33 @@ def _attach_vehicle(
             out["vehicleJpegB64"] = b64
             out["hasVehicle"] = True
             if meta:
+                # Stage-2 MMR: classify macro-crop before Stage-3 consumers use coords
+                try:
+                    from vehicle_mmr import classify_vehicle_mmr
+
+                    mmr = classify_vehicle_mmr(crop, meta.get("label"))
+                    meta["make"] = mmr.get("make")
+                    meta["model"] = mmr.get("model")
+                    meta["color"] = mmr.get("color")
+                    meta["mmrText"] = mmr.get("mmrText")
+                    meta["mmrEngine"] = mmr.get("engine")
+                    out["mmr"] = {
+                        "make": mmr.get("make"),
+                        "model": mmr.get("model"),
+                        "color": mmr.get("color"),
+                        "mmrText": mmr.get("mmrText"),
+                        "engine": mmr.get("engine"),
+                    }
+                except Exception:  # noqa: BLE001
+                    pass
+                # Keyframe sharpness (Laplacian variance) for best-frame selection
+                try:
+                    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+                    sharp = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+                    meta["sharpness"] = sharp
+                    out["sharpness"] = sharp
+                except Exception:  # noqa: BLE001
+                    pass
                 out["vehicle"] = meta
     except Exception:  # noqa: BLE001
         pass
@@ -669,34 +1091,40 @@ def _finalize_fastalpr_payload(
     region: Optional[str],
     vehicle_det: Optional[dict[str, Any]],
 ) -> dict[str, Any]:
-    engine_tag = "fastalpr-ship-v1"
+    engine_tag = str(raw.get("engine") or "pp-ocrv4")
     reg = region or REGION
 
     def finish(payload: dict[str, Any]) -> dict[str, Any]:
         # Plate crop stays secondary; vehicle/plate-hull is rail primary
-        return _attach_vehicle(
+        attached = _attach_vehicle(
             _attach_crop(payload, img_bgr, det_meta),
             img_bgr,
             vehicle_det,
             plate_det=det_meta,
         )
+        return _json_safe(attached)
 
     if not raw.get("ok") and not det_meta:
         out = dict(raw)
+        _pop_cv_buffers(out)
         out["region"] = reg
         out["engine"] = engine_tag
         # Vehicle-only Live tick (plate miss) — still publish vehicle scene
         if vehicle_det:
             out["error"] = out.get("error") or "plate_not_found"
             out["hasDetection"] = False
-            return finish(_attach_debug(out))
-        return finish(out)
+            return finish(_attach_debug(_json_safe(out)))
+        return finish(_json_safe(out))
 
     text = str(raw.get("rawText") or "")
     conf01 = float(raw.get("conf") or 0)
+    # FastALPR sometimes returns 0–100; normalize to 0–1 for floor checks
+    if conf01 > 1.0:
+        conf01 = conf01 / 100.0
     conf_pct = int(round(max(0.0, min(1.0, conf01)) * 100))
     prefer_3 = (reg or "").lower() == "ph"
-    locked = lock_plate_from_raw(text, reg, prefer_3_digit=prefer_3) if text.strip() else None
+    print(f"RAW OCR RESULT: {text} | CONFIDENCE: {conf01}", flush=True)
+    locked = validate_lto_plate_syntax(text, reg, prefer_3_digit=prefer_3) if text.strip() else None
     if not isinstance(det_meta, dict):
         det_meta = {"source": "fastalpr"} if det_meta is None and raw.get("ok") else det_meta
 
@@ -709,123 +1137,247 @@ def _finalize_fastalpr_payload(
         "detModel": raw.get("detModel"),
         "ocrModel": raw.get("ocrModel"),
         "hasDetection": bool(det_meta),
+        "plateText": "UNCLEAR",
     }
 
-    if not text.strip() or conf01 <= 0:
+    if not text.strip():
         return finish(
-            _attach_debug({"ok": False, "error": "plate_not_found", **fail_base}),
+            _attach_debug({
+                "ok": False,
+                "unclear": True,
+                "reviewStatus": "Unclear / Manual Review",
+                "error": "plate_not_found",
+                "plate": None,
+                "plateCompact": None,
+                **fail_base,
+            }),
         )
 
-    if conf01 < CONF_FLOOR:
+    # Live / dual path: 0.50 floor (was 0.70–0.80)
+    ocr_path = str(raw.get("ocrPath") or "").lower()
+    floor = LIVE_CONF_FLOOR if ocr_path == "live" or "dual" in engine_tag.lower() else CONF_FLOOR
+    if conf01 < floor and not (isinstance(raw.get("dual"), dict) and raw.get("ok")):
         return finish(
-            _attach_debug({"ok": False, "error": "low_confidence", **fail_base}),
-        )
-    if not locked:
-        return finish(
-            _attach_debug({"ok": False, "error": "format_reject", **fail_base}),
+            _attach_debug({
+                "ok": False,
+                "unclear": True,
+                "reviewStatus": "Unclear / Manual Review",
+                "error": "low_confidence",
+                "plate": None,
+                "plateCompact": None,
+                **fail_base,
+            }),
         )
 
-    return finish(
-        _attach_debug(
-            {
-                "ok": True,
-                "plate": format_display(locked),
-                "plateCompact": locked,
-                "confidence": conf_pct,
-                "lowConfidence": False,
-                "engine": engine_tag,
-                "region": reg,
-                "rawText": text[:200],
-                "det": det_meta,
-                "detModel": raw.get("detModel"),
-                "ocrModel": raw.get("ocrModel"),
-                "yolo": "fastalpr",
-                "hasDetection": True,
-            }
-        ),
-    )
+    # Prefer dual-locked compact only if it still passes LTO syntax
+    dual_plate = str(raw.get("plateCompact") or raw.get("plate") or "").strip()
+    dual_ok = validate_lto_plate_syntax(dual_plate, reg, prefer_3_digit=prefer_3) if dual_plate else None
+    plate_compact = locked or dual_ok
+    if plate_compact:
+        plate_compact = _compact_alnum(plate_compact)
+    # Syntax fail → UNCLEAR (never emit SEBAXYIN / M3W111 / truncated junk)
+    if not plate_compact or not validate_lto_plate_syntax(plate_compact, reg, prefer_3_digit=prefer_3):
+        return finish(
+            _attach_debug({
+                "ok": False,
+                "unclear": True,
+                "reviewStatus": "Unclear / Manual Review",
+                "error": "syntax_reject",
+                "plate": None,
+                "plateCompact": None,
+                **fail_base,
+            }),
+        )
+
+    out_ok = {
+        "ok": True,
+        "plate": format_display(plate_compact),
+        "plateCompact": plate_compact,
+        "plateText": format_display(plate_compact),
+        "confidence": conf_pct,
+        "lowConfidence": conf01 < 0.70,
+        "engine": engine_tag,
+        "region": reg,
+        "rawText": text[:200],
+        "det": det_meta,
+        "detModel": raw.get("detModel"),
+        "ocrModel": raw.get("ocrModel"),
+        "yolo": "fastalpr",
+        "hasDetection": True,
+        "unclear": False,
+    }
+    if isinstance(raw.get("dual"), dict):
+        out_ok["dual"] = raw["dual"]
+        out_ok["temporalLocked"] = bool(raw["dual"].get("temporalLocked"))
+    return finish(_attach_debug(out_ok))
+
+
+def _stamp_frame_uuid(payload: dict[str, Any], pre: dict[str, Any]) -> dict[str, Any]:
+    """Stamp Frame_UUID + sharpness onto every Macro/Micro/OCR output from one ingest."""
+    if not isinstance(payload, dict):
+        return payload
+    out = dict(payload)
+    fid = pre.get("frameUuid")
+    if fid:
+        out["frameUuid"] = fid
+    if pre.get("sharpness") is not None and out.get("sharpness") is None:
+        out["sharpness"] = pre.get("sharpness")
+    if pre.get("blurFloor") is not None:
+        out["blurFloor"] = pre.get("blurFloor")
+    if pre.get("fisheye") is not None:
+        out["fisheye"] = pre.get("fisheye")
+    return out
 
 
 def _read_plate_fastalpr(
     img_bgr: np.ndarray,
     *,
     region: Optional[str] = None,
+    path: Optional[str] = None,
 ) -> dict[str, Any]:
     """
-    ANPR-LIVE-VEHICLE-SCENE-PLATE-V1:
-    vehicle detect → plate on vehicle ROI(s) + full frame → vehicleJpegB64 + plate crop.
+    Cascaded double-crop:
+      Stage 1/2 — YOLO vehicle macro on full-res (native) frame
+      Stage 3 — CCPD pose micro → path-routed OCR (default heavy for /read).
+    No global-frame OCR.
     """
-    from fastalpr_engine import read_with_fastalpr
-    from vehicle_detect import detect_vehicles, pad_vehicle_box
+    ocr_path = path or "heavy"
+    from vehicle_detect import VEHICLE_CLASS_IDS, detect_vehicles, pad_vehicle_box
 
-    fh, fw = img_bgr.shape[:2]
+    # Always operate on the caller's buffer (already native after preprocess)
+    native = img_bgr
+    fh, fw = native.shape[:2]
     vehicles: list[dict[str, Any]] = []
     try:
-        vehicles = detect_vehicles(img_bgr)
+        vehicles = detect_vehicles(native)
     except Exception:  # noqa: BLE001
         vehicles = []
-    best_vehicle = vehicles[0] if vehicles else None
 
+    vehicles = [
+        v for v in vehicles
+        if int(v.get("cls") if v.get("cls") is not None else -1) in VEHICLE_CLASS_IDS
+        or str(v.get("label") or "").lower() in ("car", "truck", "bus", "motorcycle", "bicycle")
+    ]
+    if not vehicles:
+        # Cascaded mandate: never plate-hunt the full BWC frame
+        return {
+            "ok": False,
+            "error": "no_vehicle",
+            "engine": "dual-lpr-v1",
+            "region": region or REGION,
+            "message": "No vehicle detected — cascaded plate OCR skipped",
+            "hasDetection": False,
+            "cascade": "vehicle-required",
+        }
+
+    best_vehicle = vehicles[0]
     best_raw: Optional[dict[str, Any]] = None
     best_det: Optional[dict[str, Any]] = None
     best_rank = (-1.0, -1.0)
+    best_wpod_meta: Optional[dict[str, Any]] = None
+    best_warped: Optional[np.ndarray] = None
+    best_native_micro: Optional[np.ndarray] = None
 
-    # Prefer plate search inside vehicle boxes (cars / bikes / bus / lorry)
     for v in vehicles:
+        # Macro-crop from full-resolution native buffer (coords mapped from YOLO letterbox)
         x0, y0, x1, y1 = pad_vehicle_box(v, fw, fh)
-        roi = img_bgr[y0:y1, x0:x1]
-        if roi is None or roi.size == 0:
+        macro = native[y0:y1, x0:x1]
+        if macro is None or macro.size == 0:
             continue
+
         try:
-            raw = read_with_fastalpr(roi)
-        except Exception:  # noqa: BLE001
-            continue
-        det = _extract_det_meta(raw)
-        det = _offset_det(det, x0, y0) if det else None
-        text = str(raw.get("rawText") or "").strip()
+            from dual_lpr import cascade_plate_from_vehicle_macro
+            raw = cascade_plate_from_vehicle_macro(
+                macro,
+                track_id=None,
+                vehicle_origin=(x0, y0),
+                path=ocr_path,
+            )
+        except Exception as exc:  # noqa: BLE001
+            import traceback
+            print("[anpr-dual] cascade wrap exception:", repr(exc), flush=True)
+            traceback.print_exc()
+            raw = {
+                "ok": False,
+                "unclear": True,
+                "reviewStatus": "Unclear / Manual Review",
+                "error": "ocr_exception",
+                "message": str(exc)[:220],
+                "engine": "dual-lpr-v1",
+            }
+
+        ui_micro = raw.pop("uiMicro", None) if isinstance(raw, dict) else None
+        if isinstance(raw, dict):
+            raw.pop("uiMacro", None)
+            raw.pop("nativeMicro", None)
+            _pop_cv_buffers(raw)
+        warped = None
+        wpod_meta = raw.get("wpod") if isinstance(raw, dict) else None
+        if isinstance(ui_micro, np.ndarray) and ui_micro.size > 0:
+            ui_micro = _ensure_ui_uint8(ui_micro)
+
+        det = _extract_det_meta(raw) or (wpod_meta.get("det") if isinstance(wpod_meta, dict) else None)
+        if isinstance(det, dict) and not det.get("absolute"):
+            det = _offset_det(det, x0, y0)
+        text = str(raw.get("rawText") or raw.get("plate") or "").strip()
         conf = float(raw.get("conf") or 0)
         det_score = float((det or {}).get("score") or 0)
         rank = (1.0 if text else 0.0, conf if text else det_score)
-        if det is None and not raw.get("ok"):
+        if det is None and not raw.get("ok") and not raw.get("unclear"):
             continue
-        if rank > best_rank:
+        if rank > best_rank or (best_raw is None):
             best_rank = rank
             best_raw = raw
             best_det = det
-            if text and conf > 0:
+            best_vehicle = v
+            best_wpod_meta = wpod_meta if isinstance(wpod_meta, dict) else None
+            best_warped = warped
+            best_native_micro = ui_micro
+            if text and conf > 0 and raw.get("ok"):
                 break
 
-    # Full-frame plate pass (front/rear when vehicle box weak)
-    try:
-        full_raw = read_with_fastalpr(img_bgr)
-    except Exception:  # noqa: BLE001
-        full_raw = {"ok": False, "error": "failed"}
-    full_det = _extract_det_meta(full_raw)
-    full_text = str(full_raw.get("rawText") or "").strip()
-    full_conf = float(full_raw.get("conf") or 0)
-    full_rank = (
-        1.0 if full_text else 0.0,
-        full_conf if full_text else float((full_det or {}).get("score") or 0),
-    )
-    if full_det is not None or full_raw.get("ok"):
-        if best_raw is None or full_rank > best_rank:
-            best_raw = full_raw
-            best_det = full_det
-
     if best_raw is None:
-        best_raw = full_raw if isinstance(full_raw, dict) else {
+        best_raw = {
             "ok": False,
+            "unclear": True,
+            "reviewStatus": "Unclear / Manual Review",
             "error": "plate_not_found",
-            "engine": "fastalpr-ship-v1",
+            "engine": "dual-lpr-v1",
+            "message": "Cascaded crop-in-crop found no plate inside vehicle",
         }
 
-    return _finalize_fastalpr_payload(
-        img_bgr,
+    out = _finalize_fastalpr_payload(
+        native,
         best_raw,
         best_det,
         region=region,
         vehicle_det=best_vehicle,
     )
+    # UI micro-crop = untouched uint8 (never SVTR-resized)
+    if best_native_micro is not None and getattr(best_native_micro, "size", 0) > 0:
+        out = _attach_crop_array(out, best_native_micro)
+    elif best_warped is not None:
+        out = _attach_crop_array(out, best_warped)
+    if best_wpod_meta:
+        out["wpod"] = {
+            "source": best_wpod_meta.get("source"),
+            "pad": best_wpod_meta.get("pad"),
+            "architecture": best_wpod_meta.get("architecture") or "wpod-double-crop-v1",
+            "outW": best_wpod_meta.get("outW"),
+            "outH": best_wpod_meta.get("outH"),
+        }
+    out["ocrModel"] = best_raw.get("ocrModel") or (
+        "dual-FastALPR+HyperLPR3" if ocr_path == "heavy" else "FastALPR-live-fast-path"
+    )
+    out["ocrPath"] = best_raw.get("ocrPath") or ocr_path
+    out["engine"] = best_raw.get("engine") or out.get("engine") or "dual-lpr-v1"
+    if isinstance(best_raw.get("dual"), dict):
+        out["dual"] = best_raw["dual"]
+    if best_raw.get("unclear") or not best_raw.get("ok"):
+        out["unclear"] = True
+        out["reviewStatus"] = best_raw.get("reviewStatus") or "Unclear / Manual Review"
+        out["ocrError"] = best_raw.get("error") or "plate_not_found"
+    return out
 
 
 def read_plate_bgr(
@@ -836,15 +1388,33 @@ def read_plate_bgr(
     skip_detect: Optional[bool] = None,
 ) -> dict[str, Any]:
     """
-    Active engine from FM_ANPR_ENGINE (default fastalpr — ship).
-    paddle path: YOLO/OpenCV ROI → CLAHE → Paddle → regex → ≥80% (lab hatch).
+    Active engine from FM_ANPR_ENGINE (default fastalpr cascade).
+    /read defaults to heavy path (FastALPR + HyperLPR). Live uses /read-macro.
+    Pre-process: Frame_UUID + native frame (fisheye OFF) + Laplacian blur gate.
     """
     if img_bgr is None or getattr(img_bgr, "size", 0) == 0:
         return {"ok": False, "error": "bad_file"}
 
+    from frame_preprocess import preprocess_ingest
+
+    # Keep reference to the highest-res buffer for all crops (YOLO letterbox is inference-only)
+    native_bgr = img_bgr
+    processed, pre = preprocess_ingest(native_bgr)
+    if processed is None:
+        return {
+            "ok": False,
+            "error": pre.get("error") or "blur_reject",
+            "frameUuid": pre.get("frameUuid"),
+            "sharpness": pre.get("sharpness"),
+            "blurFloor": pre.get("blurFloor"),
+            "message": "Frame rejected (motion blur / bad input)",
+        }
+
+    img_bgr = processed
     eng = ANPR_ENGINE
     if eng in ("fastalpr", "fast-alpr", "eval", "ship"):
-        return _read_plate_fastalpr(img_bgr, region=region)
+        out = _read_plate_fastalpr(img_bgr, region=region, path="heavy")
+        return _stamp_frame_uuid(out, pre)
 
     from plate_roi import dedupe_rois, looks_like_tight_plate_crop, merge_detect_rois, roi_area, yellow_hint_roi
 
@@ -855,6 +1425,7 @@ def read_plate_bgr(
         return {
             "ok": False,
             "error": "engine_missing",
+            "frameUuid": pre.get("frameUuid"),
             "message": (_ocr_error or "PaddleOCR not installed")[:160],
         }
 
@@ -875,13 +1446,13 @@ def read_plate_bgr(
         rois = [{"x0": 0, "y0": 0, "x1": fw, "y1": fh, "score": 0.1, "source": "full_skip"}]
 
     if not rois:
-        return {
+        return _stamp_frame_uuid({
             "ok": False,
             "error": "plate_not_found",
             "engine": engine_tag,
             "region": (region or REGION),
             "message": "No plate region found",
-        }
+        }, pre)
 
     rois.sort(key=lambda r: (roi_area(r), -float(r.get("score") or 0)))
 
@@ -909,23 +1480,26 @@ def read_plate_bgr(
                 best_fail = fail_cand
 
     if len(successes) == 1:
-        return successes[0]
+        return _stamp_frame_uuid(successes[0], pre)
 
     if len(successes) > 1:
         compacts = {s.get("plateCompact") for s in successes if s.get("plateCompact")}
         if len(compacts) > 1:
-            return _attach_debug(
-                {
-                    "ok": False,
-                    "error": "ambiguous_read",
-                    "engine": engine_tag,
-                    "region": (region or REGION),
-                    "message": "Multiple ROIs disagree on plate text",
-                    "candidates": [s.get("plateCompact") for s in successes[:3]],
-                },
-                roiCount=len(rois),
+            return _stamp_frame_uuid(
+                _attach_debug(
+                    {
+                        "ok": False,
+                        "error": "ambiguous_read",
+                        "engine": engine_tag,
+                        "region": (region or REGION),
+                        "message": "Multiple ROIs disagree on plate text",
+                        "candidates": [s.get("plateCompact") for s in successes[:3]],
+                    },
+                    roiCount=len(rois),
+                ),
+                pre,
             )
-        return successes[0]
+        return _stamp_frame_uuid(successes[0], pre)
 
     if looks_like_tight_plate_crop(img_bgr):
         fallback_roi = {"x0": 0, "y0": 0, "x1": fw, "y1": fh, "score": 0.01, "source": "full_fallback"}
@@ -938,18 +1512,266 @@ def read_plate_bgr(
             allow_publish=True,
         )
         if ok_payload:
-            return ok_payload
+            return _stamp_frame_uuid(ok_payload, pre)
         if fail_cand and (best_fail is None or (fail_cand.get("confidence") or 0) > (best_fail.get("confidence") or 0)):
             best_fail = fail_cand
 
     if best_fail:
-        return best_fail
-    return {
+        return _stamp_frame_uuid(best_fail, pre)
+    return _stamp_frame_uuid({
         "ok": False,
         "error": "plate_not_found",
         "engine": engine_tag,
         "region": (region or REGION),
+    }, pre)
+
+
+def track_frame_bgr(
+    img_bgr: np.ndarray,
+    *,
+    cam_id: Optional[str] = None,
+) -> dict[str, Any]:
+    """
+    LIVE track-only pass — Stage 1 YOLO vehicle detect + macro-crop + sharpness.
+    Sampled frames are motion-stabilized; NO WPOD / NO OCR (deferred dual-engine on exit).
+    """
+    from dual_lpr import stabilize_frame
+    from vehicle_detect import VEHICLE_CLASS_IDS, crop_vehicle_bgr, detect_vehicles
+    from frame_preprocess import preprocess_ingest, laplacian_variance
+
+    cam_label = str(cam_id or "unknown").strip() or "unknown"
+
+    if img_bgr is None or getattr(img_bgr, "size", 0) == 0:
+        print(f"[ANPR-TRACE] Camera: {cam_label} | Detections found: 0 | error=bad_file")
+        return {"ok": False, "error": "bad_file", "trackOnly": True}
+
+    processed, pre = preprocess_ingest(img_bgr)
+    if processed is None:
+        print(
+            f"[ANPR-TRACE] Camera: {cam_label} | Detections found: 0 | error="
+            f"{pre.get('error') or 'blur_reject'}"
+        )
+        return {
+            "ok": False,
+            "error": pre.get("error") or "blur_reject",
+            "trackOnly": True,
+            "frameUuid": pre.get("frameUuid"),
+            "sharpness": pre.get("sharpness"),
+            "blurFloor": pre.get("blurFloor"),
+        }
+    try:
+        processed = stabilize_frame(processed)
+    except Exception:  # noqa: BLE001
+        pass
+
+    vehicles: list[dict[str, Any]] = []
+    try:
+        vehicles = detect_vehicles(processed)
+    except Exception:  # noqa: BLE001
+        vehicles = []
+    vehicles = [
+        v for v in vehicles
+        if int(v.get("cls") if v.get("cls") is not None else -1) in VEHICLE_CLASS_IDS
+        or str(v.get("label") or "").lower() in ("car", "truck", "bus", "motorcycle", "bicycle")
+    ]
+    print(f"[ANPR-TRACE] Camera: {cam_label} | Detections found: {len(vehicles)}")
+    if not vehicles:
+        return _stamp_frame_uuid({
+            "ok": False,
+            "error": "no_vehicle",
+            "trackOnly": True,
+            "hasDetection": False,
+            "message": "No vehicle — track skip",
+            "camId": cam_label,
+        }, pre)
+
+    best = vehicles[0]
+    crop = crop_vehicle_bgr(processed, best)
+    sharp = float(pre.get("sharpness") or 0)
+    if crop is not None and getattr(crop, "size", 0) > 0:
+        try:
+            sharp = max(sharp, float(laplacian_variance(crop)))
+        except Exception:  # noqa: BLE001
+            pass
+    out: dict[str, Any] = {
+        "ok": True,
+        "trackOnly": True,
+        "hasDetection": True,
+        "sharpness": float(sharp),
+        "camId": cam_label,
+        "vehicle": {
+            "x": int(best.get("x") or 0),
+            "y": int(best.get("y") or 0),
+            "w": int(best.get("w") or 0),
+            "h": int(best.get("h") or 0),
+            "label": best.get("label"),
+            "score": float(best.get("score") or 0),
+            "cls": int(best.get("cls") if best.get("cls") is not None else -1),
+            "sharpness": float(sharp),
+        },
+        "engine": "track-yolo-v1",
     }
+    if crop is not None:
+        b64 = _ndarray_jpeg_b64(crop)
+        if b64:
+            out["vehicleJpegB64"] = b64
+            out["hasVehicle"] = True
+    return _json_safe(_stamp_frame_uuid(out, pre))
+
+
+def read_macro_crop_bgr(
+    img_bgr: np.ndarray,
+    *,
+    region: Optional[str] = None,
+    track_id: Optional[str] = None,
+    path: Optional[str] = None,
+) -> dict[str, Any]:
+    """
+    Deferred / moving-target: image is already a vehicle macro-crop.
+    Default path=live (FastALPR only). Heavy = FastALPR + HyperLPR.
+    """
+    from dual_lpr import cascade_plate_from_vehicle_macro, resolve_ocr_path, stabilize_frame
+    from frame_preprocess import preprocess_ingest, laplacian_variance
+
+    ocr_path = resolve_ocr_path(path or "live")
+
+    if img_bgr is None or getattr(img_bgr, "size", 0) == 0:
+        return {"ok": False, "error": "bad_file"}
+
+    processed, pre = preprocess_ingest(img_bgr)
+    if processed is None:
+        processed = img_bgr
+        pre = {"frameUuid": pre.get("frameUuid"), "sharpness": pre.get("sharpness") or 0}
+    try:
+        processed = stabilize_frame(processed)
+    except Exception:  # noqa: BLE001
+        pass
+
+    try:
+        raw = cascade_plate_from_vehicle_macro(
+            processed,
+            track_id=track_id,
+            vehicle_origin=(0, 0),
+            path=ocr_path,
+        )
+    except Exception as exc:  # noqa: BLE001
+        import traceback
+        print("[anpr-dual] deferred cascade exception:", repr(exc), flush=True)
+        traceback.print_exc()
+        raw = {
+            "ok": False,
+            "unclear": True,
+            "reviewStatus": "Unclear / Manual Review",
+            "error": "ocr_exception",
+            "message": str(exc)[:220],
+            "engine": "dual-lpr-v1",
+        }
+
+    ui_micro = raw.pop("uiMicro", None) if isinstance(raw, dict) else None
+    if isinstance(raw, dict):
+        raw.pop("uiMacro", None)
+        raw.pop("nativeMicro", None)
+        _pop_cv_buffers(raw)
+    if isinstance(ui_micro, np.ndarray) and ui_micro.size > 0:
+        ui_micro = _ensure_ui_uint8(ui_micro)
+    wpod_meta = raw.get("wpod") if isinstance(raw, dict) else None
+
+    det = _extract_det_meta(raw)
+    if isinstance(det, dict):
+        # Cast YOLO/pose box + conf to native Python (never np.float32 in JSON)
+        for k in ("x", "y", "w", "h", "x1", "y1", "x2", "y2"):
+            if det.get(k) is not None:
+                det[k] = int(det[k])
+        if det.get("score") is not None:
+            det["score"] = float(det["score"])
+        if det.get("detConf") is not None:
+            det["detConf"] = float(det["detConf"])
+    fh, fw = processed.shape[:2]
+    vehicle_det = {
+        "x": 0,
+        "y": 0,
+        "w": int(fw),
+        "h": int(fh),
+        "label": "car",
+        "score": 1.0,
+        "source": "deferred-macro",
+    }
+    out = _finalize_fastalpr_payload(
+        processed,
+        raw,
+        det,
+        region=region,
+        vehicle_det=vehicle_det,
+    )
+    if ui_micro is not None:
+        out = _attach_crop_array(out, ui_micro)
+    b64 = _ndarray_jpeg_b64(processed)
+    if b64:
+        out["vehicleJpegB64"] = b64
+        out["hasVehicle"] = True
+    if wpod_meta:
+        out["wpod"] = {
+            "source": wpod_meta.get("source") if isinstance(wpod_meta, dict) else None,
+            "architecture": "cascade-crop-in-crop-v1",
+        }
+    try:
+        out["sharpness"] = float(laplacian_variance(processed))
+    except Exception:  # noqa: BLE001
+        out["sharpness"] = pre.get("sharpness")
+    out["deferredSingleShot"] = True
+    out["cascade"] = "vehicle-then-plate"
+    out["ocrModel"] = raw.get("ocrModel") or (
+        "FastALPR-live-fast-path" if ocr_path == "live" else "dual-FastALPR+HyperLPR3"
+    )
+    out["ocrPath"] = raw.get("ocrPath") or ocr_path
+    out["engine"] = raw.get("engine") or out.get("engine") or "dual-lpr-v1"
+    if isinstance(raw.get("dual"), dict):
+        out["dual"] = raw["dual"]
+        out["temporalLocked"] = bool(raw["dual"].get("temporalLocked"))
+    if track_id:
+        out["trackId"] = str(track_id)
+    # Preserve consensus plate even when temporal still pending
+    if not out.get("plate") and raw.get("plate"):
+        out["plate"] = raw.get("plate")
+        out["plateCompact"] = raw.get("plateCompact") or raw.get("plate")
+    if raw.get("unclear") or not raw.get("ok"):
+        out["unclear"] = True
+        out["reviewStatus"] = raw.get("reviewStatus") or "Unclear / Manual Review"
+        out["ocrError"] = raw.get("error") or "plate_not_found"
+        # If we have a consensus candidate, surface it (not blank UNCLEAR)
+        cons = (raw.get("dual") or {}).get("consensus") if isinstance(raw.get("dual"), dict) else None
+        cand = (cons or {}).get("plate") if isinstance(cons, dict) else None
+        if cand and not out.get("plate"):
+            out["plate"] = cand
+            out["plateCompact"] = cand
+            out["rawText"] = cand
+    return _json_safe(_stamp_frame_uuid(out, pre if isinstance(pre, dict) else {}))
+
+
+def track_frame_path(path: str, cam_id: Optional[str] = None) -> dict[str, Any]:
+    if not path or not os.path.isfile(path):
+        print(f"[ANPR-TRACE] Camera: {cam_id or 'unknown'} | Detections found: 0 | error=bad_file")
+        return {"ok": False, "error": "bad_file", "trackOnly": True}
+    img = cv2.imread(path)
+    if img is None:
+        print(f"[ANPR-TRACE] Camera: {cam_id or 'unknown'} | Detections found: 0 | error=cannot_decode")
+        return {"ok": False, "error": "bad_file", "trackOnly": True, "message": "cannot_decode"}
+    return track_frame_bgr(img, cam_id=cam_id)
+
+
+def read_macro_crop_path(
+    path: str,
+    *,
+    region: Optional[str] = None,
+    track_id: Optional[str] = None,
+    ocr_path: Optional[str] = None,
+) -> dict[str, Any]:
+    if not path or not os.path.isfile(path):
+        return {"ok": False, "error": "bad_file"}
+    img = cv2.imread(path)
+    if img is None:
+        return {"ok": False, "error": "bad_file", "message": "cannot_decode"}
+    return read_macro_crop_bgr(img, region=region, track_id=track_id, path=ocr_path)
 
 
 def read_plate_path(
@@ -971,23 +1793,82 @@ def health_payload() -> dict[str, Any]:
     from fastalpr_engine import fastalpr_status
     from plate_yolo import yolo_engine_status
     from vehicle_detect import vehicle_status
+    from wpod_net import wpod_status
 
     fa = fastalpr_status()
     vs = vehicle_status()
+    ws = wpod_status()
     yst = yolo_engine_status()
     yolo = get_yolo() if ANPR_ENGINE in ("paddle", "mob601", "yolo") else None
-    ocr = get_ocr() if ANPR_ENGINE in ("paddle", "mob601", "yolo") else None
 
-    active_ok = fa["ready"] if ANPR_ENGINE in ("fastalpr", "fast-alpr", "eval", "ship") else (ocr is not None)
+    cascade = ANPR_ENGINE in ("fastalpr", "fast-alpr", "eval", "ship")
+    dual_on = (os.environ.get("FM_ANPR_DUAL_ENGINE") or "1").strip().lower() not in (
+        "0", "false", "no", "off",
+    )
+    plate_det = (os.environ.get("FM_ANPR_PLATE_DET") or "ccpd_pose").strip().lower()
+    try:
+        from plate_pose_ccpd import plate_pose_status
+
+        pps = plate_pose_status()
+    except Exception as exc:  # noqa: BLE001
+        pps = {"ready": False, "error": str(exc)[:120]}
+    try:
+        from hyperlpr_engine import hyperlpr_status
+
+        hls = hyperlpr_status()
+    except Exception as exc:  # noqa: BLE001
+        hls = {"ready": False, "error": str(exc)[:120]}
+    try:
+        from dual_lpr import (
+            BOX_PAD_FRAC,
+            ENHANCE_SKIP_FM,
+            MICRO_BLUR_HEAVY,
+            MICRO_BLUR_LIVE,
+            PLATE_RANK_K,
+        )
+    except Exception:  # noqa: BLE001
+        MICRO_BLUR_LIVE = float(os.environ.get("FM_ANPR_MICRO_BLUR_FLOOR", "35") or "35")
+        MICRO_BLUR_HEAVY = float(os.environ.get("FM_ANPR_MICRO_BLUR_HEAVY", "100") or "100")
+        BOX_PAD_FRAC = float(os.environ.get("FM_ANPR_BOX_PAD", "0.10") or "0.10")
+        PLATE_RANK_K = int(os.environ.get("FM_ANPR_PLATE_RANK_K", "3") or "3")
+        ENHANCE_SKIP_FM = float(os.environ.get("FM_ANPR_ENHANCE_SKIP_FM", "80") or "80")
+    # Live needs FastALPR; heavy also wants HyperLPR when dual on
+    active_ok = bool(fa["ready"])
+    eng_b = "hyperlpr3"
+    ship_stack = (
+        f"Live: FastALPR+cct-s-v2-global (blur<{MICRO_BLUR_LIVE:.0f}) | "
+        f"Heavy: FastALPR+HyperLPR (blur<{MICRO_BLUR_HEAVY:.0f}) | "
+        f"BestPlate: pad={BOX_PAD_FRAC:.2f} rankK={PLATE_RANK_K} enhanceSkipFm>={ENHANCE_SKIP_FM:.0f} | "
+        "Temporal: char-majority | Det: CCPD YOLO Pose"
+    )
     return {
         "ok": active_ok,
-        "engine": "fastalpr-ship-v1" if ANPR_ENGINE in ("fastalpr", "fast-alpr", "eval", "ship") else "mob601-plate-yolo-pack-v1",
+        "engine": "dual-lpr-v1" if cascade else "mob601-plate-yolo-pack-v1",
+        "shipStack": ship_stack,
+        "bestPlateCrop": {
+            "boxPad": float(BOX_PAD_FRAC),
+            "rankK": int(PLATE_RANK_K),
+            "enhanceSkipFm": float(ENHANCE_SKIP_FM),
+        },
+        "livePath": f"FastALPR-only | microBlur<{MICRO_BLUR_LIVE:.0f}",
+        "heavyPath": f"FastALPR+HyperLPR3 | microBlur<{MICRO_BLUR_HEAVY:.0f}",
+        "dualEngine": dual_on,
+        "engineB": eng_b,
+        "ppocr": "purged",
+        "cascade": "vehicle-then-plate",
         "activeEngine": ANPR_ENGINE,
         "region": REGION,
         "confFloor": CONF_FLOOR,
         "medianK": MEDIAN_K,
         "upscaleH": UPSCALE_H,
         "preprocess": PREPROCESS_MODE,
+        "sequenceOcr": "HyperLPR3-heavy-only",
+        "blurFloor": float(os.environ.get("FM_ANPR_BLUR_FLOOR", "20") or "20"),
+        "microBlurFloor": float(MICRO_BLUR_LIVE),
+        "microBlurLive": float(MICRO_BLUR_LIVE),
+        "microBlurHeavy": float(MICRO_BLUR_HEAVY),
+        "ocrTimeoutS": float(os.environ.get("FM_ANPR_OCR_TIMEOUT_S", "2.5") or "2.5"),
+        "fisheye": (os.environ.get("FM_ANPR_FISHEYE") or "0").strip().lower() in ("1", "true", "on", "yes"),
         "fastalpr": "ready" if fa["ready"] else "missing",
         "fastalprError": fa.get("error"),
         "fastalprDet": fa.get("detModel"),
@@ -995,19 +1876,39 @@ def health_payload() -> dict[str, Any]:
         "fastalprOcr": fa.get("ocrModel"),
         "fastalprFallbackDet": fa.get("fallbackDet"),
         "fastalprFallbackReady": fa.get("fallbackReady"),
-        "powerCrop": "whole-vehicle-crop-v1",
+        "hyperlpr": "ready" if hls.get("ready") else "missing",
+        "hyperlprError": hls.get("error"),
+        "hyperlprRole": "heavy-path-engine-B",
+        "powerCrop": "native-res-crop-v1",
         "detLicense": fa.get("license"),
         "vehicleDetect": "ready" if vs.get("ready") else ("off" if not vs.get("enabled") else "missing"),
         "vehicleError": vs.get("error"),
         "vehicleWeights": vs.get("weights"),
-        "ocr": "ready" if ocr is not None else ("idle" if ANPR_ENGINE in ("fastalpr", "fast-alpr", "eval", "ship") else "missing"),
-        "ocrError": _ocr_error,
-        "detect": "vehicle+fastalpr" if ANPR_ENGINE in ("fastalpr", "fast-alpr", "eval", "ship") else ("yolo-first" if yolo is not None else "opencv+paddle_line"),
-        "yolo": "ready" if yolo is not None else ("idle" if ANPR_ENGINE in ("fastalpr", "fast-alpr", "eval", "ship") else "missing"),
+        "plateDet": plate_det,
+        "platePose": "ready" if pps.get("ready") else "missing",
+        "platePoseError": pps.get("error"),
+        "platePoseWeights": pps.get("weights"),
+        "platePosePad": pps.get("pad"),
+        "platePoseArchitecture": pps.get("architecture") or "ccpd-yolov8-pose-native-warp-v1",
+        "wpod": ws.get("mode"),
+        "wpodReady": bool(ws.get("ready")),
+        "wpodPad": ws.get("pad"),
+        "wpodArchitecture": ws.get("architecture"),
+        "wpodRole": "hatch",
+        "ocr": "purged-ppocr",
+        "ocrError": None,
+        "ocrModel": "FastALPR-live / HyperLPR3-heavy",
+        "detect": (
+            "vehicle+ccpd-pose-native-warp+path-routed-ocr"
+            if cascade
+            else ("yolo-first" if yolo is not None else "opencv")
+        ),
+        "yolo": "ready" if yolo is not None else ("idle" if cascade else "missing"),
         "yoloKind": yst.get("kind"),
         "yoloError": yst.get("error") or _yolo_error,
         "weights": _plate_weights_path(),
         "roi": True,
-        "shipDefault": "fastalpr",
-        "fastalprShip": "v1",
+        "shipDefault": "live-fastalpr-cct-s / heavy-fastalpr-hyperlpr",
+        "fastalprShip": "cct-s-v2-global-v1",
+        "temporalVote": "char_majority",
     }
