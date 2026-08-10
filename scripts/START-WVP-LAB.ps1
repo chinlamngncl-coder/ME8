@@ -110,7 +110,7 @@ Write-Host ""
 Write-Host ("UI:     http://{0}:18080   (or http://127.0.0.1:18080)" -f $hostIp)
 Write-Host "Login:  admin / admin"
 Write-Host ("Camera SIP: {0}  port 5061  (Fleet PTT stays on 5060)" -f $hostIp)
-Write-Host ("Platform: domain/id from .env GB_DOMAIN / GB_PLATFORM_ID (or WVP_DOMAIN / WVP_ID) — not province lab hardcodes")
+Write-Host ("Platform: domain/id from .env GB_DOMAIN / GB_PLATFORM_ID (or WVP_DOMAIN / WVP_ID) - not province lab hardcodes")
 Write-Host "Modern ZLM HTTP: http://127.0.0.1:80  (and :18088) - Track B play"
 Write-Host "BWC / Fleet ZLM stays on :8080 (me8-zlm) - separate"
 Write-Host "Stack: me8-wvp + me8-wvp-zlm + me8-wvp-db + me8-wvp-redis"

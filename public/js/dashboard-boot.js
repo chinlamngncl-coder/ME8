@@ -3584,6 +3584,10 @@
             canGeofenceControl = !!(perms && perms.geofenceControl);
             canClearMapPinsPerm = !!(perms && perms.clearMapPins);
             isSuperAdmin = role === 'super_admin';
+            try {
+                global.__fmDashboardRole = role ? String(role) : '';
+                if (username) global.__fmDashboardUsername = String(username);
+            } catch (_) { /* ignore */ }
             if (username) dashboardUsername = String(username);
             if (typeof FleetUi !== 'undefined' && FleetUi.setClearMapPinsPermission) {
                 FleetUi.setClearMapPinsPermission(canClearMapPinsPerm);
@@ -5919,6 +5923,59 @@
             }
             var noReport = document.getElementById('sos-detail-no-report');
             if (noReport) noReport.hidden = true;
+            clearSosDualMediaUi();
+        }
+
+        function clearSosDualMediaUi() {
+            ['sos-detail-hq-video', 'sos-detail-ground-video'].forEach(function (id) {
+                var v = document.getElementById(id);
+                if (!v) return;
+                try { v.pause(); } catch (_) { /* ignore */ }
+                v.removeAttribute('src');
+                try { v.load(); } catch (_) { /* ignore */ }
+                v.hidden = true;
+            });
+            var wrap = document.getElementById('sos-detail-dual-media');
+            if (wrap) wrap.hidden = true;
+        }
+
+        function fillSosDualMediaSlot(prefix, playUrl, evidenceId) {
+            var video = document.getElementById('sos-detail-' + prefix + '-video');
+            var missing = document.getElementById('sos-detail-' + prefix + '-missing');
+            var actions = document.getElementById('sos-detail-' + prefix + '-actions');
+            var watchBtn = document.getElementById('sos-detail-' + prefix + '-watch');
+            var dlBtn = document.getElementById('sos-detail-' + prefix + '-download');
+            var has = !!(playUrl || evidenceId);
+            if (missing) missing.hidden = has;
+            if (actions) actions.hidden = !has;
+            if (video) {
+                if (playUrl) {
+                    video.hidden = false;
+                    video.src = playUrl;
+                } else {
+                    video.hidden = true;
+                    video.removeAttribute('src');
+                    try { video.load(); } catch (_) { /* ignore */ }
+                }
+            }
+            if (watchBtn) {
+                watchBtn.disabled = !playUrl;
+                watchBtn.dataset.playUrl = playUrl || '';
+            }
+            if (dlBtn) {
+                dlBtn.disabled = !evidenceId;
+                dlBtn.dataset.evidenceId = evidenceId || '';
+            }
+        }
+
+        function renderSosDualMedia(row) {
+            var wrap = document.getElementById('sos-detail-dual-media');
+            if (!wrap || !row) return;
+            wrap.hidden = false;
+            var hqPlay = row.serverRecordingLocalUrl || row.serverRecordingPreviewUrl || '';
+            var groundPlay = row.deviceRecordingLocalUrl || row.deviceRecordingPreviewUrl || '';
+            fillSosDualMediaSlot('hq', hqPlay, row.serverRecordingEvidenceId || '');
+            fillSosDualMediaSlot('ground', groundPlay, row.deviceRecordingEvidenceId || '');
         }
 
         function sosReportUrlForRow(row) {
@@ -5946,6 +6003,7 @@
             document.getElementById('sos-detail-status').textContent = row.acknowledged ? dashboardTr('sos.detail.statusAck') : dashboardTr('sos.detail.statusOpen');
             document.getElementById('sos-detail-time').textContent = formatLedgerTime(row.at);
             document.getElementById('sos-detail-operator').textContent = row.operatorName || (typeof FleetDisplay !== 'undefined' ? FleetDisplay.friendlyDeviceName(row.cameraId) : row.cameraId) || '\u2014';
+            renderSosDualMedia(row);
             var reportUrl = sosReportUrlForRow(row);
             var frame = document.getElementById('sos-detail-report-frame');
             var noReport = document.getElementById('sos-detail-no-report');
@@ -6158,7 +6216,12 @@
                     var tag = row.acknowledged ? dashboardTr('sos.ledger.tagAck') : dashboardTr('sos.ledger.tagOpen');
                     var typeTag = row.alarmKind === 'fall' ? dashboardTr('sos.ledger.tagFall') : dashboardTr('sos.ledger.tagSos');
                     var hint = row.acknowledged ? dashboardTr('sos.ledger.hintAck') : dashboardTr('sos.ledger.hintOpen');
-                    if (row.serverRecordingEvidenceId) hint += ' \u00B7 ' + dashboardTr('sos.ledger.hasRecording');
+                    if (row.serverRecordingEvidenceId || row.serverRecordingLocalUrl) {
+                        hint += ' \u00B7 ' + dashboardTr('sos.ledger.hasHq');
+                    }
+                    if (row.deviceRecordingEvidenceId || row.deviceRecordingLocalUrl) {
+                        hint += ' \u00B7 ' + dashboardTr('sos.ledger.hasGround');
+                    }
                     var op = row.operatorName ? String(row.operatorName) : (typeof FleetDisplay !== 'undefined' ? FleetDisplay.friendlyDeviceName(row.cameraId) : dashboardTr('fleet.bwc'));
                     var cam = '';
                     item.innerHTML = thumb +
@@ -6207,6 +6270,38 @@
         document.getElementById('sos-detail-open-folder').addEventListener('click', function () {
             if (sosDetailCurrentRow && sosDetailCurrentRow.id) openSosIncidentFolder(sosDetailCurrentRow.id);
         });
+        (function bindSosDualMediaButtons() {
+            function openPlay(btn) {
+                var url = btn && btn.dataset ? btn.dataset.playUrl : '';
+                if (url) window.open(url, '_blank', 'noopener');
+            }
+            var hqWatch = document.getElementById('sos-detail-hq-watch');
+            var hqDl = document.getElementById('sos-detail-hq-download');
+            var gWatch = document.getElementById('sos-detail-ground-watch');
+            var gDl = document.getElementById('sos-detail-ground-download');
+            if (hqWatch) hqWatch.addEventListener('click', function () { openPlay(hqWatch); });
+            if (gWatch) gWatch.addEventListener('click', function () { openPlay(gWatch); });
+            if (hqDl) hqDl.addEventListener('click', function () {
+                downloadSosIncidentRecording(hqDl.dataset.evidenceId || '');
+            });
+            if (gDl) gDl.addEventListener('click', function () {
+                downloadSosIncidentRecording(gDl.dataset.evidenceId || '');
+            });
+        })();
+        if (typeof socket !== 'undefined' && socket && typeof socket.on === 'function') {
+            socket.on('sos-device-recording', function (payload) {
+                if (!payload || !sosDetailCurrentRow || payload.incidentId !== sosDetailCurrentRow.id) {
+                    try { refreshSosLedger({ silent: true }); } catch (_) { /* ignore */ }
+                    return;
+                }
+                sosDetailCurrentRow.deviceRecordingEvidenceId = payload.evidenceId || sosDetailCurrentRow.deviceRecordingEvidenceId;
+                if (payload.deviceRecordingPreviewUrl) {
+                    sosDetailCurrentRow.deviceRecordingPreviewUrl = payload.deviceRecordingPreviewUrl;
+                }
+                renderSosDualMedia(sosDetailCurrentRow);
+                try { refreshSosLedger({ silent: true }); } catch (_) { /* ignore */ }
+            });
+        }
         document.getElementById('sos-pin-cancel').addEventListener('click', closeSosDetailDialog);
         document.getElementById('sos-pin-submit').addEventListener('click', submitSosLedgerPin);
         document.getElementById('sos-pin-input').addEventListener('keydown', function (e) {

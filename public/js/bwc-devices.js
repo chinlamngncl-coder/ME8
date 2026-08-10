@@ -8,7 +8,7 @@
         return key;
     }
 
-    const CSV_HEADER = ['Device ID', 'Nickname', 'Unit code', 'Map group', 'User name', 'Password', 'Protocol'];
+    const CSV_HEADER = ['Device ID', 'Nickname', 'Serial', 'Unit code', 'Map group', 'User name', 'Password', 'Protocol'];
     let devices = [];
     let open = false;
 
@@ -77,6 +77,7 @@
             lines.push([
                 d.deviceId || '',
                 d.operatorName || '',
+                d.serialNo || '',
                 d.unitCode || '',
                 d.mapGroup || '',
                 d.userName || '',
@@ -112,6 +113,9 @@
         const idx = {
             deviceId: header.findIndex((h) => h.indexOf('device') >= 0),
             operator: header.findIndex(function (h) { return h.indexOf('operator') >= 0 || h === 'nickname'; }),
+            serial: header.findIndex(function (h) {
+                return h === 'serial' || h.indexOf('serial') >= 0 || h.indexOf('asset') >= 0;
+            }),
             unitCode: header.findIndex(function (h) { return h.indexOf('unit') >= 0 || h.indexOf('badge') >= 0; }),
             mapGroup: header.findIndex((h) => h.indexOf('map') >= 0 && h.indexOf('group') >= 0),
             userName: header.findIndex((h) => h.indexOf('user') >= 0),
@@ -130,6 +134,7 @@
             out.push({
                 deviceId,
                 operatorName: idx.operator >= 0 ? String(cols[idx.operator] || '').trim() : '',
+                serialNo: idx.serial >= 0 ? String(cols[idx.serial] || '').trim() : '',
                 unitCode: idx.unitCode >= 0 ? String(cols[idx.unitCode] || '').trim() : '',
                 mapGroup: idx.mapGroup >= 0 ? String(cols[idx.mapGroup] || '').trim() : '',
                 userName: idx.userName >= 0 ? String(cols[idx.userName] || '').trim() : '',
@@ -155,6 +160,7 @@
             {
                 deviceId: '34020000001329000008',
                 operatorName: 'Officer Lee',
+                serialNo: 'UB8-0042',
                 unitCode: 'UB-6A5G',
                 mapGroup: 'North patrol',
                 userName: 'admin',
@@ -193,6 +199,7 @@
             next.push({
                 deviceId: String(deviceId).trim(),
                 operatorName: String((row.querySelector('[data-field="operatorName"]') || {}).value || '').trim(),
+                serialNo: String((row.querySelector('[data-field="serialNo"]') || {}).value || '').trim(),
                 unitCode: String((row.querySelector('[data-field="unitCode"]') || {}).value || '').trim(),
                 mapGroup: String((row.querySelector('[data-field="mapGroup"]') || {}).value || '').trim(),
                 userName: String((row.querySelector('[data-field="userName"]') || {}).value || '').trim(),
@@ -264,7 +271,7 @@
         if (!tbody) return;
         const list = devices.length
             ? devices.slice()
-            : [{ deviceId: '', operatorName: '', unitCode: '', mapGroup: '', userName: '', password: '', protocol: 'sip', status: 'active', pairedSecondaryCameraId: '' }];
+            : [{ deviceId: '', operatorName: '', serialNo: '', unitCode: '', mapGroup: '', userName: '', password: '', protocol: 'sip', status: 'active', pairedSecondaryCameraId: '' }];
         tbody.innerHTML = list.map(function (d) {
             const on = deviceOnline(d.deviceId);
             const st = (d.status || 'active');
@@ -273,6 +280,7 @@
             return '<tr>' +
                 '<td><span class="ss-bwc-dot' + (on ? ' on' : '') + '" title="' + (on ? 'Online' : 'Offline') + '"></span></td>' +
                 '<td><input type="text" data-field="operatorName" value="' + esc(d.operatorName) + '" placeholder="' + esc(tr('bwc.placeholder.nickname')) + '"></td>' +
+                '<td><input type="text" data-field="serialNo" value="' + esc(d.serialNo || '') + '" placeholder="' + esc(tr('bwc.placeholder.serial')) + '" title="' + esc(tr('bwc.hint.serial')) + '" maxlength="64"></td>' +
                 '<td><input type="text" data-field="unitCode" value="' + esc(d.unitCode || '') + '" placeholder="' + esc(tr('bwc.placeholder.unitCode')) + '"></td>' +
                 '<td><input type="text" class="ss-bwc-id" data-field="deviceId" value="' + esc(d.deviceId) + '" placeholder="' + esc(tr('bwc.placeholder.deviceId')) + '" title="' + esc(tr('bwc.hint.deviceId')) + '"></td>' +
                 '<td><input type="text" data-field="mapGroup" value="' + esc(d.mapGroup) + '" placeholder="' + esc(tr('bwc.placeholder.mapGroup')) + '"></td>' +
@@ -313,7 +321,7 @@
 
     function addEmbeddedRow() {
         devices = readEmbeddedTableFromDom();
-        devices.push({ deviceId: '', operatorName: '', unitCode: '', mapGroup: '', userName: '', password: '', protocol: 'sip' });
+        devices.push({ deviceId: '', operatorName: '', serialNo: '', unitCode: '', mapGroup: '', userName: '', password: '', protocol: 'sip' });
         buildEmbeddedTable();
     }
 
@@ -341,7 +349,7 @@
             const id = ((row.querySelector('[data-field="deviceId"]') || {}).value || '').trim();
             devices = devices.filter(function (d) { return d.deviceId !== id; });
             if (!devices.length) {
-                devices = [{ deviceId: '', operatorName: '', unitCode: '', mapGroup: '', userName: '', password: '', protocol: 'sip' }];
+                devices = [{ deviceId: '', operatorName: '', serialNo: '', unitCode: '', mapGroup: '', userName: '', password: '', protocol: 'sip' }];
             }
             buildEmbeddedTable();
         });
@@ -363,6 +371,7 @@
             next.push({
                 deviceId: String(deviceId).trim(),
                 operatorName: String((row.querySelector('[data-field="operatorName"]') || {}).value || '').trim(),
+                serialNo: String((row.querySelector('[data-field="serialNo"]') || {}).value || '').trim(),
                 unitCode: String((row.querySelector('[data-field="unitCode"]') || {}).value || '').trim(),
                 mapGroup: String((row.querySelector('[data-field="mapGroup"]') || {}).value || '').trim(),
                 userName: String((row.querySelector('[data-field="userName"]') || {}).value || '').trim(),
@@ -375,13 +384,14 @@
 
     function buildRows(container) {
         container.innerHTML = '';
-        const list = devices.length ? devices : [{ deviceId: '', operatorName: '', unitCode: '', mapGroup: '', userName: '', password: '', protocol: 'sip' }];
+        const list = devices.length ? devices : [{ deviceId: '', operatorName: '', serialNo: '', unitCode: '', mapGroup: '', userName: '', password: '', protocol: 'sip' }];
         list.forEach((d, i) => {
             const row = document.createElement('div');
             row.className = 'bwc-device-row video-config-row';
             row.innerHTML =
                 '<div class="video-config-row-title">' + tr('bwc.rowTitle', { n: i + 1 }) + '</div>' +
                 '<label>' + tr('bwc.field.nickname') + '<input type="text" data-field="operatorName" value="' + esc(d.operatorName) + '" placeholder="' + esc(tr('bwc.placeholder.nickname')) + '"></label>' +
+                '<label>' + tr('bwc.field.serial') + '<input type="text" data-field="serialNo" value="' + esc(d.serialNo || '') + '" placeholder="' + esc(tr('bwc.placeholder.serial')) + '" title="' + esc(tr('bwc.hint.serial')) + '" maxlength="64"></label>' +
                 '<label>' + tr('bwc.field.unitCode') + '<input type="text" data-field="unitCode" value="' + esc(d.unitCode || '') + '" placeholder="' + esc(tr('bwc.placeholder.unitCode')) + '"></label>' +
                 '<label>' + tr('bwc.field.deviceId') + '<input type="text" data-field="deviceId" value="' + esc(d.deviceId) + '" placeholder="' + esc(tr('bwc.placeholder.deviceId')) + '" title="' + esc(tr('bwc.hint.deviceId')) + '"></label>' +
                 '<label>' + tr('bwc.field.mapGroup') + '<input type="text" data-field="mapGroup" value="' + esc(d.mapGroup) + '" placeholder="' + esc(tr('bwc.placeholder.mapGroup')) + '"></label>' +
@@ -431,7 +441,7 @@
         if (addBtn && rows) {
             addBtn.addEventListener('click', () => {
                 devices = readFormFromDom();
-                devices.push({ deviceId: '', operatorName: '', unitCode: '', mapGroup: '', userName: '', password: '', protocol: 'sip' });
+                devices.push({ deviceId: '', operatorName: '', serialNo: '', unitCode: '', mapGroup: '', userName: '', password: '', protocol: 'sip' });
                 buildRows(rows);
             });
         }

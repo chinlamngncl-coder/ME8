@@ -180,25 +180,41 @@
         if (data.refresh && !data.fromLiveBye && !data.alreadyLive) return;
         var camId = String(data.cameraId).trim();
         var kind = data.alarmKind === 'fall' ? 'fall' : 'sos';
-        if (kind === 'fall' && !policy.speakFall) return;
-        if (kind === 'sos' && !policy.speakSos) return;
+        var speakOk = kind === 'fall' ? !!policy.speakFall : !!policy.speakSos;
         var duringLive = !!(data.alreadyLive || data.fromLiveBye);
         var name = sosSpeakLabel(camId);
         var text = kind === 'fall'
             ? tr('voiceAlerts.phrase.fall', { name: name })
             : tr('voiceAlerts.phrase.sos', { name: name });
 
-        function fireSpeak() {
+        function playTone(phase, keySuffix) {
+            try {
+                if (global.HqAlertAudio && typeof HqAlertAudio.play === 'function') {
+                    HqAlertAudio.play(kind, {
+                        tier: phase === 'tail' ? 'tail' : 'strong',
+                        key: (phase || 'attn') + ':' + kind + ':' + camId + (keySuffix ? (':' + keySuffix) : ''),
+                    });
+                }
+            } catch (_) { /* ignore */ }
+        }
+
+        function fireAttention() {
             var t = Date.now();
+            /* SOS-ALERT-AUDIO-RELIABLE-V1 — tone even when Speak SOS is off; 60s dedupe is speak-only */
+            playTone('attn', String(t));
+            if (!speakOk || !shouldAutoSpeak()) return;
             if (!duringLive && sosSpokeAt[camId] && t - sosSpokeAt[camId] < SOS_DEDUPE_MS) return;
-            if (!shouldAutoSpeak()) return;
             if (speak(text, { key: kind + ':' + camId })) {
                 sosSpokeAt[camId] = t;
+                setTimeout(function () { playTone('tail', String(t)); }, 2800);
+            } else {
+                sosSpokeAt[camId] = t;
+                setTimeout(function () { playTone('tail', String(t)); }, 900);
             }
         }
 
-        if (duringLive) setTimeout(fireSpeak, 450);
-        else fireSpeak();
+        if (duringLive) setTimeout(fireAttention, 450);
+        else fireAttention();
     }
 
     function onGeofenceBreach(data) {
@@ -426,5 +442,6 @@
         speakFrMatch: speakFrMatch,
         repeatLast: repeatLast,
         getPolicy: function () { return policy; },
+        isSessionMuted: function () { return !!sessionMuted; },
     };
 })(window);

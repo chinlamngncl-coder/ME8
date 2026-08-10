@@ -4,6 +4,7 @@
  */
 (function (global) {
     var currentPanel = 'face';
+    var weaponHealthTimer = null;
     var bound = false;
     var blById = {};
     var blDrawerId = null;
@@ -179,7 +180,9 @@
     }
 
     function showPanel(panel) {
-        currentPanel = panel || 'face';
+        var next = panel || 'face';
+        if (next !== 'weapon') stopWeaponHealthPoll();
+        currentPanel = next;
         var primaryKey = isFrFamilyPanel(currentPanel) ? 'face' : currentPanel;
         document.querySelectorAll('.ax-hub-nav-primary > .ax-hub-nav-btn[data-panel]').forEach(function (btn) {
             btn.classList.toggle('active', btn.getAttribute('data-panel') === primaryKey);
@@ -255,25 +258,70 @@
             });
     }
 
-    function refreshWeaponStatus() {
+    function stopWeaponHealthPoll() {
+        if (weaponHealthTimer) {
+            clearInterval(weaponHealthTimer);
+            weaponHealthTimer = null;
+        }
+    }
+
+    function startWeaponHealthPoll() {
+        if (weaponHealthTimer) return;
+        weaponHealthTimer = setInterval(function () {
+            if (currentPanel !== 'weapon') {
+                stopWeaponHealthPoll();
+                return;
+            }
+            refreshWeaponStatus({ quiet: true });
+        }, 2000);
+    }
+
+    function weaponEngineFullyReady(runtime) {
+        return !!(runtime && runtime.ok && runtime.ready !== false && !runtime.warming);
+    }
+
+    /** WEAPON-ENGINE-WARM-AUTO-V1: poll until ready while Weapon panel open — no page refresh. */
+    function refreshWeaponStatus(opts) {
+        opts = opts || {};
         var el = document.getElementById('ax-wd-engine-health');
         if (!el) return;
-        paintEngineHealth(el, '', tr('analytics.weapon.engineChecking', 'Checking Weapon Engine\u2026'));
+        if (!opts.quiet) {
+            paintEngineHealth(el, '', tr('analytics.weapon.engineChecking', 'Checking Weapon Engine\u2026'));
+        }
         fetch('/api/analytics/weapon/health', { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                if (currentPanel !== 'weapon') {
+                    stopWeaponHealthPoll();
+                    return;
+                }
                 if (!data || !data.featureEnabled) {
+                    stopWeaponHealthPoll();
                     paintEngineHealth(el, 'warn', tr('analytics.weapon.engineNotLicensed', 'Weapon Engine \u2014 Not licensed'));
                     return;
                 }
-                if (data.runtime && data.runtime.ok) {
+                if (weaponEngineFullyReady(data.runtime)) {
                     paintEngineHealth(el, 'ok', tr('analytics.weapon.engineOk', 'Weapon Engine \u2014 OK'));
+                    stopWeaponHealthPoll();
+                    if (global.WeaponLiveWatch && WeaponLiveWatch.onShow) WeaponLiveWatch.onShow();
+                    return;
+                }
+                if (data.runtime && data.runtime.ok &&
+                    (data.runtime.warming || data.runtime.ready === false)) {
+                    paintEngineHealth(el, 'warn', tr('analytics.weapon.engineWarming', 'Weapon Engine \u2014 Warming\u2026'));
+                    startWeaponHealthPoll();
                     return;
                 }
                 paintEngineHealth(el, 'warn', tr('analytics.weapon.engineNotReady', 'Weapon Engine \u2014 Not ready'));
+                startWeaponHealthPoll();
             })
             .catch(function () {
+                if (currentPanel !== 'weapon') {
+                    stopWeaponHealthPoll();
+                    return;
+                }
                 paintEngineHealth(el, 'bad', tr('analytics.weapon.engineNotReady', 'Weapon Engine \u2014 Not ready'));
+                startWeaponHealthPoll();
             });
     }
 

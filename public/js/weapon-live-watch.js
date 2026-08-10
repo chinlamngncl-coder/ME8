@@ -1,10 +1,12 @@
 /**
  * Analytics Weapon — Live Watch shell (WEAPON-LIVE-WATCH-SHELL-V1).
  * FR-style mapGroup roster. Already-live FLV only — no silent INVITE.
+ * WEAPON-LIVE-KEEP-AND-FAST-OPEN-V1: hold analytics-weapon viewer ref (no wake).
  */
 (function (global) {
     var MAX_WATCH = 32;
     var LIVE_SLOTS = 6;
+    var SURFACE = 'analytics-weapon';
     var ROSTER_EXPAND_INLINE_MAX = 6;
     var ROSTER_COLS = 5;
     var ROSTER_ROWS = 6;
@@ -24,10 +26,20 @@
     var recentHits = [];
     var recentTimer = null;
 
+    /** Match i18n.js humanizeKey — missing keys must use fallback (not "Lb Zoom Hint"). */
+    function humanizeKeyTail(key) {
+        var tail = String(key || '').split('.').pop() || String(key || '');
+        return tail
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/_/g, ' ')
+            .replace(/^./, function (c) { return c.toUpperCase(); })
+            .trim();
+    }
+
     function tr(key, fallback) {
         if (typeof I18n !== 'undefined' && I18n.t) {
             var s = I18n.t(key);
-            if (s && s !== key) return s;
+            if (s && s !== key && s !== humanizeKeyTail(key)) return s;
         }
         return fallback || key;
     }
@@ -146,10 +158,39 @@
         }
     }
 
+    function holdViewer(camId) {
+        camId = normalizeCamId(camId);
+        var sock = getSocket();
+        if (!sock || !camId) return;
+        try {
+            sock.emit('register-viewer-only', {
+                camId: camId,
+                surface: SURFACE,
+                holdOnly: true,
+            });
+        } catch (_) { /* ignore */ }
+    }
+
+    function releaseViewer(camId) {
+        camId = normalizeCamId(camId);
+        var sock = getSocket();
+        if (!sock || !camId) return;
+        try {
+            sock.emit('stop-video', {
+                camId: camId,
+                surface: SURFACE,
+                reason: 'weapon-stop',
+                clientReason: 'weapon-tile-stop',
+            });
+        } catch (_) { /* ignore */ }
+    }
+
     function stopSlot(slot) {
+        var id = slotCam[slot];
         destroyPlayer(slot);
         slotCam[slot] = null;
         setTileMeta(slot, null, null);
+        if (id) releaseViewer(id);
         emitWatchSlots();
     }
 
@@ -201,6 +242,7 @@
             .then(function (data) {
                 if (slotCam[slot] !== camId) return;
                 if (data && data.flvUrl) {
+                    holdViewer(camId);
                     attachFlv(slot, camId, data.flvUrl);
                     return;
                 }
@@ -245,24 +287,235 @@
     function paintDetectGrid(hits) {
         var grid = document.getElementById('ax-wd-detect-grid');
         if (!grid) return;
-        var slots = grid.querySelectorAll('.ax-wd-detect-slot');
-        var i;
-        for (i = 0; i < slots.length; i++) {
-            var hit = hits && hits[i];
-            var slot = slots[i];
-            if (!hit) {
-                slot.className = 'ax-wd-detect-slot';
-                slot.innerHTML = '';
-                continue;
-            }
+        var list = Array.isArray(hits) ? hits : [];
+        var magSvg = '<svg class="ax-wd-rail-mag-icon" viewBox="0 0 24 24" aria-hidden="true">' +
+            '<circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/>' +
+            '<path d="M20 20l-3.5-3.5" fill="none" stroke="currentColor" stroke-width="2" ' +
+            'stroke-linecap="round"/></svg>';
+        if (!list.length) {
+            grid.innerHTML = '<div class="ax-wd-detect-empty hint">' +
+                esc(tr('analytics.weapon.recentEmpty', 'No detections yet')) + '</div>';
+            return;
+        }
+        grid.innerHTML = '';
+        list.forEach(function (hit) {
+            if (!hit) return;
+            var slot = document.createElement('div');
             slot.className = 'ax-wd-detect-slot is-hit';
+            slot.setAttribute('role', 'listitem');
+            slot.setAttribute('data-hit-id', String(hit.hitId || ''));
             var src = hit.cropFile
                 ? ('/api/analytics/weapon/crop/' + encodeURIComponent(hit.cropFile))
                 : '';
             var label = String(hit.cls || 'weapon') + ' \u00B7 ' +
                 String(hit.deviceName || hit.camId || '');
             slot.innerHTML = (src ? '<img src="' + esc(src) + '" alt="">' : '') +
+                '<button type="button" class="ax-wd-rail-mag" title="' +
+                esc(tr('analytics.weapon.magnify', 'Magnify')) +
+                '" aria-label="' + esc(tr('analytics.weapon.magnify', 'Magnify')) +
+                '">' + magSvg + '</button>' +
                 '<span class="ax-wd-detect-meta">' + esc(label) + '</span>';
+            var open = (function (h) {
+                return function (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    openWdLightbox(h);
+                };
+            })(hit);
+            slot.addEventListener('click', open);
+            var magBtn = slot.querySelector('.ax-wd-rail-mag');
+            if (magBtn) magBtn.addEventListener('click', open);
+            grid.appendChild(slot);
+        });
+    }
+
+    function formatHitTime(at) {
+        var n = Number(at) || 0;
+        if (!n) return '';
+        try {
+            var d = new Date(n);
+            if (isNaN(d.getTime())) return '';
+            var p = function (x) { return (x < 10 ? '0' : '') + x; };
+            return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+                ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+        } catch (_) {
+            return '';
+        }
+    }
+
+    function closeWdLightbox() {
+        var el = document.getElementById('ax-wd-snap-lightbox');
+        var bd = document.getElementById('ax-wd-snap-lightbox-backdrop');
+        if (el) {
+            el.hidden = true;
+            el.classList.remove('is-open');
+        }
+        if (bd) {
+            bd.hidden = true;
+            bd.classList.remove('is-open');
+        }
+    }
+
+    function ensureWdLightbox() {
+        var bd = document.getElementById('ax-wd-snap-lightbox-backdrop');
+        if (!bd) {
+            bd = document.createElement('div');
+            bd.id = 'ax-wd-snap-lightbox-backdrop';
+            bd.className = 'ax-wd-snap-lightbox-backdrop';
+            bd.hidden = true;
+            bd.addEventListener('click', function () { closeWdLightbox(); });
+            document.body.appendChild(bd);
+        }
+        var el = document.getElementById('ax-wd-snap-lightbox');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'ax-wd-snap-lightbox';
+            el.className = 'ax-wd-snap-lightbox';
+            el.hidden = true;
+            el.innerHTML =
+                '<div class="ax-wd-snap-lb-chrome" data-wd-drag-handle="1">' +
+                '<h3 class="ax-wd-snap-lb-title"></h3>' +
+                '<button type="button" class="ax-wd-snap-lb-close" aria-label="' +
+                esc(tr('common.close', 'Close')) + '">\u00D7</button></div>' +
+                '<div class="ax-wd-snap-lb-body">' +
+                '<div class="ax-wd-snap-lb-scene-wrap">' +
+                '<img class="ax-wd-snap-lb-img ax-wd-snap-lb-scene" alt="">' +
+                '</div>' +
+                '<p class="ax-wd-snap-lb-meta hint"></p>' +
+                '<p class="ax-wd-snap-lb-zoom-hint hint">' +
+                esc(tr('analytics.weapon.lbZoomHint', 'Hover to magnify')) +
+                '</p>' +
+                '</div>';
+            document.body.appendChild(el);
+            var closeBtn = el.querySelector('.ax-wd-snap-lb-close');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function (ev) {
+                    if (ev && ev.stopPropagation) ev.stopPropagation();
+                    closeWdLightbox();
+                });
+            }
+            var wrap = el.querySelector('.ax-wd-snap-lb-scene-wrap');
+            var scene = el.querySelector('.ax-wd-snap-lb-scene');
+            if (wrap && scene) {
+                wrap.addEventListener('mousemove', function (ev) {
+                    var r = wrap.getBoundingClientRect();
+                    if (!r.width || !r.height) return;
+                    var x = ((ev.clientX - r.left) / r.width) * 100;
+                    var y = ((ev.clientY - r.top) / r.height) * 100;
+                    wrap.classList.add('is-zooming');
+                    scene.style.transformOrigin = x + '% ' + y + '%';
+                    scene.style.transform = 'scale(2.2)';
+                });
+                wrap.addEventListener('mouseleave', function () {
+                    wrap.classList.remove('is-zooming');
+                    scene.style.transform = '';
+                    scene.style.transformOrigin = '';
+                });
+            }
+            /* ANPR-style header drag — not locked to screen center */
+            (function bindWdDrag() {
+                var handle = el.querySelector('[data-wd-drag-handle]');
+                if (!handle || el._wdDragBound) return;
+                el._wdDragBound = true;
+                var dragging = false;
+                var ox = 0;
+                var oy = 0;
+                handle.addEventListener('pointerdown', function (ev) {
+                    if (ev.button != null && ev.button !== 0) return;
+                    if (ev.target && ev.target.closest && ev.target.closest('.ax-wd-snap-lb-close')) return;
+                    dragging = true;
+                    var rect = el.getBoundingClientRect();
+                    ox = ev.clientX - rect.left;
+                    oy = ev.clientY - rect.top;
+                    el.style.right = 'auto';
+                    el.style.bottom = 'auto';
+                    el.style.left = rect.left + 'px';
+                    el.style.top = rect.top + 'px';
+                    el.style.transform = 'none';
+                    try { handle.setPointerCapture(ev.pointerId); } catch (_) { /* ignore */ }
+                    ev.preventDefault();
+                });
+                handle.addEventListener('pointermove', function (ev) {
+                    if (!dragging) return;
+                    var nx = ev.clientX - ox;
+                    var ny = ev.clientY - oy;
+                    var maxX = Math.max(0, window.innerWidth - el.offsetWidth);
+                    var maxY = Math.max(0, window.innerHeight - el.offsetHeight);
+                    el.style.left = Math.max(0, Math.min(maxX, nx)) + 'px';
+                    el.style.top = Math.max(0, Math.min(maxY, ny)) + 'px';
+                });
+                function endDrag(ev) {
+                    if (!dragging) return;
+                    dragging = false;
+                    try { handle.releasePointerCapture(ev.pointerId); } catch (_) { /* ignore */ }
+                }
+                handle.addEventListener('pointerup', endDrag);
+                handle.addEventListener('pointercancel', endDrag);
+            })();
+        }
+        if (!document.documentElement._axWdLbEsc) {
+            document.documentElement._axWdLbEsc = true;
+            document.addEventListener('keydown', function (ev) {
+                if (ev.key === 'Escape') closeWdLightbox();
+            });
+        }
+        return el;
+    }
+
+    function clampWdLightboxPos(el) {
+        if (!el || !el.style.left || !el.style.top) return;
+        var left = parseFloat(el.style.left);
+        var top = parseFloat(el.style.top);
+        if (!isFinite(left) || !isFinite(top)) return;
+        var maxX = Math.max(0, window.innerWidth - el.offsetWidth);
+        var maxY = Math.max(0, window.innerHeight - el.offsetHeight);
+        el.style.left = Math.max(0, Math.min(maxX, left)) + 'px';
+        el.style.top = Math.max(0, Math.min(maxY, top)) + 'px';
+    }
+
+    function openWdLightbox(hit) {
+        if (!hit) return;
+        var el = ensureWdLightbox();
+        var bd = document.getElementById('ax-wd-snap-lightbox-backdrop');
+        /* WEAPON-LIGHTBOX-POS-KEEP-V1 — keep drag place until refresh (FR snap float style) */
+        if (!el.style.left && !el.style.top) {
+            el.style.left = '';
+            el.style.top = '';
+            el.style.right = '';
+            el.style.bottom = '';
+            el.style.transform = '';
+        } else {
+            el.style.right = 'auto';
+            el.style.bottom = 'auto';
+            el.style.transform = 'none';
+        }
+        var title = el.querySelector('.ax-wd-snap-lb-title');
+        var img = el.querySelector('.ax-wd-snap-lb-img');
+        var meta = el.querySelector('.ax-wd-snap-lb-meta');
+        var cls = String(hit.cls || 'weapon');
+        var name = String(hit.deviceName || hit.camId || '');
+        var when = formatHitTime(hit.at);
+        if (title) {
+            title.textContent = tr('analytics.weapon.lbTitle', 'Weapon detection') +
+                ' \u2014 ' + cls;
+        }
+        if (img) {
+            img.src = hit.cropFile
+                ? ('/api/analytics/weapon/crop/' + encodeURIComponent(hit.cropFile))
+                : '';
+            img.alt = cls;
+        }
+        if (meta) {
+            meta.textContent = [name, cls, when].filter(Boolean).join(' \u00B7 ');
+        }
+        if (bd) {
+            bd.hidden = false;
+            bd.classList.add('is-open');
+        }
+        el.hidden = false;
+        el.classList.add('is-open');
+        if (el.style.left && el.style.top) {
+            clampWdLightboxPos(el);
         }
     }
 
@@ -276,7 +529,7 @@
         });
         recentHits = Object.keys(byId).map(function (k) { return byId[k]; })
             .sort(function (a, b) { return (b.at || 0) - (a.at || 0); })
-            .slice(0, 12);
+            .slice(0, 20);
         paintDetectGrid(recentHits);
     }
 
@@ -927,6 +1180,33 @@
         renderWatchList();
     }
 
+    function focusCamFromAlarm(camId) {
+        camId = normalizeCamId(camId);
+        if (!camId) return;
+        onShow();
+        if (selected.indexOf(camId) < 0) {
+            if (selected.length >= MAX_WATCH) {
+                var drop = selected[0];
+                toggleSelect(drop, false);
+            }
+            toggleSelect(camId, true);
+        }
+        if (!watching) startWatch();
+        else if (deviceOnline(camId)) {
+            var existing = -1;
+            for (var i = 0; i < LIVE_SLOTS; i++) {
+                if (slotCam[i] === camId) { existing = i; break; }
+            }
+            if (existing < 0) {
+                var empty = findEmptySlot();
+                if (empty >= 0) startSlot(empty, camId);
+                else startSlot(0, camId);
+            }
+        }
+        emitWatchSlots();
+        renderWatchList();
+    }
+
     global.addEventListener('beforeunload', function () {
         if (watching) stopWatch();
     });
@@ -935,5 +1215,7 @@
         onShow: onShow,
         stop: stopWatch,
         isWatching: function () { return watching; },
+        focusCamFromAlarm: focusCamFromAlarm,
+        openLightbox: openWdLightbox,
     };
 })(window);

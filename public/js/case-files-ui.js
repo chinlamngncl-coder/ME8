@@ -255,6 +255,11 @@
             const evidence = data.detail.evidence || [];
             const sosOpts = await fetchSosOptions(cf.sosIncidentId);
             const statusOpen = cf.status !== 'closed';
+            const opsLinkHtml = cf.opsCaseId
+                ? ('<p class="hint cf-ops-case-link">' + esc(tr('caseFiles.linkedOpsCase', 'Linked Ops Case'))
+                    + ': <button type="button" class="btn btn-ghost btn-sm" id="cf-open-ops-case" data-ops-case-id="'
+                    + esc(cf.opsCaseId) + '">' + esc(cf.opsCaseId) + '</button></p>')
+                : '';
             wrap.innerHTML =
                 '<div class="cf-detail-back-bar">'
                 + '<button type="button" class="cf-detail-back-btn" id="cf-back">'
@@ -275,6 +280,7 @@
                     ? '<button type="button" class="btn btn-ghost btn-sm cf-delete-btn" id="cf-detail-delete">' + tr('caseFiles.deleteCase') + '</button>'
                     : '')
                 + '</div></div>'
+                + opsLinkHtml
                 + '<div class="cf-detail-grid">'
                 + '<section class="cf-field-report">'
                 + '<h4>' + tr('caseFiles.fieldReport') + '</h4>'
@@ -360,6 +366,19 @@
         if (delBtn) delBtn.addEventListener('click', function () {
             confirmDeleteCase(id, caseTitle || id, evidenceCount || 0);
         });
+        const opsBtn = document.getElementById('cf-open-ops-case');
+        if (opsBtn) {
+            opsBtn.addEventListener('click', function () {
+                const ocId = opsBtn.getAttribute('data-ops-case-id');
+                if (!ocId) return;
+                if (global.EvidenceHub && EvidenceHub.showPanel) {
+                    EvidenceHub.showPanel('ops-cases', { force: true });
+                }
+                setTimeout(function () {
+                    if (global.OpsCasesUi && OpsCasesUi.openCase) OpsCasesUi.openCase(ocId);
+                }, 80);
+            });
+        }
         const wrap = document.getElementById('cf-detail-body');
         if (wrap) {
             wrap.querySelectorAll('.cf-unlink').forEach(function (btn) {
@@ -379,14 +398,22 @@
     }
 
     async function saveCase(id) {
+        /* CASE-FILES-SAVE-JUMP-LIST-V1 — require narrative; on success jump to list */
         const msgEl = document.getElementById('cf-save-msg');
+        const narrativeEl = document.getElementById('cf-narrative');
+        const narrative = narrativeEl ? String(narrativeEl.value || '').trim() : '';
+        if (!narrative) {
+            if (msgEl) msgEl.textContent = tr('caseFiles.needNarrative');
+            if (narrativeEl && typeof narrativeEl.focus === 'function') narrativeEl.focus();
+            return;
+        }
         const body = {
             title: document.getElementById('cf-title').value,
             officerName: document.getElementById('cf-officer').value,
             deviceId: document.getElementById('cf-device').value,
             sosIncidentId: document.getElementById('cf-sos').value || null,
             status: document.getElementById('cf-status').value,
-            narrative: document.getElementById('cf-narrative').value,
+            narrative: narrativeEl ? narrativeEl.value : '',
         };
         const res = await fetch('/api/case-files/' + encodeURIComponent(id), {
             method: 'PATCH',
@@ -396,9 +423,19 @@
         });
         const data = await res.json();
         if (!res.ok || !data.ok) throwOp(data);
-        if (msgEl) msgEl.textContent = tr('caseFiles.saved');
-        loadDetail(id);
-        loadList();
+        showList();
+        await loadList();
+        const listMsg = document.getElementById('cf-list-save-msg');
+        if (listMsg) {
+            listMsg.hidden = false;
+            listMsg.textContent = tr('caseFiles.saved');
+            setTimeout(function () {
+                try {
+                    listMsg.textContent = '';
+                    listMsg.hidden = true;
+                } catch (_) { /* ignore */ }
+            }, 4000);
+        }
     }
 
     async function linkEvidence(caseId, evidenceFileId) {
@@ -781,5 +818,6 @@
         openWithEvidenceLink: openWithEvidenceLink,
         promptAddToCase: promptAddToCase,
         refreshList: loadList,
+        openDetail: showDetail,
     };
 }(window));

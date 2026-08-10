@@ -23,6 +23,7 @@ if (-not (Test-Path $VenvPy)) {
 }
 
 Write-Host 'Installing Weapon RF-DETR packages (first time can take several minutes)...'
+Write-Host 'Pin: transformers v4 (required by rfdetr 1.2.1).'
 & $VenvPy -m pip install --upgrade pip wheel
 & $VenvPy -m pip install -r (Join-Path $Root 'requirements.txt')
 if ($LASTEXITCODE -ne 0) { throw 'pip install failed' }

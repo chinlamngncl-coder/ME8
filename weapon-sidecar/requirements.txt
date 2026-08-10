@@ -4,4 +4,6 @@ pydantic>=2.0
 pillow>=10.0
 requests>=2.31
 rfdetr==1.2.1
+# rfdetr 1.2.1 needs transformers v4 (v5 removed find_pruneable_heads_and_indices)
+transformers>=4.46,<5
 supervision>=0.26.1

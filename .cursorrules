@@ -12,3 +12,29 @@
 - INPUT WIDTH CAPS: Text inputs, selects, and textareas must NEVER stretch infinitely. ALWAYS apply a max-width (e.g., `max-width: 420px;`).
 - LIST ALIGNMENT: Readiness checks and status lists must use `display: flex; justify-content: space-between; align-items: center;` to keep labels West and statuses East.
 - FUNCTIONAL PRESERVATION: Never modify or delete `id`, `data-*`, or `onclick` attributes.
+
+# CREDIT-LEAN-HARD (ME8) — MOB-APPLY CREDIT-LEAN-IN-CURSORRULES-V1
+# Disc: docs/MOB-DISC-CREDIT-LEAN-HARD-CODE-20260809.md + docs/MOB-DISC-CREDIT-LEAN-IN-CURSORRULES-20260809.md
+# Also: .cursor/rules/me8-credit-lean-hard.mdc
+#
+# If the user message contains CREDIT-LEAN-HARD / MOB-LEAN-NO-SCAN / NO-SCAN-THIS-TURN:
+# 1. No repo-wide Grep/Glob/Task explore.
+# 2. Open at most 1–3 files named by the user or the exact APPLY.
+# 3. Prefer zero search; if path unknown ask one short path question.
+# 4. Small targeted patches only. Short reply. No giant index.html / server.js tours.
+# 5. Soft apology is not compliance — obey the cap.
+# Standing token-lean still applies when the invoke code is absent.
+# Violating after CREDIT-LEAN-HARD = failure.
+
+# UI COPY PROFESSIONAL (ME8) — always — WHOLE SOFTWARE
+# Disc: docs/MOB-DISC-UI-COPY-TEACH-STRIP-JUDGMENT-CONCEPT-20260810.md
+#        docs/MOB-DISC-UI-COPY-INDUSTRY-NO-PERMANENT-TEACH-STRIP-20260810.md
+# Rule: .cursor/rules/me8-ui-copy-professional.mdc
+#
+# Concept (agent owns judgment — operator does NOT memorize key lists):
+#   A) Working page + clear title → REMOVE permanent teach strip (no “what this is / don’t open…”).
+#   B) Rare / high-risk / IT misconfig risk → KEEP one short industry one-liner beside the control.
+#   C) Empty / error / confirm / modal gate / once-wizard → KEEP short factual.
+# Manuals = full teach. Not “hide all help” and not “essay on every page”.
+# Copy = words/visibility only. Before whole-UI Grep: ASK permission.
+# APPLY judgment pass: MOB-APPLY UI-COPY-PANEL-INTRO-JUDGMENT-V1

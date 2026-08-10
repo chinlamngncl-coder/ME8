@@ -942,49 +942,26 @@
 
     function playChime() {
         try {
-            var Ctx = global.AudioContext || global.webkitAudioContext;
-            if (!Ctx) return;
-            var ctx = playChime._ctx || (playChime._ctx = new Ctx());
-            var o = ctx.createOscillator();
-            var g = ctx.createGain();
-            o.type = 'sine';
-            o.frequency.value = 880;
-            g.gain.value = 0.0001;
-            o.connect(g);
-            g.connect(ctx.destination);
-            var t = ctx.currentTime;
-            g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
-            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
-            o.start(t);
-            o.stop(t + 0.3);
+            if (global.HqAlertAudio && typeof HqAlertAudio.play === 'function') {
+                HqAlertAudio.play('fr', { tier: 'strong', key: 'fr-chime' });
+                return;
+            }
         } catch (_) { /* ignore */ }
     }
 
-    /** Soft grades: quiet or soft beep; blacklist keeps strong chime. */
+    /** Soft grades: quiet or soft beep; blacklist keeps strong chime. HQ-ALERT-AUDIO-V1 */
     function playChimeForHit(hit) {
         var tier = alertTierForHit(hit);
         if (tier === 'silent' || tier === 'low') return;
-        if (tier === 'medium') {
-            try {
-                var Ctx = global.AudioContext || global.webkitAudioContext;
-                if (!Ctx) return;
-                var ctx = playChime._ctx || (playChime._ctx = new Ctx());
-                var o = ctx.createOscillator();
-                var g = ctx.createGain();
-                o.type = 'sine';
-                o.frequency.value = 620;
-                g.gain.value = 0.0001;
-                o.connect(g);
-                g.connect(ctx.destination);
-                var t = ctx.currentTime;
-                g.gain.exponentialRampToValueAtTime(0.08, t + 0.02);
-                g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
-                o.start(t);
-                o.stop(t + 0.18);
-            } catch (_) { /* ignore */ }
-            return;
-        }
-        playChime();
+        var kind = (hit && (hit.kind === 'anpr' || hit.anpr)) ? 'anpr' : 'fr';
+        var toneTier = (tier === 'medium') ? 'soft' : 'strong';
+        var key = String((hit && (hit.hitId || hit.camId)) || kind);
+        try {
+            if (global.HqAlertAudio && typeof HqAlertAudio.play === 'function') {
+                HqAlertAudio.play(kind, { tier: toneTier, key: key });
+                return;
+            }
+        } catch (_) { /* ignore */ }
     }
 
     function gradeKeyForHit(hit) {
@@ -2579,6 +2556,40 @@
         clearActive();
     }
 
+    /** OPS-CASE-FR-WIRE-V1 / OPS-CASE-ANPR-WIRE-V1 — file case on Ack/Dismiss. Never block UI. */
+    function wireFrOpsCase(hit, reason) {
+        if (!hit || !hit.hitId || hit._labPreview) return;
+        var kindRaw = String(hit.kind || '').toLowerCase();
+        var isAnpr = hit.anpr === true || kindRaw === 'anpr';
+        var url = isAnpr ? '/api/ops-cases/from-anpr' : '/api/ops-cases/from-fr';
+        var payload = {
+            hitId: hit.hitId,
+            camId: hit.camId,
+            cameraId: hit.camId,
+            displayName: hit.displayName || hit.plate || null,
+            plate: hit.plate || hit.displayName || null,
+            deviceLabel: hit.deviceLabel || null,
+            blacklistId: hit.blacklistId || hit.listId || null,
+            listStatus: hit.listStatus || null,
+            scorePct: hit.scorePct != null ? hit.scorePct : null,
+            cropUrl: hit.cropUrl || hit.photoUrl || hit.vehicleUrl || null,
+            vehicleUrl: hit.vehicleUrl || null,
+            reasonCode: hit.reasonCode || null,
+            at: hit.at || Date.now(),
+            kind: isAnpr ? 'anpr' : 'fr',
+            anpr: isAnpr,
+            closedReason: String(reason || 'ack'),
+        };
+        try {
+            fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify(payload),
+            }).catch(function () { /* ignore */ });
+        } catch (_) { /* ignore */ }
+    }
+
     function onFrAlarmAck() {
         if (!current) {
             hideRedToast();
@@ -2588,6 +2599,7 @@
             clearActive();
             return;
         }
+        wireFrOpsCase(current, 'ack');
         emitAction('fr-alarm-ack');
         hideModal();
     }
@@ -2601,6 +2613,7 @@
             clearActive();
             return;
         }
+        wireFrOpsCase(current, 'dismiss');
         emitAction('fr-alarm-dismiss');
         hideModal();
     }

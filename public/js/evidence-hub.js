@@ -149,6 +149,10 @@
         if (addDock) addDock.hidden = !perms.dockAdmin;
         const navStorage = document.getElementById('ev-nav-storage');
         if (navStorage) navStorage.hidden = dashboardRole !== 'super_admin';
+        const navRetention = document.getElementById('ev-nav-retention');
+        if (navRetention) navRetention.hidden = dashboardRole !== 'super_admin';
+        const navDeleteQueue = document.getElementById('ev-nav-delete-queue');
+        if (navDeleteQueue) navDeleteQueue.hidden = dashboardRole !== 'super_admin';
         const navDocks = document.getElementById('ev-nav-docks');
         if (navDocks) navDocks.hidden = !perms.dockAdmin && dashboardRole !== 'super_admin';
         const navRx = document.getElementById('ev-nav-redacted-exports');
@@ -156,6 +160,8 @@
         const forensicImport = document.getElementById('ev-forensic-import');
         if (forensicImport) forensicImport.hidden = !perms.superAdmin;
         if (dashboardRole !== 'super_admin' && currentPanel === 'settings') showPanel('overview');
+        else if (dashboardRole !== 'super_admin' && currentPanel === 'retention') showPanel('overview');
+        else if (dashboardRole !== 'super_admin' && currentPanel === 'delete-queue') showPanel('overview');
         else if (currentPanel === 'approvals') showPanel('catalog', { focusExportQueue: true });
         else if (!perms.dockAdmin && dashboardRole !== 'super_admin' && currentPanel === 'docks') showPanel('overview');
         else if (!perms.export && !perms.superAdmin && currentPanel === 'redacted-exports') showPanel('overview');
@@ -437,17 +443,32 @@
             if (panelWarm('settings', force)) return;
             if (global.EvidenceStorageUi && EvidenceStorageUi.refresh) EvidenceStorageUi.refresh();
             else if (global.EvidenceManager && EvidenceManager.loadEvidencePaths) EvidenceManager.loadEvidencePaths();
+            if (global.DockIdentitySetup && DockIdentitySetup.onShow) DockIdentitySetup.onShow();
             markPanelLoaded('settings');
         } else if (currentPanel === 'route-trace') {
             if (panelWarm('route-trace', force)) return;
             if (global.RouteTrace && RouteTrace.onShow) RouteTrace.onShow({ force: true });
             markPanelLoaded('route-trace');
+        } else if (currentPanel === 'retention') {
+            if (panelWarm('retention', force)) return;
+            if (global.EvidenceRetentionUi && EvidenceRetentionUi.onShow) EvidenceRetentionUi.onShow();
+            markPanelLoaded('retention');
+        } else if (currentPanel === 'delete-queue') {
+            if (panelWarm('delete-queue', force)) return;
+            if (global.EvidenceDeleteQueueUi && EvidenceDeleteQueueUi.onShow) EvidenceDeleteQueueUi.onShow();
+            markPanelLoaded('delete-queue');
         } else if (currentPanel === 'case-files') {
             const warm = panelWarm('case-files', force);
             if (global.CaseFilesUi && CaseFilesUi.onShow) {
                 CaseFilesUi.onShow({ force: !!force, warm: warm });
             }
             if (!warm) markPanelLoaded('case-files');
+        } else if (currentPanel === 'ops-cases') {
+            const warm = panelWarm('ops-cases', force);
+            if (global.OpsCasesUi && OpsCasesUi.onShow) {
+                OpsCasesUi.onShow({ force: !!force, warm: warm });
+            }
+            if (!warm) markPanelLoaded('ops-cases');
         } else if (currentPanel === 'investigation-holds') {
             if (panelWarm('investigation-holds', force)) return;
             if (global.FrKeptUi && FrKeptUi.onShow) FrKeptUi.onShow({ force: true });
@@ -1189,13 +1210,36 @@
                 + '<dt>' + tr('evidenceHub.colStatus') + '</dt><dd>' + esc(d.storageAvailable === false ? tr('evidenceHub.statusMissing') : tr('evidenceHub.statusAvailable'))
                 + ' <span class="ev-crypto-chip ' + esc(d.cryptoStatus || 'missing') + '">' + esc(cryptoStatusLabel(d.cryptoStatus)) + '</span>'
                 + (d.archived ? (' <span class="ev-crypto-chip missing">' + esc(tr('evidenceHub.archivedBadge')) + '</span>') : '')
+                + (d.queuedDelete ? (' <span class="ev-crypto-chip missing">' + esc(tr('evidenceDeleteQueue.badge')) + '</span>') : '')
                 + '</dd></dl>'
-                /* mob-evidence-redact-action-top-v1 \u2014 Redact with top actions, not after custody */
+                + (d.queuedDelete && d.deleteQueue
+                    ? ('<p class="hint ev-delete-queue-banner">' + esc(tr('evidenceDeleteQueue.detailHint', 'Queued for deletion. Purge after'))
+                        + ': <strong>' + esc(fmtTime(d.deleteQueue.purgeAt)) + '</strong></p>')
+                    : '')
+                /* REDACT-LICENSE-GREY-BUTTON-V1 — show Redact; grey if redaction license off */
                 + (function () {
-                    const redactTop = perms.superAdmin
-                        ? ('<button type="button" class="btn btn-action btn-sm" id="ev-detail-redact">' + tr('evidenceHub.openRedact') + '</button>')
-                        : '';
+                    function buildRedactBtn() {
+                        if (!perms.superAdmin) return '';
+                        var licensed = !!(global.LicenseFeatures && LicenseFeatures.isEnabled
+                            && LicenseFeatures.isEnabled('redaction'));
+                        var title = licensed
+                            ? ''
+                            : (' title="' + esc(tr('evidenceHub.redactNeedsLicense', 'Redaction license required')) + '"');
+                        var dis = licensed ? '' : ' disabled aria-disabled="true"';
+                        var cls = licensed
+                            ? 'btn btn-action btn-sm'
+                            : 'btn btn-ghost btn-sm ev-redact-license-locked';
+                        return '<button type="button" class="' + cls + '" id="ev-detail-redact"'
+                            + dis + title + '>' + tr('evidenceHub.openRedact') + '</button>';
+                    }
+                    const redactTop = buildRedactBtn();
                     if (perms.edit) {
+                        const archiveOrQueue = d.queuedDelete
+                            ? ('<button type="button" class="btn btn-action btn-sm" id="ev-detail-restore-queue">' + tr('evidenceDeleteQueue.restore') + '</button>')
+                            : (d.archived
+                                ? ('<button type="button" class="btn btn-action btn-sm" id="ev-detail-restore">' + tr('evidenceHub.restore') + '</button>')
+                                : ('<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-archive">' + tr('evidenceHub.archive') + '</button>'
+                                    + '<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-queue-delete">' + tr('evidenceDeleteQueue.deleteBtn') + '</button>'));
                         return '<label class="full"><span>' + tr('evidenceHub.notes') + '</span>'
                             + '<textarea id="ev-detail-notes" rows="3">' + esc(m.notes || '') + '</textarea></label>'
                             + '<label class="full"><span>' + tr('evidenceHub.tags') + ' <span class="hint">' + tr('evidenceHub.tagsExample') + '</span></span>'
@@ -1208,9 +1252,7 @@
                             + redactTop
                             + '<button type="button" class="btn btn-action btn-sm" id="ev-detail-save-meta">' + tr('evidenceHub.saveMeta') + '</button>'
                             + '<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-add-case">' + tr('caseFiles.addToCase') + '</button>'
-                            + (d.archived
-                                ? ('<button type="button" class="btn btn-action btn-sm" id="ev-detail-restore">' + tr('evidenceHub.restore') + '</button>')
-                                : ('<button type="button" class="btn btn-ghost btn-sm" id="ev-detail-archive">' + tr('evidenceHub.archive') + '</button>'))
+                            + archiveOrQueue
                             + '</div>'
                             + '<p class="hint ev-detail-save-hint" id="ev-detail-save-hint" hidden aria-live="polite"></p>';
                     }
@@ -1534,6 +1576,10 @@
         if (archiveBtn) archiveBtn.addEventListener('click', function () { archiveEvidence(fileId); });
         const restoreBtn = document.getElementById('ev-detail-restore');
         if (restoreBtn) restoreBtn.addEventListener('click', function () { restoreEvidence(fileId); });
+        const queueDelBtn = document.getElementById('ev-detail-queue-delete');
+        if (queueDelBtn) queueDelBtn.addEventListener('click', function () { queueDeleteEvidence(fileId); });
+        const restoreQueueBtn = document.getElementById('ev-detail-restore-queue');
+        if (restoreQueueBtn) restoreQueueBtn.addEventListener('click', function () { restoreFromDeleteQueue(fileId); });
         const addCase = document.getElementById('ev-detail-add-case');
         if (addCase) addCase.addEventListener('click', function () {
             if (global.CaseFilesUi && CaseFilesUi.promptAddToCase) {
@@ -1560,7 +1606,16 @@
         const secBtn = document.getElementById('ev-detail-secure');
         if (secBtn) secBtn.addEventListener('click', function () { requestSecureExport(fileId, secBtn); });
         const redactBtn = document.getElementById('ev-detail-redact');
-        if (redactBtn) redactBtn.addEventListener('click', function () { openRedactWorkspace(fileId); });
+        if (redactBtn) {
+            redactBtn.addEventListener('click', function () { openRedactWorkspace(fileId); });
+            syncDetailRedactLicenseGate();
+            if (global.LicenseFeatures && LicenseFeatures.onReady) {
+                LicenseFeatures.onReady(function () { syncDetailRedactLicenseGate(); });
+            }
+            if (global.LicenseFeatures && LicenseFeatures.fetch) {
+                LicenseFeatures.fetch();
+            }
+        }
         document.querySelectorAll('.ev-redact-note-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 openRedactNoteDialog(btn.getAttribute('data-export-id'), fileId, null);
@@ -3077,8 +3132,31 @@
         }
     }
 
+    function isRedactionLicensed() {
+        return !!(global.LicenseFeatures && typeof LicenseFeatures.isEnabled === 'function'
+            && LicenseFeatures.isEnabled('redaction'));
+    }
+
+    function syncDetailRedactLicenseGate() {
+        var btn = document.getElementById('ev-detail-redact');
+        if (!btn) return;
+        var licensed = isRedactionLicensed();
+        btn.disabled = !licensed;
+        btn.setAttribute('aria-disabled', licensed ? 'false' : 'true');
+        btn.className = licensed
+            ? 'btn btn-action btn-sm'
+            : 'btn btn-ghost btn-sm ev-redact-license-locked';
+        if (licensed) btn.removeAttribute('title');
+        else btn.title = tr('evidenceHub.redactNeedsLicense', 'Redaction license required');
+    }
+
     function openRedactWorkspace(fileId, opts) {
         if (!perms.superAdmin) return;
+        if (!isRedactionLicensed()) {
+            window.alert(tr('evidenceHub.redactNeedsLicense', 'Redaction license required'));
+            syncDetailRedactLicenseGate();
+            return;
+        }
         opts = opts || {};
         const parentExportId = opts.parentExportId ? String(opts.parentExportId).trim() : '';
         const secondPass = !!parentExportId;
@@ -3343,6 +3421,7 @@
     }
 
     async function restoreEvidence(fileId) {
+        if (!window.confirm(tr('evidenceHub.restoreConfirm'))) return;
         try {
             const res = await fetch('/api/evidence/detail/' + encodeURIComponent(fileId) + '/restore', {
                 method: 'POST',
@@ -3355,6 +3434,49 @@
             catalogStatus = 'active';
             syncCatalogStatusButtons();
             catalogPage = 1;
+            showPanel('catalog', { force: true });
+        } catch (err) {
+            alert(catalogMsg(err.opPayload || err.catalogPayload, err));
+        }
+    }
+
+    async function queueDeleteEvidence(fileId) {
+        if (!window.confirm(tr(
+            'evidenceDeleteQueue.confirm',
+            'Queue this file for deletion? It stays recoverable for 7 days, then is permanently removed.'
+        ))) return;
+        try {
+            const res = await fetch('/api/evidence/detail/' + encodeURIComponent(fileId) + '/queue-delete', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throwCatalogErr(data);
+            catalogStatus = 'active';
+            syncCatalogStatusButtons();
+            catalogPage = 1;
+            if (dashboardRole === 'super_admin') showPanel('delete-queue', { force: true });
+            else showPanel('catalog', { force: true });
+        } catch (err) {
+            alert(catalogMsg(err.opPayload || err.catalogPayload, err));
+        }
+    }
+
+    async function restoreFromDeleteQueue(fileId) {
+        if (!window.confirm(tr('evidenceDeleteQueue.restoreConfirm', 'Restore this file to the Library?'))) return;
+        try {
+            const res = await fetch('/api/evidence/detail/' + encodeURIComponent(fileId) + '/restore-from-queue', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throwCatalogErr(data);
+            catalogStatus = 'active';
+            syncCatalogStatusButtons();
             loadDetail(fileId, true);
         } catch (err) {
             alert(catalogMsg(err.opPayload || err.catalogPayload, err));
@@ -3743,6 +3865,7 @@
     global.EvidenceHub = {
         applyPermissions: applyPermissions,
         onShow: onShow,
+        showPanel: showPanel,
         refreshCatalog: loadCatalog,
         refreshCurrentPanel: refreshCurrentPanel,
         bindUi: bindUi,

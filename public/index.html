@@ -1440,6 +1440,8 @@
         #fr-hq-alert-bar .fr-hq-alert-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
         #fr-hq-alert-bar .fr-hq-alert-actions .btn { font-size: 11px; padding: 4px 10px; }
         body.fr-hq-alert-active #header { margin-top: 40px; }
+        body.wd-hq-alert-active #header { margin-top: 40px; }
+        body.fr-hq-alert-active.wd-hq-alert-active #header { margin-top: 80px; }
         body.fr-hq-alert-active #app-top-nav { top: auto; }
         .ax-fr-right {
             width: 300px;
@@ -4191,6 +4193,67 @@
         }
         .cf-status-badge { font-size: 10px; padding: 2px 8px; border-radius: 999px; background: rgba(34, 197, 94, 0.15); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.35); }
         .cf-status-badge.cf-status-closed { background: rgba(148, 163, 184, 0.12); color: #cbd5e1; border-color: #475569; }
+        /* OPS-CASE-UI-SCROLL-UNIFY-V1 — same Evidence desk scroll as Case Files; scroll only when full */
+        #ev-panel-ops-cases:not([hidden]):not(.oc-list-empty):not(.oc-detail-active) {
+            display: flex; flex-direction: column; flex: 1 1 auto;
+            min-height: calc(100vh - 168px); max-height: calc(100vh - 140px);
+            min-width: 0; margin-top: 4px;
+        }
+        #ev-panel-ops-cases:not([hidden]):not(.oc-list-empty):not(.oc-detail-active).oc-few-rows {
+            flex: 0 1 auto;
+            min-height: 0; max-height: none;
+        }
+        #ev-panel-ops-cases:not([hidden]).oc-list-empty {
+            display: block; flex: 0 0 auto;
+            min-height: 0; max-height: none; margin-top: 4px;
+        }
+        #ev-panel-ops-cases:not([hidden]).oc-detail-active {
+            display: flex; flex-direction: column; flex: 0 1 auto;
+            min-height: 0; max-height: none;
+            min-width: 0; margin-top: 4px;
+        }
+        #evidence-panel.ev-ops-cases-empty,
+        #evidence-panel.ev-ops-cases-few-rows {
+            overflow: hidden;
+        }
+        #evidence-panel.ev-ops-cases-detail {
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+        #ops-cases-list-wrap:not([hidden]) {
+            min-width: 0; display: flex; flex-direction: column;
+        }
+        #ops-cases-list-wrap:not([hidden]):not(.oc-list-empty) {
+            flex: 1; min-height: 0;
+        }
+        #ops-cases-list-wrap:not([hidden]):not(.oc-list-empty).oc-few-rows {
+            flex: 0 0 auto;
+        }
+        #ops-cases-list-wrap.oc-list-empty:not([hidden]) {
+            flex: 0 0 auto;
+        }
+        #ops-cases-list-wrap .ops-cases-filters { flex-shrink: 0; }
+        #ops-cases-table-wrap.ss-evidence-table-wrap {
+            max-height: none; border: 1px solid #334155; border-radius: 6px;
+            width: 100%; min-width: 0; background: #0f172a;
+        }
+        #ops-cases-table-wrap.oc-list-empty,
+        #ops-cases-table-wrap[hidden] {
+            display: none !important;
+        }
+        #ops-cases-table-wrap:not(.oc-list-empty):not([hidden]) {
+            flex: 1 1 auto; min-height: 220px; max-height: none;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        #ops-cases-table-wrap:not(.oc-list-empty):not([hidden]).oc-few-rows {
+            flex: 0 1 auto; min-height: 0; max-height: none;
+            overflow-y: visible; overflow-x: hidden;
+        }
+        #ev-panel-ops-cases #ops-cases-table-wrap .evidence-table {
+            table-layout: fixed; width: 100%; max-width: 100%;
+        }
+
         #ev-panel-case-files:not([hidden]):not(.cf-list-empty):not(.cf-detail-active) {
             display: flex; flex-direction: column; flex: 1 1 auto;
             min-height: calc(100vh - 168px); max-height: calc(100vh - 140px);
@@ -8039,8 +8102,16 @@
         .sos-chart-bar { width: 100%; max-width: 28px; background: #334155; border-radius: 3px 3px 0 0; min-height: 4px; display: flex; align-items: flex-end; }
         .sos-chart-bar i { display: block; width: 100%; background: #ef4444; border-radius: 3px 3px 0 0; min-height: 4px; }
         .sos-chart-col span { font-size: 9px; color: #64748b; }
-        #sos-ledger-list { max-height: 228px; overflow-y: auto; margin: 6px 0; font-size: 11px; color: #cbd5e1; }
+        /* SOS-OPS-STRIP-ACTIONS-V1 — grow with rows; scroll after ~4 */
+        #sos-ledger-list {
+            max-height: calc(4 * 52px);
+            overflow-y: auto;
+            margin: 6px 0;
+            font-size: 11px;
+            color: #cbd5e1;
+        }
         .sos-ledger-item { padding: 6px 0; border-bottom: 1px solid #334155; display: flex; gap: 8px; align-items: flex-start; cursor: pointer; border-radius: 4px; }
+        .sos-ledger-item.is-selected { background: rgba(59, 130, 246, 0.18); }
         .sos-ledger-item:hover { background: rgba(51, 65, 85, 0.35); }
         .sos-ledger-item:last-child { border-bottom: none; }
         .sos-ledger-thumb { width: 36px; height: 36px; border-radius: 4px; object-fit: cover; background: #0f172a; flex-shrink: 0; }
@@ -8052,6 +8123,25 @@
         #sos-ledger-meta { margin: 0 0 6px; min-height: 14px; }
         #sos-ledger-meta.is-updating { color: #93c5fd; }
         #sos-ledger-meta.is-error { color: #f87171; }
+        .sos-strip-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            margin-top: 6px;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .sos-strip-actions .btn {
+            flex: 1;
+            font-size: 10px;
+            padding: 6px 8px;
+            min-height: 0;
+            line-height: 1.25;
+            border: none;
+            border-radius: 0;
+        }
+        .sos-strip-actions .btn + .btn { border-left: 1px solid #475569; }
         .ptt-group-box { margin-top: 0; }
         .ptt-group-select-row {
             display: flex; align-items: stretch; gap: 8px; margin: 6px 0 4px;
@@ -8370,7 +8460,7 @@
         .sos-detail-actions button { flex: 1; min-width: 100px; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; background: #334155; color: #e2e8f0; }
         .sos-detail-actions .sos-detail-secondary { flex: 0 1 auto; background: transparent; color: #94a3b8; font-weight: 500; font-size: 11px; }
     </style>
-    <link rel="stylesheet" href="/css/global.css?v=20260806-wd-detect-stills-v1">
+    <link rel="stylesheet" href="/css/global.css?v=20260809-ops-case-ui-desk-v1">
     <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260731-analytics-grade-filter-compact-chevron-v1">
 </head>
 <body>
@@ -8540,6 +8630,26 @@
         <div id="sos-detail-panel" hidden role="dialog" aria-labelledby="sos-detail-title">
             <h3 id="sos-detail-title" data-i18n="sos.detail.title">SOS incident</h3>
             <p class="meta"><span id="sos-detail-status"></span> Â&middot; <span id="sos-detail-time"></span> Â&middot; <span data-i18n="sos.detail.operator">Operator</span>: <span id="sos-detail-operator"></span></p>
+            <div id="sos-detail-dual-media" class="sos-dual-media" hidden>
+                <div class="sos-dual-media-card" data-media="hq">
+                    <div class="sos-dual-media-title" data-i18n="sos.detail.hqRecording">HQ recording (live path)</div>
+                    <p id="sos-detail-hq-missing" class="sos-dual-media-missing" data-i18n="sos.detail.hqMissing">No HQ clip for this SOS.</p>
+                    <video id="sos-detail-hq-video" class="sos-dual-media-video" controls preload="metadata" hidden playsinline></video>
+                    <div id="sos-detail-hq-actions" class="sos-dual-media-actions" hidden>
+                        <button type="button" id="sos-detail-hq-watch" class="btn btn-action btn-sm" data-i18n="sos.detail.watchRecording">Watch full screen</button>
+                        <button type="button" id="sos-detail-hq-download" class="btn btn-secondary btn-sm" data-i18n="sos.detail.downloadRecording">Download MP4</button>
+                    </div>
+                </div>
+                <div class="sos-dual-media-card" data-media="ground">
+                    <div class="sos-dual-media-title" data-i18n="sos.detail.groundRecording">Ground recording (dock)</div>
+                    <p id="sos-detail-ground-missing" class="sos-dual-media-missing" data-i18n="sos.detail.groundMissing">No dock/ground clip linked yet.</p>
+                    <video id="sos-detail-ground-video" class="sos-dual-media-video" controls preload="metadata" hidden playsinline></video>
+                    <div id="sos-detail-ground-actions" class="sos-dual-media-actions" hidden>
+                        <button type="button" id="sos-detail-ground-watch" class="btn btn-action btn-sm" data-i18n="sos.detail.watchRecording">Watch full screen</button>
+                        <button type="button" id="sos-detail-ground-download" class="btn btn-secondary btn-sm" data-i18n="sos.detail.downloadRecording">Download MP4</button>
+                    </div>
+                </div>
+            </div>
             <iframe id="sos-detail-report-frame" title="SOS incident report" hidden data-i18n-title="sos.detail.reportFrameTitle"></iframe>
             <p id="sos-detail-no-report" class="hint" hidden data-i18n="sos.detail.noReport">Report file not found for this incident.</p>
             <div class="sos-detail-actions">
@@ -8682,19 +8792,14 @@
                 </div>
             </div>
             <div id="sidebar-rest">
-            <div class="status-box">
-                <h3 data-i18n="sos.title">SOS log</h3>
-                <p class="hint" data-i18n="sos.hint">Last 7 days</p>
+            <div class="status-box" id="sos-cases-strip">
+                <h3 data-i18n="sos.title">SOS cases</h3>
                 <p id="sos-ledger-meta" class="hint" hidden></p>
                 <div id="sos-chart" class="sos-chart" aria-hidden="true"></div>
                 <div id="sos-ledger-list"></div>
-                <div class="btn-row horizontal sos-log-actions">
-                    <button type="button" class="btn btn-action btn-sm" onclick="openStorageFolder('sos-incidents')" data-i18n="sos.openFiles">Open incident files</button>
-                    <button type="button" class="btn btn-ghost btn-sm" onclick="downloadSosCsv()" data-i18n="sos.downloadCsv">Download CSV</button>
-                </div>
-                <div class="btn-row horizontal sos-log-actions">
-                    <button type="button" class="btn btn-ghost btn-sm" id="sos-ledger-clear" style="flex:1;" data-i18n="sos.clearList">Clear list</button>
-                    <button type="button" class="btn btn-ghost btn-sm" id="sos-ledger-sync" style="flex:1;" data-i18n="sos.reloadList">Reload list</button>
+                <div class="sos-strip-actions" role="group" aria-label="SOS case actions">
+                    <button type="button" class="btn btn-action btn-sm" id="sos-strip-open-case" data-i18n="sos.openCase">Open case</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="sos-ledger-clear" data-i18n="sos.clearStrip">Clear strip</button>
                 </div>
             </div>
             <div class="status-box ptt-group-box">
@@ -9028,7 +9133,7 @@
                     <button type="button" id="ss-layout-toggle" hidden data-i18n="server.layoutExpand">Expand view</button>
                 </div>
                 <p id="ss-readonly-banner" class="ss-readonly-banner" hidden data-i18n="server.readonlyBanner">Operator view &mdash; server settings are read-only. Ask a super admin to change deployment or SIP.</p>
-                <p id="ss-global-setup-hint" class="setup-hint" data-i18n="server.setupHint">Server settings apply to every BWC. Register each camera on the BWCs tab with its device ID and officer name.</p>
+                <p id="ss-global-setup-hint" class="setup-hint" data-i18n="server.setupHint" hidden></p>
                 <p id="ss-config-loading" class="setup-hint" hidden aria-live="polite"></p>
                 <p id="ss-layout-hint" class="setup-hint ss-layout-hint" aria-live="polite"></p>
             </div>
@@ -9064,7 +9169,7 @@
             <div id="ss-phase-identity">
             <div class="ss-config-section" id="ss-section-deployment">
                 <h4 data-i18n="server.phase.identity">Identity</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.phase.identityHint">Deployment type and tenant name for this site.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.phase.identityHint" hidden></p>
                 <div class="ss-east-west-grid">
                     <label>
                         <span data-i18n="server.deploymentMode">Deployment mode</span>
@@ -9086,10 +9191,10 @@
 
             <div id="ss-phase-networking">
                 <h4 data-i18n="server.phase.networking">Networking</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.phase.networkingHint">LAN, WAN / internet, and the IPv4 address devices use to register.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.phase.networkingHint" hidden></p>
             <div class="ss-config-section" id="ss-section-lan" data-ss-saas-hide="cloud_leased">
                 <h4 data-i18n="server.lan.title">LAN network</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.lan.hint">On-prem server addressing. Configure the OS network adapter to match, or use DHCP and record the assigned address here.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.lan.hint">Match the host OS address, or record the DHCP address assigned to this server.</p>
                 <div class="ss-east-west-grid">
                     <label class="ss-east-west-span"><span data-i18n="server.lan.ipMode">IP assignment</span>
                         <select id="ss-lan-ip-mode">
@@ -9108,7 +9213,7 @@
 
             <div class="ss-config-section" id="ss-section-wan" data-ss-saas-hide="cloud_leased">
                 <h4 data-i18n="server.wan.title">WAN / internet</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.wan.hint">Public reachability for SIM cameras and remote operators. Configure router port-forward, cloud security group, or VPN to match.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.wan.hint">Set public reachability to match your router, cloud firewall, or VPN.</p>
                 <div class="ss-east-west-grid">
                     <label><span data-i18n="server.wan.publicIp">Public WAN IPv4</span><input type="text" id="ss-wan-public-ip" inputmode="decimal" placeholder="203.0.113.10"></label>
                     <label><span data-i18n="server.wan.ddns">DDNS hostname (optional)</span><input type="text" id="ss-wan-ddns" placeholder="c2.customer.com"></label>
@@ -9119,21 +9224,21 @@
 
             <div class="ss-config-section" id="ss-section-bwc-register">
                 <h4 data-i18n="server.bwcRegister">Device registration address</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.bwcRegisterHint">IPv4 on each BWC SIP screen (keypads cannot use hostnames). Independent of the Operator portal URL.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.bwcRegisterHint">IPv4 for each BWC SIP screen (devices cannot use hostnames).</p>
                 <div class="ss-east-west-grid">
                     <label><span data-i18n="server.bwcSipServer">Device registration IPv4</span><input type="text" id="ss-public-host" inputmode="decimal" data-i18n-placeholder="server.hostPlaceholder" placeholder="192.168.1.50"></label>
                     <label><span data-i18n="server.bindHost">SIP listen address</span><input type="text" id="ss-bind-host" placeholder="0.0.0.0"></label>
                 </div>
-                <p class="setup-hint" style="margin-top:4px" data-i18n="server.bindHostHint">0.0.0.0 listens on all interfaces. Set a specific LAN IP only when the server has multiple NICs.</p>
+                <p class="setup-hint" style="margin-top:4px" data-i18n="server.bindHostHint">0.0.0.0 listens on all interfaces. Use a specific LAN IP only with multiple NICs.</p>
             </div>
             </div>
 
             <div id="ss-phase-access">
                 <h4 data-i18n="server.phase.access">Access &amp; Security</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.phase.accessHint">Operator portal URL, reverse proxy trust, and SSL certificates.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.phase.accessHint" hidden></p>
             <div class="ss-config-section" id="ss-section-operator">
                 <h4 data-i18n="server.operatorSection">Operator portal</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.operatorSectionHint">HTTPS bookmark for dispatch staff. Not the device registration IPv4.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.operatorSectionHint" hidden></p>
                 <div class="ss-east-west-grid">
                     <label class="ss-east-west-span ss-portal-url-field"><span data-i18n="server.operatorUrl">Operator portal URL</span><input type="text" id="ss-operator-url" data-i18n-placeholder="server.operatorUrlPlaceholder" placeholder="https://dispatch.customer.com" autocomplete="off" spellcheck="false"></label>
                 </div>
@@ -9146,9 +9251,9 @@
 
             <div class="ss-config-section" id="ss-section-production">
                 <h4 data-i18n="server.productionAccess">Reverse proxy</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.productionAccessHint">Turn ON only if HTTPS stops at nginx/Caddy in front of this server. Leave OFF for direct Ops HTTPS (for example https://192.168.x.x:4438).</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.productionAccessHint">Turn on only when HTTPS terminates at a reverse proxy in front of this server.</p>
                 <label class="ss-lab-check"><input type="checkbox" id="ss-trust-proxy"><span data-i18n="server.trustReverseProxy">Trust reverse proxy — ON only if HTTPS stops at nginx/Caddy in front of this server</span></label>
-                <p class="setup-hint" id="ss-trust-proxy-help" style="margin-top:6px" data-i18n="server.trustReverseProxyHelp">OFF = browser talks straight to this server. ON = IT put nginx/Caddy in front — tick this box, then click Save below.</p>
+                <p class="setup-hint" id="ss-trust-proxy-help" style="margin-top:6px" data-i18n="server.trustReverseProxyHelp">Off = browsers reach this server directly. On = nginx/Caddy (or similar) is in front.</p>
                 <div id="ss-proxy-readiness" class="ss-proxy-readiness" role="status" aria-live="polite"></div>
                 <p id="ss-production-access-status" class="setup-hint" style="margin-top:6px"></p>
                 <button type="button" class="btn btn-action btn-sm" id="ss-save-production-access" data-i18n="server.saveProductionAccess">Save</button>
@@ -9156,7 +9261,7 @@
 
             <div class="ss-config-section" id="ss-section-ssl" data-ss-saas-onprem-only="1">
                 <h4 data-i18n="server.ssl.title">SSL Configuration</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.ssl.hint">Upload the site certificate (.crt) and private key (.key) for on-prem HTTPS. Files stay on this server — not applied until a later save MOB.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.ssl.hint">Upload the site certificate (.crt) and private key (.key) for on-prem HTTPS.</p>
                 <div class="ss-east-west-grid">
                     <label>
                         <span data-i18n="server.ssl.certLabel">Certificate (.crt)</span>
@@ -9173,10 +9278,10 @@
 
             <div id="ss-phase-storage">
                 <h4 data-i18n="server.phase.storage">Storage &amp; Devices</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.phase.storageHint">Evidence storage link, BWC protocol, site timezone, and control room monitors.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.phase.storageHint" hidden></p>
             <div class="ss-config-section" id="ss-section-dock-link">
                 <h4 data-i18n="server.dockStorageTitle">Dock &amp; evidence storage</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.dockStorageHint">FTP ingest, archive paths, and live capture are configured under Evidence &rarr; Storage.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.dockStorageHint" hidden></p>
                 <button type="button" id="ss-open-evidence-storage" class="btn btn-action btn-sm" data-i18n="server.dockStorageOpen">Open Evidence &rarr; Storage</button>
             </div>
 
@@ -9204,14 +9309,14 @@
             </div>
             <div class="enterprise-card ss-type-on-bwc-card">
             <h4 class="enterprise-section-title" data-i18n="server.typeOnBwc">Type on BWC</h4>
-            <p class="setup-hint" style="margin-bottom:8px;" data-i18n="server.typeOnBwcHint">Enter these server values on each BWC SIP screen. Device ID and operator name come from your BWC list.</p>
+            <p class="setup-hint" style="margin-bottom:8px;" data-i18n="server.typeOnBwcHint">Enter these values on each BWC SIP screen.</p>
             <dl id="server-setup-bwc" class="ss-type-on-bwc-grid"></dl>
             </div>
             </div>
 
             <div class="ss-config-section" id="ss-section-site-time">
                 <h4 data-i18n="server.siteTimezone">Site timezone</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.siteTimezoneIntro">Used for audit timestamps, evidence catalog times, and operator sign-in windows.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.siteTimezoneIntro" hidden></p>
                 <div class="ss-east-west-grid">
                 <label><span data-i18n="server.siteTimezoneSelect">Timezone</span>
                     <select id="ss-site-timezone"></select>
@@ -9222,7 +9327,7 @@
 
             <div class="ss-config-section" id="ss-section-command-displays">
                 <h4 data-i18n="server.commandDisplays.title">Control room</h4>
-                <p class="setup-hint" style="margin:0 0 8px" data-i18n="server.commandDisplays.hint">Assign monitors for the control room &mdash; operator desk, video wall, map, and status board.</p>
+                <p class="setup-hint" style="margin:0 0 8px" data-i18n="server.commandDisplays.hint" hidden></p>
                 <button type="button" class="btn btn-secondary btn-sm" id="ss-open-command-wall" data-i18n="server.commandDisplays.open">Configure monitors</button>
             </div>
             </div>
@@ -9230,7 +9335,7 @@
             <div id="ss-phase-resiliency">
             <div class="ss-config-section" id="ss-section-resilience">
                 <h4 data-i18n="server.phase.resiliency">Resiliency</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="resilience.hint">Single-node ops today. Set peer URL when a second site node is deployed.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="resilience.hint">Single-node today. Set peer URL when a second site node is deployed.</p>
                 <div class="ss-east-west-grid">
                     <label><span data-i18n="resilience.nodeId">Node ID</span><input type="text" id="ss-resilience-node-id" placeholder="site-a"></label>
                     <label><span data-i18n="resilience.peerUrl">Peer node URL</span><input type="text" id="ss-resilience-peer-url" placeholder="http://192.168.1.9:3888"></label>
@@ -9247,14 +9352,14 @@
 
             <div id="ss-phase-diagnostics">
                 <h4 data-i18n="server.phase.diagnostics">Diagnostics</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.phase.diagnosticsHint">Site configuration status and go-live readiness checklist.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.phase.diagnosticsHint" hidden></p>
             <div class="ss-config-section" id="ss-section-site-config-status">
                 <h4 data-i18n="cloud.readiness.title">Site configuration status</h4>
                 <div id="cd-readiness" class="ss-tech-section enterprise-card ss-readiness-card"></div>
             </div>
             <div class="ss-config-section" id="ss-section-readiness">
                 <h4 data-i18n="server.readiness.title">Site readiness</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.readiness.hint">Deployment health before go-live. Click a row to open the setting.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.readiness.hint" hidden></p>
                 <div id="ss-site-readiness" class="ss-tech-section enterprise-card ss-readiness-card" aria-live="polite"></div>
                 <button type="button" class="btn btn-secondary btn-sm" id="ss-refresh-readiness" data-i18n="server.readiness.refresh">Refresh</button>
             </div>
@@ -9295,17 +9400,17 @@
                 </div>
                 <div class="ss-config-section" id="ss-users-list-section" hidden>
                     <h4 data-i18n="server.users.title">Dashboard users</h4>
-                    <p class="setup-hint" data-i18n="server.users.permHint">Set each operator&rsquo;s authority below, then click Save on that row. Sign-in from/until, geofencing, and evidence until apply as listed.</p>
-                    <p class="setup-hint" data-i18n="server.users.hierarchyIntro">All stations = super admin or See all dispatch groups. Assigned only = pick groups in the Dispatch groups column.</p>
+                    <p class="setup-hint" data-i18n="server.users.permHint" hidden></p>
+                    <p class="setup-hint" data-i18n="server.users.hierarchyIntro">All stations = Super admin or See all groups. Assigned only = pick Dispatch groups.</p>
                     <div id="ss-users-body" class="ss-users-list"></div>
                 </div>
             </div>
             <div id="ss-my-account-section" hidden>
                 <h4 data-i18n="server.dashSub.myAccount">My account</h4>
                 <dl id="ss-my-account-info" class="ss-my-perms"></dl>
-                <p class="setup-hint" data-i18n="server.myAccount.hint">You can only see your own account. Ask a super admin to change your permissions.</p>
+                <p class="setup-hint" data-i18n="server.myAccount.hint" hidden></p>
                 <div class="ss-dash-auth-body" style="margin-top:12px;">
-                    <p class="setup-hint" data-i18n="server.password.changeHint">Change your dashboard password below.</p>
+                    <p class="setup-hint" data-i18n="server.password.changeHint" hidden></p>
                     <p class="setup-hint" id="ss-dash-password-policy-hint"></p>
                     <label><span data-i18n="server.password.current">Current password</span><input type="password" id="ss-dash-pass-current" autocomplete="current-password"></label>
                     <label><span data-i18n="server.password.new">New password</span><input type="password" id="ss-dash-pass-new" autocomplete="new-password"></label>
@@ -9314,7 +9419,7 @@
                 </div>
                 <div class="ss-dash-auth-body" id="ss-recovery-email-block" style="margin-top:16px;padding-top:14px;border-top:1px solid #334155;">
                     <h4 style="margin:0 0 8px;font-size:12px;color:#cbd5e1" data-i18n="recoveryEmail.title">Recovery email</h4>
-                    <p class="setup-hint" style="margin-top:0" data-i18n="recoveryEmail.myAccountHint">Used for password reset and lost-authenticator recovery. Changing it requires a new verification email.</p>
+                    <p class="setup-hint" style="margin-top:0" data-i18n="recoveryEmail.myAccountHint">Used for password reset and authenticator recovery. Changing it requires re-verification.</p>
                     <p class="setup-hint" id="ss-recovery-email-status" style="margin:0 0 10px">&mdash;</p>
                     <label><span data-i18n="recoveryEmail.address">Recovery email address</span>
                         <input type="email" id="ss-recovery-email-input" autocomplete="email" spellcheck="false">
@@ -9329,7 +9434,7 @@
             <div id="ss-site-security-section" hidden>
             <div id="ss-tech-pin-section" class="ss-config-section" hidden>
                 <h4 data-i18n="tech.adminPin.title">IT administrator PIN</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="tech.adminPin.hint">Separate from login (must be different). Required for Diagnostics and Lab. Super admin sets it for IT use &mdash; re-enter login password each time you change it.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="tech.adminPin.hint">Separate from login. Required for Diagnostics. Confirm with your login password to change it.</p>
                 <p class="setup-hint" id="ss-tech-pin-status" style="margin:0 0 8px">&mdash;</p>
                 <div class="evidence-toolbar" style="margin-top:4px">
                     <button type="button" class="btn btn-action btn-sm" id="ss-tech-pin-set" data-i18n="tech.adminPin.setBtn">Set / reset PIN</button>
@@ -9338,7 +9443,7 @@
             </div>
             <div id="ss-smtp-section" class="ss-config-section ev-ftp-settings-block enterprise-card ss-smtp-card" hidden>
                 <h4 class="enterprise-section-title" data-i18n="smtp.title">Outbound email (SMTP)</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="smtp.hint">Used for password reset and sign-in recovery (when enabled later). Configure once. Password is stored in the server secrets vault only.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="smtp.hint">Outbound mail for password reset and recovery. Password is stored in the server vault only.</p>
                 <div class="ev-ftp-form-grid enterprise-form-grid ss-smtp-form">
                     <label>
                         <span data-i18n="smtp.passwordStatus">Password</span>
@@ -9393,7 +9498,7 @@
             </div>
             <div id="ss-voice-alerts-section" class="ss-config-section" hidden>
                 <h4 data-i18n="voiceAlerts.config.title">Alerts &amp; voice</h4>
-                <p class="setup-hint" style="margin-top:0" data-i18n="voiceAlerts.config.hint">Browser text-to-speech for control-room alerts. Click anywhere on the dashboard once to allow audio. Session mute is in the header.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="voiceAlerts.config.hint">Browser speech for control-room alerts. Click the page once if the browser blocks audio.</p>
                 <label class="ss-voice-check"><input type="checkbox" id="ss-voice-enabled" checked><span data-i18n="voiceAlerts.config.enabled">Enable voice alerts</span></label>
                 <label class="ss-voice-check"><input type="checkbox" id="ss-voice-auto" checked><span data-i18n="voiceAlerts.config.autoSpeak">Auto-speak on new alerts</span></label>
                 <label class="ss-voice-check"><input type="checkbox" id="ss-voice-sos" checked><span data-i18n="voiceAlerts.config.speakSos">Speak SOS alarms</span></label>
@@ -9405,6 +9510,17 @@
                     <button type="button" class="btn btn-action btn-sm" id="ss-voice-test" data-i18n="voiceAlerts.config.test">Test speak</button>
                     <button type="button" class="btn btn-action btn-sm" id="ss-save-voice-settings" data-i18n="voiceAlerts.config.save">Save voice settings</button>
                 </div>
+                <h4 style="margin-top:var(--space-lg)" data-i18n="hqAlertAudio.title">Alert tones</h4>
+                <p class="setup-hint" data-i18n="hqAlertAudio.hint">Desk beeps for Weapon, Face, Plate, and SOS. Header mute silences tones.</p>
+                <label class="ss-voice-check"><input type="checkbox" id="ss-hq-tone-enabled" checked><span data-i18n="hqAlertAudio.enabled">Enable alert tones</span></label>
+                <label class="ss-voice-check"><input type="checkbox" id="ss-hq-tone-weapon" checked><span data-i18n="hqAlertAudio.weapon">Weapon tones</span></label>
+                <label class="ss-voice-check"><input type="checkbox" id="ss-hq-tone-fr" checked><span data-i18n="hqAlertAudio.fr">Face match tones</span></label>
+                <label class="ss-voice-check"><input type="checkbox" id="ss-hq-tone-anpr" checked><span data-i18n="hqAlertAudio.anpr">Plate hit tones</span></label>
+                <label class="ss-voice-check"><input type="checkbox" id="ss-hq-tone-sos" checked><span data-i18n="hqAlertAudio.sos">SOS / fall tones</span></label>
+                <div class="evidence-toolbar" style="margin-top:8px">
+                    <button type="button" class="btn btn-action btn-sm" id="ss-hq-tone-test" data-i18n="hqAlertAudio.test">Test tone</button>
+                    <button type="button" class="btn btn-action btn-sm" id="ss-hq-tone-save" data-i18n="hqAlertAudio.save">Save alert tones</button>
+                </div>
             </div>
             </div>
             </div>
@@ -9412,8 +9528,8 @@
             <div id="ss-panel-groups" class="ss-main-panel">
                 <div id="ss-groups-section">
                     <h4 data-i18n="groups.title">Dispatch groups</h4>
-                    <p class="setup-hint" data-i18n="groups.hint">Name teams, set pin colour, add members (nickname + device ID). CSV bulk import supported. Saves update BWC map groups.</p>
-                    <p class="setup-hint" data-i18n="groups.csvColorHint">CSV pin_color: hex (#22c55e), number 1&ndash;10 (UI swatch order), or name &mdash; green, blue, amber, purple, red, cyan, pink, yellow, indigo, teal. Leave blank for auto colour.</p>
+                    <p class="setup-hint" data-i18n="groups.hint" hidden></p>
+                    <p class="setup-hint" data-i18n="groups.csvColorHint">CSV colour: name, 1–10, or hex. Leave blank for automatic colour.</p>
                     <div class="ss-groups-toolbar">
                         <button type="button" id="ss-groups-download-csv" data-i18n="groups.downloadCsv">Download CSV template</button>
                         <button type="button" id="ss-groups-import-csv" data-i18n="groups.importCsv">Upload CSV</button>
@@ -9453,7 +9569,7 @@
                 <div id="fw-ota-section">
                     <h4 data-i18n="firmware.title">Firmware OTA</h4>
                     <div id="fw-ota-banner" role="status" data-i18n="firmware.banner">Firmware OTA (Please contact your Vendor)</div>
-                    <p class="setup-hint" data-i18n="firmware.hint">See firmware versions across your Mobility. For over-the-air upgrades, work with your BWC vendor &mdash; they register supported models and supply approved firmware packages.</p>
+                    <p class="setup-hint" data-i18n="firmware.hint" hidden></p>
                     <div class="fw-ota-controls">
                         <select id="fw-ota-select" class="fw-ota-select" aria-label="Firmware OTA target"></select>
                         <div class="fw-ota-actions">
@@ -9471,24 +9587,24 @@
                     <div id="fw-ota-phases" class="fw-ota-phase-grid"></div>
                     <div class="fw-ota-section">
                         <h4 data-i18n="firmware.profiles.title">Supported camera models</h4>
-                        <p class="setup-hint" data-i18n="firmware.profiles.hint">Camera models registered by your vendor for over-the-air upgrade are listed here. Ask your vendor to add or update a model for your Mobility.</p>
+                        <p class="setup-hint" data-i18n="firmware.profiles.hint" hidden></p>
                         <div id="fw-ota-profiles"></div>
                     </div>
                     <div class="fw-ota-section">
                         <h4 data-i18n="firmware.fleet.title">Mobility firmware status</h4>
-                        <p class="setup-hint" data-i18n="firmware.fleet.hint">Current version per camera from live status reports. Offline units show the last version received.</p>
+                        <p class="setup-hint" data-i18n="firmware.fleet.hint" hidden></p>
                         <div id="fw-ota-fleet"></div>
                     </div>
                     <div class="fw-ota-section">
                         <h4 data-i18n="firmware.dock.title">Docking station upgrades</h4>
-                        <p id="fw-ota-dock-note" class="setup-hint" data-i18n="firmware.dock.note">Firmware can also be updated on the vendor docking station when officers return cameras at end of shift. Evidence upload from the dock uses FTP settings on the Server tab.</p>
+                        <p id="fw-ota-dock-note" class="setup-hint" data-i18n="firmware.dock.note" hidden></p>
                     </div>
                 </div>
             </div>
 
             <div id="ss-panel-bwc" class="ss-main-panel">
-                <p class="setup-hint" style="margin-top:0" data-i18n="server.bwcTabHint">Register every body-worn camera &mdash; one row per officer. Device ID is the long SIP ID from the camera. Nickname is what dispatch sees on the map and device list.</p>
-                <p class="setup-hint" data-i18n="server.bwcGroupHint">Pick a map group per BWC (pin colour comes from Map groups tab). Create groups there with name, pin colour, and members.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="server.bwcTabHint" hidden></p>
+                <p class="setup-hint" data-i18n="server.bwcGroupHint" hidden></p>
                 <p id="ss-device-summary" class="hint">Device Summary</p>
                 <div class="ss-device-actions">
                     <button type="button" id="ss-download-device-csv" data-i18n="server.downloadBwcTemplate">Download BWC template</button>
@@ -9497,7 +9613,7 @@
                     <button type="button" id="ss-bwc-add-row" data-i18n="bwc.addRow">+ Add row</button>
                     <button type="button" id="ss-open-video-config" data-i18n="server.openVideoWall">Assign wall panels…</button>
                 </div>
-                <p class="setup-hint" data-i18n="server.openVideoWallHint" style="margin:6px 0 0">Opens panel assignment on the Operations wall — same as wall Config. Does not open live video.</p>
+                <p class="setup-hint" data-i18n="server.openVideoWallHint" style="margin:6px 0 0" hidden></p>
                 <input type="file" id="ss-device-csv-file" accept=".csv,text/csv" hidden>
                 <div class="ss-bwc-table-wrap">
                     <table class="ss-bwc-table">
@@ -9505,6 +9621,8 @@
                             <tr>
                                 <th></th>
                                 <th data-i18n="bwc.col.nickname">Officer</th>
+                                <th data-i18n="bwc.col.serial">Serial</th>
+                                <th data-i18n="bwc.col.unitCode">Unit</th>
                                 <th data-i18n="bwc.col.deviceId">Device ID</th>
                                 <th data-i18n="bwc.col.mapGroup">Map group</th>
                                 <th data-i18n="bwc.col.userName">User</th>
@@ -9521,7 +9639,7 @@
             </div>
 
             <div id="ss-panel-diagnostics" class="ss-main-panel">
-                <p class="setup-hint" data-i18n="server.diagnostics.hint">System diagnostics &mdash; administrator PIN required. Dashboard passwords cannot access this tab.</p>
+                <p class="setup-hint" data-i18n="server.diagnostics.hint">Administrator PIN required. Dashboard login password cannot open this tab.</p>
                 <div class="ss-tech-section">
                     <h5 data-i18n="tech.health.title">Platform health</h5>
                     <div class="ss-tech-toolbar">
@@ -9541,7 +9659,7 @@
                     <div class="ss-tech-toolbar">
                         <button type="button" id="ss-tech-trace-toggle" data-i18n="tech.activity.traceOff">Detailed recording: Off</button>
                     </div>
-                    <p id="ss-tech-activity-note" class="setup-hint" data-i18n="tech.activity.note">System events are stored on the server. Contact your Ubitron support team if you need a log export.</p>
+                    <p id="ss-tech-activity-note" class="setup-hint" data-i18n="tech.activity.note" hidden></p>
                 </div>
                 <div class="ss-tech-section">
                     <h5 data-i18n="tech.runbook.title">Guided checks</h5>
@@ -9552,7 +9670,7 @@
 
             <div id="ss-panel-usb" class="ss-main-panel">
                 <h4 data-i18n="usbMaint.title">USB maintenance (command room)</h4>
-                <p class="setup-hint" data-i18n="usbMaint.hint">Super admin only. Connect the body-worn camera to this dispatch PC with USB, then refresh. Officers never install tools on this PC.</p>
+                <p class="setup-hint" data-i18n="usbMaint.hint">Connect the body-worn camera by USB to this PC, then refresh.</p>
                 <p id="usb-maint-status" class="setup-hint">&mdash;</p>
                 <p id="usb-maint-meta" class="setup-hint"></p>
                 <div class="usb-maint-toolbar">
@@ -9567,8 +9685,8 @@
             </div>
 
             <div id="ss-panel-lab" class="ss-main-panel">
-                <p class="setup-hint" style="margin-top:0" data-i18n="lab.intro">Identity provider and monitoring &mdash; elevated access required. Live video and SOS are unchanged.</p>
-                <p class="setup-hint" data-i18n="lab.proxyHint">Portal HTTPS / Trust reverse proxy: Server &rarr; Reverse proxy.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="lab.intro" hidden></p>
+                <p class="setup-hint" data-i18n="lab.proxyHint" hidden></p>
                 <div id="lab-readiness" class="ss-tech-section enterprise-card ss-readiness-card"></div>
                 <div class="ss-tech-section">
                     <h5 data-i18n="lab.section.oidc">Single sign-on (OIDC)</h5>
@@ -9606,7 +9724,7 @@
             </div>
 
             <div id="ss-panel-cloud" class="ss-main-panel">
-                <p class="setup-hint" style="margin-top:0" data-i18n="cloud.intro">Hosted and hybrid operations &mdash; site profile, platform entitlements, secure operator access, and scheduled verification. SIP, LAN, and protocol settings remain on the Server tab.</p>
+                <p class="setup-hint" style="margin-top:0" data-i18n="cloud.intro" hidden></p>
                 <div id="cd-entitlements" class="ss-tech-section"></div>
 
                 <div class="ss-config-section">
@@ -9664,7 +9782,7 @@
 
                 <div class="ss-config-section">
                     <h4 data-i18n="cloud.verification.title">Central entitlement verification</h4>
-                    <p class="setup-hint" style="margin-top:0" data-i18n="cloud.verification.hint">When enabled, this site checks in with your configured verification service on a schedule. Use it only when that service exists for the deployment.</p>
+                    <p class="setup-hint" style="margin-top:0" data-i18n="cloud.verification.hint" hidden></p>
                     <label class="ss-lab-check"><input type="checkbox" id="cd-enable-verification"><span data-i18n="cloud.verification.enable">Enable scheduled verification</span></label>
                     <div class="ss-east-west-grid">
                         <label>
@@ -9688,7 +9806,7 @@
 
                 <div class="ss-tech-section enterprise-card ss-inbound-checklist-card" data-ss-saas-hide="cloud_leased">
                     <h5 class="enterprise-section-title" data-i18n="cloud.firewall.title">Inbound services checklist</h5>
-                    <p class="setup-hint" style="margin-top:0" data-i18n="cloud.firewall.hint">Required ports for cloud security groups and edge firewalls. Align with your Server tab SIP and media settings.</p>
+                    <p class="setup-hint" style="margin-top:0" data-i18n="cloud.firewall.hint">Ports for cloud security groups and edge firewalls. Align with Server SIP and media settings.</p>
                     <div id="cd-firewall" class="ss-inbound-table-wrap"></div>
                 </div>
                 <div class="ss-tech-section">
@@ -9716,7 +9834,7 @@
     <div id="app-view-audit-trail" class="enterprise-scope" hidden>
         <div id="audit-trail-panel">
             <h2 id="at-page-title" data-i18n="auditTrail.title">Audit Trail</h2>
-            <p class="at-intro" id="at-page-intro" data-i18n="auditTrail.intro">Compliance activity log &mdash; who did what, when, and from where. Append-only store; export for auditors.</p>
+            <p class="at-intro" id="at-page-intro" data-i18n="auditTrail.intro" hidden></p>
             <div id="at-perm-banner" class="evidence-perm-banner" hidden data-i18n="auditTrail.noPerm">Audit trail access is not granted for your account.</div>
             <p class="at-preset-banner" id="at-preset-banner" hidden></p>
             <div class="at-toolbar">
@@ -9814,10 +9932,10 @@
         </div>
         <div id="cw-panel-display" class="cw-hub-panel" hidden>
             <div class="cw-panel-display-scroll">
-                <p class="dr-intro" data-i18n="displayRoom.intro">Monitors 2&ndash;4 open in new windows. Drag each to the correct display and press F11. For a same-screen preview, use the Video wall tab above.</p>
+                <p class="dr-intro" data-i18n="displayRoom.intro" hidden></p>
                 <div class="dr-preset-card">
                     <h3 data-i18n="displayRoom.presetSosTitle">Open monitors</h3>
-                    <p class="dr-preset-desc" data-i18n="displayRoom.presetSosDesc">One click opens the same windows as monitors 2&ndash;4 (empty wall &mdash; no auto live).</p>
+                    <p class="dr-preset-desc" data-i18n="displayRoom.presetSosDesc" hidden></p>
                     <div class="dr-monitor-grid">
                         <div class="dr-monitor-card">
                             <div class="dr-monitor-num" data-i18n="displayRoom.monitor1Num">Monitor 1</div>
@@ -9850,9 +9968,9 @@
                     </label>
                     <p class="dr-auto-place-hint" id="cw-dr-auto-place-hint" data-i18n="displayRoom.autoScreensHint" hidden>When checked, Chrome may ask to manage windows on other screens. If place fails, drag the window manually and press F11.</p>
                     <p class="dr-groups-label" data-i18n="displayRoom.groupsLabel">TV wall &mdash; dispatch groups</p>
-                    <p class="dr-groups-hint" data-i18n="displayRoom.groupsHint">Dispatch groups (reference). Open all monitors does not auto-fill or auto-call &mdash; drag devices onto the wall when ready.</p>
+                    <p class="dr-groups-hint" data-i18n="displayRoom.groupsHint" hidden></p>
                     <div id="cw-dr-groups" class="dr-groups-list" aria-live="polite"></div>
-                    <p class="dr-launch-warn" data-i18n="displayRoom.launchWarn">This window switches to Operations (desk). Opens empty video wall, map, and status board &mdash; same as monitors 2&ndash;4. Drag devices to go live; nothing auto-calls.</p>
+                    <p class="dr-launch-warn" data-i18n="displayRoom.launchWarn" hidden></p>
                     <div class="dr-actions">
                         <button type="button" class="btn btn-action btn-sm" id="cw-dr-apply-sos" data-i18n="displayRoom.launchAll">Open all monitors</button>
                     </div>
@@ -9864,7 +9982,7 @@
                         <li data-i18n="displayRoom.step4">Allow pop-ups if the browser blocks new windows.</li>
                     </ol>
                 </div>
-                <p class="dr-note" data-i18n="displayRoom.streamNote">One live stream per body-worn camera, shared by all operators. For control rooms: use different cameras on Operations and the video wall. The same camera on both is allowed but not recommended.</p>
+                <p class="dr-note" data-i18n="displayRoom.streamNote" hidden></p>
             </div>
         </div>
     </div>
@@ -9965,7 +10083,7 @@
                     <aside class="vc-live-side" aria-label="Active personnel">
                         <div id="vc-live-lobby-block" class="vc-live-lobby-block enterprise-card">
                             <h3 class="vc-personnel-title" data-i18n="conference.personnelTitle">Active Personnel</h3>
-                            <p class="setup-hint" data-i18n="conference.lobbyHint">Online officers and BWCs by dispatch group pin colour. Hosts may invite guests across groups.</p>
+                            <p class="setup-hint" data-i18n="conference.lobbyHint" hidden></p>
                             <div id="vc-lobby-body"></div>
                         </div>
                     </aside>
@@ -10073,7 +10191,7 @@
                         <input type="file" id="ax-fr-offline-file" accept=".mp4,.mov,.webm,.mkv,video/mp4,video/quicktime,video/webm" hidden>
                         <span id="ax-fr-offline-status" class="hint ax-fr-offline-status" hidden></span>
                         <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-preview-drawer" data-i18n="analytics.fr.previewDrawerLab">Preview alert (lab)</button>
-                        <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-preview-toast" data-i18n="analytics.fr.previewToastLab">Preview toast (lab)</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ax-fr-preview-toast" data-i18n="analytics.fr.previewToastLab">Preview alert</button>
                     </div>
                     <div class="ax-fr-main">
                         <div class="ax-fr-left">
@@ -10112,7 +10230,7 @@
                     </div>
                 </div>
                 <div id="ax-panel-verify" class="ax-hub-panel" hidden>
-                    <p class="setup-hint" data-i18n="analytics.verify.hint">Compare two photos (for example an ID photo and a field photo). Face matching must be running on this server.</p>
+                    <p class="setup-hint" data-i18n="analytics.verify.hint" hidden></p>
                     <div class="ax-fr-verify-workspace enterprise-card">
                         <div class="ax-fr-verify-compare" aria-label="Verify 1:1 compare">
                             <div class="ax-fr-dropzone" id="ax-fr-dropzone-1" data-slot="1">
@@ -10315,7 +10433,7 @@
                     <p id="ax-anpr-status" class="ax-engine-health" aria-live="polite">&mdash;</p>
                     </div>
                     <div id="ax-anpr-sub-live-panel" class="ax-anpr-sub-panel" hidden>
-                        <p class="setup-hint" data-i18n="analytics.anpr.liveHint">Watch live BWC video. Plates are read from the stream and matched to Plate lists. List hits raise an alert.</p>
+                        <p class="setup-hint" data-i18n="analytics.anpr.liveHint" hidden></p>
                         <div class="ax-anpr-live-layout">
                             <div class="ax-anpr-live-roster enterprise-card">
                                 <div class="ax-anpr-live-roster-actions">
@@ -10409,7 +10527,7 @@
                         </div>
                         </div>
                         <div id="ax-anpr-offline-image-view" class="ax-anpr-offline-image-view" hidden>
-                            <p class="setup-hint" data-i18n="analytics.anpr.imageInvestHint">Upload a still or pick a file from the FTP inbox, then run AI scan (ANPR / FR).</p>
+                            <p class="setup-hint" data-i18n="analytics.anpr.imageInvestHint" hidden></p>
                             <div class="ax-anpr-image-invest-layout enterprise-layout-2col">
                                 <div class="enterprise-card ax-anpr-image-invest-main">
                                     <h4 class="ax-anpr-image-invest-h" data-i18n="analytics.anpr.imageManualUpload">Manual upload</h4>
@@ -10444,7 +10562,7 @@
                         </div>
                     </div>
                     <div id="ax-anpr-sub-snapshot-panel" class="ax-anpr-sub-panel">
-                        <p class="setup-hint" data-i18n="analytics.anpr.hint">Upload a photo, crop the number plate, then read the plate text.</p>
+                        <p class="setup-hint" data-i18n="analytics.anpr.hint" hidden></p>
                         <div class="ax-anpr-workspace enterprise-card">
                             <div class="ax-anpr-snapshot-row" aria-label="ANPR snapshot">
                                 <div class="ax-anpr-dropzone" id="ax-anpr-dropzone">
@@ -10508,7 +10626,7 @@
                         </div>
                     </div>
                     <div id="ax-anpr-sub-lists-panel" class="ax-anpr-sub-panel" hidden>
-                        <p class="setup-hint" data-i18n="analytics.anpr.listsHint">Add plate numbers to Blacklist, Wanted, or Suspicious. Snapshot reads match these lists automatically.</p>
+                        <p class="setup-hint" data-i18n="analytics.anpr.listsHint" hidden></p>
                         <div class="ax-bl-enroll" id="ax-pl-enroll">
                             <label class="ax-fr-verify-file"><span data-i18n="analytics.anpr.lists.plate">Plate number</span>
                                 <input type="text" id="ax-pl-plate" maxlength="32" autocomplete="off" placeholder="e.g. ABC 1234">
@@ -10618,12 +10736,7 @@
                         <div class="ax-fr-right">
                             <div id="ax-wd-crop-rail" class="ax-fr-crop-rail" aria-label="Recent weapon detections">
                                 <h4 class="ax-wd-rail-title" data-i18n="analytics.weapon.railTitle">Recent</h4>
-                                <div id="ax-wd-detect-grid" class="ax-wd-detect-grid" role="list">
-                                    <div class="ax-wd-detect-slot" role="listitem"></div>
-                                    <div class="ax-wd-detect-slot" role="listitem"></div>
-                                    <div class="ax-wd-detect-slot" role="listitem"></div>
-                                    <div class="ax-wd-detect-slot" role="listitem"></div>
-                                </div>
+                                <div id="ax-wd-detect-grid" class="ax-wd-detect-grid" role="list"></div>
                             </div>
                         </div>
                     </div>
@@ -10849,13 +10962,16 @@
                 <button type="button" class="evidence-hub-nav-btn" data-panel="catalog" data-i18n="evidenceHub.navCatalog">Evidence Library</button>
                 <button type="button" class="evidence-hub-nav-btn" data-panel="redacted-exports" id="ev-nav-redacted-exports" data-i18n="evidenceHub.navRedactedExports">Redacted exports</button>
                 <button type="button" class="evidence-hub-nav-btn" data-panel="case-files" data-i18n="evidenceHub.navCaseFiles">Case Files</button>
+                <button type="button" class="evidence-hub-nav-btn" data-panel="ops-cases" data-i18n="evidenceHub.navOpsCases">Cases</button>
                 <button type="button" class="evidence-hub-nav-btn" data-panel="investigation-holds" data-i18n="evidenceHub.navInvestigationHolds">Investigation holds</button>
                 <button type="button" class="evidence-hub-nav-btn" data-panel="route-trace" data-i18n="evidenceHub.navRouteTrace">Route &amp; GPS</button>
+                <button type="button" class="evidence-hub-nav-btn" data-panel="retention" id="ev-nav-retention" hidden data-i18n="evidenceHub.navRetention">Retention</button>
+                <button type="button" class="evidence-hub-nav-btn" data-panel="delete-queue" id="ev-nav-delete-queue" hidden data-i18n="evidenceHub.navDeleteQueue">Deletion queue</button>
                 <button type="button" class="evidence-hub-nav-btn" data-panel="settings" id="ev-nav-storage" hidden data-i18n="evidenceHub.navSettings">Storage</button>
             </nav>
 
             <div id="ev-panel-overview" class="evidence-hub-panel">
-                <p class="setup-hint ev-overview-intro" data-i18n="evidenceHub.overviewHint">Receive and archive status for your evidence catalog.</p>
+                <p class="setup-hint ev-overview-intro" data-i18n="evidenceHub.overviewHint" hidden></p>
                 <div id="ev-overview-guidance" class="ev-overview-guidance" hidden></div>
                 <div id="ev-overview-stats"></div>
             </div>
@@ -10914,7 +11030,7 @@
             </div>
 
             <div id="ev-panel-redacted-exports" class="evidence-hub-panel" hidden>
-                <p class="setup-hint" data-i18n="evidenceHub.redactedExportsHint">Finalized redacted (blurred) downloads only — not trim cuts. Download here; Open source goes back to the original clip.</p>
+                <p class="setup-hint" data-i18n="evidenceHub.redactedExportsHint" hidden></p>
                 <div class="evidence-toolbar">
                     <button type="button" class="btn btn-action btn-sm" id="ev-rx-refresh" data-i18n="evidence.refresh">Refresh</button>
                     <span id="ev-rx-meta" class="hint"></span>
@@ -10966,15 +11082,174 @@
                 </div>
             </div>
 
+            <div id="ev-panel-ops-cases" class="evidence-hub-panel" hidden>
+                <div id="ops-cases-list-wrap">
+                    <p class="setup-hint" data-i18n="opsCases.hint" hidden></p>
+                    <div class="cf-filter-toolbar ops-cases-filters">
+                        <label><span data-i18n="opsCases.filterFamily">Family</span>
+                            <select id="ops-cases-family">
+                                <option value="" data-i18n="opsCases.familyAll">All</option>
+                                <option value="SOS" data-i18n="opsCases.familySos">SOS</option>
+                                <option value="ANALYTICS" data-i18n="opsCases.familyAnalytics">Analytics</option>
+                            </select></label>
+                        <label id="ops-cases-type-wrap" hidden><span data-i18n="opsCases.filterType">Type</span>
+                            <select id="ops-cases-type">
+                                <option value="" data-i18n="opsCases.typeAll">All</option>
+                                <option value="FR">FR</option>
+                                <option value="ANPR">ANPR</option>
+                                <option value="WEAPON" data-i18n="opsCases.typeWeapon">Weapon</option>
+                            </select></label>
+                        <label><span data-i18n="opsCases.filterArchive">List</span>
+                            <select id="ops-cases-archive">
+                                <option value="active" selected data-i18n="opsCases.archiveActive">Active</option>
+                                <option value="archived" data-i18n="opsCases.archiveArchivedOnly">Archived only</option>
+                                <option value="all" data-i18n="opsCases.archiveAll">All (active + archived)</option>
+                            </select></label>
+                        <label><span data-i18n="opsCases.filterAudit">Audit</span>
+                            <select id="ops-cases-audit">
+                                <option value="" data-i18n="opsCases.auditAll">All statuses</option>
+                                <option value="ack" data-i18n="opsCases.auditAckOnly">Ack only</option>
+                                <option value="ack24" data-i18n="opsCases.auditAck24">Ack only · 24h+</option>
+                                <option value="ack7d" data-i18n="opsCases.auditAck7d">Ack only · 7d+</option>
+                                <option value="ack30d" data-i18n="opsCases.auditAck30d">Ack only · 30d+</option>
+                                <option value="has_notes" data-i18n="opsCases.statusHasNotes">Has notes</option>
+                                <option value="amended" data-i18n="opsCases.statusAmended">Amended</option>
+                                <option value="reviewed" data-i18n="opsCases.statusReviewed">Reviewed</option>
+                            </select></label>
+                        <label><span data-i18n="opsCases.filterDays">Days</span>
+                            <select id="ops-cases-days">
+                                <option value="7">7</option>
+                                <option value="14" selected>14</option>
+                                <option value="30">30</option>
+                                <option value="90">90</option>
+                            </select></label>
+                        <label><span data-i18n="opsCases.filterSearch">Search</span>
+                            <input type="search" id="ops-cases-search" autocomplete="off" maxlength="120" data-i18n-placeholder="opsCases.searchPh" placeholder="Case ID, camera, notes&hellip;"></label>
+                        <button type="button" class="btn btn-action btn-sm" id="ops-cases-refresh" data-i18n="evidence.refresh">Refresh</button>
+                        <span id="ops-cases-meta" class="hint"></span>
+                    </div>
+                    <div id="ops-cases-empty" class="cf-empty-state" hidden>
+                        <p class="cf-empty-title" data-i18n="opsCases.empty">No cases in this period.</p>
+                        <p class="hint cf-empty-sub" data-i18n="opsCases.emptyHint">Acknowledged SOS and analytics alerts appear here.</p>
+                    </div>
+                    <div class="ss-evidence-table-wrap" id="ops-cases-table-wrap">
+                        <table class="evidence-table">
+                            <thead>
+                                <tr>
+                                    <th data-i18n="opsCases.colId">Case ID</th>
+                                    <th data-i18n="opsCases.colRev">Rev</th>
+                                    <th data-i18n="opsCases.colStatus">Status</th>
+                                    <th data-i18n="opsCases.colType">Type</th>
+                                    <th data-i18n="opsCases.colKind">Kind</th>
+                                    <th data-i18n="opsCases.colCamera">Camera</th>
+                                    <th data-i18n="opsCases.colWhen">When</th>
+                                    <th data-i18n="opsCases.colBy">Closed by</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ops-cases-tbody">
+                                <tr><td colspan="8" class="hint">&mdash;</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="ops-cases-detail-wrap" hidden>
+                    <div class="evidence-toolbar">
+                        <button type="button" class="btn btn-ghost btn-sm" id="ops-cases-back" data-i18n="opsCases.back">Back to list</button>
+                        <button type="button" class="btn btn-primary btn-sm" id="ops-cases-continue-case-file" data-i18n="opsCases.continueCaseFile">Continue as Case File</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ops-cases-archive-btn" hidden data-i18n="opsCases.archiveBtn">Archive (hide from list)</button>
+                        <button type="button" class="btn btn-primary btn-sm" id="ops-cases-unarchive-btn" hidden data-i18n="opsCases.unarchiveBtn">Restore to active list</button>
+                        <span id="ops-cases-desk-hint" class="hint" data-i18n="opsCases.deskHint">Case desk: link Library clips, map, notes.</span>
+                    </div>
+                    <div class="enterprise-card ops-case-detail-card ops-case-open-desk">
+                        <h3 id="ops-cases-detail-head">—</h3>
+                        <p id="ops-cases-detail-sub" class="hint"></p>
+                        <p id="ops-cases-detail-touch" class="hint"></p>
+                        <p id="ops-cases-detail-gate" class="hint"></p>
+                        <p id="ops-cases-linked-case-file" class="hint ops-case-linked-cf" hidden></p>
+                        <!-- OPS-CASE-OPEN-DESK-V1: player + map + form (unify Evidence chrome) -->
+                        <div class="ops-case-desk-media" id="ops-cases-desk-media">
+                            <div class="ops-case-desk-player-wrap enterprise-card">
+                                <h4 data-i18n="opsCases.deskMedia">Evidence media</h4>
+                                <div id="ops-cases-desk-player" class="ops-case-desk-player" aria-live="polite">
+                                    <p class="hint" id="ops-cases-desk-player-empty" data-i18n="opsCases.deskMediaEmpty">No clip linked yet. Pick from Library below, or wait for SOS / dock auto-link.</p>
+                                    <img id="ops-cases-desk-player-img" class="ops-case-desk-player-img" alt="" hidden>
+                                    <video id="ops-cases-desk-player-video" class="ops-case-desk-player-video" controls playsinline hidden></video>
+                                </div>
+                                <!-- OPS-CASE-BIND-LIBRARY-PICKER-V1 — pick from Library; paste id = advanced only -->
+                                <div class="ops-case-desk-bind" id="ops-cases-desk-bind">
+                                    <label class="ops-case-desk-bind-label" for="ops-cases-bind-search">
+                                        <span data-i18n="opsCases.bindSearchLabel">Search Library</span>
+                                        <input type="search" id="ops-cases-bind-search" maxlength="120" autocomplete="off" data-i18n-placeholder="opsCases.bindSearchPh" placeholder="File name or camera…">
+                                    </label>
+                                    <label class="ops-case-desk-bind-label" for="ops-cases-bind-evidence-select">
+                                        <span data-i18n="opsCases.bindLabel">Link Library file</span>
+                                        <select id="ops-cases-bind-evidence-select">
+                                            <option value="" data-i18n="opsCases.bindPickEmpty">Select a Library file…</option>
+                                        </select>
+                                    </label>
+                                    <button type="button" class="btn btn-ghost btn-sm" id="ops-cases-bind-refresh" data-i18n="opsCases.bindRefresh">Refresh list</button>
+                                    <button type="button" class="btn btn-primary btn-sm" id="ops-cases-bind-btn" data-i18n="opsCases.bindBtn">Link</button>
+                                    <details class="ops-case-bind-advanced" id="ops-cases-bind-advanced" hidden>
+                                        <summary data-i18n="opsCases.bindAdvanced">Advanced: paste file id</summary>
+                                        <label class="ops-case-desk-bind-label" for="ops-cases-bind-evidence-id">
+                                            <span data-i18n="opsCases.bindIdLabel">File id (repair only)</span>
+                                            <input type="text" id="ops-cases-bind-evidence-id" maxlength="120" autocomplete="off" data-i18n-placeholder="opsCases.bindPh" placeholder="Evidence file id">
+                                        </label>
+                                    </details>
+                                </div>
+                                <ul id="ops-cases-evidence-list" class="ops-case-evidence-list"></ul>
+                                <div id="ops-cases-desk-links" class="ops-case-desk-links"></div>
+                            </div>
+                            <div class="ops-case-desk-map-wrap enterprise-card">
+                                <h4 data-i18n="opsCases.deskMap">Location</h4>
+                                <div id="ops-cases-desk-map" class="ops-case-desk-map">
+                                    <p class="hint" id="ops-cases-desk-map-empty" data-i18n="opsCases.deskMapEmpty">No GPS on this case yet.</p>
+                                    <div id="ops-cases-desk-map-leaflet" class="ops-case-desk-map-leaflet" hidden></div>
+                                    <iframe id="ops-cases-desk-map-frame" class="ops-case-desk-map-frame" title="Case map" hidden loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                                    <div class="ops-case-desk-map-actions" id="ops-cases-desk-map-actions" hidden>
+                                        <button type="button" class="btn btn-ghost btn-sm" id="ops-cases-desk-map-reset" data-i18n="opsCases.deskMapReset">Reset view</button>
+                                        <a id="ops-cases-desk-map-link" class="btn btn-ghost btn-sm ops-case-desk-map-link" href="#" target="_blank" rel="noopener noreferrer" data-i18n="opsCases.deskMapOpen">Open location in Maps</a>
+                                    </div>
+                                    <p id="ops-cases-desk-map-coords" class="hint mono" hidden></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="ops-case-desk-fields" id="ops-cases-desk-fields">
+                            <div class="ops-case-desk-field"><span class="hint" data-i18n="opsCases.deskFieldCamera">Camera</span><strong id="ops-cases-desk-cam">—</strong></div>
+                            <div class="ops-case-desk-field"><span class="hint" data-i18n="opsCases.deskFieldType">Type</span><strong id="ops-cases-desk-type">—</strong></div>
+                            <div class="ops-case-desk-field"><span class="hint" data-i18n="opsCases.deskFieldStatus">Status</span><strong id="ops-cases-desk-status">—</strong></div>
+                            <div class="ops-case-desk-field"><span class="hint" data-i18n="opsCases.deskFieldTitle">Title</span><strong id="ops-cases-desk-title">—</strong></div>
+                        </div>
+                        <!-- OPS-CASE-DESK-NOTE-VISIBLE-V1 -->
+                        <section class="enterprise-card ops-case-notes-panel" id="ops-cases-notes-panel" aria-labelledby="ops-cases-notes-heading">
+                            <h4 id="ops-cases-notes-heading" data-i18n="opsCases.notesTitle">Notes</h4>
+                            <div id="ops-cases-detail-notes"></div>
+                            <div class="ops-case-add-note">
+                                <label class="ops-case-add-note-label" for="ops-cases-note-input">
+                                    <span data-i18n="opsCases.addNote">Add note</span>
+                                    <textarea id="ops-cases-note-input" rows="4" maxlength="4000" data-i18n-placeholder="opsCases.addNotePh" placeholder="Type a note for this case…"></textarea>
+                                </label>
+                                <button type="button" class="btn btn-primary btn-sm" id="ops-cases-note-add" data-i18n="opsCases.saveNote">Save note</button>
+                            </div>
+                        </section>
+                        <section class="enterprise-card ops-case-activity-panel" id="ops-cases-activity-panel" aria-labelledby="ops-cases-activity-heading">
+                            <h4 id="ops-cases-activity-heading" data-i18n="opsCases.auditTitle">Activity</h4>
+                            <div id="ops-cases-detail-audit"></div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+
             <div id="ev-panel-case-files" class="evidence-hub-panel" hidden>
                 <div id="cf-hint-block" class="cf-hint-block">
-                    <p id="cf-hint" class="setup-hint cf-hint" data-i18n="caseFiles.hint">Field-report folders: write the narrative and link library evidence into one case. Open a row to edit the report or add clips.</p>
-                    <p class="setup-hint cf-hint cf-hint-sos" data-i18n="caseFiles.hintSos">SOS Ack does not auto-create cases &mdash; use Create from SOS when you want a report folder tied to an alarm.</p>
+                    <p id="cf-hint" class="setup-hint cf-hint" data-i18n="caseFiles.hint" hidden></p>
+                    <p class="setup-hint cf-hint cf-hint-sos" data-i18n="caseFiles.hintSos" hidden></p>
                 </div>
                 <div id="cf-list-toolbar" class="evidence-toolbar cf-toolbar">
                     <button type="button" class="btn btn-action btn-sm" id="cf-create" data-i18n="caseFiles.newCase">New case file</button>
                     <button type="button" class="btn btn-ghost btn-sm" id="cf-from-sos" data-i18n="caseFiles.fromSos">Create from SOS</button>
                     <button type="button" class="btn btn-ghost btn-sm" id="cf-refresh" data-i18n="evidence.refresh">Refresh</button>
+                    <span id="cf-list-save-msg" class="hint" hidden></span>
                 </div>
                 <div id="cf-list-wrap">
                     <div class="cf-filter-toolbar">
@@ -11047,7 +11322,7 @@
             </div>
 
             <div id="ev-panel-investigation-holds" class="evidence-hub-panel" hidden>
-                <p class="setup-hint" data-i18n="evidenceHub.holdsHint">Face snaps held for investigation from live FR. Browse here &mdash; no need to open the server folder.</p>
+                <p class="setup-hint" data-i18n="evidenceHub.holdsHint" hidden></p>
                 <div class="evidence-toolbar">
                     <label class="ev-holds-filter hint">
                         <span data-i18n="evidenceHub.holdsFilterStatus">Show</span>
@@ -11099,7 +11374,7 @@
             </div>
 
             <div id="ev-panel-route-trace" class="evidence-hub-panel" hidden>
-                <p class="setup-hint" data-i18n="evidenceHub.routeTraceHint">GPS trail by segment. Select a point to open matching evidence when available.</p>
+                <p class="setup-hint" data-i18n="evidenceHub.routeTraceHint" hidden></p>
                 <div class="rt-toolbar">
                     <label>BWC
                         <select id="rt-device"></select>
@@ -11135,14 +11410,100 @@
                 </div>
             </div>
 
+            <!-- EVIDENCE-RETENTION-CATEGORIES-V1 -->
+            <div id="ev-panel-retention" class="evidence-hub-panel" hidden>
+                <p class="setup-hint" data-i18n="evidenceRetention.hint" hidden></p>
+                <div class="evidence-toolbar">
+                    <button type="button" class="btn btn-action btn-sm" id="ev-retention-refresh" data-i18n="evidence.refresh">Refresh</button>
+                    <span id="ev-retention-meta" class="hint"></span>
+                </div>
+                <div class="enterprise-layout-2col ev-retention-layout">
+                    <div class="enterprise-card ev-retention-list-card">
+                        <h4 data-i18n="evidenceRetention.listTitle">Categories</h4>
+                        <p id="ev-retention-empty" class="hint" hidden data-i18n="evidenceRetention.empty">No categories yet.</p>
+                        <div class="ss-evidence-table-wrap">
+                            <table class="evidence-table" id="ev-retention-table">
+                                <thead>
+                                    <tr>
+                                        <th data-i18n="evidenceRetention.colName">Name</th>
+                                        <th data-i18n="evidenceRetention.colKeep">Keep for</th>
+                                        <th data-i18n="evidenceRetention.colActions">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ev-retention-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="enterprise-card ev-retention-form-card" id="ev-retention-form">
+                        <h4 id="ev-retention-form-title" data-i18n="evidenceRetention.addTitle">Add category</h4>
+                        <input type="hidden" id="ev-retention-edit-id" value="">
+                        <div class="ev-retention-form-grid">
+                            <label class="full" for="ev-retention-name"><span data-i18n="evidenceRetention.name">Name</span>
+                                <input type="text" id="ev-retention-name" maxlength="120" autocomplete="off" data-i18n-placeholder="evidenceRetention.namePh" placeholder="e.g. Standard, Incident, Until delete"></label>
+                            <label class="full" for="ev-retention-mode"><span data-i18n="evidenceRetention.mode">Retention</span>
+                                <select id="ev-retention-mode">
+                                    <option value="days" data-i18n="evidenceRetention.modeDays">Keep for N days</option>
+                                    <option value="until_manual" data-i18n="evidenceRetention.modeManual">Until manually deleted</option>
+                                </select></label>
+                            <label class="full" id="ev-retention-days-wrap" for="ev-retention-days"><span data-i18n="evidenceRetention.days">Days</span>
+                                <input type="number" id="ev-retention-days" min="1" max="36500" step="1" value="90"></label>
+                        </div>
+                        <div class="ev-retention-form-actions">
+                            <button type="button" class="btn btn-primary btn-sm" id="ev-retention-save" data-i18n="evidenceRetention.save">Save category</button>
+                            <button type="button" class="btn btn-ghost btn-sm" id="ev-retention-cancel" data-i18n="common.cancel">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EVIDENCE-DELETE-QUEUE-7D-V1 -->
+            <div id="ev-panel-delete-queue" class="evidence-hub-panel" hidden>
+                <p class="setup-hint" data-i18n="evidenceDeleteQueue.hint" hidden></p>
+                <div class="evidence-toolbar">
+                    <button type="button" class="btn btn-action btn-sm" id="ev-delete-queue-refresh" data-i18n="evidence.refresh">Refresh</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="ev-delete-queue-purge" data-i18n="evidenceDeleteQueue.purgeDue">Purge due now</button>
+                    <span id="ev-delete-queue-meta" class="hint"></span>
+                </div>
+                <p id="ev-delete-queue-empty" class="hint" hidden data-i18n="evidenceDeleteQueue.empty">No files waiting for deletion.</p>
+                <div class="ss-evidence-table-wrap enterprise-card" style="padding:12px">
+                    <table class="evidence-table" id="ev-delete-queue-table">
+                        <thead>
+                            <tr>
+                                <th data-i18n="evidenceDeleteQueue.colFile">File</th>
+                                <th data-i18n="evidenceDeleteQueue.colCamera">Camera</th>
+                                <th data-i18n="evidenceDeleteQueue.colQueued">Queued</th>
+                                <th data-i18n="evidenceDeleteQueue.colPurge">Purge after</th>
+                                <th data-i18n="evidenceDeleteQueue.colBy">By</th>
+                                <th data-i18n="evidenceDeleteQueue.colActions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ev-delete-queue-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
             <div id="ev-panel-settings" class="evidence-hub-panel ev-storage-panel ev-hub-panel-rail enterprise-scope" hidden>
+                <div id="dock-identity-setup-banner" class="enterprise-card dock-identity-setup-banner" hidden>
+                    <h4 data-i18n="dockIdentity.title">Dock evidence setup (once per site)</h4>
+                    <p class="setup-hint"><span data-i18n="dockIdentity.introBefore">Cameras missing a serial:</span> <span id="dock-identity-setup-count">0</span>. <span data-i18n="dockIdentity.introAfter">Dock uploads use the serial folder name.</span></p>
+                    <ol class="dock-identity-setup-steps">
+                        <li data-i18n="dockIdentity.step1">Read the serial / asset sticker on each body camera.</li>
+                        <li data-i18n="dockIdentity.step2">Settings → BWCs → enter that serial in the Serial column (after Officer). Device ID stays as registered.</li>
+                        <li data-i18n="dockIdentity.step3">Configure dock/FTP so uploads land under folders named by that serial.</li>
+                    </ol>
+                    <div class="dock-identity-setup-actions">
+                        <button type="button" class="btn btn-primary btn-sm" id="dock-identity-setup-open-bwc" data-i18n="dockIdentity.openBwc">Open BWCs</button>
+                        <button type="button" class="btn btn-action btn-sm" id="dock-identity-setup-done" data-i18n="dockIdentity.done">Mark complete</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="dock-identity-setup-remind" data-i18n="dockIdentity.remind">Remind later</button>
+                    </div>
+                </div>
                 <div class="ev-hub-layout enterprise-layout-2col">
                 <div class="ev-hub-main">
                 <div class="ev-storage-layout">
 
                 <section class="ev-storage-card enterprise-card ev-storage-span-full">
                     <h4 data-i18n="evidence.storageTierTitle">Where is video stored?</h4>
-                    <p class="setup-hint" style="margin-top:0" data-i18n="evidence.storageTierHint">Video files stay on disk or shared storage. This server keeps the evidence index and audit records.</p>
+                    <p class="setup-hint" style="margin-top:0" data-i18n="evidence.storageTierHint" hidden></p>
                     <div class="ev-tier-pick">
                         <label class="ev-tier-card">
                             <input type="radio" name="ev-archive-tier" id="ss-evidence-archive-local" value="local">
@@ -11167,7 +11528,7 @@
 
                 <section class="ev-storage-card enterprise-card ev-storage-span-full" id="ev-network-panel" hidden>
                     <h4 data-i18n="evidence.storageSanTitle">IP SAN / NAS mount</h4>
-                    <p class="setup-hint" style="margin-top:0" data-i18n="evidence.storageSanHint">Your IP SAN appears here after IT connects the LUN (Windows: Disk Management &rarr; drive letter, e.g. <code>E:\MobilityEvidence</code>).</p>
+                    <p class="setup-hint" style="margin-top:0" data-i18n="evidence.storageSanHint">Enter the folder after IT mounts the SAN volume on this server.<code>E:\MobilityEvidence</code>).</p>
                     <label class="full" for="ss-evidence-nas-path"><span data-i18n="evidence.nasMountPath">Mount path on this server</span>
                         <div class="ev-path-row">
                             <input type="text" id="ss-evidence-nas-path" class="enterprise-form-control" autocomplete="off" readonly>
@@ -11175,7 +11536,7 @@
                         </div>
                     </label>
                     <p class="ev-storage-status-row"><span data-i18n="evidence.storageMountStatus">Mount status</span>: <span id="ev-path-status-mount">&mdash;</span></p>
-                    <p class="setup-hint" id="ss-evidence-installer-note" data-i18n="evidence.installerNoteSan">Ask IT to mount the SAN volume on this server first, then enter the folder path above.</p>
+                    <p class="setup-hint" id="ss-evidence-installer-note" data-i18n="evidence.installerNoteSan">Ask IT to mount the SAN volume on this server, then enter the folder path.</p>
                     <dl class="ev-storage-rec" id="ev-storage-recommended" hidden></dl>
                 </section>
 
@@ -11183,7 +11544,7 @@
                     <h4 data-i18n="evidence.storageIngestTitle">Ingest paths</h4>
                     <div class="ev-ftp-settings-block">
                         <h5 class="ev-ftp-subhead" data-i18n="evidence.ftpCredentialsTitle">FTP upload service</h5>
-                        <p class="setup-hint" style="margin:0 0 10px" data-i18n="evidence.ftpCredentialsHint">Set credentials for body-worn cameras and docking stations. Enter the same values on each device FTP screen. Password is stored on this server only &mdash; not shown again after save.</p>
+                        <p class="setup-hint" style="margin:0 0 10px" data-i18n="evidence.ftpCredentialsHint">Same FTP username and password on each camera and dock.</p>
                         <label class="ev-ftp-toggle">
                             <input type="checkbox" id="ss-ftp-enabled">
                             <span data-i18n="evidence.ftpEnabled">Enable FTP ingest</span>
@@ -11259,7 +11620,7 @@
 
                 <section class="ev-storage-section ev-storage-card-compact" id="ev-storage-catalog">
                     <h4 data-i18n="evidence.storageCatalogTitle">Evidence catalog</h4>
-                    <p class="setup-hint" style="margin-top:0" data-i18n="evidence.storageCatalogHint">Evidence IDs, audit trail, and device list &mdash; kept on this server. Video files stay in the archive above.</p>
+                    <p class="setup-hint" style="margin-top:0" data-i18n="evidence.storageCatalogHint" hidden></p>
                     <p class="hint" data-i18n="evidence.storageCatalogPath">File: storage/mobility.db (WAL mode)</p>
                 </section>
 
@@ -11273,7 +11634,7 @@
                     <span id="ev-storage-msg" class="hint ev-storage-msg"></span>
                     <button type="button" class="btn btn-primary btn-action btn-sm" id="ev-storage-save" data-i18n="evidence.savePaths">Save storage</button>
                 </div>
-                <p class="setup-hint ev-storage-foot" data-i18n="server.dock.envNote">Dock uploads use FTP on this server. If the service shows Stopped, contact your IT administrator to enable FTP and allow file transfer through your network firewall.</p>
+                <p class="setup-hint ev-storage-foot" data-i18n="server.dock.envNote">Dock uploads use FTP on this server. If Stopped, ask IT to enable FTP.</p>
                 </div>
 
                 <aside class="ev-context-rail" id="ev-storage-context-rail" aria-labelledby="ev-storage-rail-title">
@@ -11355,7 +11716,7 @@
     <div id="bwc-devices-backdrop" hidden>
         <div id="bwc-devices-panel">
             <h4 data-i18n="bwc.title">All BWCs</h4>
-            <p class="config-hint" data-i18n="bwc.hint">Add every body-worn camera here &mdash; no limit. Set a nickname for each (what operators see on the map and device list). The long device ID comes from the BWC &mdash; paste it once here; you do not change it on the camera.</p>
+            <p class="config-hint" data-i18n="bwc.hint" hidden></p>
             <div class="video-config-csv-row">
                 <button type="button" id="bwc-devices-template" data-i18n="bwc.downloadTemplate">Download template (CSV)</button>
                 <button type="button" id="bwc-devices-import" data-i18n="bwc.importCsv">Import CSV</button>
@@ -11427,7 +11788,7 @@
     <div id="ss-tech-provision-backdrop" hidden>
         <div class="ss-gate-panel" role="dialog" aria-labelledby="ss-tech-provision-title">
             <h4 id="ss-tech-provision-title" data-i18n="tech.provision.title">Set IT administrator PIN</h4>
-            <p class="setup-hint" style="margin-top:0" data-i18n="tech.provision.hint">Choose a PIN (12+ characters). Must be different from your login password. Confirm with your login password. Only a super admin can set this.</p>
+            <p class="setup-hint" style="margin-top:0" data-i18n="tech.provision.hint">Choose a PIN (12+ characters), different from login. Super admin only.</p>
             <label for="ss-tech-provision-pin"><span data-i18n="tech.provision.pinLabel">New administrator PIN</span>
                 <input type="password" id="ss-tech-provision-pin" autocomplete="new-password" inputmode="text">
             </label>
@@ -11491,7 +11852,7 @@
     <script src="/js/usb-maintenance.js?v=20260609-usb2"></script>
     <script src="/js/lab-security.js?v=20260708-identity-copy"></script>
     <script src="/js/cloud-deployment.js?v=20260609-cloud"></script>
-    <script src="/js/bwc-devices.js"></script>
+    <script src="/js/bwc-devices.js?v=20260809-bwc-serial-asset-registry-v1"></script>
     <script src="/js/video-config.js?v=20260721-panel9-10-source-modes-search-v1"></script>
     <script src="/js/ptt-mic.js"></script>
     <script src="/js/call-mic.js?v=20260721-sos-group-call-v1"></script>
@@ -11503,22 +11864,28 @@
     <script src="/js/fr-offline-video.js?v=20260805-fr-offline-isolate-v1"></script>
     <script src="/js/fr-enroll-cropper.js?v=20260710-fr-cropper"></script>
     <script src="/js/anpr-plate-cropper.js?v=20260729-anpr-snapshot-v1"></script>
-    <script src="/js/fr-alarm.js?v=20260805-fr-engine-ks-filter-v1"></script>
+    <script src="/js/hq-alert-audio.js?v=20260809-sos-alert-audio-reliable-v1"></script>
+    <script src="/js/fr-alarm.js?v=20260809-hq-alert-audio-v1"></script>
     <script src="/js/wvp-lab-tile.js?v=20260802-lab-chase-unify-v1"></script>
     <script src="/js/anpr-live-watch.js?v=20260805-engine-name-tab-v1"></script>
     <script src="/js/anpr-offline-match.js?v=20260805-offline-status-matching-v1"></script>
     <script src="/js/anpr-image-investigation.js?v=20260804-image-invest-scaffold-v1"></script>
     <script src="/js/anpr-history.js?v=20260801-anpr-history-v1"></script>
-    <script src="/js/weapon-live-watch.js?v=20260806-wd-detect-stills-v1"></script>
-    <script src="/js/analytics-hub.js?v=20260806-wd-detect-stills-v1"></script>
+    <script src="/js/weapon-live-watch.js?v=20260808-wd-hist-retrieve-v1"></script>
+    <script src="/js/weapon-alarm.js?v=20260809-hq-alert-audio-v1"></script>
+    <script src="/js/analytics-hub.js?v=20260807-wd-warm-auto-v1"></script>
     <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/operator-ui.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/ev-context-rail.js?v=20260627-rail-trim"></script>
     <script src="/js/evidence-storage-ui.js?v=20260723-storage-compact-enterprise-v1"></script>
     <script src="/js/route-trace.js?v=20260621-smart-gps"></script>
-    <script src="/js/case-files-ui.js?v=20260722-cf-list-one-view-v5"></script>
+    <script src="/js/case-files-ui.js?v=20260810-continue-case-file-v1"></script>
+    <script src="/js/evidence-delete-queue-ui.js?v=20260810-delete-queue-7d-v1"></script>
+    <script src="/js/evidence-retention-ui.js?v=20260810-retention-categories-v1"></script>
+    <script src="/js/ops-cases-ui.js?v=20260810-bind-library-picker-v1"></script>
     <script src="/js/fr-kept-ui.js?v=20260801-delete-superadmin-rbac"></script>
-    <script src="/js/evidence-hub.js?v=20260723-redacted-exports-empty-hint-v1"></script>
+    <script src="/js/dock-identity-setup.js?v=20260809-dock-identity-hint-v1"></script>
+    <script src="/js/evidence-hub.js?v=20260810-redact-license-grey-v1"></script>
     <script src="/js/system-health-plain.js?v=20260804-global-heartbeat-v1"></script>
     <script src="/js/missed-activity.js?v=20260712-alerts-copy"></script>
     <script src="/js/evidence-manager.js?v=20260728-cad-tab-shell"></script>
@@ -11528,7 +11895,7 @@
     <script src="/js/global-device-presence.js?v=20260801-global-presence-v1"></script>
     <script src="/js/fleet-ui.js?v=20260724-user-circle-batch-open-v1"></script>
     <script src="/js/map-popout-sync.js?v=20260612-mirror"></script>
-    <script src="/js/voice-alerts.js?v=20260630-geofence-voice"></script>
+    <script src="/js/voice-alerts.js?v=20260809-sos-alert-audio-reliable-v1"></script>
     <script src="/vendor/leaflet/leaflet.js?v=20260701-vendor-local"></script>
     <script src="/vendor/leaflet-draw/leaflet.draw.js?v=20260724-tactical-leaflet-draw-v1"></script>
     <script src="/vendor/markercluster/leaflet.markercluster.js?v=20260701-vendor-local"></script>
@@ -16354,6 +16721,10 @@
             canGeofenceControl = !!(perms && perms.geofenceControl);
             canClearMapPinsPerm = !!(perms && perms.clearMapPins);
             isSuperAdmin = role === 'super_admin';
+            try {
+                window.__fmDashboardRole = role ? String(role) : '';
+                if (username) window.__fmDashboardUsername = String(username);
+            } catch (_) { /* ignore */ }
             if (username) dashboardUsername = String(username);
             if (typeof FleetUi !== 'undefined' && FleetUi.setClearMapPinsPermission) {
                 FleetUi.setClearMapPinsPermission(canClearMapPinsPerm);
@@ -18776,19 +19147,23 @@
                 el.innerHTML = '<div class="sos-ledger-empty">No data</div>';
                 return;
             }
-            var max = 1;
-            chart.forEach(function (c) { if (c.count > max) max = c.count; });
+            /* SOS-OPS-STRIP-ACTIONS-V1 — unit height + cap (1 alarm ≠ full tower) */
+            var BASE_EMPTY = 4;
+            var PX_PER = 8;
+            var CAP = 40;
             chart.forEach(function (c) {
                 var col = document.createElement('div');
                 col.className = 'sos-chart-col';
-                var h = Math.round((c.count / max) * 44) || (c.count ? 6 : 4);
-                col.innerHTML = '<div class="sos-chart-bar" title="' + c.count + ' alarm(s)"><i style="height:' + h + 'px"></i></div>' +
+                var n = Math.max(0, parseInt(c.count, 10) || 0);
+                var h = n === 0 ? BASE_EMPTY : Math.min(CAP, BASE_EMPTY + n * PX_PER);
+                col.innerHTML = '<div class="sos-chart-bar" title="' + n + ' alarm(s)"><i style="height:' + h + 'px"></i></div>' +
                     '<span>' + c.label + '</span>';
                 el.appendChild(col);
             });
         }
 
         var sosLedgerRows = [];
+        var sosLedgerSelectedId = null;
         var sosLedgerPinRequired = false;
         var sosLedgerPendingDetailId = null;
         var sosDetailCurrentRow = null;
@@ -18821,6 +19196,59 @@
             }
             var noReport = document.getElementById('sos-detail-no-report');
             if (noReport) noReport.hidden = true;
+            clearSosDualMediaUi();
+        }
+
+        function clearSosDualMediaUi() {
+            ['sos-detail-hq-video', 'sos-detail-ground-video'].forEach(function (id) {
+                var v = document.getElementById(id);
+                if (!v) return;
+                try { v.pause(); } catch (_) { /* ignore */ }
+                v.removeAttribute('src');
+                try { v.load(); } catch (_) { /* ignore */ }
+                v.hidden = true;
+            });
+            var wrap = document.getElementById('sos-detail-dual-media');
+            if (wrap) wrap.hidden = true;
+        }
+
+        function fillSosDualMediaSlot(prefix, playUrl, evidenceId) {
+            var video = document.getElementById('sos-detail-' + prefix + '-video');
+            var missing = document.getElementById('sos-detail-' + prefix + '-missing');
+            var actions = document.getElementById('sos-detail-' + prefix + '-actions');
+            var watchBtn = document.getElementById('sos-detail-' + prefix + '-watch');
+            var dlBtn = document.getElementById('sos-detail-' + prefix + '-download');
+            var has = !!(playUrl || evidenceId);
+            if (missing) missing.hidden = has;
+            if (actions) actions.hidden = !has;
+            if (video) {
+                if (playUrl) {
+                    video.hidden = false;
+                    video.src = playUrl;
+                } else {
+                    video.hidden = true;
+                    video.removeAttribute('src');
+                    try { video.load(); } catch (_) { /* ignore */ }
+                }
+            }
+            if (watchBtn) {
+                watchBtn.disabled = !playUrl;
+                watchBtn.dataset.playUrl = playUrl || '';
+            }
+            if (dlBtn) {
+                dlBtn.disabled = !evidenceId;
+                dlBtn.dataset.evidenceId = evidenceId || '';
+            }
+        }
+
+        function renderSosDualMedia(row) {
+            var wrap = document.getElementById('sos-detail-dual-media');
+            if (!wrap || !row) return;
+            wrap.hidden = false;
+            var hqPlay = row.serverRecordingLocalUrl || row.serverRecordingPreviewUrl || '';
+            var groundPlay = row.deviceRecordingLocalUrl || row.deviceRecordingPreviewUrl || '';
+            fillSosDualMediaSlot('hq', hqPlay, row.serverRecordingEvidenceId || '');
+            fillSosDualMediaSlot('ground', groundPlay, row.deviceRecordingEvidenceId || '');
         }
 
         function sosReportUrlForRow(row) {
@@ -18848,6 +19276,7 @@
             document.getElementById('sos-detail-status').textContent = row.acknowledged ? dashboardTr('sos.detail.statusAck') : dashboardTr('sos.detail.statusOpen');
             document.getElementById('sos-detail-time').textContent = formatLedgerTime(row.at);
             document.getElementById('sos-detail-operator').textContent = row.operatorName || (typeof FleetDisplay !== 'undefined' ? FleetDisplay.friendlyDeviceName(row.cameraId) : row.cameraId) || '\u2014';
+            renderSosDualMedia(row);
             var reportUrl = sosReportUrlForRow(row);
             var frame = document.getElementById('sos-detail-report-frame');
             var noReport = document.getElementById('sos-detail-no-report');
@@ -19035,24 +19464,24 @@
         function refreshSosLedger(opts) {
             opts = opts || {};
             var list = document.getElementById('sos-ledger-list');
-            var syncBtn = document.getElementById('sos-ledger-sync');
-            if (syncBtn) syncBtn.disabled = true;
             return fetch('/api/sos-incidents?limit=50&days=' + SOS_LEDGER_DAYS).then(function (r) { return r.json(); }).then(function (data) {
-                var windowDays = data.windowDays || SOS_LEDGER_DAYS;
                 renderSosChart(data.chart || []);
                 var rows = data.entries || [];
                 sosLedgerRows = rows;
-                var openCount = rows.filter(function (r) { return !r.acknowledged; }).length;
-                var older = (data.ledgerTotal || 0) > (data.totalInWindow || rows.length);
                 if (!rows.length) {
-                    list.innerHTML = '<div class="sos-ledger-empty">' + dashboardTr('sos.ledger.emptyWindow', { n: windowDays }) + '</div>';
-                    setSosLedgerMeta(dashboardTr('sos.ledger.metaEmpty', { n: windowDays }), '');
+                    sosLedgerSelectedId = null;
+                    list.innerHTML = '<div class="sos-ledger-empty">' + dashboardTr('sos.ledger.emptyShort', 'No SOS cases in this week.') + '</div>';
+                    setSosLedgerMeta('Updated ' + formatLedgerTime(new Date().toISOString()), '');
                     return;
+                }
+                if (!sosLedgerSelectedId || !rows.some(function (r) { return r.id === sosLedgerSelectedId; })) {
+                    sosLedgerSelectedId = rows[0].id;
                 }
                 list.innerHTML = '';
                 rows.forEach(function (row) {
                     var item = document.createElement('div');
-                    item.className = 'sos-ledger-item';
+                    item.className = 'sos-ledger-item' + (row.id === sosLedgerSelectedId ? ' is-selected' : '');
+                    item.dataset.sosId = row.id;
                     item.title = dashboardTr('sos.ledger.clickView');
                     var thumb = row.snapshot
                         ? '<img class="sos-ledger-thumb" src="' + row.snapshot + '" alt="">'
@@ -19060,33 +19489,74 @@
                     var tag = row.acknowledged ? dashboardTr('sos.ledger.tagAck') : dashboardTr('sos.ledger.tagOpen');
                     var typeTag = row.alarmKind === 'fall' ? dashboardTr('sos.ledger.tagFall') : dashboardTr('sos.ledger.tagSos');
                     var hint = row.acknowledged ? dashboardTr('sos.ledger.hintAck') : dashboardTr('sos.ledger.hintOpen');
-                    if (row.serverRecordingEvidenceId) hint += ' Â\u00B7 ' + dashboardTr('sos.ledger.hasRecording');
+                    if (row.serverRecordingEvidenceId || row.serverRecordingLocalUrl) {
+                        hint += ' · ' + dashboardTr('sos.ledger.hasHq');
+                    }
+                    if (row.deviceRecordingEvidenceId || row.deviceRecordingLocalUrl) {
+                        hint += ' · ' + dashboardTr('sos.ledger.hasGround');
+                    }
                     var op = row.operatorName ? String(row.operatorName) : (typeof FleetDisplay !== 'undefined' ? FleetDisplay.friendlyDeviceName(row.cameraId) : dashboardTr('fleet.bwc'));
-                    var cam = '';
                     item.innerHTML = thumb +
-                        '<div class="sos-ledger-body"><div class="sos-ledger-tag">' + typeTag + ' Â\u00B7 ' + tag + '</div>' +
-                        '<div class="when">' + formatLedgerTime(row.at) + ' Â\u00B7 ' + op.replace(/</g, '&lt;') + cam + '</div>' +
+                        '<div class="sos-ledger-body"><div class="sos-ledger-tag">' + typeTag + ' · ' + tag + '</div>' +
+                        '<div class="when">' + formatLedgerTime(row.at) + ' · ' + op.replace(/</g, '&lt;') + '</div>' +
                         '<div class="note-hint">' + hint + '</div></div>';
-                    item.addEventListener('click', function () { openSosLedgerDetail(row.id); });
+                    item.addEventListener('click', function () {
+                        sosLedgerSelectedId = row.id;
+                        list.querySelectorAll('.sos-ledger-item').forEach(function (el) {
+                            el.classList.toggle('is-selected', el.dataset.sosId === row.id);
+                        });
+                        openSosLedgerDetail(row.id);
+                    });
                     list.appendChild(item);
                 });
-                var summary = rows.length + ' shown (' + windowDays + ' days)';
-                if (openCount) summary += ' Â\u00B7 ' + openCount + ' need acknowledge';
-                if (older) summary += ' Â\u00B7 older in folder';
-                summary += ' Â\u00B7 Updated ' + new Date().toLocaleTimeString();
-                setSosLedgerMeta(summary, '');
+                setSosLedgerMeta('Updated ' + formatLedgerTime(new Date().toISOString()), '');
                 if (!opts.silent) {
                     list.classList.remove('sos-list-pulse');
                     void list.offsetWidth;
                     list.classList.add('sos-list-pulse');
-                    list.scrollTop = 0;
                 }
             }).catch(function () {
                 list.innerHTML = '';
-                setSosLedgerMeta('Could not load SOS ledger', 'error');
-            }).finally(function () {
-                if (syncBtn) syncBtn.disabled = false;
+                setSosLedgerMeta(dashboardTr('sos.ledger.loadFail', 'Could not load SOS cases'), 'error');
             });
+        }
+
+        function openSosCaseFromStrip() {
+            var id = sosLedgerSelectedId || (sosLedgerRows[0] && sosLedgerRows[0].id);
+            if (!id) return;
+            function goCases(caseId) {
+                try {
+                    if (typeof EvidenceManager !== 'undefined' && EvidenceManager.showTab) {
+                        EvidenceManager.showTab('evidence');
+                    } else {
+                        var nav = document.getElementById('nav-tab-evidence');
+                        if (nav) nav.click();
+                    }
+                } catch (_) { /* ignore */ }
+                setTimeout(function () {
+                    try {
+                        if (window.OpsCasesUi && typeof OpsCasesUi.showPanelCases === 'function') {
+                            OpsCasesUi.showPanelCases({ caseId: caseId || null, family: 'SOS' });
+                            return;
+                        }
+                    } catch (_) { /* ignore */ }
+                    try {
+                        if (window.EvidenceHub && EvidenceHub.showPanel) {
+                            EvidenceHub.showPanel('ops-cases', { force: true });
+                        }
+                    } catch (_) { /* ignore */ }
+                }, 120);
+            }
+            fetch('/api/ops-cases/by-sos/' + encodeURIComponent(id), { credentials: 'same-origin' })
+                .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                .then(function (out) {
+                    if (out.ok && out.data && out.data.ok && out.data.case && out.data.case.caseId) {
+                        goCases(out.data.case.caseId);
+                        return;
+                    }
+                    goCases(null);
+                })
+                .catch(function () { goCases(null); });
         }
 
         document.getElementById('sos-ack-cancel').addEventListener('click', closeSosAcknowledgeDialog);
@@ -19109,6 +19579,39 @@
         document.getElementById('sos-detail-open-folder').addEventListener('click', function () {
             if (sosDetailCurrentRow && sosDetailCurrentRow.id) openSosIncidentFolder(sosDetailCurrentRow.id);
         });
+        function bindSosDualMediaButtons() {
+            function openPlay(btn) {
+                var url = btn && btn.dataset ? btn.dataset.playUrl : '';
+                if (url) window.open(url, '_blank', 'noopener');
+            }
+            var hqWatch = document.getElementById('sos-detail-hq-watch');
+            var hqDl = document.getElementById('sos-detail-hq-download');
+            var gWatch = document.getElementById('sos-detail-ground-watch');
+            var gDl = document.getElementById('sos-detail-ground-download');
+            if (hqWatch) hqWatch.addEventListener('click', function () { openPlay(hqWatch); });
+            if (gWatch) gWatch.addEventListener('click', function () { openPlay(gWatch); });
+            if (hqDl) hqDl.addEventListener('click', function () {
+                downloadSosIncidentRecording(hqDl.dataset.evidenceId || '');
+            });
+            if (gDl) gDl.addEventListener('click', function () {
+                downloadSosIncidentRecording(gDl.dataset.evidenceId || '');
+            });
+        }
+        bindSosDualMediaButtons();
+        if (typeof socket !== 'undefined' && socket && typeof socket.on === 'function') {
+            socket.on('sos-device-recording', function (payload) {
+                if (!payload || !sosDetailCurrentRow || payload.incidentId !== sosDetailCurrentRow.id) {
+                    try { refreshSosLedger({ silent: true }); } catch (_) { /* ignore */ }
+                    return;
+                }
+                sosDetailCurrentRow.deviceRecordingEvidenceId = payload.evidenceId || sosDetailCurrentRow.deviceRecordingEvidenceId;
+                if (payload.deviceRecordingPreviewUrl) {
+                    sosDetailCurrentRow.deviceRecordingPreviewUrl = payload.deviceRecordingPreviewUrl;
+                }
+                renderSosDualMedia(sosDetailCurrentRow);
+                try { refreshSosLedger({ silent: true }); } catch (_) { /* ignore */ }
+            });
+        }
         document.getElementById('sos-pin-cancel').addEventListener('click', closeSosDetailDialog);
         document.getElementById('sos-pin-submit').addEventListener('click', submitSosLedgerPin);
         document.getElementById('sos-pin-input').addEventListener('keydown', function (e) {
@@ -19117,10 +19620,10 @@
         document.getElementById('sos-detail-backdrop').addEventListener('click', function (e) {
             if (e.target.id === 'sos-detail-backdrop') closeSosDetailDialog();
         });
-        document.getElementById('sos-ledger-sync').addEventListener('click', function () {
-            refreshSosLedger();
-        });
-        document.getElementById('sos-ledger-clear').addEventListener('click', clearSosDashboardList);
+        var sosOpenCaseBtn = document.getElementById('sos-strip-open-case');
+        if (sosOpenCaseBtn) sosOpenCaseBtn.addEventListener('click', openSosCaseFromStrip);
+        var sosClearBtn = document.getElementById('sos-ledger-clear');
+        if (sosClearBtn) sosClearBtn.addEventListener('click', clearSosDashboardList);
 
         var pttJoinBtn = document.getElementById('ptt-group-join');
         var pttUngroupBtn = document.getElementById('ptt-group-ungroup');

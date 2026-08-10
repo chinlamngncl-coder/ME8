@@ -40,7 +40,8 @@ if "%NEED_INSTALL%"=="1" (
 )
 
 echo  Starting Weapon engine on 127.0.0.1:8769 ...
-echo  Engine: RF-DETR Threat Apache-2.0 ^| gun + knife only
+echo  Prefers Colab B weights if present (ai_engine\weights\weapon_rfdetr_best.pt)
+echo  Fallback: pistol smoke A, then Threat. Leave THIS window open.
 echo.
 
 cd /d "%~dp0weapon-sidecar"

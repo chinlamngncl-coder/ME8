@@ -1,0 +1,24 @@
+---
+description: WHOLE SOFTWARE UI copy — agent judges REMOVE vs industry one-liner vs keep empty/modal. Operator does not memorize keys.
+alwaysApply: true
+---
+
+# ME8 — UI copy judgment (whole product)
+
+**Disc:** `docs/MOB-DISC-UI-COPY-TEACH-STRIP-JUDGMENT-CONCEPT-20260810.md`
+
+## Concept
+
+Not “delete all hints.” Not “teach on every page.”
+
+| Bucket | Do |
+|--------|-----|
+| **A** Title already clear / coach talk | **REMOVE** (`hidden` + clear) |
+| **B** Misconfig / IT risk | **One** short professional line |
+| **C** Empty, error, confirm, modal gate, once-wizard | **KEEP** |
+
+Agent decides buckets. Operator PASS/FAIL after hard refresh. Do not dump 70-key homework on the operator.
+
+Manuals teach fully. Words/visibility only. Ask before whole-UI Grep. Exact **`MOB-APPLY`** for edits.
+
+**Judgment APPLY:** `UI-COPY-PANEL-INTRO-JUDGMENT-V1`

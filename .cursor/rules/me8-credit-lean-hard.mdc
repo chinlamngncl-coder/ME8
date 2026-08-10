@@ -1,0 +1,19 @@
+# CREDIT-LEAN-HARD (operator invoke)
+
+**Disc:** `docs/MOB-DISC-CREDIT-LEAN-HARD-CODE-20260809.md`
+
+If the user message contains any of:
+
+- `CREDIT-LEAN-HARD`
+- `MOB-LEAN-NO-SCAN`
+- `NO-SCAN-THIS-TURN`
+
+then for that turn:
+
+1. **No** repo-wide Grep/Glob/Task explore.
+2. Open at most **1–3** files already named by the user or the exact APPLY.
+3. Prefer **zero** search tools; if path unknown → ask one short path question.
+4. Small targeted patches only. Short reply.
+5. Soft “sorry I burned credits” is not compliance — **obey the cap**.
+
+Standing lean rules still apply when the code is not pasted; this code is the hard override.
