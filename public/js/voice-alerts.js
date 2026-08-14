@@ -191,25 +191,42 @@
             try {
                 if (global.HqAlertAudio && typeof HqAlertAudio.play === 'function') {
                     HqAlertAudio.play(kind, {
-                        tier: phase === 'tail' ? 'tail' : 'strong',
+                        tier: phase === 'tail' || phase === 'hold' ? 'tail' : 'strong',
                         key: (phase || 'attn') + ':' + kind + ':' + camId + (keySuffix ? (':' + keySuffix) : ''),
+                        noHold: phase === 'attn',
                     });
+                }
+            } catch (_) { /* ignore */ }
+        }
+
+        function startHoldTone() {
+            try {
+                if (global.HqAlertAudio && typeof HqAlertAudio.startHold === 'function') {
+                    HqAlertAudio.startHold(kind);
+                } else {
+                    playTone('hold', String(Date.now()));
                 }
             } catch (_) { /* ignore */ }
         }
 
         function fireAttention() {
             var t = Date.now();
-            /* SOS-ALERT-AUDIO-RELIABLE-V1 — tone even when Speak SOS is off; 60s dedupe is speak-only */
+            /* SOS-ALERT-AUDIO-RELIABLE-V1 + PRESETS-HOLD-V1 — attn → speak → hold loop */
             playTone('attn', String(t));
-            if (!speakOk || !shouldAutoSpeak()) return;
-            if (!duringLive && sosSpokeAt[camId] && t - sosSpokeAt[camId] < SOS_DEDUPE_MS) return;
+            if (!speakOk || !shouldAutoSpeak()) {
+                setTimeout(startHoldTone, 900);
+                return;
+            }
+            if (!duringLive && sosSpokeAt[camId] && t - sosSpokeAt[camId] < SOS_DEDUPE_MS) {
+                setTimeout(startHoldTone, 900);
+                return;
+            }
             if (speak(text, { key: kind + ':' + camId })) {
                 sosSpokeAt[camId] = t;
-                setTimeout(function () { playTone('tail', String(t)); }, 2800);
+                startHoldTone();
             } else {
                 sosSpokeAt[camId] = t;
-                setTimeout(function () { playTone('tail', String(t)); }, 900);
+                setTimeout(startHoldTone, 400);
             }
         }
 
@@ -289,6 +306,13 @@
         } catch (_) { /* ignore */ }
         if (sessionMuted && global.speechSynthesis) {
             try { speechSynthesis.cancel(); } catch (_) { /* ignore */ }
+        }
+        if (sessionMuted) {
+            try {
+                if (global.HqAlertAudio && typeof HqAlertAudio.stopHold === 'function') {
+                    HqAlertAudio.stopHold();
+                }
+            } catch (_) { /* ignore */ }
         }
         updateMuteButton();
     }

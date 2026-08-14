@@ -88,6 +88,59 @@ fs.copyFileSync(tmpBundle, runJsOut);
 fs.copyFileSync(tmpBundle, rootRunJs);
 try { fs.unlinkSync(tmpBundle); } catch (_) { /* ignore */ }
 
+/* ANPR isolate child — must sit beside run.js for 1-click pack (no lib/ in zip) */
+const anprChildEntry = path.join(appRoot, 'lib', 'anprLivePollerChild.js');
+const anprChildTmp = path.join(appRoot, '.ship-anpr-child.tmp.js');
+const anprChildOut = path.join(outDir, 'anpr-poller-child.js');
+if (fs.existsSync(anprChildEntry)) {
+    const childCmd = [
+        'npx --yes esbuild',
+        JSON.stringify(anprChildEntry),
+        '--bundle --platform=node --target=node22 --packages=external',
+        '--minify',
+        '--legal-comments=none',
+        '--outfile=' + JSON.stringify(anprChildTmp),
+        '--log-level=warning',
+    ].join(' ');
+    try {
+        execSync(childCmd, { stdio: 'inherit', cwd: appRoot, shell: true });
+        if (fs.existsSync(anprChildTmp)) {
+            fs.copyFileSync(anprChildTmp, anprChildOut);
+            fs.copyFileSync(anprChildTmp, path.join(appRoot, 'anpr-poller-child.js'));
+            try { fs.unlinkSync(anprChildTmp); } catch (_) { /* ignore */ }
+            console.log('[build:ship] anpr-poller-child.js ready');
+        }
+    } catch (_) {
+        console.error('[build:ship] WARN anpr-poller-child.js failed');
+    }
+}
+
+const anprIngestEntry = path.join(appRoot, 'lib', 'anprIngestServiceMain.js');
+const anprIngestTmp = path.join(appRoot, '.ship-anpr-ingest.tmp.js');
+const anprIngestOut = path.join(outDir, 'anpr-ingest-service.js');
+if (fs.existsSync(anprIngestEntry)) {
+    const ingestCmd = [
+        'npx --yes esbuild',
+        JSON.stringify(anprIngestEntry),
+        '--bundle --platform=node --target=node22 --packages=external',
+        '--minify',
+        '--legal-comments=none',
+        '--outfile=' + JSON.stringify(anprIngestTmp),
+        '--log-level=warning',
+    ].join(' ');
+    try {
+        execSync(ingestCmd, { stdio: 'inherit', cwd: appRoot, shell: true });
+        if (fs.existsSync(anprIngestTmp)) {
+            fs.copyFileSync(anprIngestTmp, anprIngestOut);
+            fs.copyFileSync(anprIngestTmp, path.join(appRoot, 'anpr-ingest-service.js'));
+            try { fs.unlinkSync(anprIngestTmp); } catch (_) { /* ignore */ }
+            console.log('[build:ship] anpr-ingest-service.js ready');
+        }
+    } catch (_) {
+        console.error('[build:ship] WARN anpr-ingest-service.js failed');
+    }
+}
+
 const bundleKb = Math.round(fs.statSync(runJsOut).size / 1024);
 console.log('[build:ship] runtime blob:', runJsOut, '(' + bundleKb + ' KB)');
 console.log('[build:ship] refreshed repo run.js for ship parity');
@@ -178,6 +231,7 @@ const ASSETS_NOTE = `# Protected ship runtime layout
 \`\`\`
 ship-build/protected/
   run.js              ← minified esbuild bundle (licenseManager inside; no lib/*.js)
+  anpr-poller-child.js← ANPR isolate child (forked; 1-click pack sibling)
   package.json        ← start: node run.js ; npm deps listed (external)
   public/             ← static UI (HTML/CSS/JS) — separate from server blob
   keys/               ← public key only

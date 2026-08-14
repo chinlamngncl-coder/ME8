@@ -6,7 +6,7 @@
 
     const VENDOR = '/vendor/livekit-client.umd.min.js?v=20260701-vc-bwc-remove';
     const LAYOUT = '/js/conference-layout.js?v=20260724-vc-empty-states-lobby-v1';
-    const HUB = '/js/conference-hub.js?v=20260724-vc-empty-states-lobby-v1';
+    const HUB = '/js/conference-hub.js?v=20260814-vc-recordings-list-v1';
 
     let loadPromise = null;
 

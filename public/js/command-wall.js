@@ -1629,7 +1629,7 @@
                 streaming.add(camId);
                 wvpHandoffFlvByCam.set(camId, data.flvUrl);
                 if (!attachWvpHandoffFlvToSlot(slot, camId, data.flvUrl)) {
-                    throw new Error('FLV player is unavailable');
+                    throw new Error('Live video player is unavailable');
                 }
             });
         }).catch(function (error) {

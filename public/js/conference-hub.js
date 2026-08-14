@@ -18,6 +18,10 @@
     let currentPanel = 'live';
     let lkRoom = null;
     const panelLoadedAt = Object.create(null);
+    let lobbyPresenceTimer = null;
+    let lobbyPresenceInflight = false;
+    let lobbyPresenceDebounce = null;
+    const LOBBY_PRESENCE_MS = 5000;
 
     function staleMs() {
         return (global.TabLifecycle && TabLifecycle.STALE_MS) || 60000;
@@ -271,10 +275,14 @@
         (lobby && lobby.groups || []).forEach(function (g) {
             (g.members || []).forEach(function (m) {
                 if (!m.name) return;
+                const inRoom = inRoomNames.indexOf(String(m.name).toLowerCase()) >= 0;
+                const online = !!m.online;
+                /* VC-HIDE-OFFLINE-ROSTER-V1 — live join surface: online or already in room only */
+                if (!online && !inRoom) return;
                 items.push({
                     name: m.name,
-                    online: !!m.online,
-                    inRoom: inRoomNames.indexOf(String(m.name).toLowerCase()) >= 0,
+                    online: online,
+                    inRoom: inRoom,
                 });
             });
         });
@@ -285,7 +293,7 @@
         el.innerHTML = '<h4>' + esc(tr('conference.rosterTitle')) + '</h4><ul>'
             + items.map(function (m) {
                 const cls = m.inRoom ? 'in-room' : (m.online ? 'online' : '');
-                const suffix = m.inRoom ? ' \u00B7 ' + tr('conference.rosterInRoom') : (m.online ? ' \u00B7 ' + tr('conference.online') : ' \u00B7 ' + tr('conference.offline'));
+                const suffix = m.inRoom ? ' \u00B7 ' + tr('conference.rosterInRoom') : (' \u00B7 ' + tr('conference.online'));
                 return '<li class="' + cls + '">' + esc(m.name) + esc(suffix) + '</li>';
             }).join('')
             + '</ul><p class="hint">' + esc(tr('conference.rosterHint')) + '</p>';
@@ -1228,22 +1236,25 @@
         const groups = lobby.groups || [];
         groups.forEach(function (g, idx) {
             const gid = String(g.groupId || g.name || idx);
-            const members = g.members || [];
-            const onlineN = members.filter(function (m) { return m.online; }).length;
+            const members = (g.members || []).filter(function (m) {
+                return !!(m && m.online);
+            });
+            const onlineN = members.length;
             const openAttr = (wasOpen[gid] || (!Object.keys(wasOpen).length && idx === 0)) ? ' open' : '';
             html += '<details class="vc-personnel-group"' + openAttr + ' data-group-id="' + esc(gid) + '">'
                 + '<summary><span class="vc-pin" style="background:' + esc(g.pinColor || '#64748b') + '"></span> '
                 + esc(g.name)
-                + ' <span class="vc-personnel-count">' + onlineN + '/' + members.length + '</span></summary>'
+                + ' <span class="vc-personnel-count">' + onlineN + '</span></summary>'
                 + '<ul class="vc-personnel-list">';
             if (!members.length) {
-                html += '<li class="vc-personnel-item"><span class="hint">\u2014</span></li>';
+                html += '<li class="vc-personnel-item"><span class="hint">'
+                    + esc(tr('conference.noOnlineInGroup', 'No body cameras online'))
+                    + '</span></li>';
             } else {
                 members.forEach(function (m) {
-                    const online = !!m.online;
-                    html += '<li class="vc-personnel-item' + (online ? ' is-online' : '') + '">'
+                    html += '<li class="vc-personnel-item is-online">'
                         + '<div class="vc-personnel-left">'
-                        + '<span class="vc-dot' + (online ? ' is-online' : '') + '" aria-hidden="true"></span>'
+                        + '<span class="vc-dot is-online" aria-hidden="true"></span>'
                         + '<span class="vc-personnel-name" title="' + esc(m.name) + '">' + esc(m.name) + '</span>'
                         + '<code class="vc-personnel-id" title="' + esc(m.camId) + '">' + esc(truncateId(m.camId)) + '</code>'
                         + '</div></li>';
@@ -1261,9 +1272,9 @@
                 + ' <span class="vc-personnel-count">' + operators.length + '</span></summary>'
                 + '<ul class="vc-personnel-list">';
             operators.forEach(function (op) {
-                html += '<li class="vc-personnel-item is-online">'
+                html += '<li class="vc-personnel-item">'
                     + '<div class="vc-personnel-left">'
-                    + '<span class="vc-dot is-online" aria-hidden="true"></span>'
+                    + '<span class="vc-dot" aria-hidden="true"></span>'
                     + '<span class="vc-personnel-name" title="' + esc(op.username) + '">' + esc(op.username) + '</span>'
                     + '<code class="vc-personnel-id" title="' + esc(op.role || '') + '">' + esc(op.role || '') + '</code>'
                     + '</div>';
@@ -1290,45 +1301,277 @@
         if (!window.confirm(tr('conference.recDeleteConfirm'))) return;
         const res = await api('/api/conference/recordings/' + encodeURIComponent(recordingId), { method: 'DELETE' });
         if (!res.ok || !res.data.ok) throw new Error((res.data && res.data.error) || 'Delete failed');
-        await renderRecordings();
+        await renderRecordings(true);
     }
 
-    async function renderRecordings() {
+    const recState = {
+        rows: [],
+        selected: Object.create(null),
+        page: 1,
+        pageSize: 25,
+        bound: false,
+    };
+
+    function isSuperAdmin() {
+        return userRole === 'super_admin';
+    }
+
+    function canPushEvidence() {
+        return isSuperAdmin() || perms.host || perms.record;
+    }
+
+    function recFilters() {
+        const qEl = document.getElementById('vc-rec-search');
+        const sEl = document.getElementById('vc-rec-status');
+        return {
+            q: (qEl && qEl.value ? String(qEl.value) : '').trim().toLowerCase(),
+            status: (sEl && sEl.value) || 'all',
+        };
+    }
+
+    function filteredRecordings() {
+        const f = recFilters();
+        return recState.rows.filter(function (r) {
+            const st = String(r.status || '');
+            if (f.status === 'ready' && st !== 'ready') return false;
+            if (f.status === 'recording' && st !== 'recording') return false;
+            if (f.status === 'other' && (st === 'ready' || st === 'recording')) return false;
+            if (!f.q) return true;
+            const hay = [r.id, r.roomId, r.startedBy, r.startedAt, r.status]
+                .map(function (x) { return String(x || '').toLowerCase(); }).join(' ');
+            return hay.indexOf(f.q) !== -1;
+        });
+    }
+
+    function selectedRecIds() {
+        return Object.keys(recState.selected).filter(function (k) { return recState.selected[k]; });
+    }
+
+    function syncRecBulkUi() {
+        const n = selectedRecIds().length;
+        const wrap = document.getElementById('vc-rec-bulk-actions');
+        const pushBtn = document.getElementById('vc-rec-push-evidence');
+        const purgeBtn = document.getElementById('vc-rec-bulk-purge');
+        if (wrap) wrap.hidden = n < 1;
+        if (pushBtn) {
+            pushBtn.hidden = !canPushEvidence();
+            pushBtn.disabled = n < 1;
+        }
+        if (purgeBtn) {
+            purgeBtn.hidden = !isSuperAdmin();
+            purgeBtn.disabled = n < 1 || !isSuperAdmin();
+        }
+        const all = document.getElementById('vc-rec-check-all');
+        const pageRows = pagedRecordings();
+        if (all) {
+            all.checked = pageRows.length > 0 && pageRows.every(function (r) { return recState.selected[r.id]; });
+            all.indeterminate = n > 0 && !all.checked;
+        }
+    }
+
+    function pagedRecordings() {
+        const list = filteredRecordings();
+        const totalPages = Math.max(1, Math.ceil(list.length / recState.pageSize) || 1);
+        if (recState.page > totalPages) recState.page = totalPages;
+        if (recState.page < 1) recState.page = 1;
+        const start = (recState.page - 1) * recState.pageSize;
+        return list.slice(start, start + recState.pageSize);
+    }
+
+    function paintRecPager() {
+        const pager = document.getElementById('vc-rec-pager');
+        const label = document.getElementById('vc-rec-page-label');
+        const prev = document.getElementById('vc-rec-prev');
+        const next = document.getElementById('vc-rec-next');
+        const list = filteredRecordings();
+        const totalPages = Math.max(1, Math.ceil(list.length / recState.pageSize) || 1);
+        if (pager) pager.hidden = list.length < 1;
+        if (label) label.textContent = 'Page ' + recState.page + ' of ' + totalPages + ' · ' + list.length + ' recording' + (list.length === 1 ? '' : 's');
+        if (prev) prev.disabled = recState.page <= 1;
+        if (next) next.disabled = recState.page >= totalPages;
+    }
+
+    function paintRecordingsTable() {
         const el = document.getElementById('vc-recordings-body');
+        const toolbar = document.getElementById('vc-recordings-toolbar');
+        const meta = document.getElementById('vc-rec-meta');
         if (!el) return;
-        const res = await api('/api/conference/recordings');
-        if (!res.ok || !res.data.ok) {
-            el.innerHTML = '<p class="hint">' + esc((res.data && res.data.error) || 'Failed') + '</p>';
-            return;
-        }
-        const list = res.data.recordings || [];
         const canDelete = perms.host || perms.record;
-        let html = '<p class="hint">' + esc(tr('conference.recordingsPathHint')) + '</p>';
-        if (!list.length) {
-            html += '<p class="hint">' + esc(tr('conference.recordingsEmpty')) + '</p>';
-            el.innerHTML = html;
+        const listAll = filteredRecordings();
+        if (toolbar) toolbar.hidden = false;
+
+        if (!recState.rows.length) {
+            el.innerHTML = '<div class="axiom-empty-state">'
+                + '<h4 class="axiom-empty-title">' + esc(trOr('conference.recordingsEmptyTitle', 'No conference recordings found')) + '</h4>'
+                + '<p class="axiom-empty-subtext">' + esc(trOr('conference.recordingsEmptySub',
+                    'Join a video room and use \'Record\' in the Host Tools. Recordings are stored locally on this server and will be permanently removed if deleted.')) + '</p>'
+                + '</div>';
+            if (meta) meta.textContent = '';
+            const pager = document.getElementById('vc-rec-pager');
+            if (pager) pager.hidden = true;
+            syncRecBulkUi();
             return;
         }
-        html += '<table class="evidence-table"><thead><tr><th>' + tr('conference.recRoom') + '</th><th>'
-            + tr('conference.recStarted') + '</th><th>' + tr('conference.recBy') + '</th><th></th></tr></thead><tbody>'
-            + list.map(function (r) {
-                let actions = '';
-                if (r.status === 'ready') {
-                    actions += '<a class="btn btn-ghost btn-sm" href="/api/conference/recordings/' + encodeURIComponent(r.id) + '/stream" target="_blank" rel="noopener">' + tr('conference.play') + '</a> ';
-                } else {
-                    actions += esc(r.status) + ' ';
-                }
-                if (canDelete && r.status !== 'recording') {
-                    actions += '<button type="button" class="btn btn-ghost btn-sm vc-rec-delete" data-rec-id="' + esc(r.id) + '">' + tr('conference.recDelete') + '</button>';
-                }
-                return '<tr><td>' + esc(r.roomId) + '</td><td>' + esc(r.startedAt) + '</td><td>' + esc(r.startedBy || '\u2014') + '</td><td>' + actions + '</td></tr>';
-            }).join('') + '</tbody></table>';
+
+        if (!listAll.length) {
+            el.innerHTML = '<div class="axiom-empty-state">'
+                + '<h4 class="axiom-empty-title">' + esc(trOr('conference.recordingsEmptyFilterTitle', 'No matching recordings')) + '</h4>'
+                + '<p class="axiom-empty-subtext">' + esc(trOr('conference.recordingsEmptyFilterSub', 'Try clearing search or status filters.')) + '</p>'
+                + '</div>';
+            paintRecPager();
+            syncRecBulkUi();
+            return;
+        }
+
+        const pageRows = pagedRecordings();
+        if (meta) {
+            meta.textContent = listAll.length + ' recording' + (listAll.length === 1 ? '' : 's')
+                + (listAll.length !== recState.rows.length ? ' (filtered)' : '');
+        }
+
+        let html = '<div class="ss-evidence-table-wrap"><table class="evidence-table"><thead><tr>'
+            + '<th class="check-col"><input type="checkbox" id="vc-rec-check-all" title="Select all" aria-label="Select all"></th>'
+            + '<th>' + tr('conference.recRoom') + '</th>'
+            + '<th>' + tr('conference.recStarted') + '</th>'
+            + '<th>' + tr('conference.recBy') + '</th>'
+            + '<th>' + trOr('conference.recStatus', 'Status') + '</th>'
+            + '<th>' + trOr('conference.recActions', 'Actions') + '</th>'
+            + '</tr></thead><tbody>';
+
+        html += pageRows.map(function (r) {
+            let actions = '';
+            if (r.status === 'ready') {
+                actions += '<a class="btn btn-ghost btn-sm" href="/api/conference/recordings/' + encodeURIComponent(r.id) + '/stream" target="_blank" rel="noopener">' + tr('conference.play') + '</a> ';
+            }
+            if (canDelete && r.status !== 'recording') {
+                actions += '<button type="button" class="btn btn-ghost btn-sm vc-rec-delete" data-rec-id="' + esc(r.id) + '">' + tr('conference.recDelete') + '</button>';
+            }
+            const checked = recState.selected[r.id] ? ' checked' : '';
+            return '<tr data-rec-id="' + esc(r.id) + '">'
+                + '<td class="check-col"><input type="checkbox" class="vc-rec-row-check" data-rec-id="' + esc(r.id) + '"' + checked + ' aria-label="Select recording"></td>'
+                + '<td>' + esc(r.roomId) + '</td>'
+                + '<td>' + esc(r.startedAt) + '</td>'
+                + '<td>' + esc(r.startedBy || '\u2014') + '</td>'
+                + '<td>' + esc(r.status || '\u2014') + '</td>'
+                + '<td>' + actions + '</td></tr>';
+        }).join('');
+        html += '</tbody></table></div>';
         el.innerHTML = html;
+
         el.querySelectorAll('.vc-rec-delete').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 deleteRecording(btn.getAttribute('data-rec-id')).catch(function (e) { alert(e.message); });
             });
         });
+        el.querySelectorAll('.vc-rec-row-check').forEach(function (cb) {
+            cb.addEventListener('change', function () {
+                const id = cb.getAttribute('data-rec-id');
+                if (id) recState.selected[id] = !!cb.checked;
+                syncRecBulkUi();
+            });
+        });
+        const checkAll = document.getElementById('vc-rec-check-all');
+        if (checkAll) {
+            checkAll.addEventListener('change', function () {
+                const on = !!checkAll.checked;
+                pagedRecordings().forEach(function (r) {
+                    if (r.id) recState.selected[r.id] = on;
+                });
+                paintRecordingsTable();
+            });
+        }
+        paintRecPager();
+        syncRecBulkUi();
+    }
+
+    async function pushSelectedToEvidence() {
+        const ids = selectedRecIds();
+        if (!ids.length || !canPushEvidence()) return;
+        if (!window.confirm(trOr('conference.recPushConfirm', 'Copy selected conference recordings into the Evidence Library?'))) return;
+        const res = await api('/api/conference/recordings/push-evidence', {
+            method: 'POST',
+            body: { ids: ids },
+        });
+        if (!res.ok || !res.data.ok) throw new Error((res.data && res.data.error) || 'Push failed');
+        const n = (res.data.pushed && res.data.pushed.length) || res.data.count || 0;
+        const fail = (res.data.failed && res.data.failed.length) || 0;
+        alert(trOr('conference.recPushDone', 'Pushed ' + n + ' recording(s) to Evidence.')
+            + (fail ? (' ' + fail + ' failed.') : ''));
+        recState.selected = Object.create(null);
+        await renderRecordings(true);
+    }
+
+    async function bulkPurgeSelected() {
+        if (!isSuperAdmin()) return;
+        const ids = selectedRecIds();
+        if (!ids.length) return;
+        if (!window.confirm(trOr('conference.recBulkPurgeConfirm',
+            'Permanently delete ' + ids.length + ' conference recording(s)? This cannot be undone.'))) return;
+        const res = await api('/api/conference/recordings/bulk-purge', {
+            method: 'POST',
+            body: { ids: ids },
+        });
+        if (!res.ok || !res.data.ok) throw new Error((res.data && res.data.error) || 'Purge failed');
+        recState.selected = Object.create(null);
+        await renderRecordings(true);
+    }
+
+    function bindRecordingsToolbar() {
+        if (recState.bound) return;
+        recState.bound = true;
+        const refresh = document.getElementById('vc-rec-refresh');
+        if (refresh) refresh.addEventListener('click', function () {
+            renderRecordings(true).catch(function (e) { alert(e.message); });
+        });
+        const search = document.getElementById('vc-rec-search');
+        if (search) search.addEventListener('input', function () {
+            recState.page = 1;
+            paintRecordingsTable();
+        });
+        const status = document.getElementById('vc-rec-status');
+        if (status) status.addEventListener('change', function () {
+            recState.page = 1;
+            paintRecordingsTable();
+        });
+        const pushBtn = document.getElementById('vc-rec-push-evidence');
+        if (pushBtn) pushBtn.addEventListener('click', function () {
+            pushSelectedToEvidence().catch(function (e) { alert(e.message); });
+        });
+        const purgeBtn = document.getElementById('vc-rec-bulk-purge');
+        if (purgeBtn) purgeBtn.addEventListener('click', function () {
+            bulkPurgeSelected().catch(function (e) { alert(e.message); });
+        });
+        const prev = document.getElementById('vc-rec-prev');
+        if (prev) prev.addEventListener('click', function () {
+            if (recState.page > 1) {
+                recState.page -= 1;
+                paintRecordingsTable();
+            }
+        });
+        const next = document.getElementById('vc-rec-next');
+        if (next) next.addEventListener('click', function () {
+            recState.page += 1;
+            paintRecordingsTable();
+        });
+    }
+
+    async function renderRecordings(force) {
+        const el = document.getElementById('vc-recordings-body');
+        if (!el) return;
+        bindRecordingsToolbar();
+        const res = await api('/api/conference/recordings');
+        if (!res.ok || !res.data.ok) {
+            el.innerHTML = '<p class="hint">' + esc((res.data && res.data.error) || 'Failed') + '</p>';
+            return;
+        }
+        recState.rows = res.data.recordings || [];
+        if (force) recState.page = 1;
+        const alive = Object.create(null);
+        recState.rows.forEach(function (r) {
+            if (r && r.id && recState.selected[r.id]) alive[r.id] = true;
+        });
+        recState.selected = alive;
+        paintRecordingsTable();
     }
 
     function settingsField(id, label, value, opts) {
@@ -1637,9 +1880,12 @@
                 renderLiveControls();
                 renderLobby();
                 syncLiveIdle();
+                startLobbyPresenceWatch();
             } else if (currentPanel === 'recordings') {
+                stopLobbyPresenceWatch();
                 await renderRecordings();
             } else if (currentPanel === 'settings') {
+                stopLobbyPresenceWatch();
                 await renderSettings();
             }
             markPanelLoaded(currentPanel);
@@ -1650,6 +1896,50 @@
                 notice.innerHTML = '<p class="hint">' + esc(err.message) + '</p>';
             }
         }
+    }
+
+    function conferenceViewVisible() {
+        const view = document.getElementById('app-view-conference');
+        return !!(view && !view.hidden && perms.view);
+    }
+
+    function stopLobbyPresenceWatch() {
+        if (lobbyPresenceTimer) {
+            clearInterval(lobbyPresenceTimer);
+            lobbyPresenceTimer = null;
+        }
+    }
+
+    /** VC-ONLINE-TRUTH-LIVE-V1 — refresh online BWC list without full page reload / without 60s warm lock. */
+    async function refreshLobbyPresence() {
+        if (!perms.view || !conferenceViewVisible()) {
+            stopLobbyPresenceWatch();
+            return;
+        }
+        if (currentPanel !== 'live') return;
+        if (lobbyPresenceInflight) return;
+        lobbyPresenceInflight = true;
+        try {
+            await loadStatus();
+            await loadLobby();
+            renderRoomPicker();
+            renderLiveControls();
+            renderLobby();
+            renderLiveRoster();
+            syncLiveIdle();
+        } catch (_) { /* ignore transient */ }
+        lobbyPresenceInflight = false;
+    }
+
+    function startLobbyPresenceWatch() {
+        if (!conferenceViewVisible() || currentPanel !== 'live') {
+            stopLobbyPresenceWatch();
+            return;
+        }
+        if (lobbyPresenceTimer) return;
+        lobbyPresenceTimer = setInterval(function () {
+            refreshLobbyPresence();
+        }, LOBBY_PRESENCE_MS);
     }
 
     function bindUi() {
@@ -1696,6 +1986,16 @@
         }
         if (global.socket && !global._vcHubSocketBound) {
             global._vcHubSocketBound = true;
+            function onFleetPresence() {
+                if (!(conferenceViewVisible() && currentPanel === 'live')) return;
+                if (lobbyPresenceDebounce) clearTimeout(lobbyPresenceDebounce);
+                lobbyPresenceDebounce = setTimeout(function () {
+                    lobbyPresenceDebounce = null;
+                    refreshLobbyPresence();
+                }, 800);
+            }
+            global.socket.on('fleet-roster', onFleetPresence);
+            global.socket.on('heartbeat', onFleetPresence);
             global.socket.on('conference-bwc-ingress-stopped', function (payload) {
                 loadStatus().then(function () {
                     renderLiveControls();
@@ -1749,6 +2049,12 @@
     function onShow(opts) {
         opts = opts || {};
         showPanel(currentPanel || 'live', opts.force ? { force: true } : { skipRefresh: true });
+        if (opts.force) {
+            refreshPanel(true);
+        } else if (conferenceViewVisible()) {
+            refreshLobbyPresence();
+            startLobbyPresenceWatch();
+        }
     }
 
     global.ConferenceHub = {

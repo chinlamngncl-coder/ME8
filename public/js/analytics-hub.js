@@ -209,7 +209,8 @@
         if (currentPanel === 'verify' || currentPanel === 'blacklist') refreshSidecarStatus();
         if (currentPanel === 'anpr') {
             refreshAnprStatus();
-            showAnprSub(anprSubPanel || 'live');
+            showAnprSub(anprSubPanel || 'snapshot');
+            setTimeout(function () { consumeAutoLoadAnprFile(); }, 60);
         }
         if (currentPanel === 'blacklist') {
             refreshBlStatus();
@@ -329,8 +330,12 @@
     var anprCropFile = null;
     var anprPreviewUrl = null;
     var anprCropPreviewUrl = null;
-    var anprSubPanel = 'live';
+    var anprSubPanel = 'snapshot';
     var plRemoveId = null;
+    var anprBatchFiles = [];
+    var anprBatchBusy = false;
+    var ANPR_BATCH_MAX = 100;
+    var ANPR_BATCH_CONCURRENCY = 2;
 
     function plateGradeLabel(code) {
         var map = {
@@ -348,8 +353,9 @@
     }
 
     function showAnprSub(sub) {
+        /* Live ingest removed — never surface Live panel; keep ids for cache-safe DOM. */
+        if (sub === 'live') sub = 'snapshot';
         if (sub === 'lists') anprSubPanel = 'lists';
-        else if (sub === 'live') anprSubPanel = 'live';
         else if (sub === 'offline') anprSubPanel = 'offline';
         else if (sub === 'history') anprSubPanel = 'history';
         else anprSubPanel = 'snapshot';
@@ -361,15 +367,16 @@
         var lists = document.getElementById('ax-anpr-sub-lists-panel');
         var offline = document.getElementById('ax-anpr-sub-offline-panel');
         var history = document.getElementById('ax-anpr-sub-history-panel');
-        if (live) live.hidden = anprSubPanel !== 'live';
+        if (live) {
+            live.hidden = true;
+            live.setAttribute('aria-hidden', 'true');
+        }
         if (snap) snap.hidden = anprSubPanel !== 'snapshot';
         if (lists) lists.hidden = anprSubPanel !== 'lists';
         if (offline) offline.hidden = anprSubPanel !== 'offline';
         if (history) history.hidden = anprSubPanel !== 'history';
         if (anprSubPanel === 'lists') loadPlateLists();
-        if (anprSubPanel === 'live' && global.AnprLiveWatch && AnprLiveWatch.onShow) {
-            AnprLiveWatch.onShow();
-        } else if (global.AnprLiveWatch && typeof AnprLiveWatch.onHide === 'function') {
+        if (global.AnprLiveWatch && typeof AnprLiveWatch.onHide === 'function') {
             AnprLiveWatch.onHide();
         }
         if (anprSubPanel === 'offline') {
@@ -591,18 +598,29 @@
             && (LicenseFeatures.isEnabled('analyticsAnpr') || LicenseFeatures.isEnabled('anpr')));
     }
 
+    /* ANPR-ENGINE-BADGE-STABLE-V1 — sticky OK; 3 consecutive fails → Off. */
+    var ANPR_HEALTH_FAIL_NEED = 3;
+    var anprHealthFailStreak = 0;
+    var anprHealthLastKind = '';
+
     function refreshAnprStatus() {
         var el = document.getElementById('ax-anpr-status');
         if (!el) return;
         if (!anprLicensed()) {
+            anprHealthFailStreak = 0;
+            anprHealthLastKind = 'warn';
             paintEngineHealth(el, 'warn', tr('analytics.anpr.engineNotLicensed', 'ANPR Engine \u2014 Not licensed'));
             return;
         }
-        paintEngineHealth(el, '', tr('analytics.anpr.engineChecking', 'Checking ANPR Engine\u2026'));
+        if (!anprHealthLastKind) {
+            paintEngineHealth(el, '', tr('analytics.anpr.engineChecking', 'Checking ANPR Engine\u2026'));
+        }
         fetch('/api/analytics/anpr/health', { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data || !data.featureEnabled) {
+                    anprHealthFailStreak = 0;
+                    anprHealthLastKind = 'warn';
                     paintEngineHealth(el, 'warn', tr('analytics.anpr.engineNotLicensed', 'ANPR Engine \u2014 Not licensed'));
                     return;
                 }
@@ -613,13 +631,23 @@
                     || data.runtime.fastalpr === 'ready'
                     || data.runtime.ocr === 'ready'
                 )) {
+                    anprHealthFailStreak = 0;
+                    anprHealthLastKind = 'ok';
                     paintEngineHealth(el, 'ok', tr('analytics.anpr.engineOk', 'ANPR Engine \u2014 OK'));
                 } else {
-                    paintEngineHealth(el, 'bad', tr('analytics.anpr.engineDown', 'ANPR Engine \u2014 Not available'));
+                    anprHealthFailStreak += 1;
+                    if (anprHealthFailStreak >= ANPR_HEALTH_FAIL_NEED || anprHealthLastKind !== 'ok') {
+                        anprHealthLastKind = 'bad';
+                        paintEngineHealth(el, 'bad', tr('analytics.anpr.engineDown', 'ANPR Engine \u2014 Not available'));
+                    }
                 }
             })
             .catch(function () {
-                paintEngineHealth(el, 'bad', tr('analytics.anpr.engineDown', 'ANPR Engine \u2014 Not available'));
+                anprHealthFailStreak += 1;
+                if (anprHealthFailStreak >= ANPR_HEALTH_FAIL_NEED || anprHealthLastKind !== 'ok') {
+                    anprHealthLastKind = 'bad';
+                    paintEngineHealth(el, 'bad', tr('analytics.anpr.engineDown', 'ANPR Engine \u2014 Not available'));
+                }
             });
     }
 
@@ -643,15 +671,10 @@
         var readBtn = document.getElementById('ax-anpr-read-btn');
         var clearBtn = document.getElementById('ax-anpr-clear');
         var cropBtn = document.getElementById('ax-anpr-crop-btn');
-        if (mode === 'result') {
-            if (readBtn) readBtn.hidden = true;
-            if (cropBtn) cropBtn.hidden = true;
-            if (clearBtn) clearBtn.hidden = false;
-        } else {
-            if (readBtn) readBtn.hidden = false;
-            if (cropBtn) cropBtn.hidden = false;
-            if (clearBtn) clearBtn.hidden = true;
-        }
+        if (readBtn) readBtn.hidden = false;
+        if (cropBtn) cropBtn.hidden = false;
+        if (clearBtn) clearBtn.hidden = false;
+        void mode;
     }
 
     function resetAnprResultCard() {
@@ -661,9 +684,15 @@
         var noteEl = document.getElementById('ax-anpr-note');
         var matchEl = document.getElementById('ax-anpr-list-match');
         var thumb = document.getElementById('ax-anpr-crop-thumb');
-        if (card) card.className = 'ax-anpr-result-card match-idle';
-        if (plateEl) plateEl.textContent = tr('analytics.anpr.plateIdle', 'Awaiting read');
+        if (card) card.className = 'ax-anpr-result-card ax-anpr-active-card match-idle';
+        if (plateEl) plateEl.textContent = tr('analytics.anpr.plateIdle', 'Awaiting analysis');
         if (confEl) confEl.textContent = '';
+        if (confEl) {
+            confEl.hidden = true;
+            confEl.setAttribute('aria-hidden', 'true');
+        }
+        var badge = document.getElementById('ax-anpr-watchlist-badge');
+        if (badge) badge.hidden = true;
         if (noteEl) noteEl.textContent = '';
         if (matchEl) {
             matchEl.hidden = true;
@@ -688,15 +717,17 @@
         var matchEl = document.getElementById('ax-anpr-list-match');
         var thumb = document.getElementById('ax-anpr-crop-thumb');
         var plate = (data && data.plate) ? String(data.plate) : '\u2014';
-        var conf = data && typeof data.confidence === 'number' ? data.confidence : null;
-        var low = !!(data && data.lowConfidence);
         var hit = data && data.listMatch ? data.listMatch : null;
-        if (card) card.className = 'ax-anpr-result-card' + (hit ? ' is-warn' : (low ? ' is-warn' : ' is-ok'));
+        if (card) {
+            card.className = 'ax-anpr-result-card ax-anpr-active-card' + (hit ? ' is-watchlist-hit' : ' is-ok');
+        }
         if (plateEl) plateEl.textContent = plate;
+        var badge = document.getElementById('ax-anpr-watchlist-badge');
+        if (badge) badge.hidden = !hit;
         if (confEl) {
-            confEl.textContent = conf == null
-                ? ''
-                : tr('analytics.anpr.confidence', 'Confidence') + ': ' + conf + '%';
+            confEl.textContent = '';
+            confEl.hidden = true;
+            confEl.setAttribute('aria-hidden', 'true');
         }
         if (matchEl) {
             if (hit) {
@@ -708,15 +739,13 @@
                 matchEl.className = 'ax-anpr-list-match is-hit';
                 matchEl.hidden = false;
             } else {
-                matchEl.textContent = tr('analytics.anpr.lists.noHit', 'No list match');
+                matchEl.textContent = tr('analytics.anpr.lists.noHit', 'Not on plate list');
                 matchEl.className = 'ax-anpr-list-match is-clear';
                 matchEl.hidden = false;
             }
         }
         if (noteEl) {
-            noteEl.textContent = low
-                ? tr('analytics.anpr.lowConfNote', 'Low confidence \u2014 confirm the characters manually.')
-                : '';
+            noteEl.textContent = '';
         }
         if (thumb && anprCropFile) {
             if (anprCropPreviewUrl) {
@@ -754,6 +783,57 @@
         resetAnprResultCard();
         hideAnprMsg();
         setAnprActionMode('edit');
+    }
+
+    /** Unassigned Evidence → ANPR auto-flow (sessionStorage.autoLoadAnprFile). */
+    function consumeAutoLoadAnprFile() {
+        var raw = '';
+        try {
+            raw = sessionStorage.getItem('autoLoadAnprFile') || '';
+            sessionStorage.removeItem('autoLoadAnprFile');
+        } catch (_) {
+            raw = '';
+        }
+        if (!raw) {
+            try {
+                var legacy = sessionStorage.getItem('ftpInboxPendingAnpr');
+                if (legacy) {
+                    var parsed = JSON.parse(legacy);
+                    raw = (parsed && (parsed.rel || parsed.url)) || '';
+                    sessionStorage.removeItem('ftpInboxPendingAnpr');
+                }
+            } catch (_) { /* ignore */ }
+        }
+        if (!raw) return false;
+        showAnprSub('snapshot');
+        var url = String(raw);
+        if (url.indexOf('/api/') !== 0 && url.indexOf('http') !== 0) {
+            url = '/api/ftp-inbox/file?rel=' + encodeURIComponent(raw);
+        }
+        showAnprMsg(true, tr('analytics.anpr.reading', 'Reading plate\u2026'), '');
+        fetch(url, { credentials: 'same-origin' })
+            .then(function (r) {
+                if (!r.ok) throw new Error('load_failed');
+                return r.blob().then(function (blob) {
+                    var name = 'unassigned-plate.jpg';
+                    try {
+                        var m = String(raw).split(/[/\\]/).pop();
+                        if (m) name = m;
+                    } catch (_) { /* ignore */ }
+                    return new File([blob], name, { type: blob.type || 'image/jpeg' });
+                });
+            })
+            .then(function (file) {
+                anprSourceFile = file;
+                anprCropFile = null;
+                setAnprPreview(file);
+                /* Skip crop modal for auto-flow — run /read immediately on full image */
+                runAnprRead();
+            })
+            .catch(function () {
+                showAnprMsg(false, messageForCode('anpr.need_image'), 'is-err');
+            });
+        return true;
     }
 
     function openAnprCropper(file) {
@@ -828,11 +908,17 @@
                 var code = j.code || 'anpr.failed';
                 showAnprMsg(false, messageForCode(code), 'is-err');
                 var card = document.getElementById('ax-anpr-result-card');
-                if (card) card.className = 'ax-anpr-result-card is-err';
+                if (card) card.className = 'ax-anpr-result-card ax-anpr-active-card is-err';
                 var plateEl = document.getElementById('ax-anpr-plate');
-                if (plateEl) plateEl.textContent = tr('analytics.anpr.plateIdle', 'Awaiting read');
+                if (plateEl) plateEl.textContent = tr('analytics.anpr.plateIdle', 'Awaiting analysis');
+                var badge = document.getElementById('ax-anpr-watchlist-badge');
+                if (badge) badge.hidden = true;
                 var confEl = document.getElementById('ax-anpr-confidence');
-                if (confEl) confEl.textContent = '';
+                if (confEl) {
+                    confEl.textContent = '';
+                    confEl.hidden = true;
+                    confEl.setAttribute('aria-hidden', 'true');
+                }
                 var noteEl = document.getElementById('ax-anpr-note');
                 if (noteEl) noteEl.textContent = '';
             })
@@ -842,6 +928,287 @@
             .finally(function () {
                 if (readBtn) readBtn.disabled = false;
             });
+    }
+
+    function setAnprBatchStatus(text) {
+        var el = document.getElementById('ax-anpr-batch-status');
+        if (el) el.textContent = text || '';
+    }
+
+    function syncAnprBatchButtons() {
+        var runBtn = document.getElementById('ax-anpr-batch-run');
+        var clearBtn = document.getElementById('ax-anpr-batch-clear');
+        var n = anprBatchFiles.length;
+        if (runBtn) runBtn.disabled = anprBatchBusy || n < 1;
+        if (clearBtn) clearBtn.disabled = anprBatchBusy || n < 1;
+        var empty = document.getElementById('ax-anpr-batch-drop-empty');
+        var batchFileEl = document.getElementById('ax-anpr-batch-file');
+        if (empty) {
+            var browseHtml = '<button type="button" class="ax-anpr-browse-link" id="ax-anpr-batch-browse-btn">Browse Files</button>';
+            if (n === 1) {
+                empty.innerHTML = '1 file selected<br>' + browseHtml;
+            } else if (n > 1) {
+                empty.innerHTML = String(n) + ' files selected<br>' + browseHtml;
+            } else {
+                empty.innerHTML = 'Drop photos here (max 100)<br>' + browseHtml;
+            }
+            var bb = document.getElementById('ax-anpr-batch-browse-btn');
+            if (bb && batchFileEl) {
+                bb.addEventListener('click', function (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    batchFileEl.click();
+                });
+            }
+        }
+        if (!anprBatchBusy) {
+            setAnprBatchStatus('');
+        }
+    }
+
+    function clearAnprBatchUi() {
+        anprBatchFiles = [];
+        anprBatchBusy = false;
+        var fileEl = document.getElementById('ax-anpr-batch-file');
+        if (fileEl) fileEl.value = '';
+        var box = document.getElementById('ax-anpr-batch-results');
+        if (box) box.innerHTML = '';
+        var head = document.getElementById('ax-anpr-batch-results-heading');
+        if (head) head.hidden = true;
+        syncAnprBatchButtons();
+        setAnprBatchStatus('');
+    }
+
+    function addAnprBatchFiles(fileList) {
+        if (!fileList || !fileList.length) return;
+        var accepted = 0;
+        var skipped = 0;
+        for (var i = 0; i < fileList.length; i++) {
+            if (anprBatchFiles.length >= ANPR_BATCH_MAX) {
+                skipped += (fileList.length - i);
+                break;
+            }
+            var f = fileList[i];
+            if (!f || !f.type || String(f.type).indexOf('image/') !== 0) {
+                skipped += 1;
+                continue;
+            }
+            anprBatchFiles.push(f);
+            accepted += 1;
+        }
+        syncAnprBatchButtons();
+        if (skipped) {
+            setAnprBatchStatus('+' + accepted + ' · skipped ' + skipped);
+        }
+    }
+
+    function renderAnprBatchRow(item) {
+        var box = document.getElementById('ax-anpr-batch-results');
+        if (!box) return;
+        var head = document.getElementById('ax-anpr-batch-results-heading');
+        if (head) head.hidden = false;
+        var hitsOnly = document.getElementById('ax-anpr-batch-hits-only');
+        if (hitsOnly && hitsOnly.checked && !item.hit) return;
+        var row = document.createElement('div');
+        row.className = 'ax-anpr-batch-row'
+            + (item.hit ? ' is-hit' : '')
+            + (item.error ? ' is-err' : '');
+        row.setAttribute('role', 'listitem');
+        var thumbHtml = item.thumbUrl
+            ? '<img class="ax-anpr-batch-row-thumb" alt="" src="' + esc(item.thumbUrl) + '">'
+            : '<div class="ax-anpr-batch-row-thumb" aria-hidden="true"></div>';
+        var plate = item.plate || tr('analytics.anpr.batchNoPlate', 'No plate');
+        var listLine = item.hit
+            ? tr('analytics.anpr.lists.hit', 'List hit: {grade}{label}')
+                .replace('{grade}', plateGradeLabel(item.hit.listStatus))
+                .replace('{label}', item.hit.displayName ? (' \u2014 ' + item.hit.displayName) : '')
+            : (item.error
+                ? String(item.error)
+                : tr('analytics.anpr.lists.noHit', 'Not on plate list'));
+        row.innerHTML = thumbHtml
+            + '<div><div class="ax-anpr-batch-row-plate">' + esc(plate) + '</div>'
+            + '<div class="ax-anpr-batch-row-meta">' + esc(item.name || '') + '</div></div>'
+            + '<div class="ax-anpr-batch-row-list' + (item.hit ? ' is-hit' : '') + '">' + esc(listLine) + '</div>';
+        box.appendChild(row);
+    }
+
+    function readAnprBatchOne(file) {
+        var fd = new FormData();
+        fd.append('photo', file, file.name || 'anpr-batch.jpg');
+        return fetch('/api/analytics/anpr/read', { method: 'POST', credentials: 'same-origin', body: fd })
+            .then(function (r) {
+                return r.json().then(function (j) { return { status: r.status, j: j || {} }; });
+            })
+            .then(function (pack) {
+                var j = pack.j;
+                var thumbUrl = null;
+                try { thumbUrl = URL.createObjectURL(file); } catch (_) { /* ignore */ }
+                if (j.ok && j.plate) {
+                    return {
+                        name: file.name || '',
+                        plate: String(j.plate),
+                        hit: j.listMatch || null,
+                        thumbUrl: thumbUrl,
+                        error: null,
+                    };
+                }
+                return {
+                    name: file.name || '',
+                    plate: null,
+                    hit: null,
+                    thumbUrl: thumbUrl,
+                    error: messageForCode(j.code || 'anpr.no_plate'),
+                };
+            })
+            .catch(function () {
+                var thumbUrl = null;
+                try { thumbUrl = URL.createObjectURL(file); } catch (_) { /* ignore */ }
+                return {
+                    name: file.name || '',
+                    plate: null,
+                    hit: null,
+                    thumbUrl: thumbUrl,
+                    error: messageForCode('anpr.network'),
+                };
+            });
+    }
+
+    function runAnprBatch() {
+        if (anprBatchBusy) return;
+        if (!anprLicensed()) {
+            setAnprBatchStatus(messageForCode('anpr.not_licensed'));
+            return;
+        }
+        if (!anprBatchFiles.length) return;
+        anprBatchBusy = true;
+        syncAnprBatchButtons();
+        var box = document.getElementById('ax-anpr-batch-results');
+        if (box) box.innerHTML = '';
+        var head = document.getElementById('ax-anpr-batch-results-heading');
+        if (head) head.hidden = true;
+        var queue = anprBatchFiles.slice();
+        var total = queue.length;
+        var done = 0;
+        var hits = 0;
+        var cursor = 0;
+
+        function pump() {
+            if (cursor >= queue.length) return Promise.resolve();
+            var file = queue[cursor++];
+            setAnprBatchStatus(String(done) + ' / ' + total + (hits ? (' · ' + hits + ' hit') : ''));
+            return readAnprBatchOne(file).then(function (item) {
+                done += 1;
+                if (item.hit) hits += 1;
+                renderAnprBatchRow(item);
+                setAnprBatchStatus(String(done) + ' / ' + total + (hits ? (' · ' + hits + ' hit') : ''));
+                return pump();
+            });
+        }
+
+        var workers = [];
+        var n = Math.min(ANPR_BATCH_CONCURRENCY, queue.length);
+        for (var w = 0; w < n; w++) workers.push(pump());
+        Promise.all(workers).then(function () {
+            anprBatchBusy = false;
+            syncAnprBatchButtons();
+            setAnprBatchStatus(String(done) + ' done' + (hits ? (' · ' + hits + ' hit') : ''));
+        });
+    }
+
+    function bindAnprBatchUi() {
+        var zone = document.getElementById('ax-anpr-batch-dropzone');
+        var fileEl = document.getElementById('ax-anpr-batch-file');
+        var runBtn = document.getElementById('ax-anpr-batch-run');
+        var clearBtn = document.getElementById('ax-anpr-batch-clear');
+        var hitsOnly = document.getElementById('ax-anpr-batch-hits-only');
+        if (fileEl) {
+            fileEl.addEventListener('change', function () {
+                addAnprBatchFiles(fileEl.files);
+                try { fileEl.value = ''; } catch (_) { /* ignore */ }
+            });
+        }
+        if (zone) {
+            zone.addEventListener('dragover', function (ev) {
+                ev.preventDefault();
+                zone.classList.add('is-drag');
+            });
+            zone.addEventListener('dragleave', function () {
+                zone.classList.remove('is-drag');
+            });
+            zone.addEventListener('drop', function (ev) {
+                ev.preventDefault();
+                zone.classList.remove('is-drag');
+                if (ev.dataTransfer && ev.dataTransfer.files) {
+                    addAnprBatchFiles(ev.dataTransfer.files);
+                }
+            });
+            zone.addEventListener('click', function (ev) {
+                if (ev.target && ev.target.id === 'ax-anpr-batch-browse-btn') return;
+                if (fileEl) fileEl.click();
+            });
+        }
+        if (runBtn) runBtn.addEventListener('click', runAnprBatch);
+        if (clearBtn) clearBtn.addEventListener('click', clearAnprBatchUi);
+        if (hitsOnly) {
+            hitsOnly.addEventListener('change', function () {
+                var rows = document.querySelectorAll('#ax-anpr-batch-results .ax-anpr-batch-row');
+                var only = !!hitsOnly.checked;
+                rows.forEach(function (row) {
+                    if (!only) {
+                        row.hidden = false;
+                        return;
+                    }
+                    row.hidden = !row.classList.contains('is-hit');
+                });
+            });
+        }
+        syncAnprBatchButtons();
+    }
+
+    function bindAnprSingleDropzone() {
+        var zone = document.getElementById('ax-anpr-dropzone');
+        var fileEl = document.getElementById('ax-anpr-file');
+        var browse = document.getElementById('ax-anpr-browse-btn');
+        if (browse && fileEl) {
+            browse.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                fileEl.click();
+            });
+        }
+        if (zone && fileEl) {
+            zone.addEventListener('click', function (ev) {
+                if (ev.target && (ev.target.id === 'ax-anpr-browse-btn' || ev.target.closest && ev.target.closest('#ax-anpr-browse-btn'))) return;
+                if (ev.target && ev.target.id === 'ax-anpr-preview') return;
+                fileEl.click();
+            });
+            zone.addEventListener('dragover', function (ev) {
+                ev.preventDefault();
+                zone.classList.add('is-drag');
+            });
+            zone.addEventListener('dragleave', function () {
+                zone.classList.remove('is-drag');
+            });
+            zone.addEventListener('drop', function (ev) {
+                ev.preventDefault();
+                zone.classList.remove('is-drag');
+                var files = ev.dataTransfer && ev.dataTransfer.files;
+                if (!files || !files.length) return;
+                var f = files[0];
+                try {
+                    var dt = new DataTransfer();
+                    dt.items.add(f);
+                    fileEl.files = dt.files;
+                    onAnprFileChange();
+                } catch (_) {
+                    anprSourceFile = f;
+                    anprCropFile = null;
+                    setAnprPreview(f);
+                    openAnprCropper(f);
+                    setAnprActionMode('edit');
+                }
+            });
+        }
     }
 
     function refreshBlStatus() {
@@ -2323,6 +2690,9 @@
         if (anprReadBtn) anprReadBtn.addEventListener('click', runAnprRead);
         var anprClear = document.getElementById('ax-anpr-clear');
         if (anprClear) anprClear.addEventListener('click', clearAnprUi);
+        bindAnprSingleDropzone();
+        bindAnprBatchUi();
+        setAnprActionMode('edit');
         document.querySelectorAll('.ax-anpr-subnav .ax-anpr-subnav-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 showAnprSub(btn.getAttribute('data-anpr-sub'));
@@ -2486,5 +2856,6 @@
         gradeLabel: gradeLabel,
         reasonLabel: reasonLabel,
         messageForCode: messageForCode,
+        consumeAutoLoadAnprFile: consumeAutoLoadAnprFile,
     };
 })(window);

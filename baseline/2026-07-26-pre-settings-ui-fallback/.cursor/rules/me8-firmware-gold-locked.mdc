@@ -1,0 +1,54 @@
+---
+description: ME8 Firmware Gold — locked pin/video/live stack. Death-sentence rules for agents.
+globs:
+  - public/js/video-wall.js
+  - public/js/fleet-ui.js
+  - public/js/ptt-rx.js
+  - public/index.html
+  - lib/pttServer.js
+  - lib/sipServer.js
+  - lib/psG711Audio.js
+  - public/vendor/jsmpeg.min.js
+  - baseline/2026-07-06-me8-firmware-gold/**
+alwaysApply: true
+---
+
+# ME8 Firmware Gold — LOCKED
+
+**Primary lock:** `me8-firmware-gold-20260706`  
+**Doc:** `BASELINE-ME8-FIRMWARE-GOLD.md`  
+**Restore phrase (user only):** `RUN RESTORE-ME8-FIRMWARE-GOLD`
+
+## Checkpoint PASS 2026-07-06
+
+- Pin video = **canvas mirror** from wall (`startMapMirrorFromWall`)
+- **No second pin JSMpeg** when wall is live
+- Open All Chin + kk colocated pins work
+- Cache: `?v=20260705-pin-mirror-complete`
+
+## DO NOT TOUCH without MOB-APPLY + user naming the file
+
+- `public/js/video-wall.js` — especially `attachMapPopupPlayer`, `startMapMirrorFromWall`, `syncMapPopupPlayer`
+- `public/index.html` — pin sync: `preparePinVideoWallResync`, `syncPinVideoFromWall`, `pinPopupHasVisibleVideo`
+- `public/js/fleet-ui.js`, `public/js/ptt-rx.js`
+- `lib/pttServer.js`, `lib/sipServer.js`, `lib/psG711Audio.js`
+- `public/vendor/jsmpeg.min.js`
+- `baseline/2026-07-06-me8-firmware-gold/**` (never edit snapshot files)
+
+## FORBIDDEN without explicit user MOB
+
+- Re-enable dual pin JSMpeg when wall is live
+- `single-connect` blind guards on `mapPlayers.has`
+- Destroy/reattach pin player storms
+- `preparePinVideoWallResync` stripping `map-pin-mirror-canvas`
+- Default restore to `me8-v1` or Trial Gold for pin issues — use **Firmware Gold**
+
+## Default on pin/video regression
+
+1. User types `RUN RESTORE-ME8-FIRMWARE-GOLD` (AI never auto-restores)
+2. One MOB-APPLY at a time after PASS
+3. Checkpoint after any live/video/wall/pin MOB
+
+## Operator is not tech
+
+Agent owns: git, verify, logs, encoding, cache bust. Operator only: restart, refresh once, pass/fail from what they see.

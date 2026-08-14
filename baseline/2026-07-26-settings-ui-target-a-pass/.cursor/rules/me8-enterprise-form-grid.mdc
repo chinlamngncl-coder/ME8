@@ -1,0 +1,19 @@
+# Enterprise form & grid layout (Settings)
+
+**Locked by:** `MOB-EXECUTE-MASTER-SETTINGS-GRID-AND-RULES-V4`  
+**Also in:** root `.cursorrules` (ENTERPRISE FORM & GRID LAYOUT RULES)
+
+## Must
+
+- Multi-field forms on wide screens: East-to-West CSS Grid  
+  `display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 24px;`
+- Field wrappers: `display: flex; flex-direction: column; gap: 6px;` (label above input)
+- Inputs/selects/textareas: `width: 100%; max-width: 420px;` (never infinite stretch)
+- Readiness/status rows: `display: flex; justify-content: space-between; align-items: center;`
+- Never modify/delete `id`, `data-*`, or `onclick`
+
+## Must not
+
+- Single massive vertical column of form fields on wide screens
+- Overlapping labels/inputs
+- `height: 100vh` / forced empty scroll on Settings content wrappers for “layout polish”

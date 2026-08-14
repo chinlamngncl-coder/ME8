@@ -1368,7 +1368,7 @@
   "server.alert.resetFailed": "비밀번호 재설정 실패: {msg}",
   "server.alert.roleFailed": "역할 변경 실패: {msg}",
   "server.alert.saveFailed": "저장 실패: {msg}",
-  "server.alert.saved": "서버 설정 저장됨. IP·SIP 변경 적용을 위해 Mobility C2를 재시작하세요.",
+  "server.alert.saved": "서버 설정 저장됨. IP·SIP 변경 적용을 위해 Mobility Axiom를 재시작하세요.",
   "server.alert.userCreated": "사용자 {name} 생성됨.",
   "server.alert.userExists": "사용자 {name}이(가) 이미 존재합니다 — 아래 표를 확인하세요.",
   "server.backToSettings": "설정으로 돌아가기",

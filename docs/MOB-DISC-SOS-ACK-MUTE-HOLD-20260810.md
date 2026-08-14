@@ -1,7 +1,8 @@
 # MOB DISC — SOS Ack: delay auto-mute (listen hold) — 2026-08-10
 
-**Status:** LOCKED intent. **No code this turn.**  
-**Read:** `.cursorrules` · zero change without APPLY · DeviceControl untouched (this is **live panel audio mute**, not Record).
+**Status:** SUPERSEDED by APPLY at 60s — see `docs/MOB-DISC-SOS-ACK-MUTE-HOLD-APPLY-20260810.md`.
+
+Operator ordered **`MOB-APPLY SOS-ACK-MUTE-HOLD-V1` 60 seconds** (not 20s).
 
 ---
 

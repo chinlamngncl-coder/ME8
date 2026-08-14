@@ -5560,57 +5560,80 @@ function handoffPlayerAttaching(player) {
         const wallCanvas = wallCanvasForCam(camId);
         if (wallCanvas) return wallCanvas;
         const host = mapPinHostForCam(camId) || getMapPopupVideoHost(camId);
-        if (host && mapPlayers.has(camId)) {
-            const canvas = host.querySelector('canvas');
+        if (host) {
+            const canvas = host.querySelector('canvas.map-pin-mirror-canvas')
+                || host.querySelector('canvas.map-pin-video-canvas')
+                || host.querySelector('canvas');
             if (canvas && canvas.width > 8 && canvas.height > 8) return canvas;
         }
         return null;
     }
 
-    function captureLiveFrameForCam(camId) {
-        const canvas = findLiveCanvasForCam(camId);
-        if (!canvas) return Promise.resolve(null);
-        const dataUrl = liveFramePreviewDataUrl(camId);
-        if (dataUrl) return Promise.resolve(dataUrl);
-        return new Promise((resolve) => {
-            let settled = false;
-            const finish = (val) => {
-                if (settled) return;
-                settled = true;
-                resolve(val);
-            };
-            const timer = setTimeout(() => finish(null), 1500);
-            try {
-                canvas.toBlob((blob) => {
-                    clearTimeout(timer);
-                    if (blob && blob.size > 500) {
-                        const reader = new FileReader();
-                        reader.onload = () => finish(reader.result || null);
-                        reader.onerror = () => finish(null);
-                        reader.readAsDataURL(blob);
-                        return;
-                    }
-                    finish(null);
-                }, 'image/jpeg', 0.88);
-            } catch (_) {
-                clearTimeout(timer);
-                finish(null);
-            }
-        });
+    /* SOS-LEDGER-LAST-FRAME-FLV-V1 — reject blank ~1KB whites; sample WVP <video> when no JSMpeg canvas */
+    function jpegDataUrlUsable(dataUrl) {
+        return !!(dataUrl && typeof dataUrl === 'string' && dataUrl.length > 4000);
     }
 
-    function liveFramePreviewDataUrl(camId) {
-        const canvas = findLiveCanvasForCam(camId);
-        if (!canvas) return null;
+    function liveFrameFromVideoEl(video) {
+        if (!video || video.readyState < 2) return null;
+        const w = video.videoWidth | 0;
+        const h = video.videoHeight | 0;
+        if (w < 8 || h < 8) return null;
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const ctx = c.getContext('2d');
+        if (!ctx) return null;
         try {
-            return canvas.toDataURL('image/jpeg', 0.88);
+            ctx.drawImage(video, 0, 0, w, h);
+            const dataUrl = c.toDataURL('image/jpeg', 0.88);
+            return jpegDataUrlUsable(dataUrl) ? dataUrl : null;
         } catch (_) {
             return null;
         }
     }
 
+    function captureLiveFrameForCam(camId) {
+        const instant = liveFramePreviewDataUrl(camId);
+        if (instant) return Promise.resolve(instant);
+        return new Promise((resolve) => {
+            let n = 0;
+            const tick = () => {
+                const u = liveFramePreviewDataUrl(camId);
+                if (u) return resolve(u);
+                if (++n >= 8) return resolve(null);
+                setTimeout(tick, 250);
+            };
+            setTimeout(tick, 200);
+        });
+    }
+
+    function liveFramePreviewDataUrl(camId) {
+        if (!camId) return null;
+        const canvas = findLiveCanvasForCam(camId);
+        if (canvas) {
+            try {
+                const fromCanvas = canvas.toDataURL('image/jpeg', 0.88);
+                if (jpegDataUrlUsable(fromCanvas)) return fromCanvas;
+            } catch (_) { /* ignore */ }
+        }
+        const wallVid = wallHandoffVideoForCam(camId);
+        const fromWall = liveFrameFromVideoEl(wallVid);
+        if (fromWall) return fromWall;
+        const host = mapPinHostForCam(camId) || getMapPopupVideoHost(camId);
+        if (host) {
+            const pinVid = host.querySelector('video');
+            const fromPin = liveFrameFromVideoEl(pinVid);
+            if (fromPin) return fromPin;
+        }
+        return null;
+    }
+
     function hasLiveVideoFrameForCam(camId) {
-        return !!findLiveCanvasForCam(camId);
+        if (findLiveCanvasForCam(camId)) return true;
+        const wallVid = wallHandoffVideoForCam(camId);
+        if (wallVid && wallVid.videoWidth > 8 && wallVid.readyState >= 2) return true;
+        return !!liveFramePreviewDataUrl(camId);
     }
 
     /**

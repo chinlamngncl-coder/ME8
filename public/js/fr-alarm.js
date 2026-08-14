@@ -338,7 +338,22 @@
     }
 
     function makeDraggable(el) {
-        if (!el || el.dataset.frDragBound === '1') return;
+        if (!el) return;
+        try {
+            if (global.AnalyticToastDrag && typeof global.AnalyticToastDrag.enable === 'function') {
+                var handle = el.id === 'fr-red-toast'
+                    ? '.fr-red-toast-head'
+                    : (el.querySelector('.fr-alert-drawer-header')
+                        ? '.fr-alert-drawer-header'
+                        : (el.querySelector('.fr-red-toast-head') ? '.fr-red-toast-head' : null));
+                global.AnalyticToastDrag.enable(el, {
+                    handle: handle || undefined,
+                    storageKey: el.id ? ('ax-toast-pos-' + el.id) : undefined,
+                });
+                return;
+            }
+        } catch (_) { /* fall through */ }
+        if (el.dataset.frDragBound === '1') return;
         el.dataset.frDragBound = '1';
         var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
         var header = el.querySelector('.toast-header')

@@ -2007,7 +2007,7 @@
         const statusNow = resolvePoiStatusEl(poiId, marker);
         if (!stageNow) return;
         if (!global.Me8LivePlayerFactory || typeof Me8LivePlayerFactory.attachFlvPrimary !== 'function') {
-            if (statusNow) statusNow.textContent = tr('tactical.poiStatusNoPlayer', 'FLV player unavailable');
+            if (statusNow) statusNow.textContent = tr('tactical.poiStatusNoPlayer', 'Live video player unavailable');
             return;
         }
         const player = Me8LivePlayerFactory.attachFlvPrimary(stageNow, flvUrl, {
@@ -2052,7 +2052,7 @@
 
         if (streamKind === 'bwc') {
             if (!global.Me8LivePlayerFactory || typeof Me8LivePlayerFactory.fetchDescriptorPreferZlm !== 'function') {
-                if (statusEl) statusEl.textContent = tr('tactical.poiStatusNoPlayer', 'FLV player unavailable');
+                if (statusEl) statusEl.textContent = tr('tactical.poiStatusNoPlayer', 'Live video player unavailable');
                 return;
             }
             /* Register first so server can wake WVP when countForCam was 0,

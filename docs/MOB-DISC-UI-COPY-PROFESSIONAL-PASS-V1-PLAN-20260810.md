@@ -1,6 +1,7 @@
 # MOB DISC — UI-COPY-PROFESSIONAL-PASS-V1 (replace ledger)
 
-**Status:** PLAN / paper only. **No code until** `MOB-APPLY UI-COPY-PROFESSIONAL-PASS-V1`  
+**Status:** APPLIED 2026-08-10 — see `MOB-DISC-UI-COPY-PROFESSIONAL-PASS-V1-APPLY-20260810.md`  
+**Was:** PLAN / paper only. **No code until** `MOB-APPLY UI-COPY-PROFESSIONAL-PASS-V1`  
 **Extends:** `MOB-DISC-UI-COPY-PROFESSIONAL-NO-ESSAYS-20260810.md`  
 **Also obey:** `.cursorrules` — never remove `id` / `data-*` / `onclick`; no freestyle CSS/layout; scrolling rules untouched.  
 **Touch:** string values only in `public/locales/en.json` + matching HTML **text defaults** inside existing `data-i18n` nodes. **No UX/UI structure change.**

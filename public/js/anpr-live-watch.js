@@ -20,6 +20,10 @@
     var PLAYER_RECOVER_MS = 3000;
     /** While Live tab open — ping sidecar health every 5s. */
     var HEALTH_POLL_MS = 5000;
+    /* ANPR-ENGINE-BADGE-STABLE-V1 — need N consecutive fails before Off (sticky OK). */
+    var HEALTH_FAIL_NEED = 3;
+    var healthFailStreak = 0;
+    var healthLastKind = '';
 
     var TILE_STATE = {
         LIVE: 'live',
@@ -249,14 +253,15 @@
         var camId = slotCam[slot];
         if (!camId) return;
         focusedSlot = slot;
-        /* Remove from watch set + stop only this quadrant — never stopAll */
+        /* Remove from watch set + stop this quadrant — do NOT auto-refill (re-armed BWC/OCR). */
         var idx = selected.indexOf(normalizeCamId(camId));
         if (idx >= 0) selected.splice(idx, 1);
         stopSlot(slot, true);
         if (watching) {
-            fillEmptySlots();
             emitWatchSlots();
-            if (!selected.length) endWatchSession();
+            if (!selected.length) {
+                stopWatch();
+            }
         }
         updateMeta();
         renderRoster();
@@ -665,6 +670,9 @@
         if (slot >= 0) {
             attachWvpHandoffFlvToSlot(slot, camId, flvUrl);
         }
+        // Tile FLV is live → WVP active map is warm. Re-emit so Fleet POSTs /watch/start
+        // (first emitWatchSlots often races before ensurePlay finishes). No WVP API calls here.
+        if (watching) emitWatchSlots();
     }
 
     function attachPlayer(slot, camId) {
@@ -821,7 +829,15 @@
     function emitWatchSlots() {
         var sock = getSocket();
         if (!sock) return;
-        sock.emit('anpr-watch-slots', { camIds: watching ? activeSlotCams() : [] });
+        var ids = watching ? activeSlotCams() : [];
+        // Per-cam FLV the tile already holds (handoff). Multi-BWC: one URL per camId — not a hardcode.
+        var flvByCam = {};
+        for (var i = 0; i < ids.length; i++) {
+            var cid = ids[i];
+            var u = getWvpHandoffFlvUrl(cid);
+            if (u) flvByCam[cid] = String(u);
+        }
+        sock.emit('anpr-watch-slots', { camIds: ids, flvByCam: flvByCam });
     }
 
     function updateMeta() {
@@ -1083,7 +1099,7 @@
         var want = online.slice(0, LIVE_SLOTS);
         for (var i = 0; i < LIVE_SLOTS; i++) {
             if (want[i]) startSlot(i, want[i]);
-            else stopSlot(i, false);
+            else stopSlot(i, true);
         }
         rotateCursor = Math.max(0, want.length - 1);
         refreshEmptyTileHints();
@@ -1188,37 +1204,48 @@
         return '';
     }
 
+    function pad2(n) {
+        n = Number(n) || 0;
+        return n < 10 ? ('0' + n) : String(n);
+    }
+
+    /** Parse ISO / epoch → Date; prefer Z/offset so UTC payloads render in local TZ. */
+    function parseWhenDate(at) {
+        if (at == null || at === '') return null;
+        if (typeof at === 'number' || /^\d+$/.test(String(at).trim())) {
+            var dn = new Date(Number(at));
+            return isNaN(dn.getTime()) ? null : dn;
+        }
+        var s = String(at).trim();
+        if (!s) return null;
+        /* Bare "YYYY-MM-DDTHH:MM:SS" from gmtime without Z — treat as UTC */
+        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(s)) s += 'Z';
+        var d = new Date(s);
+        return isNaN(d.getTime()) ? null : d;
+    }
+
+    /** Local wall clock YYYY-MM-DD HH:MM:SS (browser TZ, e.g. UTC+8). */
     function formatWhen(at) {
-        if (!at) return '\u2014';
-        var s = String(at);
-        if (s.length >= 19) return s.slice(0, 19).replace('T', ' ');
-        if (s.length >= 16) return s.slice(0, 16).replace('T', ' ');
-        return s;
+        var d = parseWhenDate(at);
+        if (!d) {
+            if (!at) return '\u2014';
+            var raw = String(at);
+            if (raw.length >= 19) return raw.slice(0, 19).replace('T', ' ');
+            return raw || '\u2014';
+        }
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+            ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
     }
 
     function formatWhenShort(at) {
-        if (!at) return '\u2014';
-        var s = String(at);
-        if (s.indexOf('T') >= 0) {
-            var part = s.split('T')[1] || '';
-            return part.slice(0, 8) || formatWhen(at);
-        }
-        if (s.length >= 19) return s.slice(11, 19);
-        return s;
+        var d = parseWhenDate(at);
+        if (!d) return formatWhen(at);
+        return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
     }
 
-    /** Full date + time for cards / lightbox (YYYY-MM-DD HH:MM:SS). */
+    /** Full date + time for cards / lightbox — always local TZ. */
     function formatWhenFull(at) {
-        if (!at) return '\u2014';
-        var s = String(at).trim();
-        if (!s) return '\u2014';
-        if (/^\d+$/.test(s)) {
-            try {
-                var d = new Date(Number(s));
-                if (!isNaN(d.getTime())) s = d.toISOString();
-            } catch (_) { /* keep */ }
-        }
-        return formatWhen(s);
+        return formatWhen(at);
     }
 
     /** Backend may send `time` instead of / in addition to `at`. */
@@ -1317,18 +1344,25 @@
 
     function copyRailTick(tick, prev) {
         var whenRaw = captureWhenRaw(tick) || (prev && prev.at) || null;
-        var plateVal = tick.plateText || tick.plate || tick.plateCompact
-            || (prev && (prev.plateText || prev.plate)) || null;
+        /* plate_text = OCR only; never invent from camera metadata */
+        var plateVal = (tick.plate_text != null && String(tick.plate_text).trim())
+            ? String(tick.plate_text).trim()
+            : ((tick.plateText != null && String(tick.plateText).trim())
+                ? String(tick.plateText).trim()
+                : (prev && (prev.plate_text || prev.plateText)) || null);
         var macroVal = tick.macroCropUrl || tick.vehicleUrl || tick.sceneUrl
             || (prev && (prev.macroCropUrl || prev.vehicleUrl)) || null;
         var microVal = tick.microCropUrl || tick.cropUrl || tick.plateUrl
             || (prev && (prev.microCropUrl || prev.cropUrl)) || null;
-        var bwcVal = tick.bwcUser || tick.deviceLabel || tick.camera_name || tick.camName
-            || (prev && (prev.bwcUser || prev.deviceLabel)) || null;
+        var camIdVal = tick.camera_id || tick.camId
+            || (prev && (prev.camera_id || prev.camId)) || null;
+        var bwcVal = tick.device_name || tick.deviceName || tick.deviceLabel || tick.bwcUser
+            || (prev && (prev.device_name || prev.deviceLabel || prev.bwcUser)) || null;
         return {
             id: tick.id || tick.hitId || tick.frameUuid || (prev && prev.id)
-                || ('anpr_' + String(tick.camId || 'cam') + '_' + Date.now()),
+                || ('anpr_' + String(camIdVal || 'cam') + '_' + Date.now()),
             plate: plateVal,
+            plate_text: plateVal,
             plateText: plateVal,
             plateCompact: tick.plateCompact || (prev && prev.plateCompact) || null,
             rawText: tick.rawText || (prev && prev.rawText) || null,
@@ -1340,9 +1374,11 @@
             listMatch: tick.listMatch || null,
             listStatus: tick.listStatus || (tick.listMatch && tick.listMatch.listStatus) || null,
             displayName: tick.displayName || (tick.listMatch && tick.listMatch.displayName) || null,
+            camera_id: camIdVal,
+            camId: camIdVal,
+            device_name: bwcVal,
             deviceLabel: bwcVal,
             bwcUser: bwcVal,
-            camId: tick.camId || null,
             at: whenRaw,
             time: whenRaw,
             trackId: tick.trackId != null ? tick.trackId : (prev && prev.trackId),
@@ -1634,18 +1670,17 @@
         return railPrimaryUrl(t) || '';
     }
 
+    /* UI confidence floor for plate_text display (payload field only — no string heuristics) */
+    var PLATE_TEXT_CONF_FLOOR = 0.25;
+
+    /** Card title / overlay: bind ONLY to event.plate_text (OCR). Empty / low conf → UNKNOWN. */
     function capturePlateText(t) {
-        if (!t) return 'UNCLEAR';
-        var text = t.plateText || t.plate || t.plateCompact || t.rawText || null;
-        if (text && String(text).trim()) return String(text).trim();
-        if (t.dual && t.dual.consensus && t.dual.consensus.plate) {
-            return String(t.dual.consensus.plate);
-        }
-        if (t.dual && t.dual.temporal && t.dual.temporal.lockedPlate) {
-            return String(t.dual.temporal.lockedPlate);
-        }
-        if (t.unclear) return 'UNCLEAR';
-        return 'UNCLEAR';
+        if (!t) return 'UNKNOWN';
+        var text = t.plate_text != null ? t.plate_text : t.plateText;
+        if (text == null || !String(text).trim()) return 'UNKNOWN';
+        var conf = t.confidence != null ? Number(t.confidence) : null;
+        if (conf != null && isFinite(conf) && conf < PLATE_TEXT_CONF_FLOOR) return 'UNKNOWN';
+        return String(text).trim();
     }
 
     function captureMacroUrl(t) {
@@ -1658,16 +1693,22 @@
         return t.microCropUrl || t.cropUrl || t.plateUrl || t.macroCropUrl || t.vehicleUrl || '';
     }
 
+    /** Metadata only — camera_id / device_name (any characters OK). Never use plate_text. */
     function captureBwcUser(t) {
         if (!t) return '\u2014';
-        return String(t.bwcUser || t.deviceLabel || t.camera_name || t.camName || t.camId || '\u2014');
+        return String(
+            t.device_name || t.deviceName || t.deviceLabel || t.bwcUser
+            || t.camera_id || t.cameraId || t.camId || '\u2014'
+        );
     }
 
-    /** Distinct Live source for multi-cam: Name · camId */
+    /** Designated BWC metadata badge: device_name · camera_id */
     function captureBwcBadge(t) {
         if (!t) return '\u2014';
-        var name = String(t.bwcUser || t.deviceLabel || t.camera_name || t.camName || '').trim();
-        var cam = String(t.camId || '').trim();
+        var name = String(
+            t.device_name || t.deviceName || t.deviceLabel || t.bwcUser || ''
+        ).trim();
+        var cam = String(t.camera_id || t.cameraId || t.camId || '').trim();
         if (name && cam && name.toLowerCase() !== cam.toLowerCase()) {
             return name + ' \u00B7 ' + cam;
         }
@@ -2271,8 +2312,9 @@
         var bwcLine = captureBwcBadge(tick);
         var liveSnap = scopeHint === 'live' || (!isOfflineAnprSource(tick) && scopeHint !== 'offline');
         if (title) {
+            /* Strict plate_text bind — never vehicleLabel / camId */
             title.textContent = tr('analytics.anpr.liveSnapTitle', 'Vehicle snap') +
-                ' \u00B7 ' + (plateLine !== 'UNCLEAR' ? plateLine : (tick.vehicleLabel || '\u2014'));
+                ' \u00B7 ' + plateLine;
         }
         var sceneUrl = captureMacroUrl(tick) || railPrimaryUrl(tick);
         if (img) {
@@ -2295,8 +2337,8 @@
             }
         }
         if (plate) {
-            plate.textContent = (tick.unclear && plateLine === 'UNCLEAR')
-                ? (tr('analytics.anpr.unclear', 'Unclear / Manual Review'))
+            plate.textContent = (plateLine === 'UNKNOWN' || tick.unclear)
+                ? (tr('analytics.anpr.unclear', 'Unclear / Manual Review') + ' \u00B7 ' + plateLine)
                 : (tr('analytics.anpr.liveDetailPlate', 'Plate') + ': ' + plateLine);
         }
         var mmrEl = el.querySelector('.ax-anpr-lb-mmr');
@@ -2427,6 +2469,11 @@
         el.innerHTML = '<strong>' + esc(hit.plate || '') + '</strong>' +
             esc(String(hit.listStatus || 'hit').toUpperCase()) + ' \u00B7 ' +
             esc(hit.displayName || hit.deviceLabel || hit.camId || '');
+        try {
+            if (global.AnalyticToastDrag && typeof global.AnalyticToastDrag.enable === 'function') {
+                global.AnalyticToastDrag.enable(el, { storageKey: 'ax-toast-pos-ax-anpr-live' });
+            }
+        } catch (_) { /* ignore */ }
         if (toastTimer) clearTimeout(toastTimer);
         toastTimer = setTimeout(function () {
             el.hidden = true;
@@ -2532,6 +2579,7 @@
             streamingCams[camId] = true;
             if (data.wvpVideoHandoff && data.flvUrl) {
                 attachWvpHandoffFlvForCam(camId, data.flvUrl);
+                if (watching) emitWatchSlots();
                 return;
             }
             var slot = findSlotByCamId(camId);
@@ -2801,6 +2849,8 @@
     }
 
     function onHide() {
+        // CRITICAL: leaving ANPR Live must release BWC video — no background call.
+        if (watching) stopWatch();
         stopFleetPolling();
         stopLiveHealthPoll();
         paintSubnavWatchBadge();
@@ -2812,6 +2862,20 @@
         el.classList.remove('ok', 'bad', 'warn');
         if (kind === 'ok' || kind === 'bad' || kind === 'warn') el.classList.add(kind);
         el.textContent = text;
+        healthLastKind = kind || '';
+    }
+
+    function applyLiveHealthOk() {
+        healthFailStreak = 0;
+        paintLiveHealthBadge('ok', tr('analytics.anpr.engineOk', 'ANPR Engine \u2014 OK'));
+    }
+
+    function applyLiveHealthBad() {
+        healthFailStreak += 1;
+        /* Sticky: keep OK until 3 consecutive fails; cold-start still shows Down. */
+        if (healthFailStreak >= HEALTH_FAIL_NEED || healthLastKind !== 'ok') {
+            paintLiveHealthBadge('bad', tr('analytics.anpr.engineDown', 'ANPR Engine \u2014 Not available'));
+        }
     }
 
     function pingAnprHealthOnce() {
@@ -2820,6 +2884,7 @@
         var licensed = !!(global.LicenseFeatures && LicenseFeatures.isEnabled
             && (LicenseFeatures.isEnabled('analyticsAnpr') || LicenseFeatures.isEnabled('anpr')));
         if (!licensed) {
+            healthFailStreak = 0;
             paintLiveHealthBadge('warn', tr('analytics.anpr.engineNotLicensed', 'ANPR Engine \u2014 Not licensed'));
             return;
         }
@@ -2827,6 +2892,7 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data || !data.featureEnabled) {
+                    healthFailStreak = 0;
                     paintLiveHealthBadge('warn', tr('analytics.anpr.engineNotLicensed', 'ANPR Engine \u2014 Not licensed'));
                     return;
                 }
@@ -2836,19 +2902,24 @@
                     || String(data.runtime.engine || '').indexOf('dual') >= 0
                     || data.runtime.fastalpr === 'ready'
                     || data.runtime.ocr === 'ready'
+                    || data.runtime.ocr === 'paddleocr-en'
+                    || data.runtime.ocr === 'rapidocr-onnx'
+                    || String(data.runtime.ocrModel || '').toLowerCase().indexOf('rapid') >= 0
+                    || String(data.runtime.ocrModel || '').toLowerCase().indexOf('paddle') >= 0
                 )) {
-                    paintLiveHealthBadge('ok', tr('analytics.anpr.engineOk', 'ANPR Engine \u2014 OK'));
+                    applyLiveHealthOk();
                 } else {
-                    paintLiveHealthBadge('bad', tr('analytics.anpr.engineDown', 'ANPR Engine \u2014 Not available'));
+                    applyLiveHealthBad();
                 }
             })
             .catch(function () {
-                paintLiveHealthBadge('bad', tr('analytics.anpr.engineDown', 'ANPR Engine \u2014 Not available'));
+                applyLiveHealthBad();
             });
     }
 
     function startLiveHealthPoll() {
         stopLiveHealthPoll();
+        healthFailStreak = 0;
         pingAnprHealthOnce();
         healthPollTimer = setInterval(pingAnprHealthOnce, HEALTH_POLL_MS);
     }
@@ -2861,6 +2932,9 @@
     }
 
     global.addEventListener('beforeunload', function () {
+        if (watching) stopWatch();
+    });
+    global.addEventListener('pagehide', function () {
         if (watching) stopWatch();
     });
 

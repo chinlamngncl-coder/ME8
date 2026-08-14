@@ -1365,7 +1365,7 @@
   "server.alert.resetFailed": "รีเซ็ตรหัสผ่านไม่ได้: {msg}",
   "server.alert.roleFailed": "อัปเดตบทบาทไม่ได้: {msg}",
   "server.alert.saveFailed": "บันทึกไม่ได้: {msg}",
-  "server.alert.saved": "บันทึกการตั้งค่าเซิร์ฟเวอร์แล้ว รีสตาร์ท Mobility C2 เพื่อให้การเปลี่ยน IP และ SIP มีผล",
+  "server.alert.saved": "บันทึกการตั้งค่าเซิร์ฟเวอร์แล้ว รีสตาร์ท Mobility Axiom เพื่อให้การเปลี่ยน IP และ SIP มีผล",
   "server.alert.userCreated": "สร้างผู้ใช้ {name} แล้ว",
   "server.alert.userExists": "ผู้ใช้ {name} มีอยู่แล้ว — ตรวจสอบตารางด้านล่าง",
   "server.backToSettings": "กลับไปการตั้งค่า",

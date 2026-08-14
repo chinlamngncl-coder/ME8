@@ -1365,7 +1365,7 @@
   "server.alert.resetFailed": "Gagal mengatur ulang kata sandi: {msg}",
   "server.alert.roleFailed": "Gagal memperbarui peran: {msg}",
   "server.alert.saveFailed": "Gagal menyimpan: {msg}",
-  "server.alert.saved": "Pengaturan server disimpan. Mulai ulang Mobility C2 agar perubahan IP dan SIP berlaku.",
+  "server.alert.saved": "Pengaturan server disimpan. Mulai ulang Mobility Axiom agar perubahan IP dan SIP berlaku.",
   "server.alert.userCreated": "Pengguna {name} dibuat.",
   "server.alert.userExists": "Pengguna {name} sudah ada — periksa tabel di bawah.",
   "server.backToSettings": "Kembali ke Pengaturan",

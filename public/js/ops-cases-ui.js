@@ -899,6 +899,55 @@
         }
     }
 
+    function syncBulkPurgeVisibility() {
+        var btn = document.getElementById('ops-cases-bulk-purge');
+        if (btn) btn.hidden = !isSuperAdmin();
+    }
+
+    async function bulkPurgeCases() {
+        if (!isSuperAdmin()) {
+            window.alert(tr('opsCases.archiveNeedAdmin', 'Super admin required to archive cases.'));
+            return;
+        }
+        var targets = filterClient(state.rows).filter(function (r) {
+            return r && r.caseId && !(r.archived === true || r.archivedAt || r.status === 'archived');
+        });
+        if (!targets.length) {
+            window.alert(tr('opsCases.bulkPurgeNone', 'No active cases in this view to purge.'));
+            return;
+        }
+        var confirmMsg = tr(
+            'opsCases.bulkPurgeConfirm',
+            'Soft-archive {n} active case(s)? They leave the Active list and stay on disk for retention (same as Archive). This is not a permanent wipe.'
+        ).replace('{n}', String(targets.length));
+        if (!window.confirm(confirmMsg)) return;
+        var btn = document.getElementById('ops-cases-bulk-purge');
+        if (btn) btn.disabled = true;
+        var ok = 0;
+        var fail = 0;
+        for (var i = 0; i < targets.length; i += 1) {
+            try {
+                var res = await fetch('/api/ops-cases/' + encodeURIComponent(targets[i].caseId) + '/archive', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                });
+                var data = await res.json();
+                if (!res.ok || !data.ok) fail += 1;
+                else ok += 1;
+            } catch (_) {
+                fail += 1;
+            }
+        }
+        if (btn) btn.disabled = false;
+        var meta = document.getElementById('ops-cases-meta');
+        if (meta) {
+            meta.textContent = tr('opsCases.bulkPurgeDone', 'Purged {ok}, failed {fail}')
+                .replace('{ok}', String(ok))
+                .replace('{fail}', String(fail));
+        }
+        await loadList(true);
+    }
+
     async function unarchiveCurrent() {
         if (!state.current || !state.current.caseId) return;
         if (!isSuperAdmin()) {
@@ -1021,6 +1070,12 @@
         var unBtn = document.getElementById('ops-cases-unarchive-btn');
         if (archBtn) archBtn.addEventListener('click', archiveCurrent);
         if (unBtn) unBtn.addEventListener('click', unarchiveCurrent);
+        var bulkPurge = document.getElementById('ops-cases-bulk-purge');
+        if (bulkPurge && !bulkPurge._opsBulkBound) {
+            bulkPurge._opsBulkBound = true;
+            bulkPurge.addEventListener('click', function () { bulkPurgeCases(); });
+        }
+        syncBulkPurgeVisibility();
         var mapReset = document.getElementById('ops-cases-desk-map-reset');
         if (mapReset) mapReset.addEventListener('click', resetDeskMapView);
     }
@@ -1051,6 +1106,7 @@
             bindUi();
             bound = true;
         }
+        syncBulkPurgeVisibility();
         if (opts && opts.weaponOnly) {
             applyWeaponFilters();
         } else if (opts && (opts.family === 'SOS' || opts.sosOnly)) {
@@ -1087,6 +1143,7 @@
         onShow: onShow,
         openCase: openCase,
         openWeaponCases: openWeaponCases,
+        showDeskMap: showDeskMap,
         showPanelCases: function (opts) {
             if (opts && (opts.weaponOnly || opts.type === 'WEAPON')) {
                 openWeaponCases(opts);

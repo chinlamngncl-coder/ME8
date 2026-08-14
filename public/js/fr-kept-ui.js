@@ -68,18 +68,27 @@
 
     function emptyMessageForFilter(filter) {
         if (filter === 'cleared') {
-            return tr('evidenceHub.holdsEmptyCleared', 'No cleared holds in this view.');
+            return {
+                title: tr('evidenceHub.holdsEmptyClearedTitle', 'No cleared holds'),
+                sub: tr('evidenceHub.holdsEmptyClearedSub', 'Cleared holds for this filter will appear here.'),
+            };
         }
         if (filter === 'discarded') {
-            return tr('evidenceHub.holdsEmptyDiscarded', 'No discarded holds in this view.');
+            return {
+                title: tr('evidenceHub.holdsEmptyDiscardedTitle', 'No discarded holds'),
+                sub: tr('evidenceHub.holdsEmptyDiscardedSub', 'Discarded holds for this filter will appear here.'),
+            };
         }
         if (filter === 'all') {
-            return tr('evidenceHub.holdsEmptyAll', 'No investigation holds yet.');
+            return {
+                title: tr('evidenceHub.holdsEmptyAllTitle', 'No investigation holds yet'),
+                sub: tr('evidenceHub.holdsEmptyOpenSub', 'Flag a Face Recognition capture or pin a map event to create a hold.'),
+            };
         }
-        return tr(
-            'evidenceHub.holdsEmptyOpen',
-            'No open holds. Use Keep on an FR snap or map pin to save one here.'
-        );
+        return {
+            title: tr('evidenceHub.holdsEmptyOpenTitle', 'No active investigation holds'),
+            sub: tr('evidenceHub.holdsEmptyOpenSub', 'Flag a Face Recognition capture or pin a map event to create a hold.'),
+        };
     }
 
     function actionSep() {
@@ -280,11 +289,19 @@
         }
     }
 
-    function renderEmpty(metaEl, gridEl, msg) {
+    function renderEmpty(metaEl, gridEl, emptyCopy) {
         if (metaEl) metaEl.textContent = '';
-        if (gridEl) {
-            gridEl.innerHTML = '<p class="hint ev-holds-empty">' + esc(msg) + '</p>';
+        if (!gridEl) return;
+        var title = (emptyCopy && emptyCopy.title) || '';
+        var sub = (emptyCopy && emptyCopy.sub) || '';
+        var html = '<div class="ev-holds-empty-card">'
+            + '<div class="ev-holds-empty-inner">'
+            + '<h4 class="ev-holds-empty-title">' + esc(title) + '</h4>';
+        if (sub) {
+            html += '<p class="ev-holds-empty-subtext">' + esc(sub) + '</p>';
         }
+        html += '</div></div>';
+        gridEl.innerHTML = html;
     }
 
     function canManageHolds() {

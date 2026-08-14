@@ -24,9 +24,11 @@ if (-not (Test-Path $VenvPy)) {
 
 Write-Host 'Upgrading pip...'
 & $VenvPy -m pip install --upgrade pip wheel
-Write-Host 'Installing ANPR ship requirements (FastALPR / OpenCV / onnxruntime)...'
+Write-Host 'Installing ANPR ship requirements (FastALPR / OpenCV / onnxruntime / ultralytics Stage-2)...'
 & $VenvPy -m pip install -r (Join-Path $Root 'requirements.txt')
 if ($LASTEXITCODE -ne 0) { throw 'pip install failed' }
+& $VenvPy -c "import ultralytics; print('ultralytics', ultralytics.__version__)"
+if ($LASTEXITCODE -ne 0) { throw 'ultralytics import failed after install' }
 if ($env:OS -match 'Windows') {
     & $VenvPy -m pip install "protobuf>=3.19.0,<=3.20.2" | Out-Null
 }

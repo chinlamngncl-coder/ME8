@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ME8 &mdash; one tile from WVP (lab)</title>
+    <title>Axiom &mdash; one live video tile (lab)</title>
     <link rel="stylesheet" href="/css/global.css?v=20260731-dark-form-controls-unify-v1">
     <style>
         * { box-sizing: border-box; }
@@ -40,13 +40,13 @@
     </style>
 </head>
 <body>
-    <h1>One live tile from WVP <span id="badge" class="badge">idle</span></h1>
-    <p>Lab only &mdash; <strong>not</strong> the command wall. Same fast path as WVP Play, shown inside Fleet login.</p>
+    <h1>One live video tile <span id="badge" class="badge">idle</span></h1>
+    <p>Lab only &mdash; <strong>not</strong> the command wall. Live camera feed for setup checks.</p>
     <ol>
-        <li>WVP lab up (<code>START-WVP-LAB.bat</code>). Host play port <strong>80</strong> mapped.</li>
-        <li>Point <strong>one</strong> GB cam at LAN IP, SIP port <strong>5061</strong> (not Fleet 5060).</li>
+        <li>Start the lab media server. Host play port <strong>80</strong> mapped.</li>
+        <li>Point <strong>one</strong> camera at the LAN IP, SIP port <strong>5061</strong> (not the main ops port 5060).</li>
         <li>Refresh devices &rarr; select channel &rarr; <strong>Play</strong>.</li>
-        <li>When done, put the cam back on Fleet <strong>5060</strong>.</li>
+        <li>When done, put the camera back on the main ops SIP port <strong>5060</strong>.</li>
     </ol>
 
     <div class="row">
@@ -107,10 +107,10 @@
         var text = await res.text();
         var trimmed = (text || '').trim();
         if (!trimmed) {
-            throw new Error('Empty reply (HTTP ' + res.status + ') \u2014 re-login Fleet on http://192.168.1.38:3988');
+            throw new Error('Empty reply (HTTP ' + res.status + ') \u2014 re-login to Axiom first');
         }
         if (trimmed.charAt(0) === '<' || /login\.html/i.test(trimmed)) {
-            throw new Error('Got login page, not API \u2014 open Fleet login first, then this page again (same host 192.168.1.38)');
+            throw new Error('Got login page, not API \u2014 open Axiom login first, then this page again');
         }
         try {
             return JSON.parse(trimmed);
@@ -180,7 +180,7 @@
                 log('mpegts error: ' + errType + ' ' + (errDetail || ''));
                 if (opts.fallbackUrl && !opts._fellBack) {
                     opts._fellBack = true;
-                    log('direct failed \u2192 Fleet proxy');
+                    log('direct failed \u2192 system proxy');
                     playFlv(opts.fallbackUrl, { via: 'proxy-fallback' });
                     return;
                 }
@@ -195,11 +195,11 @@
             var st = await fetch('/api/lab/wvp/status', { credentials: 'same-origin' });
             var stData = await readJson(st);
             if (!st.ok) {
-                log((stData && stData.error) || 'status failed \u2014 login to Fleet first? FM_LAB_WVP=1?');
+                log((stData && stData.error) || 'status failed \u2014 login to Axiom first?');
                 setBadge('auth/status fail', 'bad');
                 return;
             }
-            log('WVP health: ' + JSON.stringify(stData.health || {}));
+            log('Media server health: ' + JSON.stringify(stData.health || {}));
             var res = await fetch('/api/lab/wvp/devices', { credentials: 'same-origin' });
             var data = await readJson(res);
             if (!res.ok) {
@@ -212,7 +212,7 @@
             if (!list.length) {
                 deviceSel.innerHTML = '<option value="">(no devices \u2014 register cam on SIP 5061)</option>';
                 setBadge('no devices', 'bad');
-                log('No WVP devices. Point one cam at WVP port 5061.');
+                log('No cameras on media server. Point one cam at SIP port 5061.');
                 return;
             }
             list.forEach(function (d) {
@@ -270,7 +270,7 @@
         }
         destroyPlayer();
         try {
-            log('Starting WVP play\u2026');
+            log('Starting live video\u2026');
             var res = await fetch('/api/lab/wvp/play', {
                 method: 'POST',
                 credentials: 'same-origin',

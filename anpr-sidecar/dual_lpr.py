@@ -1,11 +1,13 @@
 """
-Dynamic OCR routing (PP-OCR purged):
+Dynamic OCR routing:
 
-  Live / BWC  → FastALPR only + micro blur floor 35
-  Heavy / CCTV / static / hi-res → FastALPR + HyperLPR3 + micro blur floor 100
+  Live / BWC  → RapidOCR (ONNX) on YOLO plate crop + micro blur floor 35
+  Heavy / CCTV → RapidOCR + HyperLPR3 + micro blur floor 100
 
-Detection champion: CCPD YOLOv8-pose native warp.
-Best-plate-over-track (ANPR-BEST-PLATE-CROP-TRACK-V1): top-K micros → OCR new best.
+  No paddlepaddle in this process — RapidOCR uses onnxruntime (coexists with
+  Stage-2 PyTorch YOLO; no shm.dll clash).
+
+Detection champion: YOLOv8 plate bbox (plate_pose_ccpd.localize_plate_native_warp).
 """
 from __future__ import annotations
 
@@ -65,12 +67,12 @@ _temporal: dict[str, list[tuple[str, float]]] = {}
 _plate_rank: dict[str, list[dict[str, Any]]] = {}
 _plate_ocr_cache: dict[str, dict[str, Any]] = {}
 
-# Micro-crop floors — reject thin slivers before OCR
-MIN_MICRO_H = max(15, int(os.environ.get("FM_ANPR_MIN_MICRO_H", "15") or "15"))
-MIN_MICRO_W = max(30, int(os.environ.get("FM_ANPR_MIN_MICRO_W", "30") or "30"))
+# Micro-crop floors — slightly relaxed sliver (was 30×15; side-angle plates were dying)
+MIN_MICRO_H = max(10, int(os.environ.get("FM_ANPR_MIN_MICRO_H", "12") or "12"))
+MIN_MICRO_W = max(18, int(os.environ.get("FM_ANPR_MIN_MICRO_W", "22") or "22"))
 # Tighter pad — at least 10% so turning/skewed plates are not clipped
-BOX_PAD_FRAC = float(os.environ.get("FM_ANPR_BOX_PAD", "0.10") or "0.10")
-BOX_PAD_FRAC = max(0.10, min(0.15, BOX_PAD_FRAC))
+BOX_PAD_FRAC = float(os.environ.get("FM_ANPR_BOX_PAD", "0.30") or "0.30")
+BOX_PAD_FRAC = max(0.10, min(0.50, BOX_PAD_FRAC))
 # Plate geometry — reject rear-window decals / slogans (tall or square crops)
 PLATE_ASPECT_MIN = float(os.environ.get("FM_ANPR_PLATE_ASPECT_MIN", "2.0") or "2.0")
 PLATE_ASPECT_MAX = float(os.environ.get("FM_ANPR_PLATE_ASPECT_MAX", "5.0") or "5.0")
@@ -99,11 +101,19 @@ def plate_micro_score(
     micro_bgr: np.ndarray,
     plate_meta: Optional[dict[str, Any]] = None,
 ) -> float:
-    """Rank plate crop: area × log(sharpness) × deskew/warp bonus."""
+    """Rank plate crop: prefer sharp plate-like strips — not raw area (large crops win wrongly)."""
     if micro_bgr is None or getattr(micro_bgr, "size", 0) == 0:
         return 0.0
     h, w = micro_bgr.shape[:2]
-    area = float(max(1, w * h))
+    if h < 1 or w < 1:
+        return 0.0
+    aspect = float(w) / float(h)
+    # PH plates are wide strips; punish square/tall vehicle-ish crops
+    aspect_bonus = 1.0
+    if 1.8 <= aspect <= 6.5:
+        aspect_bonus = 1.35
+    elif aspect < 1.2 or aspect > 10.0:
+        aspect_bonus = 0.35
     fm = micro_laplacian_fm(micro_bgr)
     meta = plate_meta if isinstance(plate_meta, dict) else {}
     warp_bypassed = bool(meta.get("warpBypassed"))
@@ -114,7 +124,8 @@ def plate_micro_score(
         bonus = 0.90
     else:
         bonus = 1.25
-    return float(area * (1.0 + math.log1p(max(0.0, fm))) * bonus)
+    # Soft area term (sqrt) so a 4× larger wrong crop cannot dominate sharpness
+    return float(math.sqrt(max(1.0, float(w * h))) * (1.0 + math.log1p(max(0.0, fm))) * bonus * aspect_bonus)
 
 
 def consider_plate_crop(
@@ -178,7 +189,20 @@ def resolve_xyxy_to_pixels(
     """
     if not isinstance(box, dict) or orig_w < 2 or orig_h < 2:
         return None
-    if box.get("x1") is not None and box.get("x2") is not None:
+    # Stage-2 Ultralytics boxes: {x0,y0,x1,y1} (x1/y1 = bottom-right, not width/height)
+    if (
+        box.get("x0") is not None
+        and box.get("y0") is not None
+        and box.get("x1") is not None
+        and box.get("y1") is not None
+        and box.get("x2") is None
+        and box.get("w") is None
+    ):
+        x1 = float(box.get("x0") or 0)
+        y1 = float(box.get("y0") or 0)
+        x2 = float(box.get("x1") or 0)
+        y2 = float(box.get("y1") or 0)
+    elif box.get("x1") is not None and box.get("x2") is not None:
         x1 = float(box.get("x1") or 0)
         y1 = float(box.get("y1") or 0)
         x2 = float(box.get("x2") or 0)
@@ -219,10 +243,10 @@ def pad_xyxy(
     *,
     pad_frac: float = BOX_PAD_FRAC,
 ) -> tuple[int, int, int, int]:
-    """≥10% dynamic pad around plate box — clamp to image [0,w]×[0,h]."""
+    """≥10% dynamic pad around plate box (default 30% each side) — clamp to image [0,w]×[0,h]."""
     bw = max(1, x2 - x1)
     bh = max(1, y2 - y1)
-    frac = max(0.10, float(pad_frac))
+    frac = max(0.10, min(0.50, float(pad_frac)))
     px = int(round(bw * frac))
     py = int(round(bh * frac))
     nx1 = max(0, int(x1) - px)
@@ -329,19 +353,36 @@ def crop_micro_from_box(
     box: dict[str, Any],
     *,
     pad_frac: float = BOX_PAD_FRAC,
+    relax: bool = False,
 ) -> tuple[Optional[np.ndarray], Optional[dict[str, Any]]]:
     """
     Slice a plate micro-crop from img using scaled+padded box.
-    Returns (crop | None, abs_box_meta). Rejects slivers (<15h or <30w).
+    Returns (crop | None, abs_box_meta).
+    relax=True (Stage-2 force OCR): skip window/aspect/sliver gates — only need a non-empty slice.
     """
     if img_bgr is None or getattr(img_bgr, "size", 0) == 0:
         return None, None
     fh, fw = img_bgr.shape[:2]
     xyxy = resolve_xyxy_to_pixels(box, fw, fh)
     if xyxy is None:
-        return None, {"error": "bad_box", "reject": "unscaled_or_empty"}
-    # Window-decal band: upper 35% of vehicle macro
-    if is_window_decal_zone(
+        # Stage-2 boxes often use x0,y0,x1,y1 — map if resolve missed
+        if isinstance(box, dict) and box.get("x0") is not None and box.get("y1") is not None:
+            try:
+                xa, ya = int(box["x0"]), int(box["y0"])
+                xb, yb = int(box["x1"]), int(box["y1"])
+                xyxy = (
+                    max(0, min(fw - 1, xa)),
+                    max(0, min(fh - 1, ya)),
+                    max(0, min(fw, xb)),
+                    max(0, min(fh, yb)),
+                )
+                if xyxy[2] - xyxy[0] < 2 or xyxy[3] - xyxy[1] < 2:
+                    xyxy = None
+            except Exception:
+                xyxy = None
+        if xyxy is None:
+            return None, {"error": "bad_box", "reject": "unscaled_or_empty"}
+    if not relax and is_window_decal_zone(
         {"x1": xyxy[0], "y1": xyxy[1], "x2": xyxy[2], "y2": xyxy[3]},
         fh,
     ):
@@ -355,7 +396,7 @@ def crop_micro_from_box(
         }
     x1, y1, x2, y2 = pad_xyxy(*xyxy, fw, fh, pad_frac=pad_frac)
     bw, bh = x2 - x1, y2 - y1
-    if not is_valid_micro_size(bw, bh):
+    if not relax and not is_valid_micro_size(bw, bh):
         return None, {
             "error": "sliver_reject",
             "reject": "sliver",
@@ -366,7 +407,7 @@ def crop_micro_from_box(
             "x": x1,
             "y": y1,
         }
-    if not is_valid_plate_aspect(bw, bh):
+    if not relax and not is_valid_plate_aspect(bw, bh):
         return None, {
             "error": "aspect_reject",
             "reject": "decal_aspect",
@@ -376,6 +417,8 @@ def crop_micro_from_box(
             "minAspect": PLATE_ASPECT_MIN,
             "maxAspect": PLATE_ASPECT_MAX,
         }
+    if bw < 4 or bh < 4:
+        return None, {"error": "sliver_reject", "reject": "tiny", "w": bw, "h": bh}
     crop = img_bgr[y1:y2, x1:x2]
     if crop is None or crop.size == 0:
         return None, {"error": "empty_slice"}
@@ -388,10 +431,13 @@ def crop_micro_from_box(
         "y1": y1,
         "x2": x2,
         "y2": y2,
-        "score": float(box.get("score") or 0) if box.get("score") is not None else None,
-        "source": box.get("source") or "scaled-pad-v1",
+        "score": float(box.get("score") or box.get("conf") or 0)
+        if (box.get("score") is not None or box.get("conf") is not None)
+        else None,
+        "source": box.get("source") or ("stage2-relax" if relax else "scaled-pad-v1"),
         "padFrac": float(pad_frac),
         "aspect": round(float(bw) / float(max(1, bh)), 3),
+        "relax": bool(relax),
     }
     return np.ascontiguousarray(crop.copy()), meta
 
@@ -416,6 +462,21 @@ def _pad_micro_for_det(micro_bgr: np.ndarray, min_side: int = 320) -> np.ndarray
     return canvas
 
 
+def ocr_alnum_len(text: str) -> int:
+    return len(re.sub(r"[^A-Za-z0-9]", "", str(text or "")))
+
+
+def ocr_text_is_publishable(text: str) -> bool:
+    """Strict filter: empty / <5 alnum / pure digits (taxi fleet ID) → never publish."""
+    alnum = re.sub(r"[^A-Za-z0-9]", "", str(text or ""))
+    if len(alnum) < 5:
+        return False
+    # e.g. "1978" commercial/fleet ID — not a PH plate
+    if re.fullmatch(r"\d+", alnum):
+        return False
+    return True
+
+
 def _normalize_engine_hit(raw: dict[str, Any], *, engine_id: str) -> dict[str, Any]:
     from pipeline import apply_region_regex, validate_lto_plate_syntax
 
@@ -424,6 +485,28 @@ def _normalize_engine_hit(raw: dict[str, Any], *, engine_id: str) -> dict[str, A
     if conf > 1.0:
         conf = conf / 100.0
     print(f"RAW OCR RESULT: {text_raw} | CONFIDENCE: {conf}", flush=True)
+    alnum = re.sub(r"[^A-Za-z0-9]", "", text_raw)
+    if not ocr_text_is_publishable(text_raw):
+        reason = "pure_numeric" if re.fullmatch(r"\d+", alnum or "") else "empty_or_short"
+        print(
+            f"[ANPR-OCR] silent drop {reason} alnum={ocr_alnum_len(text_raw)} "
+            f"text={text_raw!r} conf={conf}",
+            flush=True,
+        )
+        return {
+            "engineId": engine_id,
+            "ok": False,
+            "drop": True,
+            "unclear": False,
+            "rawText": text_raw,
+            "plate": None,
+            "plateCompact": None,
+            "plateText": None,
+            "conf": conf,
+            "regexOk": False,
+            "error": "ocr_empty_short_or_numeric",
+            "raw": raw or {},
+        }
     locked = None
     try:
         locked = validate_lto_plate_syntax(text_raw) if text_raw else None
@@ -473,10 +556,12 @@ def prepare_plate_for_ocr(
     plate_crop: np.ndarray,
     *,
     track_id: Optional[str] = None,
+    allow_blurry: bool = False,
 ) -> tuple[Optional[np.ndarray], Optional[dict[str, Any]]]:
     """
     Dynamic resize to 80px height + grayscale + MINMAX normalize (no Otsu/CLAHE).
     Returns (norm_bgr, None) for OCR, or (None, soft_skip) when blurry.
+    allow_blurry=True (Stage-2 force OCR): never soft-skip on blur.
     """
     if plate_crop is None or getattr(plate_crop, "size", 0) == 0:
         return None, {
@@ -497,7 +582,7 @@ def prepare_plate_for_ocr(
         (h, w) = work.shape[:2]
         if h > 0:
             aspect_ratio = w / float(h)
-            target_width = int(target_height * aspect_ratio)
+            target_width = max(8, int(target_height * aspect_ratio))
             work = cv2.resize(
                 work, (target_width, target_height), interpolation=cv2.INTER_CUBIC
             )
@@ -511,9 +596,10 @@ def prepare_plate_for_ocr(
             gray_plate, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX
         )
 
-        # 3. Permissive Blur Check (Soft skip, no hard errors)
+        # 3. Permissive Blur Check (Soft skip, no hard errors) — disabled for Stage-2 force
         blur_score = float(cv2.Laplacian(norm_plate, cv2.CV_64F).var())
-        if blur_score < 15:
+        blur_min = float(os.environ.get("FM_ANPR_PREP_BLUR_MIN", "1") or "1")
+        if (not allow_blurry) and blur_score < blur_min:
             return None, {
                 "ok": False,
                 "plate": None,
@@ -523,7 +609,7 @@ def prepare_plate_for_ocr(
                 "blur_score": round(blur_score, 2),
                 "sharpness": round(blur_score, 2),
                 "unclear": False,
-                "message": f"blur_score={blur_score:.1f} < 15 — OCR skipped, track kept",
+                "message": f"blur_score={blur_score:.1f} < {blur_min} — OCR skipped, track kept",
             }
 
         # Pass norm_plate to OCR engine (BGR for FastALPR)
@@ -569,22 +655,21 @@ def soft_blur_reject(plate_crop: np.ndarray, track_id: Optional[str] = None) -> 
     return None
 
 
-def engine_a_fastlpr(micro_bgr: np.ndarray) -> dict[str, Any]:
+def engine_a_fastlpr(micro_bgr: np.ndarray, *, allow_blurry: bool = False) -> dict[str, Any]:
     """
-    Engine A — FastALPR (CCT) on Micro-Crop only (already cut from vehicle).
+    Engine A — RapidOCR (ONNX) on YOLO plate micro-crop.
     Never call with a full BWC frame — that breaks cascaded crop-in-crop.
     """
-    from fastalpr_engine import read_with_fastalpr
+    from rapid_ocr_engine import read_with_rapidocr
 
     if micro_bgr is None or getattr(micro_bgr, "size", 0) == 0:
         return _normalize_engine_hit(
             {"ok": False, "error": "bad_file", "rawText": "", "conf": 0},
-            engine_id="A-fastlpr",
+            engine_id="A-rapidocr",
         )
-    # Blown-out white glare → empty text → UNCLEAR (no M3W111 hallucinations)
-    if is_blown_out_glare(micro_bgr):
+    if (not allow_blurry) and is_blown_out_glare(micro_bgr):
         return {
-            "engineId": "A-fastlpr",
+            "engineId": "A-rapidocr",
             "ok": False,
             "unclear": True,
             "rawText": "",
@@ -597,15 +682,23 @@ def engine_a_fastlpr(micro_bgr: np.ndarray) -> dict[str, Any]:
             "cascade": "micro-only",
             "glareReject": True,
         }
-    # Dynamic 80px height + Otsu + permissive blur → pad → OCR
-    prepared, soft = prepare_plate_for_ocr(micro_bgr)
-    if soft is not None:
-        soft["engineId"] = "A-fastlpr"
-        soft["cascade"] = "micro-only"
-        return soft
-    padded = _pad_micro_for_det(prepared if prepared is not None else micro_bgr)
+    if _crop_is_blank(micro_bgr):
+        return {
+            "engineId": "A-rapidocr",
+            "ok": False,
+            "drop": True,
+            "rawText": "",
+            "plate": None,
+            "conf": 0.0,
+            "error": "blank_ocr_crop",
+            "cascade": "micro-only",
+        }
+    print(
+        f"[RAPID-OCR] engine_a shape={getattr(micro_bgr, 'shape', None)}",
+        flush=True,
+    )
     try:
-        raw = read_with_fastalpr(padded)
+        raw = read_with_rapidocr(np.ascontiguousarray(micro_bgr))
     except Exception as exc:  # noqa: BLE001
         raw = {
             "ok": False,
@@ -614,11 +707,19 @@ def engine_a_fastlpr(micro_bgr: np.ndarray) -> dict[str, Any]:
             "rawText": "",
             "conf": 0,
         }
-    hit = _normalize_engine_hit(raw, engine_id="A-fastlpr")
+    hit = _normalize_engine_hit(raw, engine_id="A-rapidocr")
     hit["cascade"] = "micro-only"
-    hit["normPrep"] = True
-    hit["targetHeight"] = 80
+    hit["ocrEngine"] = "rapidocr-onnx"
     return hit
+
+
+def _crop_is_blank(img: Optional[np.ndarray], mean_thr: float = 8.0) -> bool:
+    if img is None or getattr(img, "size", 0) == 0:
+        return True
+    try:
+        return float(np.mean(img)) < mean_thr
+    except Exception:  # noqa: BLE001
+        return True
 
 
 def cascade_plate_from_vehicle_macro(
@@ -630,12 +731,11 @@ def cascade_plate_from_vehicle_macro(
     path: Optional[str] = None,
 ) -> dict[str, Any]:
     """
-    Cascaded crop-in-crop (Stage 2 → 3):
-      Input MUST be a vehicle macro (native high-res pixels — never letterbox canvas).
-      Stage 3: CCPD YOLOv8-pose 4-pt → map to native → pad → warpPerspective → OCR path.
-      path: 'live' (FastALPR only) or 'heavy' (FastALPR + HyperLPR).
-      WPOD only if FM_ANPR_PLATE_DET=wpod (hatch).
-      force_flush: track-exit / 1.0s timeout — lock best plate without waiting for N.
+    Cascaded crop-in-crop (Stage 2 plate → OCR):
+      Input MUST be a vehicle macro (Stage 1 YOLO vehicle crop — native pixels).
+      Stage 2 default: CCPD pose keypoints + unskew → FastALPR OCR (baseline).
+      YOLO Stage-2 hatch: FM_ANPR_PLATE_DET=ph_id_only|ph_id_yolo
+      Opt-in CCPD seatbelt after YOLO miss: FM_ANPR_PLATE_DET=ccpd_seatbelt
     """
     ocr_path = resolve_ocr_path(path)
     # Tighter pad 8–12% (ANPR-BEST-PLATE-CROP-TRACK-V1)
@@ -654,7 +754,10 @@ def cascade_plate_from_vehicle_macro(
     native = np.ascontiguousarray(macro_bgr.copy())
     work = stabilize_frame(macro_bgr)
     mh, mw = native.shape[:2]
-    det_mode = (os.environ.get("FM_ANPR_PLATE_DET") or "ccpd_pose").strip().lower()
+    det_mode = (os.environ.get("FM_ANPR_PLATE_DET") or "ph_id_yolo").strip().lower()
+    use_ph_id = det_mode in ("ph_id_yolo", "ph_id", "stage2", "yolo", "ph_id_only")
+    use_ccpd_seatbelt = det_mode in ("ccpd_seatbelt", "seatbelt")
+    use_ccpd_forced = det_mode in ("legacy_ccpd", "ccpd_pose", "ccpd_only")
 
     plate_meta: dict[str, Any] = {}
     ocr_src: Optional[np.ndarray] = None
@@ -679,18 +782,52 @@ def cascade_plate_from_vehicle_macro(
         ocr_src = np.ascontiguousarray(img.copy())
         return True
 
-    # --- Stage 3 champion: CCPD pose native warp ---
-    if det_mode not in ("wpod", "wpod_only"):
+    # --- Stage 2 champion: plate YOLO inside vehicle crop ---
+    s2_forced = False
+    if use_ph_id and not use_ccpd_forced:
+        try:
+            from plate_yolo import localize_plate_in_vehicle_crop
+
+            crop_s2, plate_meta = localize_plate_in_vehicle_crop(native, pad_frac=pad_frac)
+            if not isinstance(plate_meta, dict):
+                plate_meta = {}
+            # Force every S2_accepted crop to OCR — skip size/aspect accept gate
+            if crop_s2 is not None and getattr(crop_s2, "size", 0) > 0:
+                ocr_src = np.ascontiguousarray(crop_s2.copy())
+                s2_forced = True
+                if isinstance(plate_meta.get("det"), dict):
+                    abs_box = dict(plate_meta["det"])
+                print(
+                    "[ANPR-FUNNEL] S2_crop→OCR force "
+                    f"shape={ocr_src.shape} detScore={plate_meta.get('detScore')}",
+                    flush=True,
+                )
+            elif isinstance(plate_meta.get("reject"), dict):
+                sliver_meta = plate_meta.get("reject")
+        except Exception as exc:  # noqa: BLE001
+            plate_meta = {
+                "error": "ph_id_yolo_exc:" + str(exc)[:120],
+                "source": None,
+                "architecture": "stage2-ph-id-plates-yolo-v1",
+            }
+
+    # --- CCPD pose (baseline Stage-2 localizer + unskew) ---
+    if ocr_src is None and (use_ccpd_seatbelt or use_ccpd_forced):
         try:
             from plate_pose_ccpd import localize_plate_native_warp
 
-            # Detect on stabilized view; warp ALWAYS from native high-res buffer
-            # (keypoints remapped inside localize using letterbox scale/pad).
-            # Run pose on `work` for stability but warp uses same geometry on `native`
-            # by passing native — detector sees native content (stabilize is mild).
-            warped, plate_meta = localize_plate_native_warp(native)
-            if not isinstance(plate_meta, dict):
-                plate_meta = {}
+            warped, ccpd_meta = localize_plate_native_warp(native)
+            if not isinstance(ccpd_meta, dict):
+                ccpd_meta = {}
+            prev = dict(plate_meta) if isinstance(plate_meta, dict) else {}
+            plate_meta = dict(ccpd_meta)
+            if prev.get("error") or prev.get("source"):
+                plate_meta["phIdAttempt"] = {
+                    "error": prev.get("error"),
+                    "source": prev.get("source"),
+                }
+            plate_meta["seatbelt"] = "ccpd" if not use_ccpd_forced else "ccpd_forced"
+            plate_meta["architecture"] = plate_meta.get("architecture") or "ccpd-pose-unskew-v1"
             nm = plate_meta.pop("nativeMicro", None)
             if isinstance(nm, np.ndarray) and nm.size > 0:
                 _accept_micro(nm, "ccpdPoseWarp")
@@ -698,11 +835,54 @@ def cascade_plate_from_vehicle_macro(
                 _accept_micro(warped, "ccpdPoseWarp")
             if isinstance(plate_meta.get("det"), dict):
                 abs_box = dict(plate_meta["det"])
+            if ocr_src is not None:
+                if _crop_is_blank(ocr_src):
+                    print(
+                        f"[ANPR-FUNNEL] CCPD_crop blank reject mean={float(np.mean(ocr_src)):.2f}",
+                        flush=True,
+                    )
+                    ocr_src = None
+                    plate_meta = dict(plate_meta) if isinstance(plate_meta, dict) else {}
+                    plate_meta["error"] = "blank_crop"
+                else:
+                    s2_forced = True
+                    # TEMP visual debugger — native slice as extracted (no color convert)
+                    try:
+                        cv2.imwrite("debug_ocr_crop.jpg", ocr_src)
+                        print(
+                            f"[ANPR-FUNNEL] wrote debug_ocr_crop.jpg shape={ocr_src.shape} "
+                            f"mean={float(np.mean(ocr_src)):.1f}",
+                            flush=True,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        print("[ANPR-FUNNEL] debug_ocr_crop write fail:", str(exc)[:80], flush=True)
+                    print(
+                        "[ANPR-FUNNEL] CCPD_crop→OCR "
+                        f"shape={ocr_src.shape} src={plate_meta.get('source')}",
+                        flush=True,
+                    )
+            else:
+                print(
+                    "[ANPR-S2-RAW] CCPD miss "
+                    f"err={plate_meta.get('error')} maxConf={plate_meta.get('maxConfRaw')} "
+                    f"macro={native.shape}",
+                    flush=True,
+                )
         except Exception as exc:  # noqa: BLE001
-            plate_meta = {"error": "ccpd_pose_exc:" + str(exc)[:120], "source": None}
+            plate_meta = dict(plate_meta) if isinstance(plate_meta, dict) else {}
+            plate_meta["legacyCcpdError"] = str(exc)[:120]
+            print("[ANPR-FUNNEL] CCPD localize fail:", str(exc)[:120], flush=True)
 
-    # --- Hatch: WPOD only if CCPD missed (or FM_ANPR_PLATE_DET=wpod) ---
-    if ocr_src is None and det_mode != "ccpd_only":
+    # NO vehicle-macro OCR fallback — CCPD miss / sliver → drop frame (next 30fps tick)
+    if ocr_src is None:
+        err = (plate_meta or {}).get("error") or "no_plate_pose"
+        print(
+            f"[ANPR-FUNNEL] S2_miss drop (no macro OCR) err={err} "
+            f"macro={native.shape}",
+            flush=True,
+        )
+
+    if ocr_src is None and det_mode in ("wpod", "wpod_only", "legacy_ccpd"):
         try:
             from wpod_net import localize_and_unwarp
 
@@ -725,28 +905,19 @@ def cascade_plate_from_vehicle_macro(
             if isinstance(wpod_meta.get("det"), dict) and abs_box is None:
                 abs_box = dict(wpod_meta["det"])
         except Exception as exc:  # noqa: BLE001
+            plate_meta = dict(plate_meta)
             plate_meta["wpodHatchError"] = str(exc)[:120]
 
-    if ocr_src is None:
-        det0 = abs_box or (plate_meta.get("det") if isinstance(plate_meta.get("det"), dict) else None)
-        if det0 is None:
-            try:
-                from fastalpr_engine import read_with_fastalpr
-
-                fal = read_with_fastalpr(work)
-                if isinstance(fal, dict) and isinstance(fal.get("det"), dict):
-                    det0 = fal["det"]
-            except Exception:  # noqa: BLE001
-                det0 = None
-        if isinstance(det0, dict):
-            crop, meta = crop_micro_from_box(native, det0, pad_frac=pad_frac)
-            if crop is not None:
-                ocr_src = crop
-                abs_box = meta
-                plate_meta["source"] = plate_meta.get("source") or "native-pad-crop-v1"
-                plate_meta["det"] = meta
-            else:
-                sliver_meta = meta if isinstance(meta, dict) else sliver_meta
+    if ocr_src is None and isinstance(abs_box, dict):
+        crop, meta = crop_micro_from_box(native, abs_box, pad_frac=pad_frac)
+        if crop is not None:
+            ocr_src = crop
+            abs_box = meta
+            plate_meta = dict(plate_meta)
+            plate_meta["source"] = plate_meta.get("source") or "native-pad-crop-v1"
+            plate_meta["det"] = meta
+        else:
+            sliver_meta = meta if isinstance(meta, dict) else sliver_meta
 
     if ocr_src is None:
         return {
@@ -762,8 +933,10 @@ def cascade_plate_from_vehicle_macro(
             "plateDet": {
                 "source": plate_meta.get("source"),
                 "architecture": plate_meta.get("architecture")
-                or "ccpd-yolov8-pose-native-warp-v1",
+                or "stage2-ph-id-plates-yolo-v1",
                 "error": plate_meta.get("error"),
+                "weights": plate_meta.get("weights"),
+                "seatbelt": plate_meta.get("seatbelt"),
             },
             "uiMacro": native,
             "macroW": mw,
@@ -771,7 +944,7 @@ def cascade_plate_from_vehicle_macro(
         }
 
     oh, ow = ocr_src.shape[:2]
-    if not is_valid_micro_size(ow, oh):
+    if not s2_forced and not is_valid_micro_size(ow, oh):
         return {
             "ok": False,
             "unclear": True,
@@ -783,22 +956,25 @@ def cascade_plate_from_vehicle_macro(
             "uiMacro": native,
         }
 
-    # Best-plate-over-track: rank micros; OCR new best / force-flush / no cache only
+    # Best-plate-over-track: rank for UI only. OCR MUST use this frame's Stage-2 plate crop.
+    # (Rank score used area×sharpness — a large vehicle-ish crop could beat a tight plate and
+    #  feed RapidOCR the wrong tensor → single-glyph hallucinations.)
     ui_micro = np.ascontiguousarray(ocr_src.copy())
     rank_meta: dict[str, Any] = {}
-    ocr_target = ocr_src
+    ocr_target = np.ascontiguousarray(ocr_src.copy())
     if track_id:
-        is_new_best, best_micro, rank_meta = consider_plate_crop(
+        _is_nb, best_micro, rank_meta = consider_plate_crop(
             track_id, ocr_src, plate_meta if isinstance(plate_meta, dict) else {}
         )
+        # UI may show ranked best; never replace OCR input with best_micro
         if isinstance(best_micro, np.ndarray) and best_micro.size > 0:
-            ocr_target = best_micro
             ui_micro = np.ascontiguousarray(best_micro.copy())
         tid = str(track_id).strip()
         with _lock:
             cached = dict(_plate_ocr_cache.get(tid) or {}) if tid else {}
         if (
-            not is_new_best
+            not s2_forced
+            and not _is_nb
             and not do_force
             and cached
             and cached.get("plate") is not None
@@ -814,18 +990,80 @@ def cascade_plate_from_vehicle_macro(
             raw["plateDet"] = {
                 "source": plate_meta.get("source"),
                 "architecture": plate_meta.get("architecture")
-                or "ccpd-yolov8-pose-native-warp-v1",
+                or "stage2-ph-id-plates-yolo-v1",
                 "boxPad": pad_frac,
             }
             return raw
 
-    raw = dual_infer_micro(
-        ocr_target,
-        track_id=track_id,
-        stabilize=True,
-        force_flush=do_force,
-        path=ocr_path,
+    try:
+        from anpr_funnel_log import bump
+        bump("ocr_sent", 1)
+    except Exception:
+        pass
+    print(
+        "[ANPR-FUNNEL] OCR_sent=1 stage2_src="
+        + str((plate_meta or {}).get("source") or "?")
+        + (" s2_forced=1" if s2_forced else "")
+        + f" plate_crop={getattr(ocr_target, 'shape', None)} macro={getattr(native, 'shape', None)}"
+        + f" ocr_input=stage2_pad{pad_frac:.2f}",
+        flush=True,
     )
+    # Strict cascade: Stage-2 plate crop only (already expanded via BOX_PAD / pad_xyxy).
+    plate_crop = np.ascontiguousarray(ocr_target.copy()) if ocr_target is not None else np.ascontiguousarray(ocr_src.copy())
+    raw = {
+        "ok": False,
+        "unclear": True,
+        "error": "ocr_not_run",
+        "engine": "rapidocr-onnx",
+        "rawText": "",
+        "plate": None,
+        "plateCompact": None,
+        "conf": 0.0,
+        "confidence": 0.0,
+    }
+    print(
+        f"[RAPID-OCR] Starting OCR on shape: {getattr(plate_crop, 'shape', None)} (stage2_expanded)",
+        flush=True,
+    )
+    try:
+        from rapid_ocr_engine import read_with_rapidocr
+
+        ocr_raw = read_with_rapidocr(np.ascontiguousarray(plate_crop))
+        detected_text = str(ocr_raw.get("rawText") or "")
+        highest_conf = float(ocr_raw.get("conf") or 0.0)
+        hit = _normalize_engine_hit(ocr_raw, engine_id="A-rapidocr")
+        raw = {
+            "ok": bool(hit.get("ok") and detected_text),
+            "unclear": not bool(hit.get("ok") and detected_text),
+            "rawText": detected_text,
+            "plate": hit.get("plate") or (detected_text or None),
+            "plateCompact": hit.get("plateCompact") or (detected_text or None),
+            "plateText": hit.get("plate") or detected_text or None,
+            "conf": highest_conf,
+            "confidence": highest_conf,
+            "engine": "rapidocr-onnx",
+            "ocrModel": "RapidOCR-onnx",
+            "ocrPath": ocr_path,
+            "drop": bool(hit.get("drop")),
+            "error": hit.get("error"),
+            "regexOk": hit.get("regexOk"),
+        }
+    except Exception as e:
+        import traceback
+        print(f"\n[RAPID-OCR] crashed: {e}", flush=True)
+        traceback.print_exc()
+        print("\n", flush=True)
+        raw = {
+            "ok": False,
+            "unclear": True,
+            "error": "rapidocr_crash:" + str(e)[:160],
+            "engine": "rapidocr-onnx",
+            "rawText": "",
+            "plate": None,
+            "plateCompact": None,
+            "conf": 0.0,
+            "confidence": 0.0,
+        }
     # Asymmetric smart re-scan — recover clipped 4th digit / 3rd letter (steep angle / tight crop)
     rescan_box = abs_box if isinstance(abs_box, dict) else None
     if rescan_box is None and isinstance(plate_meta.get("det"), dict):
@@ -894,11 +1132,12 @@ def cascade_plate_from_vehicle_macro(
     raw["cascade"] = "vehicle-then-plate"
     raw["plateDet"] = {
         "source": plate_meta.get("source"),
-        "architecture": plate_meta.get("architecture") or "ccpd-yolov8-pose-native-warp-v1",
+        "architecture": plate_meta.get("architecture") or "stage2-ph-id-plates-yolo-v1",
         "boxPad": pad_frac,
         "minMicroW": MIN_MICRO_W,
         "minMicroH": MIN_MICRO_H,
-        "conf": plate_meta.get("conf"),
+        "conf": plate_meta.get("conf") or plate_meta.get("detScore"),
+        "weights": plate_meta.get("weights"),
     }
     raw["wpod"] = raw["plateDet"]  # legacy key for health/debug readers
     # UI always shows tight detector crop (not enhanced OCR input) unless rescan crop set
@@ -1403,11 +1642,13 @@ def dual_infer_micro(
     stabilize: bool = True,
     force_flush: Optional[bool] = None,
     path: Optional[str] = None,
+    skip_gates: bool = False,
 ) -> dict[str, Any]:
     """
     Path-routed OCR on Micro-Crop + consensus + temporal lock.
       live  → FastALPR only, blur < MICRO_BLUR_LIVE (35)
       heavy → FastALPR + HyperLPR, blur < MICRO_BLUR_HEAVY (100)
+    skip_gates=True (Stage-2 force): bypass sliver/aspect/glare pre-rejects.
     """
     ocr_path = resolve_ocr_path(path)
     blur_floor = micro_blur_floor_for(ocr_path)
@@ -1424,7 +1665,7 @@ def dual_infer_micro(
 
     src = stabilize_frame(micro_bgr) if stabilize else np.ascontiguousarray(micro_bgr.copy())
     sh, sw = src.shape[:2]
-    if not is_valid_micro_size(sw, sh):
+    if not skip_gates and not is_valid_micro_size(sw, sh):
         return {
             "ok": False,
             "unclear": True,
@@ -1436,7 +1677,7 @@ def dual_infer_micro(
             "sliverReject": {"w": sw, "h": sh, "minW": MIN_MICRO_W, "minH": MIN_MICRO_H},
             "plateText": "UNCLEAR",
         }
-    if not is_valid_plate_aspect(sw, sh):
+    if not skip_gates and not is_valid_plate_aspect(sw, sh):
         return {
             "ok": False,
             "unclear": True,
@@ -1449,7 +1690,7 @@ def dual_infer_micro(
             "plateCompact": None,
             "plateText": "UNCLEAR",
         }
-    if is_blown_out_glare(src):
+    if not skip_gates and is_blown_out_glare(src):
         return {
             "ok": False,
             "unclear": True,
@@ -1484,12 +1725,28 @@ def dual_infer_micro(
 
     if ocr_path == "live":
         # Live/BWC single-engine fast-path — FastALPR only (no HyperLPR, no PP-OCR)
-        eng_a = engine_a_fastlpr(buf_a)
+        eng_a = engine_a_fastlpr(buf_a, allow_blurry=skip_gates)
         if eng_a.get("status") == "blurry":
             eng_a["engine"] = "dual-lpr-v1"
             eng_a["ocrPath"] = ocr_path
             eng_a["microBlurFloor"] = BLUR_REJECT_FM
             return eng_a
+        if eng_a.get("drop") is True or not ocr_text_is_publishable(
+            eng_a.get("rawText") or eng_a.get("plate") or ""
+        ):
+            return {
+                "ok": False,
+                "drop": True,
+                "unclear": False,
+                "error": "ocr_empty_or_short",
+                "engine": "dual-lpr-v1",
+                "ocrPath": ocr_path,
+                "rawText": str(eng_a.get("rawText") or ""),
+                "conf": float(eng_a.get("conf") or 0),
+                "plate": None,
+                "plateCompact": None,
+                "plateText": None,
+            }
         consensus = consensus_arbitrate(
             eng_a,
             {"plate": None, "conf": 0, "regexOk": False, "engineId": "B-off"},
@@ -1508,7 +1765,7 @@ def dual_infer_micro(
                 consensus["consensusMode"] = "live_single"
         ocr_model = "FastALPR-live-fast-path"
     elif not DUAL_ENABLED:
-        eng_a = engine_a_fastlpr(buf_a)
+        eng_a = engine_a_fastlpr(buf_a, allow_blurry=skip_gates)
         consensus = consensus_arbitrate(
             eng_a,
             {"plate": None, "conf": 0, "regexOk": False, "engineId": "B-off"},
@@ -1517,7 +1774,7 @@ def dual_infer_micro(
     else:
         # Static / hi-res / CCTV heavy-path — FastALPR + HyperLPR
         with ThreadPoolExecutor(max_workers=2, thread_name_prefix="dual-lpr") as pool:
-            fut_a = pool.submit(engine_a_fastlpr, buf_a)
+            fut_a = pool.submit(engine_a_fastlpr, buf_a, allow_blurry=skip_gates)
             fut_b = pool.submit(engine_b_hyperlpr, buf_b)
             for fut in as_completed([fut_a, fut_b]):
                 if fut is fut_a:

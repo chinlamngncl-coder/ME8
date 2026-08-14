@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Live &mdash; Mobility Axiom</title>
-    <link rel="stylesheet" href="/css/global.css?v=20260731-dark-form-controls-unify-v1">
+    <link rel="stylesheet" href="/css/global.css?v=20260811-video-popout-minimap-v1">
+    <link rel="stylesheet" href="/vendor/leaflet/leaflet.css?v=20260701-vendor-local">
     <style>
         body { margin: 0; background: #000; color: #e2e8f0; font-family: Inter, system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; }
         .header { padding: 8px 14px; background: #1e293b; display: flex; justify-content: space-between; align-items: center; gap: 10px; border-bottom: 1px solid #334155; }
@@ -27,6 +28,8 @@
     <script src="/js/live-player-factory.js?v=20260802-lab-chase-unify-v1"></script>
     <script src="/js/dashboard-ws-url.js?v=20260723-wss-video-audio-sockets-v1"></script>
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/vendor/leaflet/leaflet.js?v=20260701-vendor-local"></script>
+    <script src="/js/live-popout-minimap.js?v=20260811-video-popout-minimap-v1"></script>
     <script src="/js/ptt-mic.js"></script>
     <script src="/js/call-mic.js"></script>
 </head>
@@ -295,6 +298,11 @@
                 destroyPlayer();
                 cachedFlvUrl = null;
                 releaseViewerRef();
+                try {
+                    if (window.LivePopoutMinimap && typeof LivePopoutMinimap.destroy === 'function') {
+                        LivePopoutMinimap.destroy();
+                    }
+                } catch (_) { /* ignore */ }
             }
 
             function onVideoStreamReady(data) {
@@ -385,6 +393,9 @@
             }
 
             socket = io();
+            if (window.LivePopoutMinimap && typeof LivePopoutMinimap.init === 'function') {
+                LivePopoutMinimap.init({ camId: camId, socket: socket });
+            }
             if (window.CallMic) CallMic.bindSocket(socket);
             socket.on('bwc-call-state', onBwcCallState);
             socket.on('video-stream-ready', onVideoStreamReady);

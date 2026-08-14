@@ -17,19 +17,27 @@ import numpy as np
 _session = None
 _session_error: Optional[str] = None
 
-# COCO class ids
+# COCO class ids — MUST include car/motorcycle/bus/truck (2,3,5,7); bicycle for mopeds
+# Class 3 = motorcycle — explicitly required (adjacent-lane motos must not be dropped)
 VEHICLE_CLASS_IDS = {1, 2, 3, 5, 7}  # bicycle, car, motorcycle, bus, truck
+assert 3 in VEHICLE_CLASS_IDS, "COCO class 3 (motorcycle) must stay enabled"
 CLASS_NAMES = {1: "bicycle", 2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
 
 INPUT_SIZE = int(os.environ.get("FM_ANPR_VEHICLE_IMGSZ", "640") or "640")
-# Highly sensitive — catch partial / edge / turning vehicles (Node consensus filters bad OCR)
-VEHICLE_CONF = float(os.environ.get("FM_ANPR_VEHICLE_CONF", "0.25") or "0.25")
-VEHICLE_CONF = max(0.15, min(0.45, VEHICLE_CONF))
+# Stage-1 floor — stop dropping valid vehicles (cars + motos)
+VEHICLE_CONF = float(os.environ.get("FM_ANPR_VEHICLE_CONF", "0.22") or "0.22")
+VEHICLE_CONF = max(0.12, min(0.45, VEHICLE_CONF))
+# Motorcycles often score lower than cars — dedicated floor (still in VEHICLE_CLASS_IDS)
+VEHICLE_CONF_MOTO = float(os.environ.get("FM_ANPR_VEHICLE_CONF_MOTO", "0.15") or "0.15")
+VEHICLE_CONF_MOTO = max(0.08, min(VEHICLE_CONF, VEHICLE_CONF_MOTO))
 # ANPR-LIVE-WHOLE-VEHICLE-CROP-V1 — generous pad so rail shows whole moto/car/bus (was 0.08 = scrap)
 VEHICLE_PAD = float(os.environ.get("FM_ANPR_VEHICLE_PAD", "0.42") or "0.42")
 VEHICLE_MIN_FRAC = float(os.environ.get("FM_ANPR_VEHICLE_MIN_FRAC", "0.40") or "0.40")
 VEHICLE_MAX_FRAC = float(os.environ.get("FM_ANPR_VEHICLE_MAX_FRAC", "0.92") or "0.92")
-MAX_VEHICLES = max(1, min(8, int(os.environ.get("FM_ANPR_VEHICLE_MAX", "4") or "4")))
+MAX_VEHICLES = max(1, min(12, int(os.environ.get("FM_ANPR_VEHICLE_MAX", "8") or "8")))
+# Soft post-filter IoU (adjacent lanes). High = keep more overlapping boxes. Model end2end NMS is separate.
+VEHICLE_NMS_IOU = float(os.environ.get("FM_ANPR_VEHICLE_NMS_IOU", "0.55") or "0.55")
+VEHICLE_NMS_IOU = max(0.25, min(0.95, VEHICLE_NMS_IOU))
 # Drop OSD / watermark strip (e.g. "UB-6A5G/kk") — boxes whose center is in bottom N% of frame
 WATERMARK_DEADZONE_FRAC = float(os.environ.get("FM_ANPR_WATERMARK_DEADZONE", "0.10") or "0.10")
 WATERMARK_DEADZONE_FRAC = max(0.0, min(0.35, WATERMARK_DEADZONE_FRAC))
@@ -128,7 +136,9 @@ def vehicle_status() -> dict[str, Any]:
         "error": _session_error,
         "weights": _default_weights_path() if ENABLE else None,
         "conf": VEHICLE_CONF,
+        "confMoto": VEHICLE_CONF_MOTO,
         "classes": sorted(VEHICLE_CLASS_IDS),
+        "motorcycleClass": 3,
         "license": "onnxruntime + COCO YOLO ONNX (no Ultralytics pip)",
         "powerCrop": "whole-vehicle-crop-v1",
         "pad": VEHICLE_PAD,
@@ -159,10 +169,12 @@ def _parse_detections(out: np.ndarray, scale: float, pad_x: int, pad_y: int, fw:
     hits: list[dict[str, Any]] = []
     for row in arr:
         score = float(row[4])
-        if score < VEHICLE_CONF:
-            continue
         cls_id = int(row[5])
         if cls_id not in VEHICLE_CLASS_IDS:
+            continue
+        # Class 3 motorcycle: lower conf floor so adjacent motos survive next to cars
+        conf_floor = VEHICLE_CONF_MOTO if cls_id in (1, 3) else VEHICLE_CONF
+        if score < conf_floor:
             continue
         x1 = (float(row[0]) - pad_x) / scale
         y1 = (float(row[1]) - pad_y) / scale
@@ -174,8 +186,9 @@ def _parse_detections(out: np.ndarray, scale: float, pad_x: int, pad_y: int, fw:
         y2 = max(0, min(fh, int(round(y2))))
         bw = x2 - x1
         bh = y2 - y1
-        # Allow smaller / partial hulls at frame edges (was 24)
-        if bw < 16 or bh < 16:
+        # Motos/bicycles are small in frame — lower min hull than cars
+        min_side = 8 if cls_id in (1, 3) else 14
+        if bw < min_side or bh < min_side:
             continue
         hits.append({
             "x": x1,
@@ -187,14 +200,60 @@ def _parse_detections(out: np.ndarray, scale: float, pad_x: int, pad_y: int, fw:
             "label": CLASS_NAMES.get(cls_id, str(cls_id)),
             "source": "vehicle-coco",
         })
+    # Rank: slight boost for motorcycle/bicycle so large cars do not fill MAX_VEHICLES alone
     hits.sort(
         key=lambda d: (
-            float(d.get("score") or 0) * 0.55
+            (0.12 if int(d.get("cls") or -1) in (1, 3) else 0.0)
+            + float(d.get("score") or 0) * 0.55
             + (float(d.get("w") or 0) * float(d.get("h") or 0)) / max(1.0, float(fw * fh)) * 0.45
         ),
         reverse=True,
     )
+    # Soft NMS — keep adjacent-lane cars (loose IoU); do not collapse to top-1
+    hits = _soft_nms_vehicles(hits, iou_thr=VEHICLE_NMS_IOU)
     return hits[:MAX_VEHICLES]
+
+
+def _box_iou(a: dict[str, Any], b: dict[str, Any]) -> float:
+    ax1, ay1 = float(a.get("x") or 0), float(a.get("y") or 0)
+    ax2 = ax1 + float(a.get("w") or 0)
+    ay2 = ay1 + float(a.get("h") or 0)
+    bx1, by1 = float(b.get("x") or 0), float(b.get("y") or 0)
+    bx2 = bx1 + float(b.get("w") or 0)
+    by2 = by1 + float(b.get("h") or 0)
+    ix1, iy1 = max(ax1, bx1), max(ay1, by1)
+    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+    iw, ih = max(0.0, ix2 - ix1), max(0.0, iy2 - iy1)
+    inter = iw * ih
+    if inter <= 0:
+        return 0.0
+    area_a = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1)
+    area_b = max(0.0, bx2 - bx1) * max(0.0, by2 - by1)
+    uni = area_a + area_b - inter
+    return inter / uni if uni > 0 else 0.0
+
+
+def _soft_nms_vehicles(hits: list[dict[str, Any]], *, iou_thr: float) -> list[dict[str, Any]]:
+    """Greedy NMS with elevated IoU so side-by-side lane cars survive.
+
+    Never suppress a motorcycle/bicycle with a car/bus/truck (or vice versa) —
+    adjacent moto next to a car must both remain.
+    """
+    keep: list[dict[str, Any]] = []
+    small = {1, 3}  # bicycle, motorcycle
+    for h in hits or []:
+        drop = False
+        hc = int(h.get("cls") if h.get("cls") is not None else -1)
+        for k in keep:
+            kc = int(k.get("cls") if k.get("cls") is not None else -1)
+            if (hc in small) != (kc in small):
+                continue  # different size class — keep both
+            if _box_iou(h, k) >= iou_thr:
+                drop = True
+                break
+        if not drop:
+            keep.append(h)
+    return keep
 
 
 def detect_vehicles(img_bgr: np.ndarray) -> list[dict[str, Any]]:

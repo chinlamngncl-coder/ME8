@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 
 REGION = (os.environ.get("FM_ANPR_REGION") or "ph").strip().lower() or "ph"
-# ANPR-FASTALPR-SHIP-DEFAULT-V1 — ship core; set FM_ANPR_ENGINE=paddle for lab hatch only
+# Live OCR default: FastALPR. Do not load PaddleOCR (host WinError 127 shm.dll).
 ANPR_ENGINE = (os.environ.get("FM_ANPR_ENGINE") or "fastalpr").strip().lower() or "fastalpr"
 # Live temporary floor — was 0.80 / 0.70 rejecting clean mid-conf reads
 CONF_FLOOR = float(os.environ.get("FM_ANPR_CONF_FLOOR", "0.50") or "0.50")
@@ -1140,16 +1140,26 @@ def _finalize_fastalpr_payload(
         "plateText": "UNCLEAR",
     }
 
-    if not text.strip():
+    if not text.strip() or len(re.sub(r"[^A-Za-z0-9]", "", text)) < 3:
+        print(
+            f"[ANPR-OCR] pipeline silent drop empty/short text={text!r} conf={conf01}",
+            flush=True,
+        )
         return finish(
             _attach_debug({
                 "ok": False,
-                "unclear": True,
-                "reviewStatus": "Unclear / Manual Review",
-                "error": "plate_not_found",
+                "drop": True,
+                "unclear": False,
+                "error": "ocr_empty_or_short",
                 "plate": None,
                 "plateCompact": None,
-                **fail_base,
+                "plateText": None,
+                "confidence": conf_pct,
+                "rawText": (text or "")[:200],
+                "engine": engine_tag,
+                "region": reg,
+                "det": det_meta,
+                "hasDetection": bool(det_meta),
             }),
         )
 
@@ -1259,16 +1269,52 @@ def _read_plate_fastalpr(
         or str(v.get("label") or "").lower() in ("car", "truck", "bus", "motorcycle", "bicycle")
     ]
     if not vehicles:
-        # Cascaded mandate: never plate-hunt the full BWC frame
-        return {
-            "ok": False,
-            "error": "no_vehicle",
-            "engine": "dual-lpr-v1",
-            "region": region or REGION,
-            "message": "No vehicle detected — cascaded plate OCR skipped",
-            "hasDetection": False,
-            "cascade": "vehicle-required",
-        }
+        # Snapshot / Offline often upload bumper or plate crops (no full car).
+        # Still run Stage-2 → RapidOCR on the whole image as a synthetic macro.
+        print(
+            "[ANPR-STATIC] no_vehicle — fallback plate OCR on full frame (snapshot crop)",
+            flush=True,
+        )
+        try:
+            from dual_lpr import cascade_plate_from_vehicle_macro
+
+            raw = cascade_plate_from_vehicle_macro(
+                native,
+                track_id=None,
+                vehicle_origin=(0, 0),
+                path=ocr_path,
+            )
+        except Exception as exc:  # noqa: BLE001
+            import traceback
+
+            print("[anpr-dual] static no_vehicle cascade fail:", repr(exc), flush=True)
+            traceback.print_exc()
+            return {
+                "ok": False,
+                "error": "no_vehicle",
+                "engine": "dual-lpr-v1",
+                "region": region or REGION,
+                "message": "No vehicle detected — cascaded plate OCR skipped",
+                "hasDetection": False,
+                "cascade": "vehicle-required",
+            }
+        ui_micro = raw.pop("uiMicro", None) if isinstance(raw, dict) else None
+        if isinstance(raw, dict):
+            raw.pop("uiMacro", None)
+            raw.pop("nativeMicro", None)
+            _pop_cv_buffers(raw)
+        det = _extract_det_meta(raw)
+        out = _finalize_fastalpr_payload(
+            native,
+            raw if isinstance(raw, dict) else {"ok": False, "error": "plate_not_found"},
+            det,
+            region=region,
+            vehicle_det=None,
+        )
+        if isinstance(ui_micro, np.ndarray) and ui_micro.size > 0:
+            out = _attach_crop_array(out, _ensure_ui_uint8(ui_micro))
+        out["cascade"] = "static-fullframe-fallback"
+        return out
 
     best_vehicle = vehicles[0]
     best_raw: Optional[dict[str, Any]] = None
@@ -1412,7 +1458,18 @@ def read_plate_bgr(
 
     img_bgr = processed
     eng = ANPR_ENGINE
-    if eng in ("fastalpr", "fast-alpr", "eval", "ship"):
+    # Ship default START-ANPR.bat uses FM_ANPR_ENGINE=rapidocr — must hit cascade, not dead Paddle path.
+    if eng in (
+        "fastalpr",
+        "fast-alpr",
+        "eval",
+        "ship",
+        "rapidocr",
+        "rapidocr-onnx",
+        "dual",
+        "dual-lpr",
+        "dual_lpr",
+    ):
         out = _read_plate_fastalpr(img_bgr, region=region, path="heavy")
         return _stamp_frame_uuid(out, pre)
 
@@ -1574,6 +1631,11 @@ def track_frame_bgr(
         if int(v.get("cls") if v.get("cls") is not None else -1) in VEHICLE_CLASS_IDS
         or str(v.get("label") or "").lower() in ("car", "truck", "bus", "motorcycle", "bicycle")
     ]
+    try:
+        from anpr_funnel_log import bump
+        bump("s1_vehicles", len(vehicles))
+    except Exception:
+        pass
     print(f"[ANPR-TRACE] Camera: {cam_label} | Detections found: {len(vehicles)}")
     if not vehicles:
         return _stamp_frame_uuid({
@@ -1586,18 +1648,67 @@ def track_frame_bgr(
         }, pre)
 
     best = vehicles[0]
-    crop = crop_vehicle_bgr(processed, best)
-    sharp = float(pre.get("sharpness") or 0)
-    if crop is not None and getattr(crop, "size", 0) > 0:
-        try:
-            sharp = max(sharp, float(laplacian_variance(crop)))
-        except Exception:  # noqa: BLE001
-            pass
+    vehicles_out: list[dict[str, Any]] = []
+    best_b64 = None
+    best_sharp = float(pre.get("sharpness") or 0)
+    for v in vehicles:
+        crop = crop_vehicle_bgr(processed, v)
+        sharp_v = float(pre.get("sharpness") or 0)
+        if crop is not None and getattr(crop, "size", 0) > 0:
+            try:
+                sharp_v = max(sharp_v, float(laplacian_variance(crop)))
+            except Exception:  # noqa: BLE001
+                pass
+        entry: dict[str, Any] = {
+            "x": int(v.get("x") or 0),
+            "y": int(v.get("y") or 0),
+            "w": int(v.get("w") or 0),
+            "h": int(v.get("h") or 0),
+            "label": v.get("label"),
+            "score": float(v.get("score") or 0),
+            "cls": int(v.get("cls") if v.get("cls") is not None else -1),
+            "sharpness": float(sharp_v),
+        }
+        if crop is not None:
+            b64 = _ndarray_jpeg_b64(crop)
+            if b64:
+                entry["vehicleJpegB64"] = b64
+                if best_b64 is None:
+                    best_b64 = b64
+            # CMM (MMR) on Stage-1 crop — not OCR; color always, make/model if ONNX present
+            try:
+                from vehicle_mmr import classify_vehicle_mmr
+
+                mmr = classify_vehicle_mmr(crop, entry.get("label"))
+                entry["make"] = mmr.get("make")
+                entry["model"] = mmr.get("model")
+                entry["color"] = mmr.get("color")
+                entry["mmrText"] = mmr.get("mmrText")
+                entry["mmr"] = {
+                    "make": mmr.get("make"),
+                    "model": mmr.get("model"),
+                    "color": mmr.get("color"),
+                    "mmrText": mmr.get("mmrText"),
+                    "engine": mmr.get("engine"),
+                }
+            except Exception:  # noqa: BLE001
+                pass
+        vehicles_out.append(entry)
+        if sharp_v > best_sharp:
+            best_sharp = sharp_v
+
+    if best_b64 is None:
+        crop0 = crop_vehicle_bgr(processed, best)
+        if crop0 is not None:
+            best_b64 = _ndarray_jpeg_b64(crop0)
+
     out: dict[str, Any] = {
         "ok": True,
         "trackOnly": True,
         "hasDetection": True,
-        "sharpness": float(sharp),
+        "multiTarget": True,
+        "vehicleCount": len(vehicles_out),
+        "sharpness": float(best_sharp),
         "camId": cam_label,
         "vehicle": {
             "x": int(best.get("x") or 0),
@@ -1607,15 +1718,24 @@ def track_frame_bgr(
             "label": best.get("label"),
             "score": float(best.get("score") or 0),
             "cls": int(best.get("cls") if best.get("cls") is not None else -1),
-            "sharpness": float(sharp),
+            "sharpness": float(best_sharp),
         },
+        "vehicles": vehicles_out,
         "engine": "track-yolo-v1",
     }
-    if crop is not None:
-        b64 = _ndarray_jpeg_b64(crop)
-        if b64:
-            out["vehicleJpegB64"] = b64
-            out["hasVehicle"] = True
+    if vehicles_out and isinstance(vehicles_out[0].get("mmr"), dict):
+        out["mmr"] = dict(vehicles_out[0]["mmr"])
+        out["vehicle"]["make"] = vehicles_out[0].get("make")
+        out["vehicle"]["model"] = vehicles_out[0].get("model")
+        out["vehicle"]["color"] = vehicles_out[0].get("color")
+        out["vehicle"]["mmrText"] = vehicles_out[0].get("mmrText")
+    if best_b64:
+        out["vehicleJpegB64"] = best_b64
+        out["hasVehicle"] = True
+    print(
+        f"[ANPR-FUNNEL] multi_target cam={cam_label} vehicles={len(vehicles_out)}",
+        flush=True,
+    )
     return _json_safe(_stamp_frame_uuid(out, pre))
 
 
@@ -1790,34 +1910,64 @@ def read_plate_path(
 
 
 def health_payload() -> dict[str, Any]:
-    from fastalpr_engine import fastalpr_status
+    try:
+        return _health_payload_inner()
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "error": "health_payload_exc",
+            "message": str(exc)[:200],
+            "engine": "dual-lpr-v1",
+        }
+
+
+def _health_payload_inner() -> dict[str, Any]:
     from plate_yolo import yolo_engine_status
     from vehicle_detect import vehicle_status
     from wpod_net import wpod_status
 
-    fa = fastalpr_status()
+    hatch_fastalpr = ANPR_ENGINE in ("fastalpr", "fast-alpr", "eval", "ship")
+    fa: dict[str, Any] = {
+        "ready": False,
+        "error": "skipped_until_FM_ANPR_ENGINE=fastalpr",
+        "detModel": None,
+        "ocrModel": None,
+        "license": None,
+        "detConf": None,
+        "fallbackDet": None,
+        "fallbackReady": False,
+    }
+    if hatch_fastalpr:
+        from fastalpr_engine import fastalpr_status
+
+        fa = fastalpr_status()
+    rapid_st: dict[str, Any] = {"ready": False, "error": "not_checked"}
+    try:
+        from rapid_ocr_engine import rapidocr_status
+
+        rapid_st = rapidocr_status()
+    except Exception as exc:  # noqa: BLE001
+        rapid_st = {"ready": False, "error": str(exc)[:120]}
     vs = vehicle_status()
     ws = wpod_status()
-    yst = yolo_engine_status()
+    try:
+        yst = yolo_engine_status()
+    except Exception as exc:  # noqa: BLE001
+        yst = {"ready": False, "error": str(exc)[:160], "stage2": {"ready": False, "error": str(exc)[:120]}}
     yolo = get_yolo() if ANPR_ENGINE in ("paddle", "mob601", "yolo") else None
 
-    cascade = ANPR_ENGINE in ("fastalpr", "fast-alpr", "eval", "ship")
+    cascade = True  # vehicle-then-plate cascade (OCR = RapidOCR / FastALPR hatch)
     dual_on = (os.environ.get("FM_ANPR_DUAL_ENGINE") or "1").strip().lower() not in (
         "0", "false", "no", "off",
     )
-    plate_det = (os.environ.get("FM_ANPR_PLATE_DET") or "ccpd_pose").strip().lower()
+    plate_det = (os.environ.get("FM_ANPR_PLATE_DET") or "ph_id_yolo").strip().lower()
     try:
         from plate_pose_ccpd import plate_pose_status
 
         pps = plate_pose_status()
     except Exception as exc:  # noqa: BLE001
         pps = {"ready": False, "error": str(exc)[:120]}
-    try:
-        from hyperlpr_engine import hyperlpr_status
-
-        hls = hyperlpr_status()
-    except Exception as exc:  # noqa: BLE001
-        hls = {"ready": False, "error": str(exc)[:120]}
+    hls = {"ready": False, "error": "skipped_on_health"}
     try:
         from dual_lpr import (
             BOX_PAD_FRAC,
@@ -1829,17 +1979,21 @@ def health_payload() -> dict[str, Any]:
     except Exception:  # noqa: BLE001
         MICRO_BLUR_LIVE = float(os.environ.get("FM_ANPR_MICRO_BLUR_FLOOR", "35") or "35")
         MICRO_BLUR_HEAVY = float(os.environ.get("FM_ANPR_MICRO_BLUR_HEAVY", "100") or "100")
-        BOX_PAD_FRAC = float(os.environ.get("FM_ANPR_BOX_PAD", "0.10") or "0.10")
+        BOX_PAD_FRAC = float(os.environ.get("FM_ANPR_BOX_PAD", "0.30") or "0.30")
         PLATE_RANK_K = int(os.environ.get("FM_ANPR_PLATE_RANK_K", "3") or "3")
         ENHANCE_SKIP_FM = float(os.environ.get("FM_ANPR_ENHANCE_SKIP_FM", "80") or "80")
-    # Live needs FastALPR; heavy also wants HyperLPR when dual on
-    active_ok = bool(fa["ready"])
+    # Do not import paddleocr here — host WinError 127 shm.dll.
+    s2 = (yst or {}).get("stage2") if isinstance(yst, dict) else {}
+    s2_ready = bool(isinstance(s2, dict) and s2.get("ready"))
+    if hatch_fastalpr:
+        active_ok = bool(fa.get("ready"))
+    else:
+        # Ship bat: rapidocr + Stage-2 YOLO — badge must not require FastALPR.
+        active_ok = bool(s2_ready and rapid_st.get("ready"))
     eng_b = "hyperlpr3"
     ship_stack = (
-        f"Live: FastALPR+cct-s-v2-global (blur<{MICRO_BLUR_LIVE:.0f}) | "
-        f"Heavy: FastALPR+HyperLPR (blur<{MICRO_BLUR_HEAVY:.0f}) | "
-        f"BestPlate: pad={BOX_PAD_FRAC:.2f} rankK={PLATE_RANK_K} enhanceSkipFm>={ENHANCE_SKIP_FM:.0f} | "
-        "Temporal: char-majority | Det: CCPD YOLO Pose"
+        f"Static: S1 vehicle → S2 YOLO plate pad={BOX_PAD_FRAC:.2f} → RapidOCR | "
+        f"rankK={PLATE_RANK_K} | live ingest removed"
     )
     return {
         "ok": active_ok,
@@ -1850,11 +2004,11 @@ def health_payload() -> dict[str, Any]:
             "rankK": int(PLATE_RANK_K),
             "enhanceSkipFm": float(ENHANCE_SKIP_FM),
         },
-        "livePath": f"FastALPR-only | microBlur<{MICRO_BLUR_LIVE:.0f}",
-        "heavyPath": f"FastALPR+HyperLPR3 | microBlur<{MICRO_BLUR_HEAVY:.0f}",
+        "livePath": f"RapidOCR-onnx | microBlur<{MICRO_BLUR_LIVE:.0f}",
+        "heavyPath": f"RapidOCR-onnx | microBlur<{MICRO_BLUR_HEAVY:.0f}",
         "dualEngine": dual_on,
         "engineB": eng_b,
-        "ppocr": "purged",
+        "ppocr": "rapidocr-onnx",
         "cascade": "vehicle-then-plate",
         "activeEngine": ANPR_ENGINE,
         "region": REGION,
@@ -1869,7 +2023,7 @@ def health_payload() -> dict[str, Any]:
         "microBlurHeavy": float(MICRO_BLUR_HEAVY),
         "ocrTimeoutS": float(os.environ.get("FM_ANPR_OCR_TIMEOUT_S", "2.5") or "2.5"),
         "fisheye": (os.environ.get("FM_ANPR_FISHEYE") or "0").strip().lower() in ("1", "true", "on", "yes"),
-        "fastalpr": "ready" if fa["ready"] else "missing",
+        "fastalpr": "ready" if (hatch_fastalpr and fa.get("ready")) else ("hatch" if hatch_fastalpr else "not_loaded"),
         "fastalprError": fa.get("error"),
         "fastalprDet": fa.get("detModel"),
         "fastalprDetConf": fa.get("detConf"),
@@ -1885,30 +2039,36 @@ def health_payload() -> dict[str, Any]:
         "vehicleError": vs.get("error"),
         "vehicleWeights": vs.get("weights"),
         "plateDet": plate_det,
+        "stage2Plate": "ready" if s2_ready else "missing",
+        "stage2PlateError": (s2 or {}).get("error") if isinstance(s2, dict) else None,
+        "stage2PlateWeights": (s2 or {}).get("weights") if isinstance(s2, dict) else None,
+        "stage2PlateArchitecture": "stage2-ph-id-plates-yolo-v1",
         "platePose": "ready" if pps.get("ready") else "missing",
         "platePoseError": pps.get("error"),
         "platePoseWeights": pps.get("weights"),
         "platePosePad": pps.get("pad"),
-        "platePoseArchitecture": pps.get("architecture") or "ccpd-yolov8-pose-native-warp-v1",
+        "platePoseArchitecture": pps.get("architecture") or "yolov8-plate-bbox-v1",
         "wpod": ws.get("mode"),
         "wpodReady": bool(ws.get("ready")),
         "wpodPad": ws.get("pad"),
         "wpodArchitecture": ws.get("architecture"),
-        "wpodRole": "hatch",
-        "ocr": "purged-ppocr",
-        "ocrError": None,
-        "ocrModel": "FastALPR-live / HyperLPR3-heavy",
+        "wpodRole": "legacy-hatch",
+        "ocr": "ready" if rapid_st.get("ready") else "missing",
+        "ocrError": rapid_st.get("error"),
+        "ocrModel": "RapidOCR-onnx",
+        "ocrBackend": "rapidocr-onnx",
         "detect": (
-            "vehicle+ccpd-pose-native-warp+path-routed-ocr"
+            "vehicle+yolo-bbox+rapidocr-onnx"
             if cascade
             else ("yolo-first" if yolo is not None else "opencv")
         ),
         "yolo": "ready" if yolo is not None else ("idle" if cascade else "missing"),
         "yoloKind": yst.get("kind"),
         "yoloError": yst.get("error") or _yolo_error,
-        "weights": _plate_weights_path(),
+        "weights": ((s2 or {}).get("weights") if isinstance(s2, dict) else None) or _plate_weights_path(),
         "roi": True,
-        "shipDefault": "live-fastalpr-cct-s / heavy-fastalpr-hyperlpr",
-        "fastalprShip": "cct-s-v2-global-v1",
+        "shipDefault": "live-rapidocr-onnx / stage2-yolo-bbox",
+        "fastalprShip": "hatch-optional",
+        "paddleIsolation": "removed-use-rapidocr",
         "temporalVote": "char_majority",
     }

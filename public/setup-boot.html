@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ME8 Setup — License</title>
+  <title>Mobility Axiom Setup — License</title>
   <style>
     :root { color-scheme: dark; }
     body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; padding: 32px 16px; }
@@ -72,12 +72,12 @@
 </head>
 <body>
   <main>
-    <h1>ME8 Setup</h1>
+    <h1>Mobility Axiom Setup</h1>
     <p>Services are locked until a valid air-gap license is installed. Use this page from <strong>localhost</strong> only (or SSH tunnel). WAN access to the setup port is blocked.</p>
     <div class="card">
-      <label for="setup-pin">Setup PIN (from server console / service log)</label>
+      <label for="setup-pin">Setup PIN (from server console)</label>
       <input type="password" id="setup-pin" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6-digit PIN">
-      <p class="hint">Look for <code>[ACTION REQUIRED] Setup Mode Active. Web UI PIN:</code> in the console or <code>storage/service-stdout.log</code>.</p>
+      <p class="hint">Enter the 6-digit PIN shown on the server console when setup mode is active.</p>
     </div>
     <div class="card">
       <p>Hardware ID</p>

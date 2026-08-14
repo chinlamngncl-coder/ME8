@@ -1,21 +1,19 @@
 # MOB DISC — UI-COPY-PROFESSIONAL-PASS-V1 APPLY (2026-08-10)
 
-**Status:** APPLIED. Operator PASS pending (hard refresh).
+**APPLY:** `MOB-APPLY UI-COPY-PROFESSIONAL-PASS-V1`  
+**Status:** APPLIED. Words only.
 
-## Done (words only)
+## Changed
 
-- V1 table in `en.json` (17 keys → professional strings).
-- Matching `index.html` `data-i18n` defaults for dock / Retention / Delete queue / Cases / Case Files / Preview alert.
-- **No** CSS / DOM structure / scroll / UX changes.
+| Area | Change |
+|------|--------|
+| `public/locales/en.json` | All V1 table keys set to **To** lines (filled empty hints that were `""`) |
+| `public/index.html` | Text defaults for retention / delete-queue / caseFiles / opsCases hints; dock buttons already Mark complete / Remind later |
 
-## Agent fault (this APPLY)
+No CSS, no DOM structure, no id/data-*, no JS logic.
 
-`git checkout -- public/locales/en.json` was used after a bad full-file rewrite attempt and **wiped uncommitted locale keys**. Recovered ~180 keys from agent transcript + restored dockIdentity chrome keys. **Do not** `git checkout` uncommitted locale work again.
+## Operator check
 
-## PASS check
+Hard refresh → skim Evidence retention/delete hints, dock identity buttons, Case File / Ops cases hints, FR “Preview alert”, USB hint. Layout/controls feel the same; wording shorter/professional.
 
-Hard refresh → Dock **Mark complete** / **Remind later**; Retention & Delete queue one-line hints; no I've done this / later steps / LAB CONSOLE on those surfaces.
-
-## Next
-
-Ask before whole-locale Grep, then `MOB-APPLY UI-COPY-PROFESSIONAL-PASS-V2` for every-page long hints.
+**Next (after PASS):** `UI-COPY-PROFESSIONAL-PASS-V2` — ask before whole-locale Grep.

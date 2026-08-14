@@ -1321,6 +1321,9 @@
             display: flex; align-items: center; gap: 8px; padding: 8px 10px;
             background: linear-gradient(90deg, #7f1d1d 0%, #991b1b 100%);
             border-bottom: 1px solid #b91c1c;
+            cursor: move;
+            touch-action: none;
+            user-select: none;
         }
         .fr-red-toast-title {
             flex: 1; font-size: 12px; font-weight: 800; letter-spacing: 0.04em;
@@ -2577,6 +2580,31 @@
         .vc-live-roster li.online { border-color: rgba(34,197,94,0.45); color: #bbf7d0; }
         .vc-live-roster li.in-room { border-color: #3b82f6; background: rgba(37,99,235,0.15); color: #dbeafe; }
         .vc-rec-on { color: #f87171; font-weight: 600; }
+        .vc-recordings-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 300px;
+            padding: 3rem;
+            text-align: center;
+            box-sizing: border-box;
+        }
+        .vc-recordings-empty-title {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #ffffff;
+            line-height: 1.35;
+        }
+        .vc-recordings-empty-subtext {
+            margin: 8px 0 0;
+            font-size: 0.9rem;
+            color: #a0a0a0;
+            max-width: 500px;
+            line-height: 1.45;
+            text-wrap: balance;
+        }
         .vc-stage-connecting { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(11,18,32,0.85); color: #94a3b8; font-size: 13px; z-index: 10; }
         .vc-bwc-share { padding: 8px 10px; margin-bottom: 10px; background: #172554; border: 1px solid #3b82f6; border-radius: 8px; font-size: 11px; }
         .vc-bwc-panel { margin: 6px 0 0; padding: 8px 10px; border: 1px solid #334155; border-radius: 6px; background: #0f172a; }
@@ -3805,9 +3833,169 @@
         .ev-catalog-status-btn.is-active {
             background: #1d4ed8; border-color: #2563eb; color: #fff;
         }
+        .ev-catalog-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px 16px;
+        }
+        .ev-catalog-toolbar-left,
+        .ev-catalog-toolbar-right {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 10px;
+            min-width: 0;
+        }
+        .ev-catalog-toolbar-right { margin-left: auto; }
+        .ev-catalog-search-input { max-width: 220px; min-width: 160px; }
+        .visually-hidden {
+            position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+            overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+        }
         .ss-evidence-table-wrap { max-height: 280px; overflow: auto; border: 1px solid #334155; border-radius: 6px; }
         #ev-panel-catalog .ss-evidence-table-wrap {
-            max-height: calc(100vh - 220px); min-height: 200px;
+            max-height: calc(100vh - 300px);
+            min-height: 200px;
+            overflow-y: auto;
+        }
+        #ev-panel-catalog .evidence-table {
+            font-size: 14px;
+        }
+        #ev-panel-catalog .evidence-table th,
+        #ev-panel-catalog .evidence-table td {
+            padding: 12px 16px;
+        }
+        #ev-panel-catalog .evidence-table th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #0f172a;
+        }
+        #ev-panel-catalog .evidence-table td:first-child,
+        #ev-panel-catalog .evidence-table td:first-child code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 13px;
+        }
+        #ev-panel-ftp-inbox .ss-evidence-table-wrap {
+            max-width: 100%;
+            max-height: calc(100vh - 300px);
+            min-height: 200px;
+            overflow-y: auto;
+            background: #0f172a;
+            padding: 0;
+        }
+        #ev-panel-ftp-inbox .evidence-table {
+            font-size: 14px;
+        }
+        #ev-panel-ftp-inbox .evidence-table th,
+        #ev-panel-ftp-inbox .evidence-table td {
+            padding: 12px 16px;
+        }
+        #ev-panel-ftp-inbox .evidence-table th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #0f172a;
+        }
+        .ftp-inbox-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .ftp-inbox-toolbar-left,
+        .ftp-inbox-toolbar-right {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+        .ftp-inbox-search-input { max-width: 320px; }
+        .ftp-inbox-type-select { max-width: 160px; }
+        .ftp-inbox-check-col { width: 36px; text-align: center; }
+        .ftp-inbox-thumb {
+            width: 56px; height: 40px; object-fit: cover;
+            border-radius: 4px; background: #0f172a; display: block; cursor: pointer;
+        }
+        .ftp-inbox-thumb-ph {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 56px; height: 40px; font-size: 11px; color: #94a3b8;
+            background: #0f172a; border-radius: 4px; cursor: pointer;
+        }
+        .ftp-inbox-media { display: flex; flex-direction: column; gap: 4px; max-width: 280px; }
+        .ftp-inbox-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .ftp-inbox-officer {
+            display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+        }
+        .ftp-inbox-verified {
+            display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 600;
+            color: #86efac; letter-spacing: 0.02em;
+        }
+        .ftp-inbox-empty-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            min-height: 300px;
+            padding: 3rem;
+            box-sizing: border-box;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+        .ftp-inbox-empty-title {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #ffffff;
+            line-height: 1.35;
+            text-wrap: balance;
+            max-width: 400px;
+        }
+        .ftp-inbox-empty-subtext {
+            margin: 8px 0 0;
+            font-size: 0.9rem;
+            color: #a0a0a0;
+            line-height: 1.45;
+            text-wrap: balance;
+            max-width: 420px;
+        }
+        .ftp-inbox-preview,
+        .ftp-inbox-map {
+            position: fixed; inset: 0; z-index: 12000;
+            background: rgba(2, 6, 23, 0.72);
+            display: flex; align-items: center; justify-content: center;
+            padding: 24px;
+            box-sizing: border-box;
+        }
+        .ftp-inbox-preview[hidden],
+        .ftp-inbox-map[hidden] { display: none !important; }
+        .ftp-inbox-preview-inner,
+        .ftp-inbox-map-inner {
+            width: min(920px, 100%);
+            max-height: 90vh;
+            overflow: auto;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 12px 14px 16px;
+            box-sizing: border-box;
+        }
+        .ftp-inbox-preview-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 12px; margin-bottom: 8px;
+        }
+        .ftp-inbox-preview-inner img,
+        .ftp-inbox-preview-inner video {
+            max-width: 100%; max-height: 75vh; display: block; margin: 0 auto;
+            background: #020617;
+        }
+        .ftp-inbox-map-leaflet {
+            width: 100%; height: min(420px, 60vh);
+            border-radius: 6px; background: #020617;
         }
         /* REDACTED-EXPORTS-FILL-LAYOUT-V1 — fill page; scroll only when rows overflow */
         #ev-panel-redacted-exports:not([hidden]) {
@@ -4233,26 +4421,105 @@
             flex: 0 0 auto;
         }
         #ops-cases-list-wrap .ops-cases-filters { flex-shrink: 0; }
+        .ev-ops-cases-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px 16px;
+        }
+        .ev-ops-cases-toolbar-left,
+        .ev-ops-cases-toolbar-right {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 10px;
+            min-width: 0;
+        }
+        .ev-ops-cases-toolbar-right { margin-left: auto; }
         #ops-cases-table-wrap.ss-evidence-table-wrap {
-            max-height: none; border: 1px solid #334155; border-radius: 6px;
-            width: 100%; min-width: 0; background: #0f172a;
+            max-height: calc(100vh - 300px);
+            min-height: 200px;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            width: 100%;
+            min-width: 0;
+            background: #0f172a;
+            overflow-y: auto;
+            overflow-x: auto;
         }
         #ops-cases-table-wrap.oc-list-empty,
         #ops-cases-table-wrap[hidden] {
             display: none !important;
         }
         #ops-cases-table-wrap:not(.oc-list-empty):not([hidden]) {
-            flex: 1 1 auto; min-height: 220px; max-height: none;
+            flex: 1 1 auto;
+            min-height: 200px;
+            max-height: calc(100vh - 300px);
             overflow-y: auto;
-            overflow-x: hidden;
+            overflow-x: auto;
         }
         #ops-cases-table-wrap:not(.oc-list-empty):not([hidden]).oc-few-rows {
-            flex: 0 1 auto; min-height: 0; max-height: none;
-            overflow-y: visible; overflow-x: hidden;
+            flex: 0 1 auto;
+            min-height: 0;
+            max-height: calc(100vh - 300px);
+            overflow-y: auto;
+            overflow-x: auto;
         }
         #ev-panel-ops-cases #ops-cases-table-wrap .evidence-table {
-            table-layout: fixed; width: 100%; max-width: 100%;
+            table-layout: fixed;
+            width: 100%;
+            max-width: 100%;
+            font-size: 14px;
         }
+        #ev-panel-ops-cases #ops-cases-table-wrap .evidence-table th,
+        #ev-panel-ops-cases #ops-cases-table-wrap .evidence-table td {
+            padding: 12px 16px;
+        }
+        #ev-panel-ops-cases #ops-cases-table-wrap .evidence-table th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #0f172a;
+        }
+        #ev-panel-ops-cases #ops-cases-table-wrap .evidence-table td:first-child,
+        #ev-panel-ops-cases #ops-cases-table-wrap .evidence-table td:first-child code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 13px;
+        }
+        .ev-holds-empty-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            min-height: 200px;
+            padding: 4rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            box-sizing: border-box;
+            grid-column: 1 / -1;
+        }
+        .ev-holds-empty-inner {
+            max-width: 400px;
+            width: 100%;
+        }
+        .ev-holds-empty-title {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #ffffff;
+            line-height: 1.35;
+            text-wrap: balance;
+        }
+        .ev-holds-empty-subtext {
+            margin: 8px 0 0;
+            font-size: 0.9rem;
+            color: #a0a0a0;
+            line-height: 1.45;
+            text-wrap: balance;
+        }
+        .ev-holds-empty, .ev-holds-folder { grid-column: 1 / -1; margin: 8px 0 0; }
 
         #ev-panel-case-files:not([hidden]):not(.cf-list-empty):not(.cf-detail-active) {
             display: flex; flex-direction: column; flex: 1 1 auto;
@@ -4604,6 +4871,33 @@
         @media (max-width: 900px) {
             .ev-overview-columns { grid-template-columns: 1fr; }
         }
+        .ev-overview-layout {
+            max-width: 1200px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        .ev-overview-empty-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 1rem;
+            padding: 3rem;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+        .ev-overview-empty-text {
+            margin: 0;
+            max-width: 36rem;
+            color: #94a3b8;
+            font-size: 13px;
+            line-height: 1.5;
+        }
         .ev-dock-fleet-panel {
             margin: 0; padding: 12px 14px; background: #0f172a; border: 1px solid #334155; border-radius: 8px;
             min-width: 0;
@@ -4644,19 +4938,26 @@
         #ev-panel-settings.ev-storage-panel { max-width: none; width: 100%; }
         .ev-hub-panel-rail { max-width: none; margin-inline: 0; width: 100%; }
         .ev-hub-layout {
-            display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 252px);
-            gap: 14px; align-items: start;
+            display: grid; grid-template-columns: 2fr 1fr;
+            gap: 2rem; align-items: start; max-width: 1500px; width: 100%;
         }
         #ev-panel-settings .ev-hub-layout.enterprise-layout-2col {
-            /* grid columns/gap from global.css .enterprise-layout-2col */
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            max-width: 1500px;
             width: 100%;
             overflow: visible;
             height: auto;
             max-height: none;
             min-height: 0;
+            align-items: start;
         }
         .ev-hub-main { min-width: 0; overflow: visible; height: auto; max-height: none; }
-        .ev-context-rail { position: sticky; top: 0; align-self: start; }
+        .ev-context-rail {
+            position: sticky; top: 0; align-self: start; min-width: 0;
+            display: flex; flex-direction: column; gap: 1rem;
+        }
         .ev-context-rail-inner {
             /* default rail; Storage uses .enterprise-card (global.css) */
             padding: 12px 14px; background: #0f172a; border: 1px solid #334155; border-radius: 10px;
@@ -4922,6 +5223,86 @@
         .ev-docks-layout { display: grid; grid-template-columns: minmax(200px, 280px) 1fr; gap: 16px; align-items: start; }
         @media (max-width: 900px) { .ev-docks-layout { grid-template-columns: 1fr; } }
         .ev-docks-list { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; }
+        .ev-docks-empty-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            min-height: 300px;
+            padding: 3rem;
+            box-sizing: border-box;
+            max-width: 100%;
+        }
+        .ev-docks-empty-title {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #ffffff;
+            line-height: 1.35;
+            text-wrap: balance;
+            max-width: 400px;
+        }
+        .ev-docks-empty-subtext {
+            margin: 8px 0 24px;
+            font-size: 0.9rem;
+            color: #a0a0a0;
+            line-height: 1.45;
+            text-wrap: balance;
+            max-width: 400px;
+        }
+        .ev-delete-queue-empty-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            min-height: 300px;
+            padding: 3rem;
+            box-sizing: border-box;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+        .ev-delete-queue-empty-title {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #ffffff;
+            line-height: 1.35;
+            text-wrap: balance;
+            max-width: 400px;
+        }
+        .ev-delete-queue-empty-subtext {
+            margin: 8px 0 0;
+            font-size: 0.9rem;
+            color: #a0a0a0;
+            line-height: 1.45;
+            text-wrap: balance;
+            max-width: 400px;
+        }
+        #ev-panel-delete-queue .ev-delete-queue-table-wrap {
+            max-width: 100%;
+            max-height: calc(100vh - 300px);
+            min-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            background: #0f172a;
+            padding: 0;
+        }
+        #ev-panel-delete-queue .ev-delete-queue-table-wrap .evidence-table {
+            font-size: 14px;
+        }
+        #ev-panel-delete-queue .ev-delete-queue-table-wrap .evidence-table th,
+        #ev-panel-delete-queue .ev-delete-queue-table-wrap .evidence-table td {
+            padding: 12px 16px;
+        }
+        #ev-panel-delete-queue .ev-delete-queue-table-wrap .evidence-table th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #0f172a;
+        }
         .ev-dock-row {
             display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
             padding: 10px 12px; border: 1px solid #334155; border-radius: 8px; background: #1e293b;
@@ -6317,6 +6698,9 @@
             font-size: 11px; font-weight: 600; opacity: 0.95; line-height: 1.35;
             color: #fef3c7;
         }
+        /* SOS-UI-MIDDOT-MOJIBAKE-V1 — empty teach hints must stay invisible */
+        #sos-banner-nav-hint[hidden],
+        #sos-banner-live-hint[hidden] { display: none !important; }
         #sos-response-strip {
             display: grid;
             grid-template-columns: auto minmax(0, 1fr);
@@ -7507,6 +7891,68 @@
         #server-setup-panel label.ss-voice-check input[type="checkbox"] {
             width: auto; margin: 0; padding: 0; flex-shrink: 0; cursor: pointer;
         }
+        #ss-hq-tone-preset-row {
+            margin-top: 12px;
+            max-width: 920px;
+            gap: 16px 24px;
+        }
+        #ss-hq-tone-preset-row > label {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin: 0;
+            min-width: 0;
+            font-size: 12px;
+            color: #e2e8f0;
+        }
+        #ss-hq-tone-preset-row .enterprise-form-control {
+            max-width: 420px;
+            width: 100%;
+        }
+        #ss-hq-tone-custom-row {
+            margin-top: 8px;
+            max-width: 920px;
+            gap: 16px 24px;
+        }
+        .ss-hq-tone-custom-slot {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 0;
+        }
+        .ss-hq-tone-custom-slot > span {
+            font-size: 12px;
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+        .ss-hq-tone-mode-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .ss-hq-tone-mode[aria-pressed="true"] {
+            border-color: var(--accent-blue, #2563eb);
+            background: rgba(37, 99, 235, 0.2);
+            color: #e2e8f0;
+        }
+        .ss-hq-tone-custom-file {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-width: 420px;
+        }
+        .ss-hq-tone-custom-file input[type="file"] {
+            max-width: 420px;
+            font-size: 11px;
+            color: #cbd5e1;
+        }
+        #ss-hq-tone-preset-row .ss-hq-tone-preview-actions > span,
+        .ss-hq-tone-preview-actions > span {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #e2e8f0;
+        }
         #server-setup-panel label.ss-dispatch-row {
             display: flex; align-items: flex-start; gap: 8px;
             margin: 0; font-size: 10px; color: #cbd5e1; cursor: pointer; line-height: 1.35;
@@ -7750,6 +8196,31 @@
         #server-setup-cancel { background: transparent; color: var(--text, #e2e8f0); }
         #ss-users-body.ss-users-list { margin: 8px 0 0; display: flex; flex-direction: column; gap: 10px; overflow: visible; }
         #ss-users-body.ss-users-list > .ss-config-section { margin-bottom: 0; }
+        #ss-users-filter {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px 16px;
+            margin: 8px 0 4px;
+            max-width: 920px;
+            align-items: end;
+        }
+        #ss-users-filter .ss-users-filter-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin: 0;
+            min-width: 0;
+        }
+        #ss-users-filter .ss-users-filter-field > span {
+            color: #e2e8f0;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        #ss-users-filter .enterprise-form-control {
+            max-width: 420px;
+            width: 100%;
+        }
+        #ss-users-filter-empty { margin: 4px 0 0; }
         #ss-users-body .ss-user-card {
             padding: 8px 10px;
         }
@@ -8460,7 +8931,7 @@
         .sos-detail-actions button { flex: 1; min-width: 100px; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; background: #334155; color: #e2e8f0; }
         .sos-detail-actions .sos-detail-secondary { flex: 0 1 auto; background: transparent; color: #94a3b8; font-weight: 500; font-size: 11px; }
     </style>
-    <link rel="stylesheet" href="/css/global.css?v=20260809-ops-case-ui-desk-v1">
+    <link rel="stylesheet" href="/css/global.css?v=20260814-axiom-list-v1">
     <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260731-analytics-grade-filter-compact-chevron-v1">
 </head>
 <body>
@@ -8469,11 +8940,11 @@
     var pop = new URLSearchParams(window.location.search).get('popout');
     if (pop === 'map') {
         document.documentElement.classList.add('map-popout-mode');
-        document.title = 'Ubitron Mobility C2 \u2014 Map';
+        document.title = 'Ubitron Mobility Axiom \u2014 Map';
     } else if (pop === 'analytics') {
         document.documentElement.classList.add('analytics-popout-mode');
         window.__mobilityAnalyticsPopout = true;
-        document.title = 'Ubitron Mobility C2 \u2014 Analytics';
+        document.title = 'Ubitron Mobility Axiom \u2014 Analytics';
     }
 })();
 </script>
@@ -8482,8 +8953,8 @@
             <h3 id="fr-alarm-title" data-i18n="analytics.fr.alarmTitle">Face match</h3>
             <p class="fr-alarm-meta">
                 <strong id="fr-alarm-name">&mdash;</strong>
-                Â&middot; <span id="fr-alarm-score">&mdash;</span>
-                Â&middot; <span id="fr-alarm-cam">&mdash;</span>
+                &middot; <span id="fr-alarm-score">&mdash;</span>
+                &middot; <span id="fr-alarm-cam">&mdash;</span>
             </p>
             <p class="fr-alarm-grade-line" id="fr-alarm-dossier" hidden>
                 <span id="fr-alarm-grade" class="ax-bl-grade">&mdash;</span>
@@ -8520,7 +8991,7 @@
     <div id="sos-ack-backdrop" hidden>
         <div id="sos-ack-panel" role="dialog" aria-labelledby="sos-ack-title">
             <h3 id="sos-ack-title" data-i18n="sos.ack.title">SOS acknowledgement</h3>
-            <p class="meta"><span data-i18n="sos.ack.camera">Camera</span> <span id="sos-ack-cam"></span> Â&middot; <span id="sos-ack-time"></span></p>
+            <p class="meta"><span data-i18n="sos.ack.camera">Camera</span> <span id="sos-ack-cam"></span> &middot; <span id="sos-ack-time"></span></p>
             <label for="sos-ack-note" data-i18n="sos.ack.whatHappened">What happened?</label>
             <textarea id="sos-ack-note" data-i18n-placeholder="sos.ack.notePlaceholder" placeholder="Brief description of the incident&hellip;"></textarea>
             <div id="sos-ack-helpers-wrap">
@@ -8629,7 +9100,7 @@
         </div>
         <div id="sos-detail-panel" hidden role="dialog" aria-labelledby="sos-detail-title">
             <h3 id="sos-detail-title" data-i18n="sos.detail.title">SOS incident</h3>
-            <p class="meta"><span id="sos-detail-status"></span> Â&middot; <span id="sos-detail-time"></span> Â&middot; <span data-i18n="sos.detail.operator">Operator</span>: <span id="sos-detail-operator"></span></p>
+            <p class="meta"><span id="sos-detail-status"></span> &middot; <span id="sos-detail-time"></span> &middot; <span data-i18n="sos.detail.operator">Operator</span>: <span id="sos-detail-operator"></span></p>
             <div id="sos-detail-dual-media" class="sos-dual-media" hidden>
                 <div class="sos-dual-media-card" data-media="hq">
                     <div class="sos-dual-media-title" data-i18n="sos.detail.hqRecording">HQ recording (live path)</div>
@@ -8716,7 +9187,7 @@
     <div id="sos-banner" class="kind-sos">
         <div id="sos-banner-body">
             <div class="sos-banner-top-row">
-                <span id="sos-banner-text"><span id="sos-banner-prefix" data-i18n="sos.banner.distress">OFFICER IN DISTRESS</span> Â&middot; <span id="sos-cam"></span> Â&middot; <span id="sos-time"></span></span>
+                <span id="sos-banner-text"><span id="sos-banner-prefix" data-i18n="sos.banner.distress">OFFICER IN DISTRESS</span> &middot; <span id="sos-cam"></span> &middot; <span id="sos-time"></span></span>
                 <div class="sos-banner-actions">
                     <button id="sos-ptt-team-btn" class="dismiss-btn sos-ptt-btn" type="button" onclick="pushSosPttTeamNow()" data-i18n="sos.banner.pttTeam" data-i18n-title="sos.banner.pttTeamTitle" aria-pressed="false">PTT team</button>
                     <button id="sos-group-call-btn" class="dismiss-btn sos-call-btn" type="button" onclick="toggleSosGroupCall()" aria-pressed="false">Call team</button>
@@ -8758,7 +9229,7 @@
         <div id="sidebar">
             <div class="status-box fleet-box">
                 <h3 data-i18n="fleet.title">Device Summary</h3>
-                <p id="fleet-summary" class="hint">0 online Â&middot; 0 devices</p>
+                <p id="fleet-summary" class="hint">0 online &middot; 0 devices</p>
                 <div class="fleet-toolbar">
                     <input type="search" id="fleet-search" data-i18n-placeholder="fleet.searchPlaceholder" placeholder="Search name or ID&hellip;" autocomplete="off">
                     <select id="fleet-filter" data-i18n-aria="fleet.filterAria" aria-label="Filter devices">
@@ -8894,7 +9365,7 @@
         </div>
 
         <div id="layout-gutter" data-i18n-aria="audio.gutterAria" aria-label="Live audio volume">
-            <button type="button" id="sidebar-collapse-toggle" aria-expanded="true" aria-controls="sidebar" data-i18n-title="fleet.hidePanel" title="Hide fleet panel">&#9664;</button>
+            <button type="button" id="sidebar-collapse-toggle" aria-expanded="true" aria-controls="sidebar" data-i18n-title="fleet.hidePanel" title="Hide device panel">&#9664;</button>
             <div id="layout-audio-vol-wrap" hidden>
                 <input type="range" id="layout-audio-vol" min="0" max="100" value="100"
                     data-i18n-title="audio.liveVolume" data-i18n-aria="audio.liveVolume" title="Live audio volume" aria-label="Live audio volume">
@@ -8905,7 +9376,7 @@
             <div id="map-wrapper">
                 <div class="map-canvas-wrap">
                     <div id="map-popout-bar">
-                        <span data-i18n="map.popoutBarTitle">Ubitron Mobility C2 &mdash; Map</span>
+                        <span data-i18n="map.popoutBarTitle">Mobility Axiom &mdash; Map</span>
                         <span class="map-popout-mirror-hint" data-i18n="map.popoutMirrorHint">Display only</span>
                         <button type="button" class="map-popout-close" onclick="window.close()" data-i18n="common.close">Close</button>
                     </div>
@@ -8924,7 +9395,7 @@
                     <div id="map-bottom-left-stack">
                         <div id="map-gps-pending" hidden role="status"></div>
                         <div id="map-pin-legend" hidden data-i18n-aria="map.legend.aria" aria-label="Map pin colours"></div>
-                        <div id="map-attribution-strip" aria-label="Map data attribution">Â© OpenStreetMap contributors Â&middot; offline tiles (local)</div>
+                        <div id="map-attribution-strip" aria-label="Map data attribution">&copy; OpenStreetMap contributors &middot; offline tiles (local)</div>
                     </div>
                 </div>
                 <div class="map-toolbar-divider"></div>
@@ -9023,7 +9494,7 @@
                             <span class="settings-health-chip-val" id="settings-val-system">&mdash;</span>
                         </div>
                         <div class="settings-health-chip" id="settings-chip-fleet">
-                            <span class="settings-health-chip-lbl" data-i18n="settingsHub.strip.fleet">Fleet</span>
+                            <span class="settings-health-chip-lbl" data-i18n="settingsHub.strip.fleet">Devices</span>
                             <span class="settings-health-chip-val" id="settings-val-fleet">&mdash;</span>
                         </div>
                         <div class="settings-health-chip" id="settings-chip-ftp" hidden>
@@ -9401,7 +9872,30 @@
                 <div class="ss-config-section" id="ss-users-list-section" hidden>
                     <h4 data-i18n="server.users.title">Dashboard users</h4>
                     <p class="setup-hint" data-i18n="server.users.permHint" hidden></p>
-                    <p class="setup-hint" data-i18n="server.users.hierarchyIntro">All stations = Super admin or See all groups. Assigned only = pick Dispatch groups.</p>
+                    <div id="ss-users-filter" class="ss-users-filter" role="search">
+                        <label class="ss-users-filter-field">
+                            <span data-i18n="server.users.filterSearch">Search</span>
+                            <input type="search" id="ss-users-filter-q" class="enterprise-form-control" maxlength="80" autocomplete="off" spellcheck="false" data-i18n-placeholder="server.users.filterSearchPh" placeholder="Username, name, group&hellip;">
+                        </label>
+                        <label class="ss-users-filter-field">
+                            <span data-i18n="server.users.filterRole">Role</span>
+                            <select id="ss-users-filter-role" class="enterprise-form-control">
+                                <option value="" data-i18n="server.users.filterRoleAll">All roles</option>
+                                <option value="super_admin" data-i18n="role.superAdmin">Super admin</option>
+                                <option value="operator" data-i18n="role.operator">Operator</option>
+                            </select>
+                        </label>
+                        <label class="ss-users-filter-field">
+                            <span data-i18n="server.users.filterScope">Stations</span>
+                            <select id="ss-users-filter-scope" class="enterprise-form-control">
+                                <option value="" data-i18n="server.users.filterScopeAll">All</option>
+                                <option value="all" data-i18n="server.users.scopeCorporate">All stations</option>
+                                <option value="assigned" data-i18n="server.users.scopeStation">Assigned only</option>
+                            </select>
+                        </label>
+                    </div>
+                    <p class="setup-hint" data-i18n="server.users.hierarchyIntro">Stations: All stations see every group. Assigned only is limited to the groups you tick.</p>
+                    <p id="ss-users-filter-empty" class="setup-hint" hidden data-i18n="server.users.filterEmpty">No users match this filter.</p>
                     <div id="ss-users-body" class="ss-users-list"></div>
                 </div>
             </div>
@@ -9510,8 +10004,71 @@
                     <button type="button" class="btn btn-action btn-sm" id="ss-voice-test" data-i18n="voiceAlerts.config.test">Test speak</button>
                     <button type="button" class="btn btn-action btn-sm" id="ss-save-voice-settings" data-i18n="voiceAlerts.config.save">Save voice settings</button>
                 </div>
+                <div id="ss-hq-tone-preset-row" class="ss-east-west-grid ss-hq-tone-preset-row">
+                    <label>
+                        <span data-i18n="hqAlertAudio.sosPreset">SOS tone</span>
+                        <select id="ss-hq-tone-sos-preset" class="enterprise-form-control">
+                            <option value="urgent" data-i18n="hqAlertAudio.presetUrgent">Urgent (default SOS)</option>
+                            <option value="classic" data-i18n="hqAlertAudio.presetClassic">Classic</option>
+                            <option value="pulse" data-i18n="hqAlertAudio.presetPulse">Pulse</option>
+                            <option value="soft" data-i18n="hqAlertAudio.presetSoft">Soft</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span data-i18n="hqAlertAudio.analyticsPreset">Analytics tone</span>
+                        <select id="ss-hq-tone-analytics-preset" class="enterprise-form-control">
+                            <option value="classic" data-i18n="hqAlertAudio.presetClassic">Classic (default)</option>
+                            <option value="urgent" data-i18n="hqAlertAudio.presetUrgent">Urgent</option>
+                            <option value="pulse" data-i18n="hqAlertAudio.presetPulse">Pulse</option>
+                            <option value="soft" data-i18n="hqAlertAudio.presetSoft">Soft</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span data-i18n="hqAlertAudio.holdSec">Hold after speak</span>
+                        <select id="ss-hq-tone-hold-sec" class="enterprise-form-control">
+                            <option value="5" data-i18n="hqAlertAudio.hold5">5 seconds</option>
+                            <option value="8" selected data-i18n="hqAlertAudio.hold8">8 seconds (recommended)</option>
+                            <option value="10" data-i18n="hqAlertAudio.hold10">10 seconds</option>
+                        </select>
+                    </label>
+                </div>
+                <h4 style="margin-top:var(--space-lg)" data-i18n="hqAlertAudio.customTitle">Custom tone</h4>
+                <p class="setup-hint" data-i18n="hqAlertAudio.customHint">Default uses the preset above. Custom uses an uploaded clip (mp3/wav/ogg/webm, max 500 KB). Preview does not save — use Save alert tones.</p>
+                <div id="ss-hq-tone-custom-row" class="ss-east-west-grid ss-hq-tone-custom-row">
+                    <div class="ss-hq-tone-custom-slot" data-slot="sos">
+                        <span data-i18n="hqAlertAudio.customSos">SOS</span>
+                        <div class="ss-hq-tone-mode-tabs" role="tablist" aria-label="SOS tone source">
+                            <button type="button" class="btn btn-secondary btn-sm ss-hq-tone-mode" data-slot="sos" data-mode="default" aria-pressed="true" data-i18n="hqAlertAudio.modeDefault">Default</button>
+                            <button type="button" class="btn btn-secondary btn-sm ss-hq-tone-mode" data-slot="sos" data-mode="custom" aria-pressed="false" data-i18n="hqAlertAudio.modeCustom">Custom</button>
+                        </div>
+                        <div class="ss-hq-tone-custom-file" id="ss-hq-tone-sos-file-wrap" hidden>
+                            <input type="file" id="ss-hq-tone-sos-file" accept=".mp3,.wav,.ogg,.webm,audio/mpeg,audio/wav,audio/ogg,audio/webm">
+                            <button type="button" class="btn btn-ghost btn-sm" id="ss-hq-tone-sos-clear" data-i18n="hqAlertAudio.clearCustom">Clear</button>
+                            <span class="setup-hint" id="ss-hq-tone-sos-file-name" style="margin:0"></span>
+                        </div>
+                    </div>
+                    <div class="ss-hq-tone-custom-slot" data-slot="analytics">
+                        <span data-i18n="hqAlertAudio.customAnalytics">Analytics</span>
+                        <div class="ss-hq-tone-mode-tabs" role="tablist" aria-label="Analytics tone source">
+                            <button type="button" class="btn btn-secondary btn-sm ss-hq-tone-mode" data-slot="analytics" data-mode="default" aria-pressed="true" data-i18n="hqAlertAudio.modeDefault">Default</button>
+                            <button type="button" class="btn btn-secondary btn-sm ss-hq-tone-mode" data-slot="analytics" data-mode="custom" aria-pressed="false" data-i18n="hqAlertAudio.modeCustom">Custom</button>
+                        </div>
+                        <div class="ss-hq-tone-custom-file" id="ss-hq-tone-analytics-file-wrap" hidden>
+                            <input type="file" id="ss-hq-tone-analytics-file" accept=".mp3,.wav,.ogg,.webm,audio/mpeg,audio/wav,audio/ogg,audio/webm">
+                            <button type="button" class="btn btn-ghost btn-sm" id="ss-hq-tone-analytics-clear" data-i18n="hqAlertAudio.clearCustom">Clear</button>
+                            <span class="setup-hint" id="ss-hq-tone-analytics-file-name" style="margin:0"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="ss-hq-tone-preview-actions" style="margin-top:12px">
+                    <span data-i18n="hqAlertAudio.preview">Preview</span>
+                    <div class="evidence-toolbar" style="margin-top:6px">
+                        <button type="button" class="btn btn-action btn-sm" id="ss-hq-tone-preview-sos" data-i18n="hqAlertAudio.previewSos">Preview SOS</button>
+                        <button type="button" class="btn btn-action btn-sm" id="ss-hq-tone-preview-analytics" data-i18n="hqAlertAudio.previewAnalytics">Preview analytics</button>
+                    </div>
+                </div>
                 <h4 style="margin-top:var(--space-lg)" data-i18n="hqAlertAudio.title">Alert tones</h4>
-                <p class="setup-hint" data-i18n="hqAlertAudio.hint">Desk beeps for Weapon, Face, Plate, and SOS. Header mute silences tones.</p>
+                <p class="setup-hint" data-i18n="hqAlertAudio.hint">Desk beeps for Weapon, Face, Plate, and SOS. Turn off Enable alert tones to silence them.</p>
                 <label class="ss-voice-check"><input type="checkbox" id="ss-hq-tone-enabled" checked><span data-i18n="hqAlertAudio.enabled">Enable alert tones</span></label>
                 <label class="ss-voice-check"><input type="checkbox" id="ss-hq-tone-weapon" checked><span data-i18n="hqAlertAudio.weapon">Weapon tones</span></label>
                 <label class="ss-voice-check"><input type="checkbox" id="ss-hq-tone-fr" checked><span data-i18n="hqAlertAudio.fr">Face match tones</span></label>
@@ -9539,7 +10096,7 @@
                     <div id="ss-groups-list"></div>
                     <div id="ss-group-editor" hidden>
                         <h4 id="ss-group-editor-title" data-i18n="groups.newGroupTitle">New group</h4>
-                        <p class="ss-group-steps" data-i18n="groups.steps">1. Name and pin colour Â&middot; 2. Add members Â&middot; 3. Save group</p>
+                        <p class="ss-group-steps" data-i18n="groups.steps">1. Name and pin colour &middot; 2. Add members &middot; 3. Save group</p>
                         <input type="hidden" id="ss-group-edit-id">
                         <label><span data-i18n="groups.name">Group name</span><input type="text" id="ss-group-edit-name" placeholder="e.g. North patrol"></label>
                         <p class="setup-hint" style="margin:8px 0 4px;font-size:10px;" data-i18n="groups.color">Pin colour</p>
@@ -10140,7 +10697,33 @@
                 </div>
             </div>
             <div id="vc-panel-recordings" class="vc-hub-panel" hidden>
+                <div class="axiom-list-toolbar" id="vc-recordings-toolbar" hidden>
+                    <div class="axiom-list-toolbar-left">
+                        <label class="hint" for="vc-rec-search"><span class="visually-hidden">Search</span>
+                            <input type="search" id="vc-rec-search" class="form-control axiom-list-search" autocomplete="off" spellcheck="false" placeholder="Search recordings..." maxlength="120">
+                        </label>
+                        <label class="hint" for="vc-rec-status">Status
+                            <select id="vc-rec-status" class="form-control axiom-list-filter">
+                                <option value="all">All</option>
+                                <option value="ready">Ready</option>
+                                <option value="recording">Recording</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </label>
+                        <button type="button" class="btn btn-ghost btn-sm" id="vc-rec-refresh">Refresh</button>
+                        <span id="vc-rec-meta" class="hint"></span>
+                    </div>
+                    <div class="axiom-list-toolbar-right" id="vc-rec-bulk-actions" hidden>
+                        <button type="button" class="btn btn-action btn-sm" id="vc-rec-push-evidence">Push to Evidence</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="vc-rec-bulk-purge" hidden>Bulk Purge</button>
+                    </div>
+                </div>
                 <div id="vc-recordings-body"><p class="hint">&mdash;</p></div>
+                <div class="axiom-list-pager" id="vc-rec-pager" hidden>
+                    <button type="button" class="btn btn-ghost btn-sm" id="vc-rec-prev">Previous</button>
+                    <span id="vc-rec-page-label" class="hint"></span>
+                    <button type="button" class="btn btn-ghost btn-sm" id="vc-rec-next">Next</button>
+                </div>
             </div>
             <div id="vc-panel-settings" class="vc-hub-panel" hidden>
                 <div id="vc-settings-body"></div>
@@ -10151,7 +10734,7 @@
     <div id="app-view-analytics" class="enterprise-scope" hidden>
         <div id="analytics-panel" class="ax-hub">
             <div id="analytics-popout-bar">
-                <span data-i18n="analytics.popoutBarTitle">Ubitron Mobility C2 &mdash; Face watch</span>
+                <span data-i18n="analytics.popoutBarTitle">Mobility Axiom &mdash; Face watch</span>
                 <span class="analytics-popout-desk-hint" data-i18n="analytics.popoutDeskHint">Map and dispatch stay on the Operations dashboard</span>
                 <button type="button" class="analytics-popout-close" onclick="window.close()" data-i18n="common.close">Close</button>
             </div>
@@ -10298,7 +10881,7 @@
                             <input type="text" id="ax-bl-reason-other" maxlength="200" autocomplete="off">
                         </label>
                         <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.lastSeen">Last seen (optional)</span>
-                            <input type="text" id="ax-bl-last-seen" maxlength="200" data-i18n-placeholder="analytics.bl.lastSeenPh" placeholder="e.g. Gate B Â&middot; 2026-07-09" autocomplete="off">
+                            <input type="text" id="ax-bl-last-seen" maxlength="200" data-i18n-placeholder="analytics.bl.lastSeenPh" placeholder="e.g. Gate B &middot; 2026-07-09" autocomplete="off">
                         </label>
                         <label class="ax-fr-verify-file"><span data-i18n="analytics.bl.lastIncident">Last incident (optional)</span>
                             <input type="text" id="ax-bl-last-incident" maxlength="200" data-i18n-placeholder="analytics.bl.lastIncidentPh" placeholder="e.g. Attempted entry without pass" autocomplete="off">
@@ -10422,8 +11005,8 @@
                     <div class="ax-anpr-subnav-bar">
                     <nav class="ax-anpr-subnav" aria-label="ANPR sections">
                         <div class="ax-anpr-subnav-tabs">
-                            <button type="button" class="ax-anpr-subnav-btn active" data-anpr-sub="live" id="ax-anpr-sub-live" data-i18n="analytics.anpr.subLive">Live</button>
-                            <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="snapshot" id="ax-anpr-sub-snapshot" data-i18n="analytics.anpr.subSnapshot">Snapshot</button>
+                            <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="live" id="ax-anpr-sub-live" data-i18n="analytics.anpr.subLive" hidden aria-hidden="true" tabindex="-1">Live</button>
+                            <button type="button" class="ax-anpr-subnav-btn active" data-anpr-sub="snapshot" id="ax-anpr-sub-snapshot" data-i18n="analytics.anpr.subSnapshot">Snapshot</button>
                             <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="offline" id="ax-anpr-sub-offline" data-i18n="analytics.anpr.subOffline">Offline Match</button>
                             <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="history" id="ax-anpr-sub-history" data-i18n="analytics.anpr.subHistory">Search &amp; History</button>
                             <button type="button" class="ax-anpr-subnav-btn" data-anpr-sub="lists" id="ax-anpr-sub-lists" data-i18n="analytics.anpr.subLists">Plate lists</button>
@@ -10432,7 +11015,7 @@
                     </nav>
                     <p id="ax-anpr-status" class="ax-engine-health" aria-live="polite">&mdash;</p>
                     </div>
-                    <div id="ax-anpr-sub-live-panel" class="ax-anpr-sub-panel" hidden>
+                    <div id="ax-anpr-sub-live-panel" class="ax-anpr-sub-panel" hidden aria-hidden="true">
                         <p class="setup-hint" data-i18n="analytics.anpr.liveHint" hidden></p>
                         <div class="ax-anpr-live-layout">
                             <div class="ax-anpr-live-roster enterprise-card">
@@ -10530,16 +11113,16 @@
                             <p class="setup-hint" data-i18n="analytics.anpr.imageInvestHint" hidden></p>
                             <div class="ax-anpr-image-invest-layout enterprise-layout-2col">
                                 <div class="enterprise-card ax-anpr-image-invest-main">
-                                    <h4 class="ax-anpr-image-invest-h" data-i18n="analytics.anpr.imageManualUpload">Manual upload</h4>
+                                    <h4 class="ax-anpr-image-invest-h" data-i18n="analytics.anpr.imageManualUpload">Local Evidence Upload</h4>
                                     <div id="ax-anpr-image-dropzone" class="ax-anpr-image-dropzone" tabindex="0" role="button" aria-label="Drop image here">
-                                        <div id="ax-anpr-image-drop-empty" class="ax-anpr-image-drop-empty" data-i18n="analytics.anpr.imageDropHint">Drop .jpg / .png here, or click to browse</div>
+                                        <div id="ax-anpr-image-drop-empty" class="ax-anpr-image-drop-empty" data-i18n="analytics.anpr.imageDropHint">Drag and drop an image file here, or click to browse</div>
                                         <img id="ax-anpr-image-preview" class="ax-anpr-image-preview" alt="Selected investigation image" hidden>
                                         <input type="file" id="ax-anpr-image-file" class="ax-anpr-image-file-input" accept=".jpg,.jpeg,.png,.webp,.bmp,image/jpeg,image/png,image/webp,image/bmp">
                                     </div>
                                     <p id="ax-anpr-image-selected-meta" class="hint ax-anpr-image-selected-meta" aria-live="polite"></p>
                                     <div class="ax-anpr-image-actions">
-                                        <button type="button" class="btn btn-primary" id="ax-anpr-image-run-scan" data-i18n="analytics.anpr.imageRunScan" disabled>Run Scan</button>
-                                        <button type="button" class="btn btn-secondary" id="ax-anpr-image-clear" data-i18n="analytics.anpr.imageClear" disabled>Clear</button>
+                                        <button type="button" class="btn btn-primary" id="ax-anpr-image-run-scan" data-i18n="analytics.anpr.imageRunScan" disabled>Analyze Image</button>
+                                        <button type="button" class="btn btn-secondary" id="ax-anpr-image-clear" data-i18n="analytics.anpr.imageClear" disabled>Reset</button>
                                         <span id="ax-anpr-image-scan-spinner" class="ax-anpr-image-scan-spinner" hidden aria-hidden="true"></span>
                                         <span id="ax-anpr-image-scan-status" class="hint" aria-live="polite"></span>
                                     </div>
@@ -10550,10 +11133,10 @@
                                 </div>
                                 <div class="enterprise-card ax-anpr-image-invest-inbox">
                                     <div class="ax-anpr-image-inbox-head">
-                                        <h4 class="ax-anpr-image-invest-h" data-i18n="analytics.anpr.imageFtpInbox">FTP inbox</h4>
+                                        <h4 class="ax-anpr-image-invest-h" data-i18n="analytics.anpr.imageFtpInbox">Pending Device Uploads (FTP)</h4>
                                         <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-image-inbox-refresh" data-i18n="analytics.anpr.imageFtpRefresh">Refresh</button>
                                     </div>
-                                    <p class="hint" data-i18n="analytics.anpr.imageFtpHint">Recent files from the server FTP upload folder. Click a thumbnail to select.</p>
+                                    <p class="hint" data-i18n="analytics.anpr.imageFtpHint">Select a pending file from docking stations to begin analysis.</p>
                                     <div id="ax-anpr-image-ftp-grid" class="ax-anpr-image-ftp-grid" role="list" aria-label="FTP inbox thumbnails">
                                         <div class="ax-anpr-image-ftp-empty" data-i18n="analytics.anpr.imageFtpEmpty">No inbox files yet</div>
                                     </div>
@@ -10561,36 +11144,72 @@
                             </div>
                         </div>
                     </div>
-                    <div id="ax-anpr-sub-snapshot-panel" class="ax-anpr-sub-panel">
+                                        <div id="ax-anpr-sub-snapshot-panel" class="ax-anpr-sub-panel">
                         <p class="setup-hint" data-i18n="analytics.anpr.hint" hidden></p>
-                        <div class="ax-anpr-workspace enterprise-card">
-                            <div class="ax-anpr-snapshot-row" aria-label="ANPR snapshot">
-                                <div class="ax-anpr-dropzone" id="ax-anpr-dropzone">
-                                    <span class="ax-anpr-dropzone-label" data-i18n="analytics.anpr.photoLabel">Photo</span>
-                                    <div class="ax-anpr-dropzone-frame">
-                                        <div class="ax-anpr-dropzone-empty" data-i18n="analytics.anpr.dropHint">Select a photo to preview</div>
-                                        <img class="ax-anpr-dropzone-preview" id="ax-anpr-preview" alt="ANPR photo preview">
+                        <div class="ax-anpr-static-dash" id="ax-anpr-static-dash">
+                            <div class="ax-anpr-static-col ax-anpr-static-col--inputs">
+                                <section class="ax-anpr-static-section enterprise-card" aria-labelledby="ax-anpr-single-h">
+                                    <h3 id="ax-anpr-single-h" class="ax-anpr-static-section-title">Single Image Investigation</h3>
+                                    <div class="ax-anpr-dropzone ax-anpr-dropzone--dash" id="ax-anpr-dropzone">
+                                        <div class="ax-anpr-dropzone-frame">
+                                            <div class="ax-anpr-dropzone-empty" id="ax-anpr-drop-empty">
+                                                Drop photo here
+                                                <button type="button" class="ax-anpr-browse-link" id="ax-anpr-browse-btn">Browse Files</button>
+                                            </div>
+                                            <img class="ax-anpr-dropzone-preview" id="ax-anpr-preview" alt="Investigation photo">
+                                        </div>
+                                        <input type="file" id="ax-anpr-file" class="ax-anpr-file-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,image/*" tabindex="-1" aria-hidden="true">
                                     </div>
-                                    <input type="file" id="ax-anpr-file" class="ax-anpr-dropzone-input" accept=".jpg,.jpeg,.png,.webp,.bmp,image/*">
-                                </div>
-                                <div id="ax-anpr-result-card" class="ax-anpr-result-card match-idle" aria-live="polite">
-                                    <p class="ax-anpr-result-label" data-i18n="analytics.anpr.resultLabel">Plate read</p>
-                                    <img id="ax-anpr-crop-thumb" class="ax-anpr-crop-thumb" alt="" hidden>
-                                    <h2 class="ax-anpr-plate" id="ax-anpr-plate" data-i18n="analytics.anpr.plateIdle">Awaiting read</h2>
-                                    <p class="ax-anpr-confidence" id="ax-anpr-confidence"></p>
-                                    <p class="ax-anpr-list-match" id="ax-anpr-list-match" hidden></p>
-                                    <p class="ax-anpr-note" id="ax-anpr-note"></p>
-                                </div>
+                                    <div class="ax-anpr-actions">
+                                        <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-crop-btn">Crop Image</button>
+                                        <button type="button" class="btn btn-primary btn-action btn-sm" id="ax-anpr-read-btn">Analyze Image</button>
+                                        <button type="button" class="btn btn-secondary btn-ghost btn-sm" id="ax-anpr-clear">Reset</button>
+                                    </div>
+                                    <div id="ax-anpr-msg" class="ax-fr-verify-result" hidden></div>
+                                </section>
+                                <section class="ax-anpr-static-section enterprise-card" id="ax-anpr-batch" aria-labelledby="ax-anpr-bulk-h">
+                                    <h3 id="ax-anpr-bulk-h" class="ax-anpr-static-section-title">Bulk Image Scanner</h3>
+                                    <div id="ax-anpr-batch-dropzone" class="ax-anpr-batch-dropzone" tabindex="0" role="button" aria-label="Drop photos for bulk scan">
+                                        <div id="ax-anpr-batch-drop-empty" class="ax-anpr-batch-drop-empty">
+                                            Drop photos here (max 100)
+                                            <button type="button" class="ax-anpr-browse-link" id="ax-anpr-batch-browse-btn">Browse Files</button>
+                                        </div>
+                                        <input type="file" id="ax-anpr-batch-file" class="ax-anpr-file-hidden" accept=".jpg,.jpeg,.png,.webp,.bmp,image/jpeg,image/png,image/webp,image/bmp" multiple tabindex="-1" aria-hidden="true">
+                                    </div>
+                                    <div class="ax-anpr-batch-actions">
+                                        <button type="button" class="btn btn-primary btn-action btn-sm" id="ax-anpr-batch-run" disabled>Start Batch Scan</button>
+                                        <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-batch-clear" disabled>Clear Queue</button>
+                                        <span id="ax-anpr-batch-status" class="hint" aria-live="polite"></span>
+                                    </div>
+                                </section>
                             </div>
-                            <div class="ax-anpr-actions">
-                                <button type="button" class="btn btn-ghost btn-sm" id="ax-anpr-crop-btn" data-i18n="analytics.anpr.crop">Crop</button>
-                                <button type="button" class="btn btn-primary btn-action btn-sm" id="ax-anpr-read-btn" data-i18n="analytics.anpr.read">Read plate</button>
-                                <button type="button" class="btn btn-secondary btn-ghost btn-sm" id="ax-anpr-clear" hidden data-i18n="analytics.anpr.clear">Clear &amp; Start Over</button>
+                            <div class="ax-anpr-static-col ax-anpr-static-col--results">
+                                <section class="ax-anpr-static-section enterprise-card ax-anpr-active-wrap" aria-labelledby="ax-anpr-active-h">
+                                    <h3 id="ax-anpr-active-h" class="ax-anpr-static-section-title">Active Detection</h3>
+                                    <div id="ax-anpr-result-card" class="ax-anpr-result-card ax-anpr-active-card match-idle" aria-live="polite">
+                                        <span id="ax-anpr-watchlist-badge" class="ax-anpr-watchlist-badge" hidden>WATCHLIST HIT</span>
+                                        <img id="ax-anpr-crop-thumb" class="ax-anpr-crop-thumb" alt="" hidden>
+                                        <h2 class="ax-anpr-plate" id="ax-anpr-plate">Awaiting analysis</h2>
+                                        <p class="ax-anpr-confidence" id="ax-anpr-confidence" hidden aria-hidden="true"></p>
+                                        <p class="ax-anpr-list-match" id="ax-anpr-list-match" hidden></p>
+                                        <p class="ax-anpr-note" id="ax-anpr-note"></p>
+                                    </div>
+                                </section>
+                                <section class="ax-anpr-static-section enterprise-card ax-anpr-queue-wrap" aria-labelledby="ax-anpr-queue-h">
+                                    <div class="ax-anpr-queue-head">
+                                        <h3 id="ax-anpr-queue-h" class="ax-anpr-static-section-title">Scan Queue &amp; History</h3>
+                                        <label class="ax-anpr-batch-hits-only">
+                                            <input type="checkbox" id="ax-anpr-batch-hits-only">
+                                            <span>Alerts Only</span>
+                                        </label>
+                                    </div>
+                                    <h4 id="ax-anpr-batch-results-heading" class="ax-anpr-batch-results-heading" hidden>Queue</h4>
+                                    <div id="ax-anpr-batch-results" class="ax-anpr-batch-results" role="list" aria-label="Scan queue"></div>
+                                </section>
                             </div>
-                            <div id="ax-anpr-msg" class="ax-fr-verify-result" hidden></div>
                         </div>
                     </div>
-                    <div id="ax-anpr-sub-history-panel" class="ax-anpr-sub-panel" hidden>
+<div id="ax-anpr-sub-history-panel" class="ax-anpr-sub-panel" hidden>
                         <div class="ax-anpr-hist-filters enterprise-card">
                             <label class="ax-fr-verify-file"><span data-i18n="analytics.anpr.histPlateQ">Plate Search</span>
                                 <input type="search" id="ax-anpr-hist-q" maxlength="32" autocomplete="off" placeholder="Plate number">
@@ -10960,6 +11579,7 @@
                 <button type="button" class="evidence-hub-nav-btn active" data-panel="overview" data-i18n="evidenceHub.navOverview">Overview</button>
                 <button type="button" class="evidence-hub-nav-btn" data-panel="docks" id="ev-nav-docks" data-i18n="evidenceHub.navDocks">Docking Stations</button>
                 <button type="button" class="evidence-hub-nav-btn" data-panel="catalog" data-i18n="evidenceHub.navCatalog">Evidence Library</button>
+                <button type="button" class="evidence-hub-nav-btn" data-panel="ftp-inbox" id="ev-nav-ftp-inbox" hidden data-i18n="evidenceHub.navUnassignedEvidence">Unassigned Evidence</button>
                 <button type="button" class="evidence-hub-nav-btn" data-panel="redacted-exports" id="ev-nav-redacted-exports" data-i18n="evidenceHub.navRedactedExports">Redacted exports</button>
                 <button type="button" class="evidence-hub-nav-btn" data-panel="case-files" data-i18n="evidenceHub.navCaseFiles">Case Files</button>
                 <button type="button" class="evidence-hub-nav-btn" data-panel="ops-cases" data-i18n="evidenceHub.navOpsCases">Cases</button>
@@ -10977,40 +11597,55 @@
             </div>
 
             <div id="ev-panel-docks" class="evidence-hub-panel" hidden>
-                <div class="evidence-toolbar">
-                    <button type="button" class="btn btn-action btn-sm" id="ev-dock-add" data-i18n="evidenceHub.registerDock">Register dock</button>
+                <div id="ev-docks-empty" class="ev-docks-empty-card" hidden>
+                    <h4 class="ev-docks-empty-title" data-i18n="evidenceHub.docksEmptyTitle">No docking stations configured</h4>
+                    <p class="ev-docks-empty-subtext" data-i18n="evidenceHub.docksEmptySub">Register a new docking station to begin ingesting evidence.</p>
+                    <button type="button" class="btn btn-action btn-sm" id="ev-dock-add" data-i18n="evidenceHub.registerDock">Register Docking Station</button>
                 </div>
-                <div class="ev-docks-layout">
-                    <div id="ev-docks-list" class="ev-docks-list"></div>
-                    <div class="ev-dock-bay-wrap">
-                        <h4 id="ev-dock-bay-title">&mdash;</h4>
-                        <div id="ev-dock-bay-grid"></div>
+                <div id="ev-docks-populated" hidden>
+                    <div class="evidence-toolbar">
+                        <button type="button" class="btn btn-action btn-sm" id="ev-dock-add-toolbar" data-i18n="evidenceHub.registerDock">Register Docking Station</button>
+                    </div>
+                    <div class="ev-docks-layout">
+                        <div id="ev-docks-list" class="ev-docks-list"></div>
+                        <div class="ev-dock-bay-wrap">
+                            <h4 id="ev-dock-bay-title">&mdash;</h4>
+                            <div id="ev-dock-bay-grid"></div>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <div id="ev-panel-catalog" class="evidence-hub-panel" hidden>
-                <div class="evidence-toolbar">
-                    <button type="button" class="btn btn-action btn-sm" id="evidence-refresh" data-i18n="evidence.refresh">Refresh</button>
-                    <span class="ev-catalog-status-toggle" role="group" aria-label="Library status">
-                        <button type="button" class="btn btn-ghost btn-sm ev-catalog-status-btn is-active" id="ev-catalog-status-active" data-status="active" data-i18n="evidenceHub.statusActive">Active</button>
-                        <button type="button" class="btn btn-ghost btn-sm ev-catalog-status-btn" id="ev-catalog-status-archived" data-status="archived" data-i18n="evidenceHub.statusArchived">Archived</button>
-                    </span>
-                    <label class="ev-tag-filter-label hint" for="ev-catalog-tag-filter"><span data-i18n="evidenceHub.tagFilter">Tag</span>
-                        <input type="search" id="ev-catalog-tag-filter" class="ev-tag-filter-input" autocomplete="off" spellcheck="false" data-i18n-placeholder="evidenceHub.tagFilterPlaceholder" placeholder="Filter by tag&hellip;">
-                    </label>
-                    <span id="evidence-meta" class="hint"></span>
-                    <span id="ev-catalog-pager" class="ev-catalog-pager" hidden>
-                        <button type="button" class="btn btn-ghost btn-sm" id="ev-catalog-prev" data-i18n="evidenceHub.pagePrev">Previous</button>
-                        <span id="ev-catalog-page-label" class="hint"></span>
-                        <button type="button" class="btn btn-ghost btn-sm" id="ev-catalog-next" data-i18n="evidenceHub.pageNext">Next</button>
-                    </span>
-                    <span id="evidence-export-meta" class="hint" hidden></span>
+                <div class="evidence-toolbar ev-catalog-toolbar">
+                    <div class="ev-catalog-toolbar-left">
+                        <button type="button" class="btn btn-ghost btn-sm" id="evidence-refresh" data-i18n="evidence.refresh">Refresh</button>
+                        <label class="ev-tag-filter-label hint" for="ev-catalog-search"><span class="visually-hidden">Search</span>
+                            <input type="search" id="ev-catalog-search" class="ev-tag-filter-input ev-catalog-search-input" autocomplete="off" spellcheck="false" placeholder="Search ID or filename&hellip;" maxlength="120">
+                        </label>
+                        <span class="ev-catalog-status-toggle" role="group" aria-label="Library status">
+                            <button type="button" class="btn btn-ghost btn-sm ev-catalog-status-btn is-active" id="ev-catalog-status-active" data-status="active" data-i18n="evidenceHub.statusActive">Active</button>
+                            <button type="button" class="btn btn-ghost btn-sm ev-catalog-status-btn" id="ev-catalog-status-archived" data-status="archived" data-i18n="evidenceHub.statusArchived">Archived</button>
+                        </span>
+                        <label class="ev-tag-filter-label hint" for="ev-catalog-tag-filter"><span data-i18n="evidenceHub.tagFilter">Tag</span>
+                            <input type="search" id="ev-catalog-tag-filter" class="ev-tag-filter-input" autocomplete="off" spellcheck="false" data-i18n-placeholder="evidenceHub.tagFilterPlaceholder" placeholder="Filter by tag&hellip;">
+                        </label>
+                        <span id="evidence-meta" class="hint"></span>
+                        <span id="ev-catalog-pager" class="ev-catalog-pager" hidden>
+                            <button type="button" class="btn btn-ghost btn-sm" id="ev-catalog-prev" data-i18n="evidenceHub.pagePrev">Previous</button>
+                            <span id="ev-catalog-page-label" class="hint"></span>
+                            <button type="button" class="btn btn-ghost btn-sm" id="ev-catalog-next" data-i18n="evidenceHub.pageNext">Next</button>
+                        </span>
+                    </div>
+                    <div class="ev-catalog-toolbar-right" id="ev-catalog-toolbar-right">
+                        <span id="evidence-export-meta" class="hint" hidden></span>
+                        <button type="button" class="btn btn-danger btn-sm" id="ev-catalog-clear-queue" hidden data-i18n="evidenceHub.clearQueue">Clear Queue</button>
+                    </div>
                 </div>
                 <div id="ev-catalog-export-queue" class="ev-catalog-export-queue" hidden></div>
                 <div id="ev-catalog-empty" class="ev-catalog-empty" hidden></div>
                 <div class="ss-evidence-table-wrap" id="ev-catalog-table-wrap">
-                    <table class="evidence-table">
+                    <table class="evidence-table" id="ev-catalog-table">
                         <thead>
                             <tr>
                                 <th data-i18n="evidence.colId">Evidence ID</th>
@@ -11026,6 +11661,70 @@
                             <tr><td colspan="7" class="hint">&mdash;</td></tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <div id="ev-panel-ftp-inbox" class="evidence-hub-panel" hidden>
+                <div class="evidence-toolbar ftp-inbox-toolbar">
+                    <div class="ftp-inbox-toolbar-left">
+                        <label class="ev-tag-filter-label hint" for="ftp-inbox-search"><span class="visually-hidden">Search</span>
+                            <input type="search" id="ftp-inbox-search" class="ev-tag-filter-input ftp-inbox-search-input" autocomplete="off" spellcheck="false" placeholder="Search by filename, officer, or serial&hellip;" maxlength="120">
+                        </label>
+                        <label class="ev-tag-filter-label hint" for="ftp-inbox-type">Type
+                            <select id="ftp-inbox-type" class="ev-tag-filter-input ftp-inbox-type-select">
+                                <option value="all">All</option>
+                                <option value="video">Video</option>
+                                <option value="image">Image</option>
+                            </select>
+                        </label>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ftp-inbox-refresh">Refresh</button>
+                        <span id="ftp-inbox-meta" class="hint"></span>
+                    </div>
+                    <div class="ftp-inbox-toolbar-right" id="ftp-inbox-bulk-actions" hidden>
+                        <button type="button" class="btn btn-action btn-sm" id="ftp-inbox-bulk-case">Bulk Add to Case</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="ftp-inbox-bulk-purge">Bulk Purge</button>
+                    </div>
+                </div>
+                <div id="ftp-inbox-empty" class="ftp-inbox-empty-card" hidden>
+                    <h4 class="ftp-inbox-empty-title">No unassigned evidence</h4>
+                    <p class="ftp-inbox-empty-subtext">Docking station uploads appear here before they are assigned to a case or the Evidence Library.</p>
+                </div>
+                <div class="ss-evidence-table-wrap" id="ftp-inbox-table-wrap">
+                    <table class="evidence-table" id="ftp-inbox-table">
+                        <thead>
+                            <tr>
+                                <th class="ftp-inbox-check-col"><input type="checkbox" id="ftp-inbox-check-all" title="Select all" aria-label="Select all"></th>
+                                <th>Preview</th>
+                                <th>Upload Time</th>
+                                <th>Device ID</th>
+                                <th>Assigned Officer</th>
+                                <th>Location</th>
+                                <th>Media Info</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ftp-inbox-tbody"></tbody>
+                    </table>
+                </div>
+                <div id="ftp-inbox-preview" class="ftp-inbox-preview" hidden>
+                    <div class="ftp-inbox-preview-inner">
+                        <div class="ftp-inbox-preview-bar">
+                            <span id="ftp-inbox-preview-cap" class="hint"></span>
+                            <button type="button" class="btn btn-ghost btn-sm" id="ftp-inbox-preview-close">Close</button>
+                        </div>
+                        <img id="ftp-inbox-preview-img" alt="" hidden>
+                        <video id="ftp-inbox-preview-video" controls playsinline hidden></video>
+                    </div>
+                </div>
+                <div id="ftp-inbox-map" class="ftp-inbox-map" hidden>
+                    <div class="ftp-inbox-map-inner">
+                        <div class="ftp-inbox-preview-bar">
+                            <span id="ftp-inbox-map-cap" class="hint">Location</span>
+                            <button type="button" class="btn btn-ghost btn-sm" id="ftp-inbox-map-close">Close</button>
+                        </div>
+                        <div id="ftp-inbox-map-leaflet" class="ftp-inbox-map-leaflet" role="img" aria-label="Map"></div>
+                        <p id="ftp-inbox-map-coords" class="hint mono"></p>
+                    </div>
                 </div>
             </div>
 
@@ -11084,8 +11783,9 @@
 
             <div id="ev-panel-ops-cases" class="evidence-hub-panel" hidden>
                 <div id="ops-cases-list-wrap">
-                    <p class="setup-hint" data-i18n="opsCases.hint" hidden></p>
-                    <div class="cf-filter-toolbar ops-cases-filters">
+                    <p class="setup-hint" data-i18n="opsCases.hint" hidden>SOS and analytics cases — notes and status.</p>
+                    <div class="cf-filter-toolbar ops-cases-filters ev-ops-cases-toolbar">
+                        <div class="ev-ops-cases-toolbar-left">
                         <label><span data-i18n="opsCases.filterFamily">Family</span>
                             <select id="ops-cases-family">
                                 <option value="" data-i18n="opsCases.familyAll">All</option>
@@ -11125,8 +11825,12 @@
                             </select></label>
                         <label><span data-i18n="opsCases.filterSearch">Search</span>
                             <input type="search" id="ops-cases-search" autocomplete="off" maxlength="120" data-i18n-placeholder="opsCases.searchPh" placeholder="Case ID, camera, notes&hellip;"></label>
-                        <button type="button" class="btn btn-action btn-sm" id="ops-cases-refresh" data-i18n="evidence.refresh">Refresh</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ops-cases-refresh" data-i18n="evidence.refresh">Refresh</button>
                         <span id="ops-cases-meta" class="hint"></span>
+                        </div>
+                        <div class="ev-ops-cases-toolbar-right">
+                            <button type="button" class="btn btn-danger btn-sm" id="ops-cases-bulk-purge" hidden data-i18n="opsCases.bulkPurge">Bulk Purge</button>
+                        </div>
                     </div>
                     <div id="ops-cases-empty" class="cf-empty-state" hidden>
                         <p class="cf-empty-title" data-i18n="opsCases.empty">No cases in this period.</p>
@@ -11242,8 +11946,8 @@
 
             <div id="ev-panel-case-files" class="evidence-hub-panel" hidden>
                 <div id="cf-hint-block" class="cf-hint-block">
-                    <p id="cf-hint" class="setup-hint cf-hint" data-i18n="caseFiles.hint" hidden></p>
-                    <p class="setup-hint cf-hint cf-hint-sos" data-i18n="caseFiles.hintSos" hidden></p>
+                    <p id="cf-hint" class="setup-hint cf-hint" data-i18n="caseFiles.hint" hidden>Write the report and link Library evidence.</p>
+                    <p class="setup-hint cf-hint cf-hint-sos" data-i18n="caseFiles.hintSos" hidden>Ack does not open a Case File. Use Create from SOS when needed.</p>
                 </div>
                 <div id="cf-list-toolbar" class="evidence-toolbar cf-toolbar">
                     <button type="button" class="btn btn-action btn-sm" id="cf-create" data-i18n="caseFiles.newCase">New case file</button>
@@ -11333,7 +12037,7 @@
                             <option value="all" data-i18n="evidenceHub.holdsFilterAll">All</option>
                         </select>
                     </label>
-                    <button type="button" class="btn btn-action btn-sm" id="ev-holds-refresh" data-i18n="evidence.refresh">Refresh</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="ev-holds-refresh" data-i18n="evidence.refresh">Refresh</button>
                     <span id="ev-holds-meta" class="hint"></span>
                 </div>
                 <div id="ev-holds-grid" class="ev-holds-grid"></div>
@@ -11412,14 +12116,16 @@
 
             <!-- EVIDENCE-RETENTION-CATEGORIES-V1 -->
             <div id="ev-panel-retention" class="evidence-hub-panel" hidden>
-                <p class="setup-hint" data-i18n="evidenceRetention.hint" hidden></p>
-                <div class="evidence-toolbar">
-                    <button type="button" class="btn btn-action btn-sm" id="ev-retention-refresh" data-i18n="evidence.refresh">Refresh</button>
-                    <span id="ev-retention-meta" class="hint"></span>
-                </div>
+                <p class="setup-hint" data-i18n="evidenceRetention.hint" hidden>Categories control how long Library files are kept.</p>
                 <div class="enterprise-layout-2col ev-retention-layout">
                     <div class="enterprise-card ev-retention-list-card">
-                        <h4 data-i18n="evidenceRetention.listTitle">Categories</h4>
+                        <div class="ev-retention-list-header">
+                            <h4 data-i18n="evidenceRetention.listTitle">Categories</h4>
+                            <div class="ev-retention-list-header-actions">
+                                <button type="button" class="btn btn-action btn-sm" id="ev-retention-refresh" data-i18n="evidence.refresh">Refresh</button>
+                                <span id="ev-retention-meta" class="hint"></span>
+                            </div>
+                        </div>
                         <p id="ev-retention-empty" class="hint" hidden data-i18n="evidenceRetention.empty">No categories yet.</p>
                         <div class="ss-evidence-table-wrap">
                             <table class="evidence-table" id="ev-retention-table">
@@ -11458,14 +12164,17 @@
 
             <!-- EVIDENCE-DELETE-QUEUE-7D-V1 -->
             <div id="ev-panel-delete-queue" class="evidence-hub-panel" hidden>
-                <p class="setup-hint" data-i18n="evidenceDeleteQueue.hint" hidden></p>
+                <p class="setup-hint" data-i18n="evidenceDeleteQueue.hint" hidden>Queued deletes stay recoverable for 7 days, then purge.</p>
                 <div class="evidence-toolbar">
-                    <button type="button" class="btn btn-action btn-sm" id="ev-delete-queue-refresh" data-i18n="evidence.refresh">Refresh</button>
-                    <button type="button" class="btn btn-ghost btn-sm" id="ev-delete-queue-purge" data-i18n="evidenceDeleteQueue.purgeDue">Purge due now</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="ev-delete-queue-refresh" data-i18n="evidence.refresh">Refresh</button>
+                    <button type="button" class="btn btn-danger btn-sm" id="ev-delete-queue-purge" data-i18n="evidenceDeleteQueue.purgeDue">Purge due now</button>
                     <span id="ev-delete-queue-meta" class="hint"></span>
                 </div>
-                <p id="ev-delete-queue-empty" class="hint" hidden data-i18n="evidenceDeleteQueue.empty">No files waiting for deletion.</p>
-                <div class="ss-evidence-table-wrap enterprise-card" style="padding:12px">
+                <div id="ev-delete-queue-empty" class="ev-delete-queue-empty-card" hidden>
+                    <h4 class="ev-delete-queue-empty-title" data-i18n="evidenceDeleteQueue.emptyTitle">Deletion Queue is empty</h4>
+                    <p class="ev-delete-queue-empty-subtext" data-i18n="evidenceDeleteQueue.empty">No files are currently scheduled for permanent removal.</p>
+                </div>
+                <div class="ss-evidence-table-wrap ev-delete-queue-table-wrap" id="ev-delete-queue-table-wrap">
                     <table class="evidence-table" id="ev-delete-queue-table">
                         <thead>
                             <tr>
@@ -11483,20 +12192,6 @@
             </div>
 
             <div id="ev-panel-settings" class="evidence-hub-panel ev-storage-panel ev-hub-panel-rail enterprise-scope" hidden>
-                <div id="dock-identity-setup-banner" class="enterprise-card dock-identity-setup-banner" hidden>
-                    <h4 data-i18n="dockIdentity.title">Dock evidence setup (once per site)</h4>
-                    <p class="setup-hint"><span data-i18n="dockIdentity.introBefore">Cameras missing a serial:</span> <span id="dock-identity-setup-count">0</span>. <span data-i18n="dockIdentity.introAfter">Dock uploads use the serial folder name.</span></p>
-                    <ol class="dock-identity-setup-steps">
-                        <li data-i18n="dockIdentity.step1">Read the serial / asset sticker on each body camera.</li>
-                        <li data-i18n="dockIdentity.step2">Settings → BWCs → enter that serial in the Serial column (after Officer). Device ID stays as registered.</li>
-                        <li data-i18n="dockIdentity.step3">Configure dock/FTP so uploads land under folders named by that serial.</li>
-                    </ol>
-                    <div class="dock-identity-setup-actions">
-                        <button type="button" class="btn btn-primary btn-sm" id="dock-identity-setup-open-bwc" data-i18n="dockIdentity.openBwc">Open BWCs</button>
-                        <button type="button" class="btn btn-action btn-sm" id="dock-identity-setup-done" data-i18n="dockIdentity.done">Mark complete</button>
-                        <button type="button" class="btn btn-ghost btn-sm" id="dock-identity-setup-remind" data-i18n="dockIdentity.remind">Remind later</button>
-                    </div>
-                </div>
                 <div class="ev-hub-layout enterprise-layout-2col">
                 <div class="ev-hub-main">
                 <div class="ev-storage-layout">
@@ -11541,7 +12236,7 @@
                 </section>
 
                 <section class="ev-storage-card enterprise-card ev-storage-span-full">
-                    <h4 data-i18n="evidence.storageIngestTitle">Ingest paths</h4>
+                    <h4 data-i18n="evidence.storageIngestTitle">Upload paths</h4>
                     <div class="ev-ftp-settings-block">
                         <h5 class="ev-ftp-subhead" data-i18n="evidence.ftpCredentialsTitle">FTP upload service</h5>
                         <p class="setup-hint" style="margin:0 0 10px" data-i18n="evidence.ftpCredentialsHint">Same FTP username and password on each camera and dock.</p>
@@ -11619,7 +12314,7 @@
                 </section>
 
                 <section class="ev-storage-section ev-storage-card-compact" id="ev-storage-catalog">
-                    <h4 data-i18n="evidence.storageCatalogTitle">Evidence catalog</h4>
+                    <h4 data-i18n="evidence.storageCatalogTitle">Evidence Index</h4>
                     <p class="setup-hint" style="margin-top:0" data-i18n="evidence.storageCatalogHint" hidden></p>
                     <p class="hint" data-i18n="evidence.storageCatalogPath">File: storage/mobility.db (WAL mode)</p>
                 </section>
@@ -11638,6 +12333,20 @@
                 </div>
 
                 <aside class="ev-context-rail" id="ev-storage-context-rail" aria-labelledby="ev-storage-rail-title">
+                    <div id="dock-identity-setup-banner" class="enterprise-card dock-identity-setup-banner" hidden>
+                        <h4 data-i18n="dockIdentity.title">Docking Station Configuration</h4>
+                        <p class="setup-hint"><span data-i18n="dockIdentity.introBefore">Cameras missing a serial:</span> <span id="dock-identity-setup-count">0</span>. <span data-i18n="dockIdentity.introAfter">Dock uploads use the serial folder name.</span></p>
+                        <ol class="dock-identity-setup-steps">
+                            <li data-i18n="dockIdentity.step1">Read the serial / asset sticker on each body camera.</li>
+                            <li data-i18n="dockIdentity.step2">Settings → BWCs → enter that serial in the Serial column (after Officer). Device ID stays as registered.</li>
+                            <li data-i18n="dockIdentity.step3">Configure dock/FTP so uploads land under folders named by that serial.</li>
+                        </ol>
+                        <div class="dock-identity-setup-actions">
+                            <button type="button" class="btn btn-primary btn-sm" id="dock-identity-setup-open-bwc" data-i18n="dockIdentity.openBwc">Open BWCs</button>
+                            <button type="button" class="btn btn-action btn-sm" id="dock-identity-setup-done" data-i18n="dockIdentity.done">Mark complete</button>
+                            <button type="button" class="btn btn-ghost btn-sm" id="dock-identity-setup-remind" data-i18n="dockIdentity.remind">Remind later</button>
+                        </div>
+                    </div>
                     <div class="ev-context-rail-inner enterprise-card">
                         <h4 id="ev-storage-rail-title" data-i18n="evidenceHub.storageRailTitle">System status</h4>
                         <div id="ev-storage-rail-body"><p class="hint" data-i18n="evidenceHub.loading">Loading&hellip;</p></div>
@@ -11671,7 +12380,7 @@
 
         <div id="ev-dock-dialog" hidden>
             <div class="ev-dock-dialog-inner">
-                <h4 id="ev-dock-dialog-title" data-i18n="evidenceHub.registerDock">Register dock</h4>
+                <h4 id="ev-dock-dialog-title" data-i18n="evidenceHub.registerDock">Register Docking Station</h4>
                 <input type="hidden" id="ev-dock-edit-id">
                 <label class="full"><span data-i18n="evidenceHub.dockName">Display name</span>
                     <input type="text" id="ev-dock-display-name" autocomplete="off" required></label>
@@ -11843,7 +12552,7 @@
     <script src="/js/auth-reverify.js?v=20260702-admin-action-bus"></script>
     <script src="/js/password-policy-ui.js?v=20260708-pwd12"></script>
     <script src="/js/tab-lifecycle.js?v=20260702-restore-8wc-v2"></script>
-    <script src="/js/server-setup.js?v=20260727-server-phase-labels-meaning-only-v1"></script>
+    <script src="/js/server-setup.js?v=20260810-users-authority-filter-v1"></script>
     <script src="/js/help-about.js?v=20260723-help-about-center-v1"></script>
     <script src="/js/platform-smtp.js?v=20260706-smtp-settings"></script>
     <script src="/js/settings-hub.js?v=20260712-health-plain"></script>
@@ -11864,38 +12573,40 @@
     <script src="/js/fr-offline-video.js?v=20260805-fr-offline-isolate-v1"></script>
     <script src="/js/fr-enroll-cropper.js?v=20260710-fr-cropper"></script>
     <script src="/js/anpr-plate-cropper.js?v=20260729-anpr-snapshot-v1"></script>
-    <script src="/js/hq-alert-audio.js?v=20260809-sos-alert-audio-reliable-v1"></script>
-    <script src="/js/fr-alarm.js?v=20260809-hq-alert-audio-v1"></script>
+    <script src="/js/hq-alert-audio.js?v=20260810-hq-alert-custom-tone-files-v1"></script>
+    <script src="/js/analytic-toast-drag.js?v=20260811-analytic-toast-draggable-v1"></script>
+    <script src="/js/fr-alarm.js?v=20260811-analytic-toast-draggable-v1"></script>
     <script src="/js/wvp-lab-tile.js?v=20260802-lab-chase-unify-v1"></script>
-    <script src="/js/anpr-live-watch.js?v=20260805-engine-name-tab-v1"></script>
+    <script src="/js/anpr-live-watch.js?v=20260813-anpr-stop-kill-native-v1"></script>
     <script src="/js/anpr-offline-match.js?v=20260805-offline-status-matching-v1"></script>
     <script src="/js/anpr-image-investigation.js?v=20260804-image-invest-scaffold-v1"></script>
     <script src="/js/anpr-history.js?v=20260801-anpr-history-v1"></script>
-    <script src="/js/weapon-live-watch.js?v=20260808-wd-hist-retrieve-v1"></script>
-    <script src="/js/weapon-alarm.js?v=20260809-hq-alert-audio-v1"></script>
-    <script src="/js/analytics-hub.js?v=20260807-wd-warm-auto-v1"></script>
+    <script src="/js/weapon-live-watch.js?v=20260811-wd-tile-expand-v1"></script>
+    <script src="/js/weapon-alarm.js?v=20260811-analytic-toast-draggable-v1"></script>
+    <script src="/js/analytics-hub.js?v=20260814-anpr-autoload-ftp-v1"></script>
     <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/operator-ui.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/ev-context-rail.js?v=20260627-rail-trim"></script>
-    <script src="/js/evidence-storage-ui.js?v=20260723-storage-compact-enterprise-v1"></script>
+    <script src="/js/evidence-storage-ui.js?v=20260814-storage-layout-labels-v1"></script>
     <script src="/js/route-trace.js?v=20260621-smart-gps"></script>
     <script src="/js/case-files-ui.js?v=20260810-continue-case-file-v1"></script>
-    <script src="/js/evidence-delete-queue-ui.js?v=20260810-delete-queue-7d-v1"></script>
+    <script src="/js/evidence-delete-queue-ui.js?v=20260814-delete-queue-empty-v1"></script>
     <script src="/js/evidence-retention-ui.js?v=20260810-retention-categories-v1"></script>
-    <script src="/js/ops-cases-ui.js?v=20260810-bind-library-picker-v1"></script>
-    <script src="/js/fr-kept-ui.js?v=20260801-delete-superadmin-rbac"></script>
+    <script src="/js/ops-cases-ui.js?v=20260814-deskmap-export-v1"></script>
+    <script src="/js/fr-kept-ui.js?v=20260814-holds-empty-hierarchy-v1"></script>
     <script src="/js/dock-identity-setup.js?v=20260809-dock-identity-hint-v1"></script>
-    <script src="/js/evidence-hub.js?v=20260810-redact-license-grey-v1"></script>
+    <script src="/js/ftp-inbox-ui.js?v=20260814-unassigned-final-v1"></script>
+    <script src="/js/evidence-hub.js?v=20260814-docks-empty-v1"></script>
     <script src="/js/system-health-plain.js?v=20260804-global-heartbeat-v1"></script>
     <script src="/js/missed-activity.js?v=20260712-alerts-copy"></script>
     <script src="/js/evidence-manager.js?v=20260728-cad-tab-shell"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260725-server-viewer-only-v1"></script>
+    <script src="/js/video-wall.js?v=20260810-sos-ledger-flv-frame-v1"></script>
     <script src="/js/video-matrix.js?v=20260721-ops10-v1"></script>
     <script src="/js/global-device-presence.js?v=20260801-global-presence-v1"></script>
     <script src="/js/fleet-ui.js?v=20260724-user-circle-batch-open-v1"></script>
     <script src="/js/map-popout-sync.js?v=20260612-mirror"></script>
-    <script src="/js/voice-alerts.js?v=20260809-sos-alert-audio-reliable-v1"></script>
+    <script src="/js/voice-alerts.js?v=20260810-hq-alert-tone-presets-hold-v1"></script>
     <script src="/vendor/leaflet/leaflet.js?v=20260701-vendor-local"></script>
     <script src="/vendor/leaflet-draw/leaflet.draw.js?v=20260724-tactical-leaflet-draw-v1"></script>
     <script src="/vendor/markercluster/leaflet.markercluster.js?v=20260701-vendor-local"></script>
@@ -12042,7 +12753,7 @@
                     if (!response.ok || !data.ok) throw new Error((data && data.error) || ('HTTP ' + response.status));
                     if (!marker.isPopupOpen()) return;
                     if (!window.Me8LivePlayerFactory || typeof window.Me8LivePlayerFactory.attachFlvPrimary !== 'function') {
-                        throw new Error('FLV player is unavailable');
+                        throw new Error('Live video player is unavailable');
                     }
                     const player = window.Me8LivePlayerFactory.attachFlvPrimary(stage, data.flvUrl, {
                         proveMs: 300,
@@ -12050,7 +12761,7 @@
                         onProven: function () { if (status) status.textContent = 'Live'; },
                         onFail: function () { if (status) status.textContent = 'Video unavailable'; },
                     });
-                    if (!player) throw new Error('FLV player could not start');
+                    if (!player) throw new Error('Live video player could not start');
                     fixedCameraMapPlayers.set(camera.id, { player: player, marker: marker });
                 });
             }).catch(function (error) {
@@ -12186,7 +12897,7 @@
             MobilityMapTiles.attachLeaflet(map);
         } else {
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: 'Â© OpenStreetMap contributors',
+                attribution: '&copy; OpenStreetMap contributors',
                 maxNativeZoom: 19,
                 maxZoom: 20,
                 keepBuffer: 12,
@@ -12738,8 +13449,8 @@
                     ? '<p class="map-popup-mirror-note">' + escapePinText(dashboardTr('map.popoutMirrorHint')) + '</p>' : '') +
                 '<p class="map-popup-title" title="' + escapePinText(name) + '">' +
                 '<span class="map-popup-name">' + escapePinText(name) + '</span>' +
-                (idHtml ? '<span class="map-popup-meta">Â\u00B7 ' + idHtml + '</span>' : '') +
-                '<span class="map-popup-badge-inline ' + badgeClass + '">Â\u00B7 ' + escapePinText(badgeText) + '</span></p>' +
+                (idHtml ? '<span class="map-popup-meta">\u00B7 ' + idHtml + '</span>' : '') +
+                '<span class="map-popup-badge-inline ' + badgeClass + '">\u00B7 ' + escapePinText(badgeText) + '</span></p>' +
                 '</div>' +
                 '<button type="button" class="map-pin-minimize" data-cam-id="' + escapePinText(camId) + '" title="' +
                 escapePinText(dashboardTr('map.pin.minimize')) + '" aria-label="' + escapePinText(dashboardTr('map.pin.minimize')) + '">\u2212</button>' +
@@ -13204,7 +13915,7 @@
             if (hintEl) hintEl.hidden = true;
             el.innerHTML = members.map(function (m) {
                 var title = m.subtitle
-                    ? (m.label + ' Â\u00B7 ' + m.subtitle)
+                    ? (m.label + ' \u00B7 ' + m.subtitle)
                     : m.label;
                 var on = opts.editable
                     ? pttGroupPickCamIds.indexOf(m.camId) >= 0
@@ -13867,10 +14578,10 @@
             var color;
             if (alarmKind === 'fall') {
                 color = '#F59E0B';
-                if (label.indexOf('FALL') !== 0) label = 'FALL Â\u00B7 ' + label;
+                if (label.indexOf('FALL') !== 0) label = 'FALL \u00B7 ' + label;
             } else if (alarmKind === 'sos') {
                 color = '#FF3333';
-                if (label.indexOf('SOS') !== 0) label = 'SOS Â\u00B7 ' + label;
+                if (label.indexOf('SOS') !== 0) label = 'SOS \u00B7 ' + label;
             } else if (offline) {
                 color = '#94a3b8';
             } else {
@@ -13881,7 +14592,7 @@
             if (geofenceOutside) {
                 color = '#f97316';
                 var outLbl = dashboardTr('map.pin.geofenceOut');
-                if (label.indexOf(outLbl) !== 0) label = outLbl + ' Â\u00B7 ' + label;
+                if (label.indexOf(outLbl) !== 0) label = outLbl + ' \u00B7 ' + label;
             }
             return { label: label, color: color, mapGroup: mapGroup, alarmKind: alarmKind || null, offline: offline, geofenceOutside: geofenceOutside };
         }
@@ -14067,7 +14778,7 @@
             }
             bar.setAttribute('data-cluster', clusterId);
             var label = bar.querySelector('.map-pin-cluster-label');
-            if (label) label.textContent = (idx + 1) + '/' + cluster.length + ' Â\u00B7 ' + friendlyPinName(camId);
+            if (label) label.textContent = (idx + 1) + '/' + cluster.length + ' \u00B7 ' + friendlyPinName(camId);
         }
 
         function colocatedClusterHasOpenPopup(cluster) {
@@ -15952,7 +16663,7 @@
                 (hasCrop ? ('<img src="' + crop + '" alt="">') : '') +
                 '<div class="fr-snap-map-meta">' +
                 '<p><strong>' + escapePinText(name) + '</strong>' +
-                (snap.camId ? (' Â\u00B7 ' + escapePinText(String(snap.camId))) : '') + '</p>' +
+                (snap.camId ? (' \u00B7 ' + escapePinText(String(snap.camId))) : '') + '</p>' +
                 '<p>' + escapePinText(timeStr) + '</p>' +
                 '<p>' + escapePinText(gpsStr) + '</p>' +
                 (scoreStr ? ('<p>' + escapePinText(scoreStr) + '</p>') : '') +
@@ -16110,15 +16821,15 @@
                     escapePinText(snap.camId || '') + '" data-has-crop="' + (hasCrop ? '1' : '0') + '">' +
                     buildFrSnapCardInnerHtml(snap, { expanded: false }) +
                     '</div>';
-                /* mob-fr-map-pin-floating-tag \u2014 FR Â\u00B7 name visible without click */
+                /* mob-fr-map-pin-floating-tag \u2014 FR \u00B7 name visible without click */
                 var name = snap.deviceLabel || snap.camId || '\u2014';
                 var tagWho = snap.displayName || name || '\u2014';
                 var tagPrefix = (typeof dashboardTr === 'function'
                     ? dashboardTr('analytics.fr.snapMapPinTag')
                     : 'FR snap');
-                var tagText = tagPrefix + ' Â\u00B7 ' + tagWho;
+                var tagText = tagPrefix + ' \u00B7 ' + tagWho;
                 if (snap.scorePct != null && Number.isFinite(Number(snap.scorePct))) {
-                    tagText += ' Â\u00B7 ' + Math.round(Number(snap.scorePct)) + '%';
+                    tagText += ' \u00B7 ' + Math.round(Number(snap.scorePct)) + '%';
                 }
                 var icon = L.divIcon({
                     className: 'fr-snap-map-pin-icon',
@@ -17150,7 +17861,7 @@
                 var base = activeAlarmKind === 'fall'
                     ? dashboardTr('sos.banner.fall')
                     : dashboardTr('sos.banner.distress');
-                prefix.textContent = n > 1 ? (base + ' Â\u00B7 ' + n + ' alarms') : base;
+                prefix.textContent = n > 1 ? (base + ' \u00B7 ' + n + ' alarms') : base;
             }
             if (typeof FleetDisplay !== 'undefined') {
                 FleetDisplay.setCamLabel(document.getElementById('sos-cam'), alarm.cameraId);
@@ -17587,7 +18298,7 @@
             if (btn) {
                 btn.classList.toggle('active', active);
                 btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-                btn.textContent = active ? 'PTT TEAM Â\u00B7 ON' : dashboardTr('sos.banner.pttTeam');
+                btn.textContent = active ? 'PTT TEAM \u00B7 ON' : dashboardTr('sos.banner.pttTeam');
             }
             var sidebar = document.getElementById('sos-ptt-team-sidebar');
             var postBanner = active && getSosAlarmCount() === 0;
@@ -17707,7 +18418,7 @@
             list.innerHTML = candidates.map(function (d) {
                 var cid = String(d.cameraId).replace(/"/g, '&quot;');
                 var distLabel = d.distanceM != null
-                    ? (' (' + d.distanceM + ' m' + (d.outsideCircle ? ' Â\u00B7 outside circle' : '') + ')')
+                    ? (' (' + d.distanceM + ' m' + (d.outsideCircle ? ' \u00B7 outside circle' : '') + ')')
                     : ' (remote / no GPS)';
                 var cls = 'sos-ptt-add-btn' + (d.remote ? ' remote' : (d.outsideCircle ? ' outside' : ''));
                 return '<button type="button" class="' + cls + '" data-cam-id="' + cid + '">+ '
@@ -18081,7 +18792,7 @@
                 el.id = 'sos-received-toast';
                 document.body.appendChild(el);
             }
-            el.textContent = 'SOS received Â\u00B7 ' + (camId || '');
+            el.textContent = 'SOS received \u00B7 ' + (camId || '');
             el.hidden = false;
             positionSosReceivedToast(el);
             requestAnimationFrame(function () { positionSosReceivedToast(el); });
@@ -18128,9 +18839,14 @@
         paintSosMapPin(camId, data, openPopup);
                 VideoWall.onSosAlarm(data);
                 if (global.VideoWall && VideoWall.unmuteAudioForSosCam) {
-                    getActiveSosCamIds().forEach(function (id) { VideoWall.unmuteAudioForSosCam(id); });
+                    getActiveSosCamIds().forEach(function (id) {
+                        if (typeof clearSosAckMuteHold === 'function') clearSosAckMuteHold(id);
+                        VideoWall.unmuteAudioForSosCam(id);
+                    });
                 }
                 stashSosAckSnapshot(camId);
+                setTimeout(function () { stashSosAckSnapshot(camId); }, 800);
+                setTimeout(function () { stashSosAckSnapshot(camId); }, 2000);
                 resyncPinVideoAfterSosAck(camId);
                 setTimeout(function () {
                     assignColocatedPinPopupDocks('sos-ack');
@@ -18334,7 +19050,7 @@
                 var label = document.createElement('label');
                 label.className = 'geofence-pick-option' + (clearable ? '' : ' geofence-pick-disabled');
                 var name = d.operatorName || (typeof FleetDisplay !== 'undefined' ? FleetDisplay.friendlyDeviceName(d.deviceId) : d.deviceId);
-                var group = d.mapGroup ? (' Â\u00B7 ' + d.mapGroup) : '';
+                var group = d.mapGroup ? (' \u00B7 ' + d.mapGroup) : '';
                 var checked = false;
                 if (clearable) {
                     if (preselectId && d.deviceId === preselectId && d.hasGeofence) checked = true;
@@ -18914,6 +19630,50 @@
             }
         }
 
+        /* SOS-ACK-MUTE-HOLD-RESPECT-V2 — live path is this index.html inline (dashboard-boot.js not loaded). 60s hold; re-unmute after Ack resync. No video-wall / FLV edits. */
+        var sosAckMuteHoldTimers = {};
+        var sosAckListenHoldUntil = {};
+        var SOS_ACK_MUTE_HOLD_MS = 60000;
+
+        function isCamSosAckListenHold(camId) {
+            camId = normalizeCamId(camId);
+            if (!camId) return false;
+            var until = sosAckListenHoldUntil[camId];
+            return !!(until && until > Date.now());
+        }
+        window.isCamSosAckListenHold = isCamSosAckListenHold;
+
+        function clearSosAckMuteHold(camId) {
+            camId = normalizeCamId(camId);
+            if (!camId) return;
+            if (sosAckMuteHoldTimers[camId]) {
+                clearTimeout(sosAckMuteHoldTimers[camId]);
+                delete sosAckMuteHoldTimers[camId];
+            }
+            delete sosAckListenHoldUntil[camId];
+        }
+
+        function keepListenAfterSosAck(camId) {
+            camId = normalizeCamId(camId);
+            if (!camId || !isCamSosAckListenHold(camId)) return;
+            if (typeof VideoWall !== 'undefined' && VideoWall.unmuteAudioForSosCam) {
+                VideoWall.unmuteAudioForSosCam(camId);
+            }
+        }
+
+        function scheduleMuteAckedCamLiveAudio(camId) {
+            camId = normalizeCamId(camId);
+            if (!camId) return;
+            clearSosAckMuteHold(camId);
+            sosAckListenHoldUntil[camId] = Date.now() + SOS_ACK_MUTE_HOLD_MS;
+            sosAckMuteHoldTimers[camId] = setTimeout(function () {
+                delete sosAckMuteHoldTimers[camId];
+                delete sosAckListenHoldUntil[camId];
+                if (typeof isCamSosActive === 'function' && isCamSosActive(camId)) return;
+                muteAckedCamLiveAudio(camId);
+            }, SOS_ACK_MUTE_HOLD_MS);
+        }
+
         /** After SOS close \u2014 patrol pins were on the map layer during alarm; re-attach so cluster/viewport does not hide them until zoom-out. */
         function reattachFleetMarkersAfterSosClose() {
             var openIds = getOpenPinCamIds();
@@ -18995,8 +19755,11 @@
             if (opts.keepPttTeam) syncSosPttTeamUi();
             if (opts.recentAckCamId) {
                 markRecentlyAckedSos(opts.recentAckCamId, opts.recentAckKind);
-                muteAckedCamLiveAudio(opts.recentAckCamId);
+                scheduleMuteAckedCamLiveAudio(opts.recentAckCamId);
                 resyncPinVideoAfterSosAck(opts.recentAckCamId);
+                keepListenAfterSosAck(opts.recentAckCamId);
+                setTimeout(function () { keepListenAfterSosAck(opts.recentAckCamId); }, 300);
+                setTimeout(function () { keepListenAfterSosAck(opts.recentAckCamId); }, 900);
             }
             reattachFleetMarkersAfterSosClose();
         }
@@ -19020,11 +19783,17 @@
             refreshSosStormBanner();
             renderSosAlarmStrip();
             markRecentlyAckedSos(camId, opts.recentAckKind);
-            muteAckedCamLiveAudio(camId);
+            scheduleMuteAckedCamLiveAudio(camId);
             if (typeof expandMapPinVideo === 'function') expandMapPinVideo(camId);
             resyncPinVideoAfterSosAck(camId);
+            keepListenAfterSosAck(camId);
+            setTimeout(function () { keepListenAfterSosAck(camId); }, 300);
+            setTimeout(function () { keepListenAfterSosAck(camId); }, 900);
             if (global.VideoWall && VideoWall.unmuteAudioForSosCam) {
-                getActiveSosCamIds().forEach(function (id) { VideoWall.unmuteAudioForSosCam(id); });
+                getActiveSosCamIds().forEach(function (id) {
+                    clearSosAckMuteHold(id);
+                    VideoWall.unmuteAudioForSosCam(id);
+                });
             }
             refreshAllDeviceMarkerStyles();
             drawSosResponseCircleFromServer();
@@ -19734,11 +20503,11 @@
                     actions = '<button type="button" class="btn btn-stop btn-sm ks-approve" data-request-id="'
                         + ksEscAttr(r.id) + '">' + dashboardTr('map.killSwitch.approve') + '</button>';
                 }
-                var incident = r.incidentId ? (' Â\u00B7 ' + ksEscAttr(r.incidentId)) : '';
+                var incident = r.incidentId ? (' \u00B7 ' + ksEscAttr(r.incidentId)) : '';
                 return '<div class="kill-switch-approve-item"><div class="ks-meta"><strong>'
                     + ksEscAttr(cmdLabel) + '</strong> \u2014 ' + ksEscAttr(deviceLabel)
                     + '<br>' + dashboardTr('map.killSwitch.requestedBy', { user: r.requesterUsername || '\u2014' })
-                    + (exp ? (' Â\u00B7 ' + dashboardTr('map.killSwitch.expiresIn', { time: exp })) : '')
+                    + (exp ? (' \u00B7 ' + dashboardTr('map.killSwitch.expiresIn', { time: exp })) : '')
                     + '<div class="ks-reason">' + ksEscAttr(r.reason || '') + incident + '</div></div>'
                     + '<div class="ks-actions">' + actions + '</div></div>';
             }).join('');
@@ -20133,7 +20902,7 @@
             });
         })();
     </script>
-    <script defer src="/js/vc-lazy.js?v=20260724-vc-live-stage-restore-escape-v1"></script>
+    <script defer src="/js/vc-lazy.js?v=20260814-vc-recordings-list-v1"></script>
     <script defer src="/js/fixed-cams-ui.js?v=20260725-onvif-harden-profile-m-v1"></script>
 
 <!-- Fixed Cameras dialog &mdash; opens from Settings card, fully self-contained, no fleet-ui.js dependency -->
@@ -20277,9 +21046,9 @@
 </div>
 
 <!-- mob-track-b2-two-wvp-tiles &mdash; lab only; body.fm-lab-wvp when FM_LAB_WVP=1 -->
-<div id="me8-wvp-lab-tile" hidden aria-label="Lab WVP two live tiles">
+<div id="me8-wvp-lab-tile" hidden aria-label="Diagnostics live video tiles">
     <div class="me8-wvp-lab-head">
-        <span class="me8-wvp-lab-title">Lab Â&middot; WVP two tiles</span>
+        <span class="me8-wvp-lab-title">Diagnostics · Live video tiles</span>
         <span id="me8-wvp-lab-badge" class="me8-wvp-lab-badge">off</span>
         <button type="button" id="me8-wvp-lab-min" title="Minimize">&#9601;</button>
     </div>
@@ -20292,8 +21061,8 @@
                 <div class="me8-wvp-lab-slot-label">Tile A</div>
                 <div id="me8-wvp-lab-stage-a" class="me8-wvp-lab-stage"></div>
                 <div class="me8-wvp-lab-row">
-                    <select id="me8-wvp-lab-device-a" aria-label="WVP device A"></select>
-                    <select id="me8-wvp-lab-channel-a" aria-label="WVP channel A"></select>
+                    <select id="me8-wvp-lab-device-a" aria-label="Camera device A"></select>
+                    <select id="me8-wvp-lab-channel-a" aria-label="Camera channel A"></select>
                 </div>
                 <div class="me8-wvp-lab-row">
                     <button type="button" id="me8-wvp-lab-play-a" class="primary">Play A</button>
@@ -20304,8 +21073,8 @@
                 <div class="me8-wvp-lab-slot-label">Tile B</div>
                 <div id="me8-wvp-lab-stage-b" class="me8-wvp-lab-stage"></div>
                 <div class="me8-wvp-lab-row">
-                    <select id="me8-wvp-lab-device-b" aria-label="WVP device B"></select>
-                    <select id="me8-wvp-lab-channel-b" aria-label="WVP channel B"></select>
+                    <select id="me8-wvp-lab-device-b" aria-label="Camera device B"></select>
+                    <select id="me8-wvp-lab-channel-b" aria-label="Camera channel B"></select>
                 </div>
                 <div class="me8-wvp-lab-row">
                     <button type="button" id="me8-wvp-lab-play-b" class="primary">Play B</button>

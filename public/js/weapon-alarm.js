@@ -350,6 +350,14 @@
             bind('wd-weapon-history-fab', openHistory);
             bind('wd-weapon-history-close', closeHistory);
         }
+        try {
+            if (global.AnalyticToastDrag && typeof global.AnalyticToastDrag.enable === 'function') {
+                global.AnalyticToastDrag.enable(toast, {
+                    handle: '.wd-weapon-toast-head',
+                    storageKey: 'ax-toast-pos-wd-weapon',
+                });
+            }
+        } catch (_) { /* ignore */ }
     }
 
     function bindCaseUiOnce() {

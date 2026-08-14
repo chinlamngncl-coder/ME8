@@ -186,7 +186,7 @@
         opts = opts || {};
         destroySlot(key);
         if (!global.AxiomFlvManager || typeof global.AxiomFlvManager.attach !== 'function') {
-            log('Tile ' + key.toUpperCase() + ': AxiomFlvManager not available');
+            log('Tile ' + key.toUpperCase() + ': live video player not available');
             setBadge('no player', false);
             return;
         }
@@ -277,7 +277,7 @@
         if (preferDirect && direct) chain.push({ url: direct, via: 'direct-zlm' });
         if (proxy) chain.push({ url: proxy, via: 'proxy' });
         if (!chain.length) {
-            log('Tile ' + key.toUpperCase() + ': no FLV URL');
+            log('Tile ' + key.toUpperCase() + ': no stream URL');
             setBadge('no url', false);
             return;
         }
@@ -343,7 +343,7 @@
                 setBadge('fail', false);
                 return;
             }
-            log('WVP ok \u00B7 pick cam A and cam B');
+            log('Media server ready · pick cam A and cam B');
             var res = await fetch('/api/lab/wvp/devices', { credentials: 'same-origin' });
             var data = await readJson(res);
             if (!res.ok) {
@@ -383,7 +383,7 @@
         slots[key].reopenCount = 0;
         clearReopenTimer(key);
         try {
-            log('Tile ' + key.toUpperCase() + ': starting WVP play\u2026');
+            log('Tile ' + key.toUpperCase() + ': starting live video\u2026');
             var res = await fetch('/api/lab/wvp/play', {
                 method: 'POST',
                 credentials: 'same-origin',

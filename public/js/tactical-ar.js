@@ -199,7 +199,7 @@
         liveCamId = cameraId;
         setStatus(tr('tactical.arStatusConnecting', 'Connecting live…'), 'unlocked');
         if (!global.Me8LivePlayerFactory || typeof Me8LivePlayerFactory.attachFlvPrimary !== 'function') {
-            setStatus(tr('tactical.arStatusNoPlayer', 'FLV player unavailable'), 'unlocked');
+            setStatus(tr('tactical.arStatusNoPlayer', 'Live video player unavailable'), 'unlocked');
             return;
         }
         fetch('/api/fixed-cams/' + encodeURIComponent(cameraId) + '/zlm/start', {

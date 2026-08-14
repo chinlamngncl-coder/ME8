@@ -1,0 +1,13 @@
+{
+  "copied_from": "C:\\Users\\user\\Desktop\\Enterprise Mobility\\ME8\\weapon-sidecar\\finetune-out\\pistol-smoke\\checkpoint_best_total.pth",
+  "dest": "C:\\Users\\user\\Desktop\\Enterprise Mobility\\ME8\\weapon-sidecar\\models\\checkpoint_pistol_smoke.pth",
+  "num_classes": 1,
+  "class_map": {
+    "1": "gun"
+  },
+  "epochs": 6,
+  "device": "cpu",
+  "dataset": "C:\\Users\\user\\Desktop\\Enterprise Mobility\\ME8\\weapon-finetune-dataset\\coco_pistol_smoke",
+  "negatives": 0,
+  "warning": "pistol-smoke only; auto-boxes; test on DIFFERENT videos; knife not in this head"
+}

@@ -542,7 +542,6 @@
         section.id = 'ev-storage-fr';
         section.innerHTML =
             '<h4>' + esc(tr('evidence.frStorageTitle')) + '</h4>'
-            + '<p class="setup-hint" style="margin-top:0">' + esc(tr('evidence.frStorageHint')) + '</p>'
             + '<label class="full" for="ss-fr-storage-root"><span>' + esc(tr('evidence.frStorageRoot')) + '</span>'
             + '<div class="ev-path-row">'
             + '<input type="text" id="ss-fr-storage-root" autocomplete="off" readonly>'

@@ -1,0 +1,14 @@
+---
+description: Product face is Mobility Axiom — never rename to C2 without explicit user order
+alwaysApply: true
+---
+
+# Brand: Axiom stays
+
+**Disc:** `ME8/docs/MOB-DISC-BRAND-AXIOM-NOT-C2.md`
+
+- Customer-facing product name = **Mobility Axiom** (wordmark Mobility + **Axiom**)
+- Company / logo = **Ubitron**
+- **C2** / ME8 = internal project names only — **not** UI product rename
+- Do **not** change Axiom → C2 (or any other nickname) unless the user explicitly orders it
+- OEM ban list still applies (no banned vendor names)

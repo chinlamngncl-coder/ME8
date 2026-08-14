@@ -38,13 +38,16 @@
     function renderList(items, queueDays) {
         var tbody = document.getElementById('ev-delete-queue-tbody');
         var empty = document.getElementById('ev-delete-queue-empty');
+        var tableWrap = document.getElementById('ev-delete-queue-table-wrap');
         var meta = document.getElementById('ev-delete-queue-meta');
         if (!tbody) return;
         tbody.innerHTML = '';
         var rows = items || [];
-        if (empty) empty.hidden = rows.length > 0;
+        var hasRows = rows.length > 0;
+        if (empty) empty.hidden = hasRows;
+        if (tableWrap) tableWrap.hidden = !hasRows;
         if (meta) {
-            meta.textContent = rows.length
+            meta.textContent = hasRows
                 ? (String(rows.length) + ' · ' + tr('evidenceDeleteQueue.window', 'Purge after') + ' ' + String(queueDays || 7) + 'd')
                 : '';
         }

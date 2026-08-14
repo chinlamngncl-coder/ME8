@@ -25,6 +25,7 @@
     var rosterGroupExpanded = Object.create(null);
     var recentHits = [];
     var recentTimer = null;
+    var expandedTileId = null; // WEAPON-LIVE-TILE-EXPAND-V1 — null = 6-grid
 
     /** Match i18n.js humanizeKey — missing keys must use fallback (not "Lb Zoom Hint"). */
     function humanizeKeyTail(key) {
@@ -542,6 +543,23 @@
             .catch(function () { /* ignore */ });
     }
 
+    function applyWdTileExpand() {
+        var grid = document.querySelector('#ax-panel-weapon .ax-fr-grid');
+        if (!grid) return;
+        grid.classList.toggle('is-tile-expanded', !!expandedTileId);
+        grid.querySelectorAll('.ax-wd-tile').forEach(function (tile) {
+            var id = tile.getAttribute('data-tile-id') || ('wd-' + tile.getAttribute('data-wd-slot'));
+            var isExp = expandedTileId != null && id === expandedTileId;
+            tile.classList.toggle('is-expanded', isExp);
+            tile.classList.toggle('is-expanded-hidden', !!(expandedTileId && !isExp));
+        });
+    }
+
+    function toggleWdTileExpand(tileId) {
+        expandedTileId = (expandedTileId === tileId) ? null : tileId;
+        applyWdTileExpand();
+    }
+
     function startWatch() {
         if (!selected.length) return;
         watching = true;
@@ -553,6 +571,8 @@
 
     function stopWatch() {
         watching = false;
+        expandedTileId = null;
+        applyWdTileExpand();
         for (var i = 0; i < LIVE_SLOTS; i++) stopSlot(i);
         emitWatchSlots();
         renderWatchList();
@@ -1019,6 +1039,25 @@
         if (stopBtn) stopBtn.onclick = function () { stopWatch(); };
         if (stopAllBtn) stopAllBtn.onclick = function () { stopAllWatch(); };
         if (clearBtn) clearBtn.onclick = function () { clearWatchSet(); };
+
+        var tilesHost = document.querySelector('#ax-panel-weapon .ax-fr-grid');
+        if (tilesHost && !tilesHost._wdExpandBound) {
+            tilesHost._wdExpandBound = true;
+            tilesHost.addEventListener('click', function (ev) {
+                var tile = ev.target && ev.target.closest
+                    ? ev.target.closest('.ax-wd-tile[data-wd-slot]')
+                    : null;
+                if (!tile) return;
+                if (ev.target && ev.target.closest
+                    && ev.target.closest('button, a, input, select, textarea, .video-slot-popout')) {
+                    return;
+                }
+                var s = parseInt(tile.getAttribute('data-wd-slot'), 10);
+                if (isNaN(s) || s < 0) return;
+                var tileId = tile.getAttribute('data-tile-id') || ('wd-' + s);
+                toggleWdTileExpand(tileId);
+            });
+        }
 
         var searchEl = document.getElementById('ax-wd-roster-search');
         if (searchEl) {

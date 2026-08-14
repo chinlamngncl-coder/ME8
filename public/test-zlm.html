@@ -8,7 +8,7 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title>ME8 ZLM test bench (Gate B)</title>
+    <title>Axiom media server test bench</title>
     <link rel="stylesheet" href="/css/global.css?v=20260731-dark-form-controls-unify-v1">
 
     <style>
@@ -53,9 +53,9 @@
 
 <body>
 
-    <h1>ME8 ZLM test bench (Gate B) <span id="modeBadge" class="badge idle">idle</span></h1>
+    <h1>Axiom media server test bench <span id="modeBadge" class="badge idle">idle</span></h1>
 
-    <p>Isolated lab page &mdash; not connected to Command Wall or map pins. Requires <code>FM_LAB_ZLM=1</code> and ZLM sidecar.</p>
+    <p>Isolated lab page &mdash; not connected to Command Wall or map pins. Requires lab media-server mode enabled.</p>
 
     <ol>
 
@@ -63,7 +63,7 @@
 
         <li>Click <strong>Play</strong> &mdash; relay subscribes to pool WS and publishes to ZLM.</li>
 
-        <li>Video plays here via ZLM FLV (<strong>dashboard proxy</strong>, not :8080), or FFmpeg WS fallback if ZLM is down.</li>
+        <li>Video plays here via the media server (<strong>dashboard proxy</strong>), or FFmpeg fallback if the media server is down.</li>
 
     </ol>
 
@@ -219,7 +219,7 @@
 
         flvPlayer.on(mpegts.Events.ERROR, function () {
 
-            log('ZLM FLV player error \u2014 try Refresh status or FFmpeg fallback');
+            log('Live video player error \u2014 try Refresh status or FFmpeg fallback');
 
         });
 
@@ -227,7 +227,7 @@
 
         flvPlayer.play();
 
-        log('ZLM FLV play ok: ' + flvUrl);
+        log('Live video play ok: ' + flvUrl);
 
     }
 

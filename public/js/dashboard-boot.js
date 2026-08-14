@@ -4854,7 +4854,10 @@
         paintSosMapPin(camId, data, openPopup);
                 VideoWall.onSosAlarm(data);
                 if (global.VideoWall && VideoWall.unmuteAudioForSosCam) {
-                    getActiveSosCamIds().forEach(function (id) { VideoWall.unmuteAudioForSosCam(id); });
+                    getActiveSosCamIds().forEach(function (id) {
+                        clearSosAckMuteHold(id);
+                        VideoWall.unmuteAudioForSosCam(id);
+                    });
                 }
                 stashSosAckSnapshot(camId);
                 resyncPinVideoAfterSosAck(camId);
@@ -5640,6 +5643,50 @@
             }
         }
 
+        /* SOS-ACK-MUTE-HOLD-V1/V2 — mirror of live index.html Ack hold (index.html is what Ops loads). */
+        var sosAckMuteHoldTimers = {};
+        var sosAckListenHoldUntil = {};
+        var SOS_ACK_MUTE_HOLD_MS = 60000;
+
+        function isCamSosAckListenHold(camId) {
+            camId = normalizeCamId(camId);
+            if (!camId) return false;
+            var until = sosAckListenHoldUntil[camId];
+            return !!(until && until > Date.now());
+        }
+        window.isCamSosAckListenHold = isCamSosAckListenHold;
+
+        function clearSosAckMuteHold(camId) {
+            camId = normalizeCamId(camId);
+            if (!camId) return;
+            if (sosAckMuteHoldTimers[camId]) {
+                clearTimeout(sosAckMuteHoldTimers[camId]);
+                delete sosAckMuteHoldTimers[camId];
+            }
+            delete sosAckListenHoldUntil[camId];
+        }
+
+        function keepListenAfterSosAck(camId) {
+            camId = normalizeCamId(camId);
+            if (!camId || !isCamSosAckListenHold(camId)) return;
+            if (typeof VideoWall !== 'undefined' && VideoWall.unmuteAudioForSosCam) {
+                VideoWall.unmuteAudioForSosCam(camId);
+            }
+        }
+
+        function scheduleMuteAckedCamLiveAudio(camId) {
+            camId = normalizeCamId(camId);
+            if (!camId) return;
+            clearSosAckMuteHold(camId);
+            sosAckListenHoldUntil[camId] = Date.now() + SOS_ACK_MUTE_HOLD_MS;
+            sosAckMuteHoldTimers[camId] = setTimeout(function () {
+                delete sosAckMuteHoldTimers[camId];
+                delete sosAckListenHoldUntil[camId];
+                if (typeof isCamSosActive === 'function' && isCamSosActive(camId)) return;
+                muteAckedCamLiveAudio(camId);
+            }, SOS_ACK_MUTE_HOLD_MS);
+        }
+
         /** After SOS close \u2014 patrol pins were on the map layer during alarm; re-attach so cluster/viewport does not hide them until zoom-out. */
         function reattachFleetMarkersAfterSosClose() {
             var openIds = getOpenPinCamIds();
@@ -5721,8 +5768,11 @@
             updateSosResponseSummary();
             if (opts.recentAckCamId) {
                 markRecentlyAckedSos(opts.recentAckCamId, opts.recentAckKind);
-                muteAckedCamLiveAudio(opts.recentAckCamId);
+                scheduleMuteAckedCamLiveAudio(opts.recentAckCamId);
                 resyncPinVideoAfterSosAck(opts.recentAckCamId);
+                keepListenAfterSosAck(opts.recentAckCamId);
+                setTimeout(function () { keepListenAfterSosAck(opts.recentAckCamId); }, 300);
+                setTimeout(function () { keepListenAfterSosAck(opts.recentAckCamId); }, 900);
             }
             reattachFleetMarkersAfterSosClose();
         }
@@ -5746,11 +5796,17 @@
             refreshSosStormBanner();
             renderSosAlarmStrip();
             markRecentlyAckedSos(camId, opts.recentAckKind);
-            muteAckedCamLiveAudio(camId);
+            scheduleMuteAckedCamLiveAudio(camId);
             if (typeof expandMapPinVideo === 'function') expandMapPinVideo(camId);
             resyncPinVideoAfterSosAck(camId);
+            keepListenAfterSosAck(camId);
+            setTimeout(function () { keepListenAfterSosAck(camId); }, 300);
+            setTimeout(function () { keepListenAfterSosAck(camId); }, 900);
             if (global.VideoWall && VideoWall.unmuteAudioForSosCam) {
-                getActiveSosCamIds().forEach(function (id) { VideoWall.unmuteAudioForSosCam(id); });
+                getActiveSosCamIds().forEach(function (id) {
+                    clearSosAckMuteHold(id);
+                    VideoWall.unmuteAudioForSosCam(id);
+                });
             }
             refreshAllDeviceMarkerStyles();
             drawSosResponseCircleFromServer();

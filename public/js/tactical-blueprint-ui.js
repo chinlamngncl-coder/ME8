@@ -83,7 +83,7 @@
         if (status === 404 || status === 405 || status === 501 || status === 502) {
             return tr(
                 'tactical.bpNeedRestart',
-                'This action is not on the running server yet. Restart Fleet (LAB CONSOLE START), hard-refresh (Ctrl+F5), then try again.',
+                'This action is not on the running server yet. Restart Axiom, hard-refresh (Ctrl+F5), then try again.',
             );
         }
         if (status === 503) {
@@ -98,7 +98,7 @@
             if (fallbackKey === 'tactical.bpRemoveFail' || fallbackKey === 'tactical.bpSaveFail') {
                 return tr(
                     'tactical.bpNeedRestart',
-                    'This action is not on the running server yet. Restart Fleet (LAB CONSOLE START), hard-refresh (Ctrl+F5), then try again.',
+                    'This action is not on the running server yet. Restart Axiom, hard-refresh (Ctrl+F5), then try again.',
                 );
             }
         }

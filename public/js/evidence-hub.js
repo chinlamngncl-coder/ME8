@@ -147,21 +147,28 @@
         }
         const addDock = document.getElementById('ev-dock-add');
         if (addDock) addDock.hidden = !perms.dockAdmin;
+        const addDockToolbar = document.getElementById('ev-dock-add-toolbar');
+        if (addDockToolbar) addDockToolbar.hidden = !perms.dockAdmin;
         const navStorage = document.getElementById('ev-nav-storage');
         if (navStorage) navStorage.hidden = dashboardRole !== 'super_admin';
         const navRetention = document.getElementById('ev-nav-retention');
         if (navRetention) navRetention.hidden = dashboardRole !== 'super_admin';
         const navDeleteQueue = document.getElementById('ev-nav-delete-queue');
         if (navDeleteQueue) navDeleteQueue.hidden = dashboardRole !== 'super_admin';
+        const navFtpInbox = document.getElementById('ev-nav-ftp-inbox');
+        if (navFtpInbox) navFtpInbox.hidden = dashboardRole !== 'super_admin';
         const navDocks = document.getElementById('ev-nav-docks');
         if (navDocks) navDocks.hidden = !perms.dockAdmin && dashboardRole !== 'super_admin';
         const navRx = document.getElementById('ev-nav-redacted-exports');
         if (navRx) navRx.hidden = !perms.export && !perms.superAdmin;
         const forensicImport = document.getElementById('ev-forensic-import');
         if (forensicImport) forensicImport.hidden = !perms.superAdmin;
+        const clearQueueBtn = document.getElementById('ev-catalog-clear-queue');
+        if (clearQueueBtn) clearQueueBtn.hidden = !perms.superAdmin;
         if (dashboardRole !== 'super_admin' && currentPanel === 'settings') showPanel('overview');
         else if (dashboardRole !== 'super_admin' && currentPanel === 'retention') showPanel('overview');
         else if (dashboardRole !== 'super_admin' && currentPanel === 'delete-queue') showPanel('overview');
+        else if (dashboardRole !== 'super_admin' && currentPanel === 'ftp-inbox') showPanel('overview');
         else if (currentPanel === 'approvals') showPanel('catalog', { focusExportQueue: true });
         else if (!perms.dockAdmin && dashboardRole !== 'super_admin' && currentPanel === 'docks') showPanel('overview');
         else if (!perms.export && !perms.superAdmin && currentPanel === 'redacted-exports') showPanel('overview');
@@ -436,6 +443,10 @@
         } else if (currentPanel === 'catalog') {
             if (panelWarm('catalog', force)) return;
             loadCatalog(force);
+        } else if (currentPanel === 'ftp-inbox') {
+            if (panelWarm('ftp-inbox', force)) return;
+            if (global.FtpInboxUi && FtpInboxUi.onShow) FtpInboxUi.onShow({ force: !!force });
+            markPanelLoaded('ftp-inbox');
         } else if (currentPanel === 'redacted-exports') {
             if (panelWarm('redacted-exports', force)) return;
             loadRedactedExports(force);
@@ -526,7 +537,6 @@
             const backups = stor.backups || {};
             const totals = ov.dockTotals || {};
             const fleet = ov.fleet || {};
-            const docks = ov.docks || [];
             let pendingExports = 0;
             if (exportRes && exportRes.ok) {
                 if (dashboardRole === 'super_admin') {
@@ -557,7 +567,7 @@
                 + '<div class="ev-kpi' + (archiveHealthy ? '' : ' ev-kpi-warn') + '"><span class="ev-kpi-n">' + esc(archiveHealthy ? tr('evidenceHub.archiveOk') : tr('evidenceHub.archiveWarn')) + '</span><span class="ev-kpi-l">' + tr('evidenceHub.kpiArchive') + '</span></div>'
                 + pendingKpi
                 + '</div>';
-            html += '<div class="ev-overview-columns">';
+            html += '<div class="ev-overview-layout">';
             html += '<div class="ev-storage-health"><h4>' + tr('evidenceHub.storageTitle') + '</h4>'
                 + '<div class="ev-health-rows">'
                 + healthRow(tr('evidenceHub.storageCatalog'), catalog.available
@@ -582,10 +592,15 @@
                     + '</div>';
             }
             html += '</div>';
-            html += '<div class="ev-dock-fleet-panel"><h4>' + tr('evidenceHub.dockFleetTitle') + '</h4>'
-                + renderDockFleetTable(docks, totals, ov.catalogHintsAvailable !== false && catalog.available)
-                + '</div></div>';
+            if ((perms.dockAdmin || dashboardRole === 'super_admin') && !totals.sites) {
+                html += '<div class="ev-overview-empty-card enterprise-card">'
+                    + '<p class="ev-overview-empty-text">' + esc(tr('evidenceHub.noDocks')) + '</p>'
+                    + '<button type="button" class="btn btn-action btn-sm" data-ev-panel="docks">'
+                    + esc(tr('evidenceHub.registerDock')) + '</button>'
+                    + '</div>';
+            }
             html += '<div id="ev-overview-alerts" class="ev-overview-alerts"></div>';
+            html += '</div>';
             el.innerHTML = html;
             bindPanelJump(el);
             bindOverviewAdminActions(el);
@@ -602,12 +617,6 @@
                     + esc(tr('evidenceHub.alertDocksOffline', { count: totals.sitesOffline }))
                     + '<button type="button" class="ev-overview-alert-link" data-ev-panel="docks">'
                     + esc(tr('evidenceHub.dockManageLink')) + '</button></p>');
-            }
-            if ((perms.dockAdmin || dashboardRole === 'super_admin') && !totals.sites) {
-                alertParts.push('<p class="ev-overview-alert ev-overview-alert-info">'
-                    + esc(tr('evidenceHub.noDocks'))
-                    + '<button type="button" class="ev-overview-alert-link" data-ev-panel="docks">'
-                    + esc(tr('evidenceHub.registerDock')) + '</button></p>');
             }
             if (alertsEl && alertParts.length) {
                 alertsEl.innerHTML = alertParts.join('');
@@ -659,19 +668,28 @@
     async function loadDocksList(force) {
         const list = document.getElementById('ev-docks-list');
         const grid = document.getElementById('ev-dock-bay-grid');
-        if (!list) return;
+        const emptyEl = document.getElementById('ev-docks-empty');
+        const populatedEl = document.getElementById('ev-docks-populated');
+        if (!list && !emptyEl) return;
         if (panelWarm('docks', force)) return;
-        list.innerHTML = '<p class="hint">' + tr('evidenceHub.loading') + '</p>';
+        if (emptyEl) emptyEl.hidden = true;
+        if (populatedEl) populatedEl.hidden = false;
+        if (list) list.innerHTML = '<p class="hint">' + tr('evidenceHub.loading') + '</p>';
         try {
             const res = await fetch('/api/docks', { credentials: 'same-origin' });
             const data = await res.json();
             if (!res.ok || !data.ok) throwCatalogErr(data);
             docksCache = data.docks || [];
             if (!docksCache.length) {
-                list.innerHTML = '<p class="setup-hint">' + tr('evidenceHub.noDocks') + '</p>';
+                if (emptyEl) emptyEl.hidden = false;
+                if (populatedEl) populatedEl.hidden = true;
+                if (list) list.innerHTML = '';
                 if (grid) grid.innerHTML = '';
+                markPanelLoaded('docks');
                 return;
             }
+            if (emptyEl) emptyEl.hidden = true;
+            if (populatedEl) populatedEl.hidden = false;
             list.innerHTML = docksCache.map(function (d) {
                 const loc = [d.city, d.province, d.country].filter(Boolean).join(', ');
                 return '<button type="button" class="ev-dock-row' + (selectedDockId === d.id ? ' active' : '') + '" data-dock-id="' + esc(d.id) + '">'
@@ -684,7 +702,9 @@
             if (selectedDockId) loadDockBays(selectedDockId);
             markPanelLoaded('docks');
         } catch (err) {
-            list.innerHTML = '<p class="hint">' + esc(catalogMsg(err.opPayload || err.catalogPayload, err)) + '</p>';
+            if (emptyEl) emptyEl.hidden = true;
+            if (populatedEl) populatedEl.hidden = false;
+            if (list) list.innerHTML = '<p class="hint">' + esc(catalogMsg(err.opPayload || err.catalogPayload, err)) + '</p>';
         }
     }
 
@@ -785,6 +805,11 @@
 
     function catalogTagFilterValue() {
         const el = document.getElementById('ev-catalog-tag-filter');
+        return el ? String(el.value || '').trim().toLowerCase() : '';
+    }
+
+    function catalogSearchValue() {
+        const el = document.getElementById('ev-catalog-search');
         return el ? String(el.value || '').trim().toLowerCase() : '';
     }
 
@@ -966,10 +991,12 @@
         }
         try {
             const tagQ = catalogTagFilterValue();
+            const searchQ = catalogSearchValue();
             const catalogUrl = '/api/evidence/catalog?page=' + encodeURIComponent(catalogPage)
                 + '&pageSize=' + encodeURIComponent(CATALOG_PAGE_SIZE)
                 + '&status=' + encodeURIComponent(catalogStatus)
-                + (tagQ ? ('&tag=' + encodeURIComponent(tagQ)) : '');
+                + (tagQ ? ('&tag=' + encodeURIComponent(tagQ)) : '')
+                + (searchQ ? ('&q=' + encodeURIComponent(searchQ)) : '');
             const fetches = [
                 fetch(catalogUrl, { credentials: 'same-origin' }).then(function (r) { return r.json(); }),
             ];
@@ -998,9 +1025,10 @@
             }
             showCatalogTable(true);
             if (meta) {
-                meta.textContent = tagQ
-                    ? tr('evidenceHub.tagFilterActive', { tag: tagQ })
-                    : '';
+                const bits = [];
+                if (searchQ) bits.push(tr('evidenceHub.searchActive', { q: searchQ }));
+                if (tagQ) bits.push(tr('evidenceHub.tagFilterActive', { tag: tagQ }));
+                meta.textContent = bits.join(' · ');
             }
             tbody.innerHTML = files.map(function (f) {
                 const statusText = f.storageAvailable === false
@@ -1070,10 +1098,15 @@
             return;
         }
         if (exportMeta) {
-            exportMeta.textContent = rows.length
-                ? tr('evidenceHub.approvalsPendingMeta', { n: rows.length })
-                : tr('evidenceHub.approvalsQueueClear');
-            exportMeta.classList.toggle('ev-export-meta-warn', rows.length > 0);
+            if (rows.length) {
+                exportMeta.hidden = false;
+                exportMeta.textContent = tr('evidenceHub.approvalsPendingMeta', { n: rows.length });
+                exportMeta.classList.add('ev-export-meta-warn');
+            } else {
+                exportMeta.hidden = true;
+                exportMeta.textContent = '';
+                exportMeta.classList.remove('ev-export-meta-warn');
+            }
         }
         if (!queueEl) return;
         if (!rows.length) {
@@ -3612,13 +3645,15 @@
 
     function ensureForensicImportControl() {
         if (document.getElementById('ev-forensic-import')) return;
+        const right = document.getElementById('ev-catalog-toolbar-right');
+        const clearBtn = document.getElementById('ev-catalog-clear-queue');
         const refresh = document.getElementById('evidence-refresh');
-        const toolbar = refresh && refresh.parentElement;
+        const toolbar = right || (refresh && refresh.parentElement);
         if (!toolbar) return;
         const button = document.createElement('button');
         button.type = 'button';
         button.id = 'ev-forensic-import';
-        button.className = 'btn btn-action btn-sm';
+        button.className = 'btn btn-primary btn-sm';
         button.setAttribute('data-i18n', 'evidenceHub.importForensic');
         button.textContent = tr('evidenceHub.importForensic');
         button.hidden = !perms.superAdmin;
@@ -3630,9 +3665,15 @@
         const message = document.createElement('span');
         message.id = 'ev-forensic-import-msg';
         message.className = 'hint';
-        toolbar.insertBefore(button, refresh.nextSibling);
-        toolbar.insertBefore(input, button.nextSibling);
-        toolbar.insertBefore(message, input.nextSibling);
+        if (right && clearBtn) {
+            right.insertBefore(button, clearBtn);
+            right.insertBefore(input, clearBtn);
+            right.insertBefore(message, clearBtn);
+        } else {
+            toolbar.insertBefore(button, refresh ? refresh.nextSibling : null);
+            toolbar.insertBefore(input, button.nextSibling);
+            toolbar.insertBefore(message, input.nextSibling);
+        }
         button.addEventListener('click', function () {
             if (!perms.superAdmin) return;
             input.value = '';
@@ -3665,6 +3706,33 @@
         });
     }
 
+    async function clearCatalogDeleteQueue() {
+        if (!perms.superAdmin) return;
+        const msg = tr('evidenceHub.clearQueueConfirm');
+        if (!window.confirm(msg)) return;
+        const btn = document.getElementById('ev-catalog-clear-queue');
+        if (btn) btn.disabled = true;
+        try {
+            const res = await fetch('/api/evidence/delete-queue/purge-due', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throwCatalogErr(data);
+            const meta = document.getElementById('evidence-meta');
+            if (meta) {
+                meta.textContent = tr('evidenceHub.clearQueueDone', { n: data.purged || 0 });
+            }
+            await loadCatalog(true);
+        } catch (err) {
+            window.alert(catalogMsg(err.opPayload || err.catalogPayload, err));
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
     function bindUi() {
         ensureForensicImportControl();
         document.querySelectorAll('.evidence-hub-nav-btn').forEach(function (btn) {
@@ -3672,11 +3740,14 @@
                 showPanel(btn.dataset.panel);
             });
         });
-        const addDock = document.getElementById('ev-dock-add');
-        if (addDock) addDock.addEventListener('click', function () {
+        function onRegisterDockClick() {
             if (!perms.dockAdmin) { alert(tr('evidenceHub.noDockPerm')); return; }
             openDockForm(null);
-        });
+        }
+        const addDock = document.getElementById('ev-dock-add');
+        if (addDock) addDock.addEventListener('click', onRegisterDockClick);
+        const addDockToolbar = document.getElementById('ev-dock-add-toolbar');
+        if (addDockToolbar) addDockToolbar.addEventListener('click', onRegisterDockClick);
         const dockList = document.getElementById('ev-docks-list');
         if (dockList) {
             dockList.addEventListener('click', function (e) {
@@ -3747,6 +3818,33 @@
                     if (tagTimer) clearTimeout(tagTimer);
                     runTagFilter();
                 }
+            });
+        }
+        const searchFilter = document.getElementById('ev-catalog-search');
+        if (searchFilter && !searchFilter._evSearchBound) {
+            searchFilter._evSearchBound = true;
+            let searchTimer = null;
+            function runSearchFilter() {
+                catalogPage = 1;
+                if (currentPanel === 'catalog') loadCatalog(true);
+            }
+            searchFilter.addEventListener('input', function () {
+                if (searchTimer) clearTimeout(searchTimer);
+                searchTimer = setTimeout(runSearchFilter, 280);
+            });
+            searchFilter.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (searchTimer) clearTimeout(searchTimer);
+                    runSearchFilter();
+                }
+            });
+        }
+        const clearQueueBtn = document.getElementById('ev-catalog-clear-queue');
+        if (clearQueueBtn && !clearQueueBtn._evClearBound) {
+            clearQueueBtn._evClearBound = true;
+            clearQueueBtn.addEventListener('click', function () {
+                clearCatalogDeleteQueue();
             });
         }
         document.querySelectorAll('.ev-catalog-status-btn').forEach(function (btn) {

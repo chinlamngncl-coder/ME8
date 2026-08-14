@@ -4536,6 +4536,76 @@ app.post('/api/voice-alerts-settings', dashboardAuth.requireSuperAdmin, (req, re
     }
 });
 
+/* HQ-ALERT-CUSTOM-TONE-FILES-V1 — site custom SOS / analytics desk tones */
+const hqAlertTones = require('./lib/hqAlertTones');
+const hqAlertToneUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: hqAlertTones.MAX_BYTES, files: 1 },
+});
+
+app.get('/api/hq-alert-tones', (req, res) => {
+    try {
+        res.json({ ok: true, tones: hqAlertTones.publicMeta(STORAGE_DIR) });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.get('/api/hq-alert-tones/file/:slot', (req, res) => {
+    try {
+        const resolved = hqAlertTones.resolveSlotFile(STORAGE_DIR, req.params.slot);
+        if (!resolved) return res.status(404).json({ ok: false, error: 'Tone file not found' });
+        res.setHeader('Content-Type', resolved.contentType);
+        res.setHeader('Cache-Control', 'private, max-age=60');
+        fs.createReadStream(resolved.path).pipe(res);
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.post('/api/hq-alert-tones/upload/:slot', dashboardAuth.requireSuperAdmin, (req, res) => {
+    hqAlertToneUpload.single('file')(req, res, (err) => {
+        if (err) {
+            const status = err.code === 'LIMIT_FILE_SIZE' ? 400 : 500;
+            return res.status(status).json({ ok: false, error: err.message || 'Upload failed' });
+        }
+        try {
+            hqAlertTones.saveSlotUpload(STORAGE_DIR, req.params.slot, req.file);
+            auditLog.recordFromRequest(req, 'hq_alert_tones.upload', {
+                detail: { slot: req.params.slot, name: req.file && req.file.originalname },
+            });
+            res.json({ ok: true, tones: hqAlertTones.publicMeta(STORAGE_DIR) });
+        } catch (e) {
+            res.status(e.status || 500).json({ ok: false, error: e.message || 'Upload failed' });
+        }
+    });
+});
+
+app.post('/api/hq-alert-tones/modes', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        hqAlertTones.saveModes(STORAGE_DIR, req.body || {});
+        auditLog.recordFromRequest(req, 'hq_alert_tones.modes', {
+            detail: {
+                sosMode: (req.body && req.body.sosMode) || null,
+                analyticsMode: (req.body && req.body.analyticsMode) || null,
+            },
+        });
+        res.json({ ok: true, tones: hqAlertTones.publicMeta(STORAGE_DIR) });
+    } catch (err) {
+        res.status(err.status || 500).json(opErr(err));
+    }
+});
+
+app.delete('/api/hq-alert-tones/:slot', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        hqAlertTones.clearSlot(STORAGE_DIR, req.params.slot);
+        auditLog.recordFromRequest(req, 'hq_alert_tones.clear', { detail: { slot: req.params.slot } });
+        res.json({ ok: true, tones: hqAlertTones.publicMeta(STORAGE_DIR) });
+    } catch (err) {
+        res.status(err.status || 500).json(opErr(err));
+    }
+});
+
 app.post('/api/evidence-settings', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         const body = req.body || {};
@@ -5969,7 +6039,10 @@ function buildMapPositionsPayload(session) {
 }
 
 function onlineDeviceIdsForGroups() {
-    return fleetRegistry.getDashboardFleet().map((d) => d.id).filter(Boolean);
+    /* VC-ONLINE-TRUTH-LIVE-V1 — only truly online fleet devices (never all ids). */
+    return fleetRegistry.getDashboardFleet()
+        .filter((d) => d && d.online && d.id)
+        .map((d) => d.id);
 }
 
 app.get('/api/dispatch-groups', (req, res) => {
@@ -6193,6 +6266,62 @@ app.get('/api/evidence/overview', requireEvidenceView, async (req, res) => {
     }
 });
 
+/* ADMIN-FTP-UPLOAD-BROWSER-V1 — Unassigned Evidence staging under FTP path (serial folders) */
+app.get('/api/ftp-inbox', dashboardAuth.requireDashboardAuth, dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        const ftpInbox = require('./lib/ftpInbox');
+        const settings = serverSettings.load(STORAGE_DIR);
+        const ftpRoot = storagePaths.resolveFtpRoot(BASE_DIR, settings);
+        const out = await ftpInbox.listInbox({
+            ftpRoot,
+            bwcDevices,
+            devicesData: loadBwcDevices(),
+            maxFiles: parseInt(req.query && req.query.max, 10) || 500,
+        });
+        res.json(out);
+    } catch (err) {
+        log.web.warn('ftp-inbox list failed', { message: err.message });
+        res.status(500).json({ ok: false, error: 'ftp_inbox_failed', message: String(err.message || err).slice(0, 160), files: [], items: [], count: 0 });
+    }
+});
+
+app.get('/api/ftp-inbox/file', dashboardAuth.requireDashboardAuth, dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        const ftpInbox = require('./lib/ftpInbox');
+        const settings = serverSettings.load(STORAGE_DIR);
+        const ftpRoot = storagePaths.resolveFtpRoot(BASE_DIR, settings);
+        const hit = ftpInbox.safeRelUnderRoot(ftpRoot, req.query && req.query.rel);
+        if (!hit) return res.status(400).json({ ok: false, error: 'bad_rel' });
+        if (!fs.existsSync(hit.abs)) return res.status(404).json({ ok: false, error: 'not_found' });
+        res.sendFile(hit.abs);
+    } catch (err) {
+        res.status(500).json({ ok: false, error: 'ftp_file_failed', message: String(err.message || err).slice(0, 120) });
+    }
+});
+
+app.post('/api/ftp-inbox/purge', dashboardAuth.requireDashboardAuth, dashboardAuth.requireSuperAdmin, express.json(), async (req, res) => {
+    try {
+        const ftpInbox = require('./lib/ftpInbox');
+        const settings = serverSettings.load(STORAGE_DIR);
+        const ftpRoot = storagePaths.resolveFtpRoot(BASE_DIR, settings);
+        const rels = (req.body && Array.isArray(req.body.rels)) ? req.body.rels
+            : (req.body && Array.isArray(req.body.paths) ? req.body.paths : []);
+        if (!rels.length) {
+            return res.status(400).json({ ok: false, error: 'rels_required', message: 'Select at least one file to remove.' });
+        }
+        const out = ftpInbox.purgeFiles(ftpRoot, rels);
+        try {
+            await auditLog.recordFromRequest(req, 'ftp_inbox.purge', {
+                detail: { count: out.count, deleted: out.deleted.slice(0, 40) },
+            });
+        } catch (_) { /* ignore audit failures */ }
+        res.json(out);
+    } catch (err) {
+        log.web.warn('ftp-inbox purge failed', { message: err.message });
+        res.status(500).json({ ok: false, error: 'ftp_purge_failed', message: String(err.message || err).slice(0, 160) });
+    }
+});
+
 app.post('/api/storage/maintenance', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         if (!siteDb.isReady()) {
@@ -6250,14 +6379,16 @@ app.get('/api/evidence/catalog', requireEvidenceView, async (req, res) => {
     try {
         const q = req.query || {};
         const tagQ = q.tag != null ? String(q.tag).trim().toLowerCase() : '';
+        const searchQ = q.q != null ? String(q.q).trim() : (q.search != null ? String(q.search).trim() : '');
         const statusRaw = q.status != null ? String(q.status).trim().toLowerCase() : 'active';
         const status = (statusRaw === 'archived' || statusRaw === 'all' || statusRaw === 'queued_delete') ? statusRaw : 'active';
         const wantsPage = q.page != null || q.pageSize != null || q.limit == null;
-        if (wantsPage || tagQ || status !== 'all') {
+        if (wantsPage || tagQ || searchQ || status !== 'all') {
             const result = await evidenceRegistry.listCatalogPage({
                 page: q.page,
                 pageSize: q.pageSize || q.limit || 50,
                 tag: tagQ,
+                q: searchQ,
                 status: status,
             });
             return res.json({
@@ -8114,8 +8245,47 @@ app.get('/api/analytics/anpr/health', dashboardAuth.requireDashboardAuth, async 
             live: {
                 maxCams: anprLivePoller.MAX_CAMS,
                 pollSec: anprLivePoller.POLL_SEC,
+                ingestExternal: !!anprLivePoller.EXTERNAL,
+                nativeIngest: !!anprLivePoller.NATIVE,
             },
         });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+/** Localhost (or token) — legacy Node external ingest (hatch); native Python is default */
+function anprIngestLocalAuth(req, res, next) {
+    const ip = String((req.socket && req.socket.remoteAddress) || '');
+    const local = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+    const tok = String(process.env.FM_ANPR_INGEST_TOKEN || '').trim();
+    const hdr = String(req.headers['x-anpr-ingest-token'] || '').trim();
+    if (tok) {
+        if (hdr === tok) return next();
+        return res.status(403).json({ ok: false, error: 'ingest_forbidden' });
+    }
+    if (local) return next();
+    return res.status(403).json({ ok: false, error: 'ingest_forbidden' });
+}
+
+app.get('/api/analytics/anpr/ingest-state', anprIngestLocalAuth, (req, res) => {
+    try {
+        if (typeof anprLivePoller.getIngestState !== 'function') {
+            return res.status(503).json({ ok: false, error: 'ingest_external_off' });
+        }
+        res.json(anprLivePoller.getIngestState());
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.post('/api/analytics/anpr/ingest-tick', anprIngestLocalAuth, express.json({ limit: '6mb' }), (req, res) => {
+    try {
+        if (typeof anprLivePoller.acceptExternalMessage !== 'function') {
+            return res.status(503).json({ ok: false, error: 'ingest_external_off' });
+        }
+        const out = anprLivePoller.acceptExternalMessage(req.body || {});
+        res.json(out && out.ok ? out : (out || { ok: false }));
     } catch (err) {
         res.status(500).json(opErr(err));
     }
@@ -9818,6 +9988,71 @@ app.delete('/api/conference/recordings/:id', requireConferenceView, (req, res) =
     }
 });
 
+app.post('/api/conference/recordings/bulk-purge', dashboardAuth.requireDashboardAuth, dashboardAuth.requireSuperAdmin, express.json(), (req, res) => {
+    try {
+        const ids = (req.body && Array.isArray(req.body.ids)) ? req.body.ids : [];
+        if (!ids.length) return res.status(400).json(opErr('Select at least one recording to remove.'));
+        const perms = conferencePerms(req);
+        const elevated = Object.assign({}, perms || {}, { conferenceHost: true, conferenceRecord: true });
+        const out = conferenceModule.bulkDeleteRecordings(ids, conferenceUser(req), elevated);
+        auditLog.recordFromRequest(req, 'conference.record.bulk_purge', {
+            detail: { count: out.count, deleted: out.deleted.slice(0, 40) },
+        });
+        res.json({ ok: true, deleted: out.deleted, failed: out.failed, count: out.count });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.post('/api/conference/recordings/push-evidence', requireConferenceView, requireFreeDiskSpace, express.json(), async (req, res) => {
+    try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        const perms = conferencePerms(req);
+        const isSuper = session && session.role === 'super_admin';
+        if (!isSuper && !(perms && (perms.conferenceHost || perms.conferenceRecord))) {
+            return res.status(403).json(opErr('Host or record permission required to push recordings to Evidence.'));
+        }
+        const ids = (req.body && Array.isArray(req.body.ids)) ? req.body.ids
+            : (req.body && req.body.id ? [req.body.id] : []);
+        if (!ids.length) return res.status(400).json(opErr('Select at least one recording.'));
+
+        const pushed = [];
+        const failed = [];
+        for (let i = 0; i < ids.length; i += 1) {
+            const id = String(ids[i] || '').trim();
+            if (!id) continue;
+            try {
+                const prep = conferenceModule.prepareRecordingForEvidencePush(id);
+                const destName = String(prep.suggestedFileName || (id + '.mp4')).replace(/[^A-Za-z0-9._-]/g, '_');
+                const destPath = path.join(FTP_ROOT, destName);
+                fs.copyFileSync(prep.sourcePath, destPath);
+                const result = await handleFtpFileUploaded({
+                    fileName: destName,
+                    fullPath: destPath,
+                    originalFileName: evidenceUploadSafeName.safeOriginalDisplayName(prep.displayName),
+                    peer: auditLog.clientIp(req),
+                    source: 'vc_recording',
+                    throwOnReject: true,
+                    auditRequest: req,
+                });
+                pushed.push({
+                    recordingId: id,
+                    evidenceId: result && result.evidenceId,
+                    fileName: result && result.admitted && result.admitted.originalFileName,
+                });
+            } catch (err) {
+                failed.push({ id: id, error: String(err && err.message || err).slice(0, 160) });
+            }
+        }
+        auditLog.recordFromRequest(req, 'conference.record.push_evidence', {
+            detail: { count: pushed.length, pushed: pushed.slice(0, 20) },
+        });
+        res.json({ ok: true, pushed: pushed, failed: failed, count: pushed.length });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
 app.post('/api/conference/room/:roomId/start', requireConferenceView, express.json(), async (req, res) => {
     try {
         const out = await conferenceModule.startRoom(req.params.roomId, conferenceUser(req), conferencePerms(req), req.body || {});
@@ -11029,6 +11264,7 @@ function scheduleDeviceRecordOnSos(camId, incidentId) {
     } catch (_) { /* ignore */ }
     if (sent) {
         log.sip.info('SOS device Record commanded', { camId: target, incidentId: incidentId || null });
+        armSosDeviceRecordForStopVideo(target, incidentId);
         try {
             auditLog.record('alarm.device_record', {
                 target,
@@ -11036,6 +11272,114 @@ function scheduleDeviceRecordOnSos(camId, incidentId) {
             });
         } catch (_) { /* ignore */ }
     }
+}
+
+/** POST-TEARDOWN-CLEAN-STOP-V2 — after hard-stop: wait 2500ms → CleanData → 500ms → StopRecord. */
+const sosDeviceRecordArmedByCam = new Map();
+
+function armSosDeviceRecordForStopVideo(camId, incidentId) {
+    const id = String(camId || '').trim();
+    if (!id) return;
+    sosDeviceRecordArmedByCam.set(id, {
+        at: Date.now(),
+        incidentId: incidentId || null,
+    });
+}
+
+function delayMs(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+}
+
+function resolveSosStopContact(camId) {
+    const target = String(camId || '').trim();
+    let resolved = resolveContactForCam(target);
+    if ((!resolved || !resolved.uri) && typeof restoreCameraContactForCam === 'function') {
+        try {
+            restoreCameraContactForCam(target, 'sos-device-stop-record');
+        } catch (_) { /* best effort */ }
+        resolved = resolveContactForCam(target);
+    }
+    return resolved;
+}
+
+/** After live fully torn down: settle fail-safe, then CleanData + StopRecord. */
+function runPostTeardownCleanStop(camId, armed) {
+    const target = String(camId || '').trim();
+    if (!target || !armed) return Promise.resolve(false);
+    const resolved = resolveSosStopContact(target);
+    if (!resolved || !resolved.uri) {
+        log.sip.warn('SOS post-teardown Clean/Stop skipped', {
+            camId: target,
+            incidentId: armed.incidentId || null,
+            reason: 'no_contact',
+        });
+        return Promise.resolve(false);
+    }
+    const commonDc = {
+        cameraContactUri: resolved.uri,
+        deviceId: target,
+        realm: REALM,
+        serverId: SERVER_ID,
+        publicHost: HOST,
+        sipPort: SIP_PORT,
+        contactSource: resolved.source,
+        log,
+    };
+    log.media.info('sos post-teardown clean-stop wait', {
+        camId: target,
+        settleMs: 2500,
+        reason: 'post_teardown_clean_stop_v2',
+    });
+    return delayMs(2500).then(function () {
+        const cleaned = deviceControl.sendDeviceControl(sip, Object.assign({}, commonDc, {
+            recordCmd: 'CleanData: 1',
+        }));
+        if (cleaned) {
+            log.sip.info('SOS device CleanData commanded', {
+                camId: target,
+                incidentId: armed.incidentId || null,
+                reason: 'post_teardown_clean_stop_v2',
+                recordCmd: 'CleanData: 1',
+            });
+        } else {
+            log.sip.warn('SOS device CleanData send_false', {
+                camId: target,
+                incidentId: armed.incidentId || null,
+            });
+        }
+        return delayMs(500).then(function () {
+            const sent = deviceControl.sendDeviceControl(sip, Object.assign({}, commonDc, {
+                recordCmd: 'StopRecord',
+            }));
+            if (sent) {
+                log.sip.info('SOS device StopRecord commanded', {
+                    camId: target,
+                    incidentId: armed.incidentId || null,
+                    reason: 'post_teardown_clean_stop_v2',
+                });
+                try {
+                    auditLog.record('alarm.device_stop_record', {
+                        target,
+                        detail: {
+                            incidentId: armed.incidentId || null,
+                            recordCmd: 'StopRecord',
+                            cleanDataFirst: !!cleaned,
+                            settleMs: 2500,
+                            cleanGapMs: 500,
+                            mode: 'udp_once',
+                            reason: 'post_teardown_clean_stop_v2',
+                        },
+                    });
+                } catch (_) { /* ignore */ }
+            } else {
+                log.sip.warn('SOS device StopRecord send_false', {
+                    camId: target,
+                    incidentId: armed.incidentId || null,
+                });
+            }
+            return !!sent;
+        });
+    });
 }
 
 let connectedCameraId = null;
@@ -11563,6 +11907,13 @@ function startMediaFromDashboard(payload, requestSocket) {
                         flvUrl: require('./lib/sameOriginMedia').toBrowserFlvUrl(out.flvUrl || null),
                         reused: !!out.reused,
                     });
+                    // ANPR native ingest: nudge poller to POST /watch/start (read-only getUpstreamFlv).
+                    // Does not call ensurePlay — play already succeeded above.
+                    try {
+                        if (surface === 'analytics-anpr') {
+                            anprLivePoller.notifyCamFlvReady(camId);
+                        }
+                    } catch (_) { /* ignore */ }
                 } else {
                     liveViewers.removeView(requestSocket.id, camId, surface);
                     requestSocket.emit('video-stream-error', {
@@ -12249,14 +12600,14 @@ const stopVideoInProgress = new Set();
  * Soft Open is WVP-only — Fleet liveStreamPool stop does not send SIP BYE.
  * Dashboard stop must call WVP /api/play/stop so the cam leaves live.
  */
-function stopWvpSoftOpenBridge(camId) {
+function stopWvpSoftOpenBridge(camId, opts) {
     const id = String(camId || '').trim();
     if (!id) return Promise.resolve({ skipped: true, reason: 'no_cam' });
     /* MOB-APPLY-BACKEND-VIDEO-WVP-HANDOFF-V1 */
     try {
         const handoff = require('./lib/wvpVideoHandoff');
         if (handoff.isHandoffEnabled && handoff.isHandoffEnabled()) {
-            return handoff.stopPlay(id).then(function (r) {
+            return handoff.stopPlay(id, opts || {}).then(function (r) {
                 return r || { ok: true };
             });
         }
@@ -12329,23 +12680,52 @@ function releaseCamStreamWhenUnwatched(camId, opts) {
 
     stopVideoInProgress.add(camId);
     log.media.info('pool stop — no dashboard viewers', { camId });
-    /* Gate C: stop ZLM side relay before pool stop (wall path unchanged). */
-    liveMediaAdapter.onPoolStop(camId);
-    if (pttVoiceCallCamId === camId) {
-        pttVoiceCallCamId = null;
-        emitBwcCallState(camId, false, null);
+
+    const camKey = String(camId).trim();
+    const armedMeta = sosDeviceRecordArmedByCam.get(camKey) || null;
+    if (armedMeta) sosDeviceRecordArmedByCam.delete(camKey);
+
+    const finishPoolTeardown = function () {
+        /* Gate C: stop ZLM side relay before pool stop (wall path unchanged). */
+        liveMediaAdapter.onPoolStop(camId);
+        if (pttVoiceCallCamId === camId) {
+            pttVoiceCallCamId = null;
+            emitBwcCallState(camId, false, null);
+        }
+        if (mediaSession.isVoiceCallActiveForCam(camId)) {
+            mediaSession.endVoiceCallOnly(sip, () => emitBwcCallState(camId, false, null));
+        }
+        /* Last viewer gone → immediate WVP hard-stop (no soft-stop linger / re-INVITE window).
+         * BWC-VIDEO-STOP-ON-LAST-VIEWER-HARD-V1 — armed SOS still uses immediate via armedMeta. */
+        const wvpStopOpts = { immediate: true };
+        log.media.info('last-viewer hard-stop', {
+            camId: camId,
+            path: 'BWC-VIDEO-STOP-ON-LAST-VIEWER-HARD-V1',
+            armedSos: !!armedMeta,
+        });
+        return Promise.all([
+            liveStreamPool.stopStreamForCam(sip, camId),
+            stopWvpSoftOpenBridge(camId, wvpStopOpts),
+        ]).then(() => {
+            sosInviteQueue.onStreamStopped(camId);
+            io.emit('video-stream-stopped', { camId, reason: 'operator_stop' });
+            return true;
+        });
+    };
+
+    /* POST-TEARDOWN-CLEAN-STOP-V2 — tear down first; then 2500ms → CleanData → 500ms → StopRecord */
+    if (armedMeta) {
+        log.media.info('sos post-teardown clean-stop armed', { camId });
+        return finishPoolTeardown()
+            .then(function () {
+                return runPostTeardownCleanStop(camId, armedMeta);
+            })
+            .catch(function () { return false; })
+            .finally(function () {
+                stopVideoInProgress.delete(camId);
+            });
     }
-    if (mediaSession.isVoiceCallActiveForCam(camId)) {
-        mediaSession.endVoiceCallOnly(sip, () => emitBwcCallState(camId, false, null));
-    }
-    return Promise.all([
-        liveStreamPool.stopStreamForCam(sip, camId),
-        stopWvpSoftOpenBridge(camId),
-    ]).then(() => {
-        sosInviteQueue.onStreamStopped(camId);
-        io.emit('video-stream-stopped', { camId, reason: 'operator_stop' });
-        return true;
-    }).finally(() => {
+    return finishPoolTeardown().finally(function () {
         stopVideoInProgress.delete(camId);
     });
 }
@@ -12903,6 +13283,7 @@ io.on('connection', (socket) => {
                 remainingOps: refs.ops,
                 remainingCommandWall: refs.commandWall,
                 remainingAnalyticsFr: refs.analyticsFr,
+                remainingAnalyticsAnpr: refs.analyticsAnpr,
                 remainingAnalyticsWeapon: refs.analyticsWeapon,
                 remainingMatrixPopout: refs.matrixPopout,
                 remainingLivePopout: refs.livePopout,
@@ -12944,7 +13325,10 @@ io.on('connection', (socket) => {
         if (!licenseFeatures.isFeatureEnabled('analyticsAnpr')
             && !licenseFeatures.isFeatureEnabled('anpr')) return;
         const cams = payload && Array.isArray(payload.camIds) ? payload.camIds : [];
-        anprLivePoller.setWatchSlots(socket.id, cams);
+        const flvByCam = payload && payload.flvByCam && typeof payload.flvByCam === 'object'
+            ? payload.flvByCam
+            : null;
+        anprLivePoller.setWatchSlots(socket.id, cams, flvByCam);
     });
 
     socket.on('weapon-watch-slots', (payload) => {

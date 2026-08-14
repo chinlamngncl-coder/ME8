@@ -1480,6 +1480,64 @@
             + esc(tr('server.users.scopeStation')) + '</span>';
     }
 
+    /** USERS-AUTHORITY-FILTER-V1 — search blob for username / name / contact / id / group names. */
+    function userFilterSearchBlob(u) {
+        const parts = [
+            u && u.username,
+            u && u.displayName,
+            u && u.contactNote,
+            u && u.id,
+        ];
+        const ids = (u && u.assignedGroupIds) || [];
+        const groups = cachedDispatchGroups || [];
+        ids.forEach(function (gid) {
+            const g = groups.find(function (x) { return x && String(x.id) === String(gid); });
+            if (g && g.name) parts.push(g.name);
+            parts.push(gid);
+        });
+        return parts.filter(Boolean).join(' ').toLowerCase();
+    }
+
+    function applyUsersListFilter() {
+        const listRoot = document.getElementById('ss-users-body');
+        const emptyEl = document.getElementById('ss-users-filter-empty');
+        if (!listRoot) return;
+        const qEl = document.getElementById('ss-users-filter-q');
+        const roleEl = document.getElementById('ss-users-filter-role');
+        const scopeEl = document.getElementById('ss-users-filter-scope');
+        const q = String(qEl && qEl.value || '').trim().toLowerCase();
+        const role = String(roleEl && roleEl.value || '');
+        const scope = String(scopeEl && scopeEl.value || '');
+        const cards = listRoot.querySelectorAll('.ss-user-card');
+        let visible = 0;
+        cards.forEach(function (card) {
+            const roleOk = !role || card.getAttribute('data-role') === role;
+            const scopeOk = !scope || card.getAttribute('data-scope') === scope;
+            const hay = String(card.getAttribute('data-search') || '');
+            const qOk = !q || hay.indexOf(q) !== -1;
+            const show = roleOk && scopeOk && qOk;
+            card.hidden = !show;
+            if (show) visible += 1;
+        });
+        if (emptyEl) emptyEl.hidden = !(cards.length > 0 && visible === 0);
+    }
+
+    function bindUsersListFilter() {
+        if (bindUsersListFilter._bound) return;
+        const qEl = document.getElementById('ss-users-filter-q');
+        const roleEl = document.getElementById('ss-users-filter-role');
+        const scopeEl = document.getElementById('ss-users-filter-scope');
+        if (!qEl && !roleEl && !scopeEl) return;
+        bindUsersListFilter._bound = true;
+        const run = function () { applyUsersListFilter(); };
+        if (qEl) {
+            qEl.addEventListener('input', run);
+            qEl.addEventListener('search', run);
+        }
+        if (roleEl) roleEl.addEventListener('change', run);
+        if (scopeEl) scopeEl.addEventListener('change', run);
+    }
+
     function permCheck(className, checked) {
         return '<label class="ss-perm-check"><input type="checkbox" class="' + className + '"' + (checked ? ' checked' : '') + '></label>';
     }
@@ -1667,10 +1725,15 @@
                 + '</div>'
                 + '</div>';
             return '<div class="ss-config-section ss-user-card' + (isSuper ? ' ss-user-row-super' : '') + '" data-user-id="'
-                + esc(u.id) + '" data-username="' + esc(u.username) + '">'
+                + esc(u.id) + '" data-username="' + esc(u.username)
+                + '" data-role="' + esc(isSuper ? 'super_admin' : 'operator')
+                + '" data-scope="' + (userIsAllStationsScope(u) ? 'all' : 'assigned')
+                + '" data-search="' + esc(userFilterSearchBlob(u)) + '">'
                 + tierId + tierOps + tier2 + '</div>';
         }).join('');
         wireUserDatePickers(listRoot);
+        bindUsersListFilter();
+        applyUsersListFilter();
     }
 
     function wireUserDatePickers(root) {

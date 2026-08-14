@@ -1,14 +1,8 @@
 """
-ANPR-PLATE-YOLO-NATIVE-WARP-V1 — CCPD YOLOv8-pose (4 keypoints) ONNX.
+Stage-2 plate localizer — YOLOv8 bounding-box ONNX (no CCPD 4-corner pose).
 
-Detect on letterbox → map keypoints to NATIVE macro/frame pixels →
-10–15% pad → cv2.warpPerspective → OCR strip for FastALPR / PP-OCRv4.
-
-Weights (first found wins):
-  FM_ANPR_CCPD_POSE_ONNX
-  models/plate_yolov8n_pose_ccpd.onnx
-  models/yolov8n-pose-plate-ccpd.onnx
-  models/plate_pose_ccpd.onnx
+Letterbox 640 RGB → detect → unpad/÷scale → numpy slice on native BGR vehicle_macro.
+Public API kept: localize_plate_native_warp(), plate_pose_status().
 """
 from __future__ import annotations
 
@@ -19,21 +13,28 @@ import cv2
 import numpy as np
 
 _INPUT = int(os.environ.get("FM_ANPR_CCPD_POSE_SIZE", "640") or "640")
-_CONF = float(os.environ.get("FM_ANPR_CCPD_POSE_CONF", "0.25") or "0.25")
-# ANPR-BEST-PLATE-CROP-TRACK-V1 — ≥10% pad so turning plates are not clipped
+_CONF = float(
+    os.environ.get("FM_ANPR_CCPD_POSE_CONF")
+    or os.environ.get("FM_ANPR_STAGE2_CONF")
+    or "0.05"
+)
+_CONF = max(0.01, min(0.45, _CONF))
 _PAD = float(os.environ.get("FM_ANPR_BOX_PAD", "0.10") or "0.10")
-_PAD = max(0.10, min(0.15, _PAD))
-_OUT_W = int(os.environ.get("FM_ANPR_PLATE_WARP_W", "480") or "480")
-_OUT_H = int(os.environ.get("FM_ANPR_PLATE_WARP_H", "160") or "160")
-_OUT_W_MAX = int(os.environ.get("FM_ANPR_PLATE_WARP_W_MAX", "1280") or "1280")
-_OUT_H_MAX = int(os.environ.get("FM_ANPR_PLATE_WARP_H_MAX", "480") or "480")
-_MIN_W = max(30, int(os.environ.get("FM_ANPR_MIN_MICRO_W", "30") or "30"))
-_MIN_H = max(15, int(os.environ.get("FM_ANPR_MIN_MICRO_H", "15") or "15"))
-# Deskew gate — skip warpPerspective on extreme side-angle / barcode smears
-_MIN_WARP_TOP_W = float(os.environ.get("FM_ANPR_DESKEW_MIN_TOP_W", "30") or "30")
-_MIN_TRAP_RATIO = float(os.environ.get("FM_ANPR_DESKEW_MIN_TRAP", "0.40") or "0.40")
-_MIN_PLATE_ASPECT = float(os.environ.get("FM_ANPR_DESKEW_MIN_ASPECT", "1.15") or "1.15")
-_NKPT = 4
+_PAD = max(0.0, min(0.20, _PAD))
+_MIN_W = max(18, int(os.environ.get("FM_ANPR_MIN_MICRO_W", "22") or "22"))
+_MIN_H = max(10, int(os.environ.get("FM_ANPR_MIN_MICRO_H", "12") or "12"))
+# Aspect gate OFF by default — motorcycle / near-square plates were dropped as square_or_bad_aspect.
+# Set FM_ANPR_S2_ASPECT_GATE=1 to re-enable (relaxed motorcycle-friendly range).
+_ASPECT_GATE = str(os.environ.get("FM_ANPR_S2_ASPECT_GATE", "0") or "0").strip().lower() in (
+    "1", "true", "yes", "on",
+)
+_MIN_ASPECT = float(os.environ.get("FM_ANPR_S2_MIN_ASPECT", "0.45") or "0.45")
+_MIN_ASPECT = max(0.3, min(4.0, _MIN_ASPECT))
+_MAX_ASPECT = float(os.environ.get("FM_ANPR_S2_MAX_ASPECT", "12.0") or "12.0")
+_MAX_ASPECT = max(_MIN_ASPECT + 0.1, min(16.0, _MAX_ASPECT))
+_NMS_IOU = float(os.environ.get("FM_ANPR_PLATE_NMS_IOU", "0.45") or "0.45")
+_NMS_IOU = max(0.20, min(0.90, _NMS_IOU))
+_DEBUG_CROP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "debug_ocr_crop.jpg")
 
 _session = None
 _session_error: Optional[str] = None
@@ -46,19 +47,29 @@ def models_dir() -> str:
 
 
 def weights_path() -> Optional[str]:
-    env = (os.environ.get("FM_ANPR_CCPD_POSE_ONNX") or "").strip()
-    if env and os.path.isfile(env):
-        return env
+    for env_key in ("FM_ANPR_PLATE_DET_ONNX", "FM_ANPR_CCPD_POSE_ONNX"):
+        env = (os.environ.get(env_key) or "").strip()
+        if env and os.path.isfile(env):
+            return env
     md = models_dir()
+    ai_w = os.path.normpath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "ai_engine", "weights")
+    )
     for name in (
+        "yolov8n-license-plate.onnx",
+        "plate_yolov8n.onnx",
+        "ph_id_plates_best.onnx",
+        "license-plate-finetune-v1n.onnx",
+        "plate_yolo11n.onnx",
         "plate_yolov8n_pose_ccpd.onnx",
         "yolov8n-pose-plate-ccpd.onnx",
         "plate_pose_ccpd.onnx",
         "ccpd_yolov8n_pose.onnx",
     ):
-        p = os.path.join(md, name)
-        if os.path.isfile(p):
-            return p
+        for root in (md, ai_w):
+            p = os.path.join(root, name)
+            if os.path.isfile(p):
+                return p
     return None
 
 
@@ -70,7 +81,7 @@ def get_session():
         return None
     path = weights_path()
     if not path:
-        _session_error = "ccpd_pose_onnx_missing"
+        _session_error = "plate_det_onnx_missing"
         return None
     try:
         import onnxruntime as ort
@@ -79,7 +90,6 @@ def get_session():
         inp = _session.get_inputs()[0]
         _input_name = inp.name
         shape = inp.shape
-        # [1,3,H,W] or dynamic
         if isinstance(shape, (list, tuple)) and len(shape) >= 4:
             try:
                 h = int(shape[2]) if shape[2] not in (None, "height") else _INPUT
@@ -94,15 +104,16 @@ def get_session():
 
 
 def plate_pose_status() -> dict[str, Any]:
-    sess = get_session()
+    """Health-safe: do not load ONNX here (that stalled /health → Engine Not available)."""
+    path = weights_path()
     return {
-        "ready": sess is not None,
-        "error": _session_error,
-        "weights": weights_path(),
+        "ready": bool(path and os.path.isfile(path)),
+        "error": _session_error if not path else None,
+        "weights": path,
         "pad": _PAD,
         "inputSize": _input_size,
-        "architecture": "ccpd-yolov8-pose-native-warp-v1",
-        "keypoints": _NKPT,
+        "architecture": "yolov8-plate-bbox-v1",
+        "conf": _CONF,
     }
 
 
@@ -120,273 +131,130 @@ def _letterbox(
     return canvas, scale, left, top
 
 
-def _order_quad(pts: np.ndarray) -> np.ndarray:
-    """Order 4 points TL, TR, BR, BL."""
-    pts = np.asarray(pts, dtype=np.float32).reshape(4, 2)
-    s = pts.sum(axis=1)
-    d = np.diff(pts, axis=1).reshape(4)
-    tl = pts[np.argmin(s)]
-    br = pts[np.argmax(s)]
-    tr = pts[np.argmin(d)]
-    bl = pts[np.argmax(d)]
-    return np.stack([tl, tr, br, bl], axis=0).astype(np.float32)
+def _nms_xyxy(boxes: np.ndarray, scores: np.ndarray, iou_thr: float) -> list[int]:
+    if boxes.size == 0:
+        return []
+    x1, y1, x2, y2 = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
+    areas = np.maximum(0.0, x2 - x1) * np.maximum(0.0, y2 - y1)
+    order = scores.argsort()[::-1]
+    keep: list[int] = []
+    while order.size > 0:
+        i = int(order[0])
+        keep.append(i)
+        if order.size == 1:
+            break
+        rest = order[1:]
+        xx1 = np.maximum(x1[i], x1[rest])
+        yy1 = np.maximum(y1[i], y1[rest])
+        xx2 = np.minimum(x2[i], x2[rest])
+        yy2 = np.minimum(y2[i], y2[rest])
+        inter = np.maximum(0.0, xx2 - xx1) * np.maximum(0.0, yy2 - yy1)
+        iou = inter / (areas[i] + areas[rest] - inter + 1e-6)
+        order = rest[iou < iou_thr]
+    return keep
 
 
-def _pad_quad(pts: np.ndarray, pad_frac: float, fw: int, fh: int) -> np.ndarray:
-    c = pts.mean(axis=0)
-    out = c + (pts - c) * (1.0 + float(pad_frac))
-    out[:, 0] = np.clip(out[:, 0], 0, max(0, fw - 1))
-    out[:, 1] = np.clip(out[:, 1], 0, max(0, fh - 1))
-    return out.astype(np.float32)
-
-
-def _warp_size(quad: np.ndarray, I_orig: np.ndarray) -> Tuple[int, int]:
-    xs = quad[:, 0]
-    ys = quad[:, 1]
-    bw = float(np.max(xs) - np.min(xs))
-    bh = float(np.max(ys) - np.min(ys))
-    fh, fw = I_orig.shape[:2]
-    out_w = int(max(_OUT_W, min(bw * 2.0, float(_OUT_W_MAX), float(fw))))
-    out_h = int(max(_OUT_H, min(bh * 2.0, float(_OUT_H_MAX), float(fh))))
-    out_w = max(64, out_w - (out_w % 2))
-    out_h = max(32, out_h - (out_h % 2))
-    return out_w, out_h
-
-
-def _warp_quad(img: np.ndarray, pts: np.ndarray, out_w: int, out_h: int) -> Optional[np.ndarray]:
-    try:
-        dst = np.array(
-            [[0, 0], [out_w - 1, 0], [out_w - 1, out_h - 1], [0, out_h - 1]],
-            dtype=np.float32,
-        )
-        m = cv2.getPerspectiveTransform(pts.astype(np.float32), dst)
-        return cv2.warpPerspective(
-            img, m, (out_w, out_h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE
-        )
-    except Exception:  # noqa: BLE001
-        return None
-
-
-def _edge_len(a: np.ndarray, b: np.ndarray) -> float:
-    return float(np.linalg.norm(np.asarray(a, dtype=np.float32) - np.asarray(b, dtype=np.float32)))
-
-
-def deskew_gate(quad_tl_tr_br_bl: np.ndarray) -> tuple[bool, dict[str, Any]]:
-    """
-    True → warpPerspective allowed.
-    False → extreme oblique / tiny top edge → use xyxy bbox fallback (no warp).
-    """
-    q = np.asarray(quad_tl_tr_br_bl, dtype=np.float32).reshape(4, 2)
-    tl, tr, br, bl = q[0], q[1], q[2], q[3]
-    top_w = _edge_len(tl, tr)
-    bot_w = _edge_len(bl, br)
-    left_h = _edge_len(tl, bl)
-    right_h = _edge_len(tr, br)
-    mean_w = 0.5 * (top_w + bot_w)
-    mean_h = 0.5 * (left_h + right_h)
-    trap = min(top_w, bot_w) / max(top_w, bot_w, 1e-6)
-    aspect = mean_w / max(mean_h, 1e-6)
-
-    reasons: list[str] = []
-    if top_w < _MIN_WARP_TOP_W:
-        reasons.append("top_width_lt_min")
-    if bot_w < _MIN_WARP_TOP_W:
-        reasons.append("bot_width_lt_min")
-    if mean_w < _MIN_WARP_TOP_W:
-        reasons.append("mean_width_lt_min")
-    if trap < _MIN_TRAP_RATIO:
-        reasons.append("trapezoid_skew")
-    if aspect < _MIN_PLATE_ASPECT:
-        reasons.append("aspect_too_tall")  # side-angle: plate taller than wide in pixels
-
-    ok = len(reasons) == 0
-    return ok, {
-        "ok": ok,
-        "topWidth": round(top_w, 2),
-        "botWidth": round(bot_w, 2),
-        "meanWidth": round(mean_w, 2),
-        "meanHeight": round(mean_h, 2),
-        "trapRatio": round(trap, 3),
-        "aspect": round(aspect, 3),
-        "minTopW": _MIN_WARP_TOP_W,
-        "minTrap": _MIN_TRAP_RATIO,
-        "minAspect": _MIN_PLATE_ASPECT,
-        "reasons": reasons,
-    }
-
-
-def rect_crop_from_keypoints(
-    native_bgr: np.ndarray,
-    keypoints: np.ndarray,
-    pad_frac: float,
-) -> tuple[Optional[np.ndarray], dict[str, Any]]:
-    """
-    Tight plate crop — minAreaRect of keypoints → axis AABB + pad (no warp).
-    Slight 1.05× grow so characters are not clipped.
-    """
-    fh, fw = native_bgr.shape[:2]
-    pts = np.asarray(keypoints, dtype=np.float32).reshape(-1, 2)
-    if pts.shape[0] < 2:
-        return None, {"error": "bad_keypoints"}
-    try:
-        rect = cv2.minAreaRect(pts)
-        box = cv2.boxPoints(rect)
-        x1 = float(np.min(box[:, 0]))
-        y1 = float(np.min(box[:, 1]))
-        x2 = float(np.max(box[:, 0]))
-        y2 = float(np.max(box[:, 1]))
-    except Exception:  # noqa: BLE001
-        x1 = float(np.min(pts[:, 0]))
-        y1 = float(np.min(pts[:, 1]))
-        x2 = float(np.max(pts[:, 0]))
-        y2 = float(np.max(pts[:, 1]))
-    # 1.05× grow about center (disc) then pad_frac
-    cx = 0.5 * (x1 + x2)
-    cy = 0.5 * (y1 + y2)
-    bw = max(1.0, (x2 - x1) * 1.05)
-    bh = max(1.0, (y2 - y1) * 1.05)
-    x1, x2 = cx - bw / 2.0, cx + bw / 2.0
-    y1, y2 = cy - bh / 2.0, cy + bh / 2.0
-    px = bw * float(pad_frac)
-    py = bh * float(pad_frac)
-    xi1 = int(max(0, min(fw - 1, round(x1 - px))))
-    yi1 = int(max(0, min(fh - 1, round(y1 - py))))
-    xi2 = int(max(xi1 + 1, min(fw, round(x2 + px))))
-    yi2 = int(max(yi1 + 1, min(fh, round(y2 + py))))
-    crop = np.ascontiguousarray(native_bgr[yi1:yi2, xi1:xi2].copy())
-    det = {
-        "x": xi1,
-        "y": yi1,
-        "w": xi2 - xi1,
-        "h": yi2 - yi1,
-        "x1": xi1,
-        "y1": yi1,
-        "x2": xi2,
-        "y2": yi2,
-        "source": "ccpd-pose-minarea-fallback",
-    }
-    if crop.shape[1] < _MIN_W or crop.shape[0] < _MIN_H:
-        return None, {"error": "sliver_reject", "det": det, "w": crop.shape[1], "h": crop.shape[0]}
-    return crop, det
-
-
-def _lb_to_native(
-    x: float, y: float, scale: float, pad_x: int, pad_y: int, fw: int, fh: int
-) -> Tuple[float, float]:
-    xn = (float(x) - pad_x) / max(1e-6, scale)
-    yn = (float(y) - pad_y) / max(1e-6, scale)
-    xn = max(0.0, min(float(fw - 1), xn))
-    yn = max(0.0, min(float(fh - 1), yn))
-    return xn, yn
-
-
-def _parse_pose_output(
+def _parse_yolo_det(
     out: np.ndarray,
     *,
-    scale: float,
-    pad_x: int,
-    pad_y: int,
-    fw: int,
-    fh: int,
     conf_thr: float,
-) -> list[dict[str, Any]]:
+    lb_size: int,
+) -> tuple[list[np.ndarray], list[float]]:
     """
-    Parse Ultralytics-style pose: channels = 4 (xywh) + 1 (obj) [+ nc] + nk*3.
-    Accept (1,C,N), (C,N), (1,N,C), (N,C).
+    Parse YOLOv8 detect ONNX → letterbox-space xyxy + scores.
+    Accepts [1,5,8400], [1,6,8400], [5,N], [6,N], or [N,5]/[N,6] (xywh or xyxy).
     """
     arr = np.asarray(out)
     if arr.ndim == 3:
         arr = arr[0]
     if arr.ndim != 2:
-        return []
-    # Prefer C x N when C is small (< 64) and N large
-    if arr.shape[0] < arr.shape[1] and arr.shape[0] <= 64:
-        pred = arr  # (C, N)
-    else:
-        pred = arr.T  # (C, N)
-    c, n = pred.shape
-    # Need at least xywh + conf + 4*2 (x,y) = 4+1+8 = 13; with visibility 4+1+12 = 17
-    if c < 13 or n < 1:
-        return []
-    # Detect layout: if c == 4+1+12 or 4+1+8 or 4+nc+12
-    has_vis = False
-    kpt_off = 5
-    if c >= 5 + _NKPT * 3:
-        has_vis = True
-        kpt_stride = 3
-        # If more classes: 4 + nc + nk*3; assume nc=1 → offset 5
-        if c > 5 + _NKPT * 3:
-            # 4 + nc + 12; nc = c - 4 - 12
-            nc = c - 4 - _NKPT * 3
-            kpt_off = 4 + max(1, nc)
-        else:
-            kpt_off = 5
-    elif c >= 5 + _NKPT * 2:
-        has_vis = False
-        kpt_stride = 2
-        kpt_off = 5
-    else:
-        return []
+        return [], []
 
-    hits: list[dict[str, Any]] = []
+    boxes_lb: list[np.ndarray] = []
+    scores: list[float] = []
+
+    # (C, N) — Ultralytics export: rows cx,cy,w,h,conf[,cls…]
+    if arr.shape[0] < arr.shape[1] and arr.shape[0] <= 84:
+        pred = arr
+        n = int(pred.shape[1])
+        if pred.shape[0] < 5:
+            return [], []
+        for i in range(n):
+            conf = float(pred[4, i])
+            if conf < conf_thr:
+                continue
+            cx, cy, bw, bh = float(pred[0, i]), float(pred[1, i]), float(pred[2, i]), float(pred[3, i])
+            if 0.0 <= cx <= 1.5 and 0.0 <= cy <= 1.5 and 0.0 <= bw <= 1.5:
+                cx, cy, bw, bh = cx * lb_size, cy * lb_size, bw * lb_size, bh * lb_size
+            x1 = cx - bw / 2.0
+            y1 = cy - bh / 2.0
+            x2 = cx + bw / 2.0
+            y2 = cy + bh / 2.0
+            boxes_lb.append(np.array([x1, y1, x2, y2], dtype=np.float32))
+            scores.append(conf)
+        return boxes_lb, scores
+
+    # (N, C) — end2end xyxy+score[+cls] or xywh+conf
+    pred = arr
+    if pred.shape[1] < 5:
+        return [], []
+    n = int(pred.shape[0])
+    # Heuristic: xyxy if x2-like col is typically larger than x1-like col
+    xyxy_mode = float(np.mean(pred[:, 2])) > float(np.mean(pred[:, 0])) + 1.0
     for i in range(n):
-        conf = float(pred[4, i])
+        conf = float(pred[i, 4])
         if conf < conf_thr:
             continue
-        cx, cy, bw, bh = float(pred[0, i]), float(pred[1, i]), float(pred[2, i]), float(pred[3, i])
-        kpts_lb = []
-        for k in range(_NKPT):
-            base = kpt_off + k * kpt_stride
-            kx = float(pred[base, i])
-            ky = float(pred[base + 1, i])
-            if has_vis and kpt_stride >= 3:
-                kv = float(pred[base + 2, i])
-                if kv < 0.1 and conf < conf_thr + 0.15:
-                    # weak keypoint — still use coords
-                    pass
-            kpts_lb.append((kx, ky))
-        # Map to native
-        pts = []
-        for kx, ky in kpts_lb:
-            xn, yn = _lb_to_native(kx, ky, scale, pad_x, pad_y, fw, fh)
-            pts.append([xn, yn])
-        pts_a = np.asarray(pts, dtype=np.float32)
-        # Also map box for meta
-        x1 = (cx - bw / 2.0 - pad_x) / scale
-        y1 = (cy - bh / 2.0 - pad_y) / scale
-        x2 = (cx + bw / 2.0 - pad_x) / scale
-        y2 = (cy + bh / 2.0 - pad_y) / scale
-        hits.append({
-            "conf": conf,
-            "keypoints": pts_a,
-            "box": {
-                "x1": int(max(0, min(fw - 1, round(x1)))),
-                "y1": int(max(0, min(fh - 1, round(y1)))),
-                "x2": int(max(0, min(fw, round(x2)))),
-                "y2": int(max(0, min(fh, round(y2)))),
-            },
-        })
-    hits.sort(key=lambda h: h["conf"], reverse=True)
-    try:
-        from vehicle_detect import filter_watermark_deadzone
-        from dual_lpr import filter_plate_boxes_geometry
+        a0, a1, a2, a3 = float(pred[i, 0]), float(pred[i, 1]), float(pred[i, 2]), float(pred[i, 3])
+        if xyxy_mode:
+            x1, y1, x2, y2 = a0, a1, a2, a3
+        else:
+            if 0.0 <= a0 <= 1.5 and 0.0 <= a1 <= 1.5:
+                a0, a1, a2, a3 = a0 * lb_size, a1 * lb_size, a2 * lb_size, a3 * lb_size
+            x1 = a0 - a2 / 2.0
+            y1 = a1 - a3 / 2.0
+            x2 = a0 + a2 / 2.0
+            y2 = a1 + a3 / 2.0
+        boxes_lb.append(np.array([x1, y1, x2, y2], dtype=np.float32))
+        scores.append(conf)
+    return boxes_lb, scores
 
-        hits = filter_watermark_deadzone(hits, fh)
-        hits = filter_plate_boxes_geometry(hits, vehicle_h=fh)
-    except Exception:  # noqa: BLE001
-        pass
-    return hits
+
+def _unpad_xyxy_to_native(
+    x1: float, y1: float, x2: float, y2: float,
+    *,
+    pad_w: float, pad_h: float, scale: float,
+    fw: int, fh: int,
+) -> tuple[int, int, int, int]:
+    """Letterbox xyxy → native vehicle_macro pixels (subtract pad, divide by scale, clip)."""
+    s = max(1e-6, float(scale))
+    nx1 = (float(x1) - float(pad_w)) / s
+    ny1 = (float(y1) - float(pad_h)) / s
+    nx2 = (float(x2) - float(pad_w)) / s
+    ny2 = (float(y2) - float(pad_h)) / s
+    if _PAD > 0:
+        bw = max(1.0, nx2 - nx1)
+        bh = max(1.0, ny2 - ny1)
+        nx1 -= bw * _PAD
+        ny1 -= bh * _PAD
+        nx2 += bw * _PAD
+        ny2 += bh * _PAD
+    xi1 = int(np.clip(round(min(nx1, nx2)), 0, fw - 1))
+    yi1 = int(np.clip(round(min(ny1, ny2)), 0, fh - 1))
+    xi2 = int(np.clip(round(max(nx1, nx2)), xi1 + 1, fw))
+    yi2 = int(np.clip(round(max(ny1, ny2)), yi1 + 1, fh))
+    return xi1, yi1, xi2, yi2
 
 
 def localize_plate_native_warp(
     native_bgr: np.ndarray,
 ) -> Tuple[Optional[np.ndarray], dict[str, Any]]:
     """
-    Run CCPD pose on letterbox; warp from NATIVE pixels only.
-    Returns (warped_bgr | None, meta).
+    YOLOv8 plate bbox on letterbox 640 RGB; crop from original BGR vehicle_macro.
+    Returns (plate_crop_bgr | None, meta). Same call site as the old pose warp.
     """
     meta: dict[str, Any] = {
-        "architecture": "ccpd-yolov8-pose-native-warp-v1",
+        "architecture": "yolov8-plate-bbox-v1",
         "pad": _PAD,
         "source": None,
     }
@@ -395,14 +263,25 @@ def localize_plate_native_warp(
         return None, meta
     sess = get_session()
     if sess is None or not _input_name:
-        meta["error"] = _session_error or "ccpd_pose_not_ready"
+        meta["error"] = _session_error or "plate_det_not_ready"
         return None, meta
 
-    fh, fw = native_bgr.shape[:2]
+    I_bgr = np.ascontiguousarray(native_bgr)
+    fh, fw = I_bgr.shape[:2]
     size = _input_size
-    canvas, scale, pad_x, pad_y = _letterbox(native_bgr, size)
-    blob = canvas[:, :, ::-1].transpose(2, 0, 1).astype(np.float32) / 255.0
+
+    try:
+        rgb = cv2.cvtColor(I_bgr, cv2.COLOR_BGR2RGB)
+    except Exception:  # noqa: BLE001
+        rgb = I_bgr[:, :, ::-1].copy()
+    canvas, scale, pad_w, pad_h = _letterbox(rgb, size)
+    blob = canvas.transpose(2, 0, 1).astype(np.float32) / 255.0
     blob = np.expand_dims(blob, 0)
+    print(
+        "[ANPR-S2-RAW] YOLO-bbox crop "
+        f"shape={I_bgr.shape} scale={scale:.4f} pad=({pad_w},{pad_h}) conf_thr={_CONF:.3f}",
+        flush=True,
+    )
     try:
         outs = sess.run(None, {_input_name: blob})
     except Exception as exc:  # noqa: BLE001
@@ -412,107 +291,98 @@ def localize_plate_native_warp(
         meta["error"] = "empty_output"
         return None, meta
 
-    hits = _parse_pose_output(
-        outs[0],
-        scale=scale,
-        pad_x=pad_x,
-        pad_y=pad_y,
-        fw=fw,
-        fh=fh,
-        conf_thr=_CONF,
+    boxes_lb, scores = _parse_yolo_det(outs[0], conf_thr=_CONF, lb_size=size)
+    max_raw = max(scores) if scores else 0.0
+    meta["maxConfRaw"] = round(float(max_raw), 4)
+    print(
+        f"[ANPR-S2-RAW] YOLO-bbox max_conf={max_raw:.4f} n={len(scores)} "
+        f"thr={_CONF:.3f} out_shape={getattr(outs[0], 'shape', None)}",
+        flush=True,
     )
-    if not hits:
-        meta["error"] = "no_plate_pose"
+    if not boxes_lb:
+        meta["error"] = "no_plate_box"
+        meta["confThr"] = _CONF
         return None, meta
 
-    best = hits[0]
-    kpts = best["keypoints"]
-    quad_raw = _order_quad(kpts)
-    gate_ok, gate = deskew_gate(quad_raw)
-    meta["deskewGate"] = gate
+    b = np.stack(boxes_lb, axis=0)
+    s = np.asarray(scores, dtype=np.float32)
+    keep = _nms_xyxy(b, s, _NMS_IOU)
+    if not keep:
+        keep = [int(np.argmax(s))]
+    best_i = keep[0]
+    x1_lb, y1_lb, x2_lb, y2_lb = [float(v) for v in b[best_i]]
+    conf = float(s[best_i])
 
-    # Extreme side-angle / tiny top edge → NO warpPerspective (barcode smear kill)
-    if not gate_ok:
-        crop, det_or_err = rect_crop_from_keypoints(native_bgr, kpts, _PAD)
-        if crop is None:
-            meta["error"] = (det_or_err or {}).get("error") or "bbox_fallback_failed"
-            meta["sliverReject"] = det_or_err
-            return None, meta
-        det = dict(det_or_err)
-        det["score"] = float(best["conf"])
-        meta.update({
-            "source": "ccpd-yolov8-pose-bbox-fallback",
-            "conf": round(float(best["conf"]), 4),
-            "quad": quad_raw.tolist(),
-            "outW": int(crop.shape[1]),
-            "outH": int(crop.shape[0]),
-            "det": det,
-            "nativeMicro": crop,
-            "letterboxScale": float(scale),
-            "letterboxPad": [int(pad_x), int(pad_y)],
-            "nativeW": int(fw),
-            "nativeH": int(fh),
-            "warpBypassed": True,
-        })
-        return crop, meta
-
-    quad = _pad_quad(quad_raw, _PAD, fw, fh)
-    out_w, out_h = _warp_size(quad, native_bgr)
-    warped = _warp_quad(native_bgr, quad, out_w, out_h)
-    if warped is None or getattr(warped, "size", 0) == 0:
-        # Warp failed → same xyxy fallback
-        crop, det_or_err = rect_crop_from_keypoints(native_bgr, kpts, _PAD)
-        if crop is not None:
-            det = dict(det_or_err)
-            det["score"] = float(best["conf"])
-            meta.update({
-                "source": "ccpd-yolov8-pose-bbox-fallback",
-                "conf": round(float(best["conf"]), 4),
-                "quad": quad_raw.tolist(),
-                "outW": int(crop.shape[1]),
-                "outH": int(crop.shape[0]),
-                "det": det,
-                "nativeMicro": crop,
-                "letterboxScale": float(scale),
-                "letterboxPad": [int(pad_x), int(pad_y)],
-                "nativeW": int(fw),
-                "nativeH": int(fh),
-                "warpBypassed": True,
-                "warpFallbackReason": "warp_failed",
-            })
-            return crop, meta
-        meta["error"] = "warp_failed"
+    x1, y1, x2, y2 = _unpad_xyxy_to_native(
+        x1_lb, y1_lb, x2_lb, y2_lb,
+        pad_w=pad_w, pad_h=pad_h, scale=scale, fw=fw, fh=fh,
+    )
+    plate_crop = I_bgr[y1:y2, x1:x2]
+    if plate_crop is None or getattr(plate_crop, "size", 0) == 0:
+        meta["error"] = "empty_slice"
         return None, meta
-    wh, ww = warped.shape[:2]
-    if ww < _MIN_W or wh < _MIN_H:
+    plate_crop = np.ascontiguousarray(plate_crop)
+    cw, ch = int(plate_crop.shape[1]), int(plate_crop.shape[0])
+    if cw < _MIN_W or ch < _MIN_H:
         meta["error"] = "sliver_reject"
-        meta["sliverReject"] = {"w": int(ww), "h": int(wh)}
+        meta["sliverReject"] = {"w": cw, "h": ch}
+        print(
+            f"[ANPR-S2-RAW] sliver_reject w={cw} h={ch} min={_MIN_W}x{_MIN_H}",
+            flush=True,
+        )
         return None, meta
+    aspect = float(cw) / float(max(1, ch))
+    if _ASPECT_GATE and (aspect < _MIN_ASPECT or aspect > _MAX_ASPECT):
+        meta["error"] = "square_or_bad_aspect"
+        meta["aspectReject"] = {
+            "w": cw,
+            "h": ch,
+            "aspect": round(aspect, 3),
+            "minAspect": _MIN_ASPECT,
+            "maxAspect": _MAX_ASPECT,
+        }
+        print(
+            f"[ANPR-S2-RAW] aspect_reject shape=({ch},{cw}) aspect={aspect:.2f} "
+            f"need={_MIN_ASPECT:.1f}-{_MAX_ASPECT:.1f} (not a plate strip)",
+            flush=True,
+        )
+        return None, meta
+    # else: aspect gate off — motorcycle / near-square crops proceed to OCR
 
-    box = best.get("box") or {}
+    try:
+        cv2.imwrite(_DEBUG_CROP, plate_crop)
+        print(
+            f"[ANPR-S2-RAW] wrote debug_ocr_crop.jpg shape={plate_crop.shape} "
+            f"mean={float(np.mean(plate_crop)):.1f} box=({x1},{y1},{x2},{y2})",
+            flush=True,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print("[ANPR-S2-RAW] debug_ocr_crop write fail:", str(exc)[:80], flush=True)
+
+    try:
+        from anpr_funnel_log import bump
+
+        bump("s2_plates_raw", 1)
+    except Exception:  # noqa: BLE001
+        pass
+
+    det = {
+        "x": x1, "y": y1, "w": x2 - x1, "h": y2 - y1,
+        "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+        "score": round(conf, 4),
+        "source": "yolov8-plate-bbox",
+    }
     meta.update({
-        "source": "ccpd-yolov8-pose",
-        "conf": round(float(best["conf"]), 4),
-        "quad": quad.tolist(),
-        "outW": int(out_w),
-        "outH": int(out_h),
-        "det": {
-            "x": int(box.get("x1") or 0),
-            "y": int(box.get("y1") or 0),
-            "w": int((box.get("x2") or 0) - (box.get("x1") or 0)),
-            "h": int((box.get("y2") or 0) - (box.get("y1") or 0)),
-            "x1": int(box.get("x1") or 0),
-            "y1": int(box.get("y1") or 0),
-            "x2": int(box.get("x2") or 0),
-            "y2": int(box.get("y2") or 0),
-            "score": float(best["conf"]),
-            "source": "ccpd-pose-native",
-        },
-        "nativeMicro": warped,
+        "source": "yolov8-plate-bbox",
+        "conf": round(conf, 4),
+        "outW": cw,
+        "outH": ch,
+        "det": det,
+        "nativeMicro": plate_crop,
         "letterboxScale": float(scale),
-        "letterboxPad": [int(pad_x), int(pad_y)],
+        "letterboxPad": [int(pad_w), int(pad_h)],
         "nativeW": int(fw),
         "nativeH": int(fh),
-        "warpBypassed": False,
+        "warpBypassed": True,
     })
-    return warped, meta
+    return plate_crop, meta

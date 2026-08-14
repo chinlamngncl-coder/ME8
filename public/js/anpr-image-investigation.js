@@ -72,7 +72,7 @@
         if (status) {
             status.textContent = isScanning
                 ? tr('analytics.anpr.imageScanning', 'Scanning…')
-                : (has ? '' : tr('analytics.anpr.imageSelectFirst', 'Select an image to enable Run Scan'));
+                : (has ? '' : tr('analytics.anpr.imageSelectFirst', 'Select an image to enable analysis'));
         }
         if (meta) {
             meta.textContent = has

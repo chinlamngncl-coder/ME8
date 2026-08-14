@@ -8,8 +8,14 @@ param(
 
 $ErrorActionPreference = 'Continue'
 if (-not $AppRoot) { $AppRoot = Split-Path -Parent $PSScriptRoot }
+# Prefer short junction (WinError 206) when script root is wrong / missing server.js
 if (-not (Test-Path (Join-Path $AppRoot 'server.js'))) {
-    $AppRoot = 'C:\Users\user\Desktop\Enterprise Mobility\ME8'
+    foreach ($cand in @('C:\ME8', 'C:\Users\user\Desktop\Enterprise Mobility\ME8')) {
+        if (Test-Path (Join-Path $cand 'server.js')) { $AppRoot = $cand; break }
+    }
+}
+if (-not (Test-Path (Join-Path $AppRoot 'server.js'))) {
+    throw "ME8 root not found (tried script parent, C:\ME8, Desktop ME8). Pass -AppRoot."
 }
 Set-Location $AppRoot
 
