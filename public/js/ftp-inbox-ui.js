@@ -119,7 +119,10 @@
         if (!rows.length) {
             tbody.innerHTML = '';
             selected = Object.create(null);
-            if (empty) empty.hidden = false;
+            if (empty) {
+                empty.hidden = false;
+                empty.style.display = 'flex';
+            }
             if (tableWrap) tableWrap.hidden = true;
             setEmptyCopy(
                 'No unassigned evidence',
@@ -132,7 +135,10 @@
 
         if (!hasRows) {
             tbody.innerHTML = '';
-            if (empty) empty.hidden = false;
+            if (empty) {
+                empty.hidden = false;
+                empty.style.display = 'flex';
+            }
             if (tableWrap) tableWrap.hidden = true;
             setEmptyCopy('No matching files', 'Try clearing search or type filters.');
             if (meta) meta.textContent = '0 files (filtered)';
@@ -140,7 +146,10 @@
             return;
         }
 
-        if (empty) empty.hidden = true;
+        if (empty) {
+            empty.hidden = true;
+            empty.style.display = 'none';
+        }
         if (tableWrap) tableWrap.hidden = false;
         if (meta) {
             meta.textContent = list.length + ' file' + (list.length === 1 ? '' : 's')
@@ -455,7 +464,10 @@
                 var tableWrap = document.getElementById('ftp-inbox-table-wrap');
                 if (tbody) tbody.innerHTML = '';
                 if (tableWrap) tableWrap.hidden = true;
-                if (empty) empty.hidden = false;
+                if (empty) {
+                    empty.hidden = false;
+                    empty.style.display = 'flex';
+                }
                 setEmptyCopy('Could not load inbox', 'Refresh and try again.');
                 if (meta) meta.textContent = 'Load failed';
                 syncBulkUi();

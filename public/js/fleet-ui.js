@@ -251,17 +251,18 @@
         if (pttLinger && !pttRx) pttClass += ' fleet-row-ptt-rx-linger';
         var gpsTrack = !!smartGpsActive[m.id];
         var gpsClass = gpsTrack ? ' fleet-row-gps-track' : '';
-        var statusText = pttRx ? tr('fleet.statusPtt') : (pttLinger ? tr('fleet.statusPttLinger') : (gpsTrack ? tr('fleet.statusGpsTrack') : (on ? tr('fleet.statusOnline') : tr('fleet.statusOffline'))));
-        var statusClass = (pttRx || pttLinger) ? 'fleet-status-ptt-rx' : (gpsTrack ? 'fleet-status-gps-track' : (on ? 'fleet-status-on' : 'fleet-status-off'));
+        var statusTitle = pttRx ? tr('fleet.statusPtt') : (pttLinger ? tr('fleet.statusPttLinger') : (gpsTrack ? tr('fleet.statusGpsTrack') : (on ? tr('fleet.statusOnline') : tr('fleet.statusOffline'))));
         var pinChecked = selectedCamIds.has(m.id) ? ' checked' : '';
         var atPinMax = selectedCamIds.size >= MAX_PIN_SELECT && !selectedCamIds.has(m.id);
         var pinDisabled = on ? (atPinMax ? ' disabled' : '') : ' disabled';
         var pinColor = groupColorForDevice(m.id, m.mapGroup);
+        var idRaw = String(m.id || '');
+        var idTail = idRaw.length <= 5 ? idRaw : ('...' + idRaw.slice(-5));
         var sub = global.FleetDisplay && FleetDisplay.hasConfiguredName(m.id)
-            ? esc(FleetDisplay.shortTechnicalId(m.id))
+            ? ('<span class="fleet-id-tail" title="' + esc(idRaw) + '">' + esc(idTail) + '</span>')
             : esc(tr('fleet.addNicknameHint'));
         var groupTitle = m.mapGroup ? esc(m.mapGroup) : '';
-        return '<tr class="fleet-row' + active + focus + pttClass + gpsClass + '" data-cam-id="' + esc(m.id) + '" tabindex="0">' +
+        return '<tr class="fleet-row' + active + focus + pttClass + gpsClass + '" data-cam-id="' + esc(m.id) + '" tabindex="0" title="' + esc(statusTitle) + '">' +
             '<td class="fleet-pin-cell">' +
             '<input type="checkbox" class="fleet-pin-check" data-cam-id="' + esc(m.id) + '"' + pinChecked + pinDisabled +
             ' title="Show live pin on map (max ' + MAX_PIN_SELECT + ')" aria-label="Pin on map"></td>' +
@@ -277,12 +278,11 @@
             (on ? '<button type="button" class="fleet-row-track-btn' + (gpsTrack ? ' active' : '') + '" data-cam-id="' + esc(m.id) + '" aria-pressed="' + (gpsTrack ? 'true' : 'false') + '" aria-label="' +
             esc(tr('fleet.gpsTrackToggle', { name: m.name })) + '" title="' + esc(tr('fleet.gpsTrackTitle')) + '">📍</button>' : '') +
             '</td>' +
-            '<td class="fleet-dot-cell"><span class="status-dot' + (on ? ' on' : '') + '"></span></td>' +
             '<td class="fleet-name-cell"><div class="fleet-name-with-pin">' +
-            '<span class="fleet-pin-color" style="background:' + esc(pinColor) + '"' + (groupTitle ? ' title="' + groupTitle + '"' : '') + '></span>' +
+            '<span class="fleet-pin-color" style="display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-right:5px;vertical-align:middle;border:1px solid rgba(255,255,255,0.55);background:' + esc(pinColor) + ';"' + (groupTitle ? ' title="' + groupTitle + '"' : '') + '></span>' +
             '<span class="fleet-name">' + esc(m.name) + '</span></div>' +
             '<span class="fleet-id-sub">' + sub + '</span></td>' +
-            '<td class="fleet-status-cell"><span class="' + statusClass + '">' + statusText + '</span></td>' +
+            '<td class="fleet-status-cell"><span class="status-dot' + (on ? ' on' : '') + '" title="' + esc(statusTitle) + '" aria-label="' + esc(statusTitle) + '"></span></td>' +
             '</tr>';
     }
 
@@ -292,7 +292,7 @@
         const rows = filteredFleet();
         if (!rows.length) {
             var emptyMsg = fleetList.length === 0 ? tr('fleet.emptyNone') : tr('fleet.emptyNoMatch');
-            tbody.innerHTML = '<tr><td colspan="7" class="fleet-empty">' + esc(emptyMsg) + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="fleet-empty">' + esc(emptyMsg) + '</td></tr>';
             updateSummary();
             scheduleFleetTableResize();
             return;
@@ -300,7 +300,7 @@
         let html = '';
         buildGroupedFleetRows(rows).forEach(function (entry) {
             if (entry.type === 'header') {
-                html += '<tr class="fleet-group-header"><td colspan="7">' +
+                html += '<tr class="fleet-group-header"><td colspan="6">' +
                     '<span class="fleet-group-dot" style="background:' + esc(entry.color) + '"></span>' +
                     '<span class="fleet-group-name">' + esc(entry.groupName) + '</span></td></tr>';
                 return;
