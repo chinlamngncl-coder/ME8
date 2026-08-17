@@ -274,10 +274,6 @@
             (on ? '<button type="button" class="fleet-row-voice-btn" data-cam-id="' + esc(m.id) + '" aria-label="' +
             esc(tr('fleet.voiceTalk', { name: m.name })) + '">☎</button>' : '') +
             '</td>' +
-            '<td class="fleet-track-cell">' +
-            (on ? '<button type="button" class="fleet-row-track-btn' + (gpsTrack ? ' active' : '') + '" data-cam-id="' + esc(m.id) + '" aria-pressed="' + (gpsTrack ? 'true' : 'false') + '" aria-label="' +
-            esc(tr('fleet.gpsTrackToggle', { name: m.name })) + '" title="' + esc(tr('fleet.gpsTrackTitle')) + '">📍</button>' : '') +
-            '</td>' +
             '<td class="fleet-name-cell"><div class="fleet-name-with-pin">' +
             '<span class="fleet-pin-color" style="display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-right:5px;vertical-align:middle;border:1px solid rgba(255,255,255,0.55);background:' + esc(pinColor) + ';"' + (groupTitle ? ' title="' + groupTitle + '"' : '') + '></span>' +
             '<span class="fleet-name">' + esc(m.name) + '</span></div>' +
@@ -286,13 +282,20 @@
             '</tr>';
     }
 
+    function paintFleetTbodies(html) {
+        var a = document.getElementById('fleet-tbody');
+        var b = document.getElementById('fleet-popout-tbody');
+        if (a) a.innerHTML = html;
+        if (b) b.innerHTML = html;
+    }
+
     function renderTable() {
         const tbody = document.getElementById('fleet-tbody');
         if (!tbody) return;
         const rows = filteredFleet();
         if (!rows.length) {
             var emptyMsg = fleetList.length === 0 ? tr('fleet.emptyNone') : tr('fleet.emptyNoMatch');
-            tbody.innerHTML = '<tr><td colspan="6" class="fleet-empty">' + esc(emptyMsg) + '</td></tr>';
+            paintFleetTbodies('<tr><td colspan="5" class="fleet-empty">' + esc(emptyMsg) + '</td></tr>');
             updateSummary();
             scheduleFleetTableResize();
             return;
@@ -300,14 +303,14 @@
         let html = '';
         buildGroupedFleetRows(rows).forEach(function (entry) {
             if (entry.type === 'header') {
-                html += '<tr class="fleet-group-header"><td colspan="6">' +
+                html += '<tr class="fleet-group-header"><td colspan="5">' +
                     '<span class="fleet-group-dot" style="background:' + esc(entry.color) + '"></span>' +
                     '<span class="fleet-group-name">' + esc(entry.groupName) + '</span></td></tr>';
                 return;
             }
             html += renderDeviceRow(entry.device);
         });
-        tbody.innerHTML = html;
+        paintFleetTbodies(html);
         updateSummary();
         scheduleFleetTableResize();
         if (global.VideoWall && VideoWall.syncFleetPttRows) {
@@ -353,40 +356,68 @@
     }
 
     function loadCircleStore() {
-        try {
-            const raw = global.localStorage && localStorage.getItem(CIRCLE_STORAGE_KEY);
-            if (!raw) {
-                circleStore = { circles: [], activeId: '' };
-                return;
-            }
-            const parsed = JSON.parse(raw);
-            const circles = Array.isArray(parsed && parsed.circles) ? parsed.circles : [];
-            circleStore = {
-                circles: circles.map(function (c) {
-                    return {
-                        id: String(c && c.id || ''),
-                        name: String(c && c.name || '').trim() || 'Circle',
-                        camIds: Array.isArray(c && c.camIds)
-                            ? c.camIds.map(function (id) { return String(id || '').trim(); }).filter(Boolean)
-                            : [],
-                    };
-                }).filter(function (c) { return c.id; }),
-                activeId: String(parsed && parsed.activeId || ''),
-            };
-            if (circleStore.activeId && !circleStore.circles.some(function (c) { return c.id === circleStore.activeId; })) {
-                circleStore.activeId = circleStore.circles[0] ? circleStore.circles[0].id : '';
-            }
-        } catch (_) {
-            circleStore = { circles: [], activeId: '' };
+        circleStore = { circles: [], activeId: '' };
+        fetch('/api/tactical/my-map-state', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                const st = data && data.ok && data.state ? data.state : null;
+                if (st && Array.isArray(st.circles) && st.circles.length) {
+                    applyCircleStore(st);
+                    try { if (global.localStorage) localStorage.removeItem(CIRCLE_STORAGE_KEY); } catch (_) { /* ignore */ }
+                    syncCircleUi();
+                    return;
+                }
+                try {
+                    const raw = global.localStorage && localStorage.getItem(CIRCLE_STORAGE_KEY);
+                    if (raw) {
+                        applyCircleStore(JSON.parse(raw));
+                        if (circleStore.circles.length) saveCircleStore();
+                    }
+                } catch (_) { /* ignore */ }
+                syncCircleUi();
+            })
+            .catch(function () {
+                try {
+                    const raw = global.localStorage && localStorage.getItem(CIRCLE_STORAGE_KEY);
+                    if (raw) applyCircleStore(JSON.parse(raw));
+                } catch (_) { /* ignore */ }
+                syncCircleUi();
+            });
+    }
+
+    function applyCircleStore(parsed) {
+        const circles = Array.isArray(parsed && parsed.circles) ? parsed.circles : [];
+        circleStore = {
+            circles: circles.map(function (c) {
+                return {
+                    id: String(c && c.id || ''),
+                    name: String(c && c.name || '').trim() || 'Circle',
+                    camIds: Array.isArray(c && c.camIds)
+                        ? c.camIds.map(function (id) { return String(id || '').trim(); }).filter(Boolean)
+                        : [],
+                };
+            }).filter(function (c) { return c.id; }),
+            activeId: String((parsed && (parsed.activeId || parsed.activeCircleId)) || ''),
+        };
+        if (circleStore.activeId && !circleStore.circles.some(function (c) { return c.id === circleStore.activeId; })) {
+            circleStore.activeId = circleStore.circles[0] ? circleStore.circles[0].id : '';
         }
     }
 
+    let circleSaveTimer = null;
     function saveCircleStore() {
-        try {
-            if (global.localStorage) {
-                localStorage.setItem(CIRCLE_STORAGE_KEY, JSON.stringify(circleStore));
-            }
-        } catch (_) { /* ignore */ }
+        if (circleSaveTimer) clearTimeout(circleSaveTimer);
+        circleSaveTimer = setTimeout(function () {
+            fetch('/api/tactical/my-map-state', {
+                method: 'PUT',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    circles: circleStore.circles,
+                    activeCircleId: circleStore.activeId || '',
+                }),
+            }).catch(function () { /* ignore */ });
+        }, 400);
     }
 
     function makeCircleId() {
@@ -905,10 +936,183 @@
         }).catch(function () { /* ignore */ });
     }
 
+    function onFleetTbodyClick(e) {
+        const check = e.target.closest('.fleet-pin-check');
+        if (check) {
+            e.stopPropagation();
+            var camId = check.dataset.camId;
+            if (check.checked && selectedCamIds.size >= MAX_PIN_SELECT && !selectedCamIds.has(camId)) {
+                check.checked = false;
+                return;
+            }
+            togglePinSelect(camId, check.checked);
+            return;
+        }
+        if (e.target.closest('.fleet-row-ptt-btn')) {
+            e.stopPropagation();
+            return;
+        }
+        const trackBtn = e.target.closest('.fleet-row-track-btn');
+        if (trackBtn) {
+            e.stopPropagation();
+            toggleSmartGpsTrack(trackBtn.getAttribute('data-cam-id'));
+            return;
+        }
+        const voiceBtn = e.target.closest('.fleet-row-voice-btn');
+        if (voiceBtn) {
+            e.stopPropagation();
+            const camId = voiceBtn.getAttribute('data-cam-id');
+            if (camId && global.VideoWall && typeof VideoWall.toggleVoiceCall === 'function') {
+                VideoWall.toggleVoiceCall(camId, { audioOnly: true });
+            }
+            return;
+        }
+        const row = e.target.closest('.fleet-row[data-cam-id]');
+        if (!row) return;
+        pick(row.dataset.camId, {
+            keepMulti: false,
+            keepPinSelection: true,
+            skipVideo: !selectedCamIds.has(row.dataset.camId) && selectedCamIds.size >= 1,
+        });
+    }
+
+    function onFleetTbodyKeydown(e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const row = e.target.closest('.fleet-row[data-cam-id]');
+        if (!row) return;
+        e.preventDefault();
+        pick(row.dataset.camId, { keepMulti: false, keepPinSelection: true });
+    }
+
+    function bindFleetTbody(el) {
+        if (!el || el._fleetBound) return;
+        el._fleetBound = true;
+        el.addEventListener('click', onFleetTbodyClick);
+        el.addEventListener('keydown', onFleetTbodyKeydown);
+    }
+
+    var rosterPopoutDrag = null;
+    var rosterPopoutResize = null;
+    var rosterPopoutListH = 168;
+
+    function setRosterPopoutOpen(open) {
+        var panel = document.getElementById('fleet-roster-popout');
+        var btn = document.getElementById('fleet-roster-popout-btn');
+        if (!panel) return;
+        panel.hidden = !open;
+        panel.classList.toggle('is-open', !!open);
+        if (!open) panel.classList.remove('is-min');
+        if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    function setRosterPopoutMin(min) {
+        var panel = document.getElementById('fleet-roster-popout');
+        var minBtn = document.getElementById('fleet-roster-popout-min');
+        if (!panel) return;
+        panel.classList.toggle('is-min', !!min);
+        if (minBtn) {
+            minBtn.setAttribute('aria-pressed', min ? 'true' : 'false');
+            minBtn.title = min ? 'Restore' : 'Minimize';
+        }
+    }
+
+    function bindRosterPopout() {
+        var btn = document.getElementById('fleet-roster-popout-btn');
+        var panel = document.getElementById('fleet-roster-popout');
+        var head = document.getElementById('fleet-roster-popout-head');
+        var closeBtn = document.getElementById('fleet-roster-popout-close');
+        var minBtn = document.getElementById('fleet-roster-popout-min');
+        var wrap = document.getElementById('fleet-popout-table-wrap');
+        var resizeEl = document.getElementById('fleet-roster-popout-resize');
+        if (btn && !btn._rosterBound) {
+            btn._rosterBound = true;
+            btn.addEventListener('click', function () {
+                setRosterPopoutOpen(panel && panel.hidden);
+                if (panel && !panel.hidden) setRosterPopoutMin(false);
+            });
+        }
+        if (closeBtn && !closeBtn._rosterBound) {
+            closeBtn._rosterBound = true;
+            closeBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                setRosterPopoutOpen(false);
+            });
+        }
+        if (minBtn && !minBtn._rosterBound) {
+            minBtn._rosterBound = true;
+            minBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                if (!panel) return;
+                setRosterPopoutMin(!panel.classList.contains('is-min'));
+            });
+        }
+        if (head && panel && !head._rosterDragBound) {
+            head._rosterDragBound = true;
+            head.addEventListener('mousedown', function (e) {
+                if (e.button !== 0) return;
+                if (e.target.closest('#fleet-roster-popout-close, #fleet-roster-popout-min')) return;
+                e.preventDefault();
+                var rect = panel.getBoundingClientRect();
+                var parent = panel.offsetParent || document.body;
+                var parentRect = parent.getBoundingClientRect();
+                rosterPopoutDrag = {
+                    ox: e.clientX - rect.left,
+                    oy: e.clientY - rect.top,
+                    parentLeft: parentRect.left,
+                    parentTop: parentRect.top,
+                    parentW: parentRect.width,
+                    parentH: parentRect.height,
+                    w: rect.width,
+                    h: rect.height,
+                };
+                panel.style.right = 'auto';
+            });
+        }
+        if (resizeEl && wrap && panel && !resizeEl._rosterResizeBound) {
+            resizeEl._rosterResizeBound = true;
+            resizeEl.addEventListener('mousedown', function (e) {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                rosterPopoutDrag = null;
+                rosterPopoutResize = {
+                    startY: e.clientY,
+                    startH: wrap.offsetHeight,
+                    parent: panel.offsetParent || document.body,
+                };
+            });
+        }
+        if (!document._rosterPopoutMoveBound) {
+            document._rosterPopoutMoveBound = true;
+            document.addEventListener('mousemove', function (e) {
+                if (rosterPopoutResize && wrap && panel) {
+                    var parentRect = rosterPopoutResize.parent.getBoundingClientRect();
+                    var panelTop = panel.getBoundingClientRect().top - parentRect.top;
+                    var dy = e.clientY - rosterPopoutResize.startY;
+                    var maxH = Math.max(72, parentRect.height - panelTop - 24);
+                    var next = Math.min(maxH, Math.max(72, rosterPopoutResize.startH + dy));
+                    wrap.style.height = next + 'px';
+                    rosterPopoutListH = next;
+                    return;
+                }
+                if (!rosterPopoutDrag || !panel) return;
+                var left = e.clientX - rosterPopoutDrag.parentLeft - rosterPopoutDrag.ox;
+                var top = e.clientY - rosterPopoutDrag.parentTop - rosterPopoutDrag.oy;
+                var maxL = Math.max(4, rosterPopoutDrag.parentW - rosterPopoutDrag.w - 4);
+                var maxT = Math.max(4, rosterPopoutDrag.parentH - rosterPopoutDrag.h - 4);
+                panel.style.left = Math.min(maxL, Math.max(4, left)) + 'px';
+                panel.style.top = Math.min(maxT, Math.max(4, top)) + 'px';
+            });
+            document.addEventListener('mouseup', function () {
+                rosterPopoutDrag = null;
+                rosterPopoutResize = null;
+            });
+        }
+    }
+
     function bindUi() {
         const search = document.getElementById('fleet-search');
         const filter = document.getElementById('fleet-filter');
-        const tbody = document.getElementById('fleet-tbody');
         if (search) {
             search.addEventListener('input', function () {
                 searchQuery = search.value;
@@ -921,54 +1125,9 @@
                 renderTable();
             });
         }
-        if (tbody) {
-            tbody.addEventListener('click', function (e) {
-                const check = e.target.closest('.fleet-pin-check');
-                if (check) {
-                    e.stopPropagation();
-                    var camId = check.dataset.camId;
-                    if (check.checked && selectedCamIds.size >= MAX_PIN_SELECT && !selectedCamIds.has(camId)) {
-                        check.checked = false;
-                        return;
-                    }
-                    togglePinSelect(camId, check.checked);
-                    return;
-                }
-                if (e.target.closest('.fleet-row-ptt-btn')) {
-                    e.stopPropagation();
-                    return;
-                }
-                const trackBtn = e.target.closest('.fleet-row-track-btn');
-                if (trackBtn) {
-                    e.stopPropagation();
-                    toggleSmartGpsTrack(trackBtn.getAttribute('data-cam-id'));
-                    return;
-                }
-                const voiceBtn = e.target.closest('.fleet-row-voice-btn');
-                if (voiceBtn) {
-                    e.stopPropagation();
-                    const camId = voiceBtn.getAttribute('data-cam-id');
-                    if (camId && global.VideoWall && typeof VideoWall.toggleVoiceCall === 'function') {
-                        VideoWall.toggleVoiceCall(camId, { audioOnly: true });
-                    }
-                    return;
-                }
-                const row = e.target.closest('.fleet-row[data-cam-id]');
-                if (!row) return;
-                pick(row.dataset.camId, {
-                    keepMulti: false,
-                    keepPinSelection: true,
-                    skipVideo: !selectedCamIds.has(row.dataset.camId) && selectedCamIds.size >= 1,
-                });
-            });
-            tbody.addEventListener('keydown', function (e) {
-                if (e.key !== 'Enter' && e.key !== ' ') return;
-                const row = e.target.closest('.fleet-row[data-cam-id]');
-                if (!row) return;
-                e.preventDefault();
-                pick(row.dataset.camId, { keepMulti: false, keepPinSelection: true });
-            });
-        }
+        bindFleetTbody(document.getElementById('fleet-tbody'));
+        bindFleetTbody(document.getElementById('fleet-popout-tbody'));
+        bindRosterPopout();
         const clearPins = document.getElementById('fleet-clear-pins');
         if (clearPins) clearPins.addEventListener('click', clearPinSelection);
         const openAllPins = document.getElementById('fleet-open-all-pins');
@@ -1095,6 +1254,7 @@
         isPinSelected: function (camId) { return selectedCamIds.has(camId); },
         clearPinSelection,
         openAllSelectedPins,
+        openBatchLivePins,
         openActiveCircle,
         saveSelectionAsCircle,
         addSelectionToCircle,

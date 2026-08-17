@@ -57,9 +57,9 @@
         setTimeout(function () {
             try {
                 if (global.ServerSetup && typeof ServerSetup.setMainTab === 'function') {
-                    ServerSetup.setMainTab('bwc');
+                    ServerSetup.setMainTab('fleet');
                 } else {
-                    var tab = document.getElementById('ss-main-tab-bwc');
+                    var tab = document.getElementById('ss-main-tab-fleet');
                     if (tab) tab.click();
                 }
             } catch (_) { /* ignore */ }

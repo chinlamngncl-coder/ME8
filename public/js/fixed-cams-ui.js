@@ -231,7 +231,7 @@
     closeBtn.addEventListener('click', () => dlg.close());
 
     dlg.addEventListener('click', e => {
-        // close on backdrop click
+        if (dlg.closest && dlg.closest('#ss-panel-fixed')) return;
         if (e.target === dlg) dlg.close();
     });
 
@@ -303,5 +303,26 @@
     csvCancel.addEventListener('click', () => { csvWrap.hidden = true; });
 
     document.getElementById('fc-f-source').addEventListener('change', onSourceChange);
+
+    function parkDialog() {
+        const host = document.getElementById('ss-panel-fixed');
+        if (dlg && host && dlg.parentNode !== host) host.appendChild(dlg);
+    }
+
+    global.FixedCamsUi = {
+        showInPanel: function () {
+            parkDialog();
+            clearForm();
+            hideForm();
+            csvWrap.hidden = true;
+            if (dlg.open) dlg.close();
+            dlg.show();
+            loadTable();
+        },
+        hideInPanel: function () {
+            hideForm();
+            if (dlg.open) dlg.close();
+        },
+    };
 
 }());

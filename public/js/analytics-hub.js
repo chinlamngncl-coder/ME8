@@ -1637,91 +1637,6 @@
         var d = document.getElementById('ax-bl-drawer');
         if (d) d.hidden = true;
         blDrawerId = null;
-        var dbg = document.getElementById('ax-bl-match-debug-result');
-        if (dbg) {
-            dbg.hidden = true;
-            dbg.textContent = '';
-            dbg.className = 'hint ax-bl-match-debug-result';
-        }
-    }
-
-    function showMatchDebugResult(text, cls) {
-        var el = document.getElementById('ax-bl-match-debug-result');
-        if (!el) return;
-        el.hidden = false;
-        el.textContent = text;
-        el.className = 'hint ax-bl-match-debug-result' + (cls ? ' ' + cls : '');
-    }
-
-    /** mob-fr-score-result-plain \u2014 one operator line only (no engine/file/dims dump) */
-    function runMatchDebug() {
-        var id = blDrawerId;
-        if (!id) {
-            showMatchDebugResult(tr('analytics.bl.matchDebugNeedEntry', 'Open a watchlist person first.'), 'is-err');
-            return;
-        }
-        var btn = document.getElementById('ax-bl-match-debug-btn');
-        if (btn) btn.disabled = true;
-        showMatchDebugResult(tr('analytics.bl.matchDebugRunning', 'Checking\u2026'), '');
-        fetch('/api/analytics/fr/match-debug', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ entryId: id }),
-        })
-            .then(function (r) {
-                return r.json().then(function (j) { return { status: r.status, j: j }; }).catch(function () {
-                    return { status: r.status, j: { ok: false, error: 'failed' } };
-                });
-            })
-            .then(function (pack) {
-                var j = pack.j || {};
-                if (!j.ok) {
-                    var errKey = j.error || '';
-                    var errLine;
-                    if (errKey === 'no_live_crop' || errKey === 'crop_missing') {
-                        errLine = tr(
-                            'analytics.bl.matchDebugNoSnap',
-                            'No live face snap yet. Start watch, get a face on Recent, then try again.'
-                        );
-                    } else if (errKey === 'not_found') {
-                        errLine = messageForCode('fr.not_found');
-                    } else if (errKey === 'sidecar_down') {
-                        errLine = messageForCode('fr.service_down');
-                    } else if (errKey === 'no_gallery_embedding') {
-                        errLine = tr(
-                            'analytics.bl.matchDebugNoPrint',
-                            'This person has no face fingerprint yet. Use Re-embed gallery, then try again.'
-                        );
-                    } else {
-                        errLine = messageForCode('fr.failed');
-                    }
-                    showMatchDebugResult(errLine, 'is-err');
-                    return;
-                }
-                var bar = j.barPct != null ? j.barPct : 70;
-                var pct = j.scorePct;
-                if (pct == null || isNaN(Number(pct))) pct = null;
-                /* Prefer the live path score; if nonsense low and fresh exists, still show live path (honest). */
-                var pass = !!(j.clears70);
-                var pctStr = pct != null ? String(pct) : '\u2014';
-                var line = tr(
-                    'analytics.bl.matchDebugPlain',
-                    'Match: {pct}% \u00B7 need {bar}% \u00B7 {result}'
-                )
-                    .replace('{pct}', pctStr)
-                    .replace('{bar}', String(bar))
-                    .replace('{result}', pass
-                        ? tr('analytics.bl.matchDebugPass', 'pass')
-                        : tr('analytics.bl.matchDebugFail', 'fail'));
-                showMatchDebugResult(line, pass ? 'is-ok' : 'is-low');
-            })
-            .catch(function () {
-                showMatchDebugResult(messageForCode('fr.network'), 'is-err');
-            })
-            .finally(function () {
-                if (btn) btn.disabled = false;
-            });
     }
 
     function openBlDrawer(id) {
@@ -1729,12 +1644,6 @@
         var drawer = document.getElementById('ax-bl-drawer');
         if (!e || !drawer) return;
         blDrawerId = id;
-        var dbg = document.getElementById('ax-bl-match-debug-result');
-        if (dbg) {
-            dbg.hidden = true;
-            dbg.textContent = '';
-            dbg.className = 'hint ax-bl-match-debug-result';
-        }
         var title = document.getElementById('ax-bl-drawer-title');
         var face = document.getElementById('ax-bl-drawer-face');
         var dl = document.getElementById('ax-bl-drawer-dl');
@@ -2830,8 +2739,6 @@
         if (tbody) tbody.addEventListener('click', onBlTableClick);
         var drawerClose = document.getElementById('ax-bl-drawer-close');
         if (drawerClose) drawerClose.addEventListener('click', closeBlDrawer);
-        var matchDbgBtn = document.getElementById('ax-bl-match-debug-btn');
-        if (matchDbgBtn) matchDbgBtn.addEventListener('click', runMatchDebug);
         var addSampleBtn = document.getElementById('ax-bl-add-sample-btn');
         if (addSampleBtn) addSampleBtn.addEventListener('click', function () {
             if (blDrawerId) openFacePicker(blDrawerId);

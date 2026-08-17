@@ -56,22 +56,33 @@
     let lastSiteTimezones = [];
     let lastSiteTimePreview = '';
     let bwcRegisterManual = false;
-    let activeMainTab = 'server';
+    let activeMainTab = 'infrastructure';
     let activeDashSubTab = 'add';
+    let activeFleetSubTab = 'wireless';
     let layoutOverride = null;
     const TAB_LAYOUT = {
-        server: 'compact',
+        infrastructure: 'wide',
+        server: 'wide',
         groups: 'wide',
         firmware: 'wide',
         diagnostics: 'wide',
         lab: 'wide',
         dashboard: 'admin',
+        fleet: 'admin',
+        security: 'admin',
         bwc: 'admin',
         cloud: 'admin',
         usb: 'admin',
     };
+    const PILLAR_TABS = ['infrastructure', 'fleet', 'security', 'diagnostics'];
+    const PILLAR_PANELS = {
+        infrastructure: ['server', 'cloud'],
+        fleet: ['bwc'],
+        security: ['dashboard'],
+        diagnostics: ['diagnostics'],
+    };
     const ADVANCED_TABS = ['firmware', 'usb', 'cloud', 'diagnostics', 'lab'];
-    const PRIMARY_TABS = ['server', 'bwc', 'groups', 'dashboard'];
+    const PRIMARY_TABS = ['infrastructure', 'fleet', 'security'];
     const NETWORK_SECTION_IDS = [
         'ss-phase-identity',
         'ss-phase-networking',
@@ -250,21 +261,34 @@
         return ADVANCED_TABS.indexOf(tab) >= 0;
     }
 
+    function resolvePillar(tab) {
+        const t = String(tab || '');
+        if (t === 'infrastructure' || t === 'server' || t === 'cloud') return 'infrastructure';
+        if (t === 'fleet' || t === 'bwc' || t === 'firmware' || t === 'usb' || t === 'fixed' || t === 'docks') return 'fleet';
+        if (t === 'security' || t === 'dashboard' || t === 'groups' || t === 'lab') return 'security';
+        if (t === 'diagnostics') return 'diagnostics';
+        return 'infrastructure';
+    }
+
+    function panelsForPillar(pillar) {
+        const list = (PILLAR_PANELS[pillar] || ['server']).slice();
+        if (pillar === 'fleet' && !canManageServer) return ['bwc'];
+        if (pillar === 'infrastructure' && !canManageServer) return ['server'];
+        if (pillar === 'security' && !canManageServer) return ['dashboard'];
+        return list;
+    }
+
     function updateMaintenanceNavVisibility() {
-        let any = false;
-        ADVANCED_TABS.forEach(function (id) {
-            const btn = document.getElementById('ss-main-tab-' + id);
-            if (btn && !btn.hidden) any = true;
-        });
-        const maint = document.getElementById('ss-config-nav-maint');
-        if (maint) maint.hidden = !any;
-        return any;
+        const diag = document.getElementById('ss-main-tab-diagnostics');
+        if (diag) diag.hidden = !canManageServer;
+        return canManageServer;
     }
 
     function syncSidebarNav() {
-        PRIMARY_TABS.concat(ADVANCED_TABS).forEach(function (id) {
+        const pillar = resolvePillar(activeMainTab);
+        PILLAR_TABS.forEach(function (id) {
             const btn = document.getElementById('ss-main-tab-' + id);
-            if (btn) btn.classList.toggle('active', id === activeMainTab);
+            if (btn) btn.classList.toggle('active', id === pillar);
         });
     }
 
@@ -295,7 +319,7 @@
         panel.classList.remove('ss-layout-compact', 'ss-layout-wide', 'ss-layout-admin');
         panel.classList.add('ss-layout-' + mode);
         const globalHint = document.getElementById('ss-global-setup-hint');
-        if (globalHint) globalHint.hidden = tab !== 'server';
+        if (globalHint) globalHint.hidden = resolvePillar(tab) !== 'infrastructure';
     }
 
     function togglePanelLayout() {
@@ -323,58 +347,61 @@
     }
 
     function setMainTab(tab) {
-        var next = (tab === 'bwc' || tab === 'dashboard' || tab === 'groups' || isAdvancedTab(tab)) ? tab : 'server';
-        if (saasDeploymentMode === 'cloud_leased' && next === 'server') next = 'bwc';
+        var next = resolvePillar(tab);
+        if (saasDeploymentMode === 'cloud_leased' && next === 'infrastructure') next = 'fleet';
         activeMainTab = next;
-        ['server', 'bwc', 'groups', 'firmware', 'dashboard', 'usb', 'diagnostics', 'lab', 'cloud'].forEach(function (id) {
+        const visible = panelsForPillar(next);
+        ['server', 'bwc', 'groups', 'firmware', 'dashboard', 'usb', 'diagnostics', 'lab', 'cloud', 'fixed', 'docks'].forEach(function (id) {
             const panel = document.getElementById('ss-panel-' + id);
-            if (panel) panel.classList.toggle('active', id === activeMainTab);
+            if (panel) panel.classList.toggle('active', visible.indexOf(id) >= 0);
         });
         syncSidebarNav();
-        if (activeMainTab === 'dashboard') {
+        applyDashboardAuthLayout();
+        applyFleetSubTabLayout();
+        var workspaceEl = document.getElementById('server-config-workspace');
+        if (workspaceEl) workspaceEl.setAttribute('data-ss-pillar', next);
+        if (visible.indexOf('dashboard') >= 0) {
             clearNewOperatorForm();
-            applyDashboardAuthLayout();
             if (global.VoiceAlerts && VoiceAlerts.loadPolicy) {
                 VoiceAlerts.loadPolicy();
             }
         }
-        if (activeMainTab === 'groups' && global.DispatchGroupsAdmin && DispatchGroupsAdmin.load) {
+        if (visible.indexOf('groups') >= 0 && global.DispatchGroupsAdmin && DispatchGroupsAdmin.load) {
             DispatchGroupsAdmin.load().catch(function () { /* ignore */ });
         }
-        if (activeMainTab === 'firmware' && global.FirmwareOtaAdmin && FirmwareOtaAdmin.load) {
+        if (visible.indexOf('firmware') >= 0 && global.FirmwareOtaAdmin && FirmwareOtaAdmin.load) {
             FirmwareOtaAdmin.load().catch(function () { /* ignore */ });
         }
-        if (activeMainTab === 'diagnostics' && global.TechDiagnostics && TechDiagnostics.onTabShown) {
+        if (visible.indexOf('diagnostics') >= 0 && global.TechDiagnostics && TechDiagnostics.onTabShown) {
             TechDiagnostics.onTabShown();
+            loadSiteReadiness().catch(function () { /* ignore */ });
         }
-        if (activeMainTab === 'lab' && global.LabSecurity && LabSecurity.onTabShown) {
+        if (visible.indexOf('lab') >= 0 && global.LabSecurity && LabSecurity.onTabShown) {
             LabSecurity.onTabShown();
         }
-        if (activeMainTab === 'cloud' && global.CloudDeployment && CloudDeployment.onTabShown) {
+        if (visible.indexOf('cloud') >= 0 && global.CloudDeployment && CloudDeployment.onTabShown) {
             CloudDeployment.onTabShown();
         }
-        if (activeMainTab === 'usb' && global.UsbMaintenance && UsbMaintenance.onTabShown) {
+        if (visible.indexOf('usb') >= 0 && global.UsbMaintenance && UsbMaintenance.onTabShown) {
             UsbMaintenance.onTabShown();
         } else if (global.UsbMaintenance && UsbMaintenance.onTabHidden) {
             UsbMaintenance.onTabHidden();
         }
         applyPanelLayout(activeMainTab);
-        if (activeMainTab === 'server') {
-            setActiveNetworkSectionNav('ss-phase-identity');
+        if (next === 'infrastructure') {
             if (global.CloudDeployment && CloudDeployment.loadOverview) {
                 CloudDeployment.loadOverview().catch(function () { /* ignore */ });
             }
-            loadSiteReadiness().catch(function () { /* ignore */ });
         }
         const saveServer = document.getElementById('server-setup-save');
         const saveBwc = document.getElementById('ss-save-bwc-list');
-        if (saveServer) saveServer.hidden = activeMainTab !== 'server';
+        if (saveServer) saveServer.hidden = next !== 'infrastructure';
         const saveCloud = document.getElementById('cd-save');
-        if (saveCloud) saveCloud.hidden = activeMainTab !== 'cloud';
-        if (saveBwc) saveBwc.hidden = activeMainTab !== 'bwc' || !canManageServer;
+        if (saveCloud) saveCloud.hidden = next !== 'infrastructure';
+        if (saveBwc) saveBwc.hidden = next !== 'fleet' || activeFleetSubTab !== 'wireless' || !canManageServer;
         const ftpPathInput = document.getElementById('ss-ftp-upload-path');
         if (ftpPathInput) ftpPathInput.disabled = !canManageServer;
-        if (activeMainTab === 'bwc' && global.BwcDevices && BwcDevices.buildEmbeddedTable) {
+        if (next === 'fleet' && activeFleetSubTab === 'wireless' && global.BwcDevices && BwcDevices.buildEmbeddedTable) {
             if (global.BwcDevices.refreshGroupOptions) {
                 global.BwcDevices.refreshGroupOptions().then(function () {
                     BwcDevices.buildEmbeddedTable();
@@ -487,17 +514,9 @@
             html += '<dt>' + tr('server.checklist.media') + '</dt><dd>' + esc(bwc.mediaTransport) + '</dd>';
         }
         if (deviceSummary && deviceSummary.count) {
-            html += '<dt style="margin-top:8px">' + tr('server.checklist.yourBwcs') + '</dt><dd>' + tr('server.checklist.deviceCount', { n: deviceSummary.count }) + '</dd>';
-            (deviceSummary.devices || []).slice(0, 6).forEach((d) => {
-                const line = (d.operatorName ? esc(d.operatorName) : esc(tr('fleet.bwcShort', { suffix: String(d.deviceId).slice(-4) })))
-                    + (d.mapGroup ? ' <span style="color:#94a3b8">(' + esc(d.mapGroup) + ')</span>' : '');
-                html += '<dt></dt><dd style="font-size:11px">' + line + '</dd>';
-            });
-            if (deviceSummary.count > 6) {
-                html += '<dt></dt><dd style="color:#64748b;font-size:10px">' + tr('server.checklist.more', { n: deviceSummary.count - 6 }) + '</dd>';
-            }
+            html += '<dt>' + tr('server.checklist.yourBwcs') + '</dt><dd>' + tr('server.checklist.deviceCount', { n: deviceSummary.count }) + '</dd>';
         } else {
-            html += '<dt style="margin-top:8px">' + tr('server.checklist.yourBwcs') + '</dt><dd style="color:#64748b">' + tr('server.checklist.none') + '</dd>';
+            html += '<dt>' + tr('server.checklist.yourBwcs') + '</dt><dd>' + tr('server.checklist.none') + '</dd>';
         }
         dl.innerHTML = html;
     }
@@ -526,43 +545,118 @@
         const ftpPathInput = document.getElementById('ss-ftp-upload-path');
         if (ftpPathInput) ftpPathInput.disabled = !canManageServer;
         const saveBwc = document.getElementById('ss-save-bwc-list');
-        if (saveBwc) saveBwc.hidden = activeMainTab !== 'bwc' || !canManageServer;
-        const tabFirmware = document.getElementById('ss-main-tab-firmware');
-        if (tabFirmware) tabFirmware.hidden = !canManageServer;
-        const tabCloud = document.getElementById('ss-main-tab-cloud');
-        if (tabCloud) tabCloud.hidden = !canManageServer;
-        const tabUsb = document.getElementById('ss-main-tab-usb');
-        if (tabUsb) tabUsb.hidden = !canManageServer;
-        if (!canManageServer && (activeMainTab === 'firmware' || activeMainTab === 'cloud' || activeMainTab === 'usb')) {
-            activeMainTab = 'server';
+        if (saveBwc) saveBwc.hidden = resolvePillar(activeMainTab) !== 'fleet' || !canManageServer;
+        const tabDiagnostics = document.getElementById('ss-main-tab-diagnostics');
+        if (tabDiagnostics) tabDiagnostics.hidden = !canManageServer;
+        if (!canManageServer && resolvePillar(activeMainTab) === 'diagnostics') {
+            activeMainTab = 'infrastructure';
         }
         updateMaintenanceNavVisibility();
-        if (isAdvancedTab(activeMainTab)) {
-            const btn = document.getElementById('ss-main-tab-' + activeMainTab);
-            if (!btn || btn.hidden) activeMainTab = 'server';
+        if (resolvePillar(activeMainTab) === 'diagnostics') {
+            const btn = document.getElementById('ss-main-tab-diagnostics');
+            if (!btn || btn.hidden) activeMainTab = 'infrastructure';
         }
         syncSidebarNav();
         applyDashboardAuthLayout();
     }
 
     function setDashSubTab(tab) {
-        if (!canManageUsers && tab !== 'me' && tab !== 'site') return;
+        if (!canManageUsers && tab !== 'me' && tab !== 'site' && tab !== 'groups' && tab !== 'lab') return;
         if (tab === 'me') activeDashSubTab = 'me';
         else if (tab === 'site') activeDashSubTab = canManageServer ? 'site' : 'add';
         else if (tab === 'users' || tab === 'operators') activeDashSubTab = canManageUsers ? 'users' : 'me';
         else if (tab === 'add') activeDashSubTab = canManageUsers ? 'add' : 'me';
+        else if (tab === 'groups') activeDashSubTab = (canManageUsers || canManageServer) ? 'groups' : 'me';
+        else if (tab === 'lab') activeDashSubTab = canManageServer ? 'lab' : (canManageUsers ? 'add' : 'me');
         else activeDashSubTab = canManageUsers ? 'add' : 'me';
-        ['add', 'users', 'site', 'me'].forEach(function (id) {
+        ['add', 'users', 'site', 'me', 'groups', 'lab'].forEach(function (id) {
             const btn = document.getElementById('ss-dash-sub-' + id);
             if (btn) btn.classList.toggle('active', id === activeDashSubTab);
         });
         applyDashboardAuthLayout();
         if (activeDashSubTab === 'me') loadMyAccount().catch(function () { /* ignore */ });
         if (activeDashSubTab === 'users') loadUsers().catch(function () { /* ignore */ });
+        if (activeDashSubTab === 'groups' && global.DispatchGroupsAdmin && DispatchGroupsAdmin.load) {
+            DispatchGroupsAdmin.load().catch(function () { /* ignore */ });
+        }
+        if (activeDashSubTab === 'lab' && global.LabSecurity && LabSecurity.onTabShown) {
+            LabSecurity.onTabShown();
+        }
+    }
+
+    function setFleetSubTab(tab) {
+        const allowed = { wireless: 1, fixed: 1, docks: 1, firmware: 1, usb: 1 };
+        if (!allowed[tab]) tab = 'wireless';
+        if ((tab === 'firmware' || tab === 'usb') && !canManageServer) tab = 'wireless';
+        activeFleetSubTab = tab;
+        applyFleetSubTabLayout();
+        if (tab === 'wireless' && global.BwcDevices && BwcDevices.buildEmbeddedTable) {
+            if (global.BwcDevices.refreshGroupOptions) {
+                global.BwcDevices.refreshGroupOptions().then(function () {
+                    BwcDevices.buildEmbeddedTable();
+                }).catch(function () { BwcDevices.buildEmbeddedTable(); });
+            } else {
+                BwcDevices.buildEmbeddedTable();
+            }
+        }
+        if (tab === 'firmware' && global.FirmwareOtaAdmin && FirmwareOtaAdmin.load) {
+            FirmwareOtaAdmin.load().catch(function () { /* ignore */ });
+        }
+        if (tab === 'usb' && global.UsbMaintenance && UsbMaintenance.onTabShown) {
+            UsbMaintenance.onTabShown();
+        } else if (global.UsbMaintenance && UsbMaintenance.onTabHidden) {
+            UsbMaintenance.onTabHidden();
+        }
+        if (tab === 'fixed') {
+            if (global.FixedCamsUi && FixedCamsUi.showInPanel) FixedCamsUi.showInPanel();
+        } else if (global.FixedCamsUi && FixedCamsUi.hideInPanel) {
+            FixedCamsUi.hideInPanel();
+        }
+        const saveBwc = document.getElementById('ss-save-bwc-list');
+        if (saveBwc) saveBwc.hidden = resolvePillar(activeMainTab) !== 'fleet' || tab !== 'wireless' || !canManageServer;
+    }
+
+    function applyFleetSubTabLayout() {
+        const onFleet = resolvePillar(activeMainTab) === 'fleet';
+        const subtabs = document.getElementById('ss-fleet-subtabs');
+        if (subtabs) subtabs.hidden = !onFleet;
+        const showId = onFleet ? ({
+            wireless: 'bwc',
+            fixed: 'fixed',
+            docks: 'docks',
+            firmware: 'firmware',
+            usb: 'usb',
+        }[activeFleetSubTab] || 'bwc') : '';
+        ['bwc', 'firmware', 'usb', 'fixed', 'docks'].forEach(function (id) {
+            const panel = document.getElementById('ss-panel-' + id);
+            if (!panel) return;
+            const on = id === showId;
+            panel.hidden = !on;
+            panel.classList.toggle('active', on);
+        });
+        ['wireless', 'fixed', 'docks', 'firmware', 'usb'].forEach(function (id) {
+            const btn = document.getElementById('ss-fleet-sub-' + id);
+            if (btn) btn.classList.toggle('active', onFleet && id === activeFleetSubTab);
+        });
+        const fwBtn = document.getElementById('ss-fleet-sub-firmware');
+        const usbBtn = document.getElementById('ss-fleet-sub-usb');
+        if (fwBtn) fwBtn.hidden = !canManageServer;
+        if (usbBtn) usbBtn.hidden = !canManageServer;
+        const saveBwc = document.getElementById('ss-save-bwc-list');
+        if (saveBwc) saveBwc.hidden = !onFleet || activeFleetSubTab !== 'wireless' || !canManageServer;
+        if (!onFleet) {
+            if (global.FixedCamsUi && FixedCamsUi.hideInPanel) FixedCamsUi.hideInPanel();
+        }
+    }
+
+    function openFleetDocks() {
+        setOpen(true);
+        setMainTab('fleet');
+        setFleetSubTab('docks');
     }
 
     function applyDashboardAuthLayout() {
-        const onDash = activeMainTab === 'dashboard';
+        const onDash = resolvePillar(activeMainTab) === 'security';
         const subtabs = document.getElementById('ss-dash-subtabs');
         const usersSection = document.getElementById('ss-users-section');
         const addSection = document.getElementById('ss-users-add-section');
@@ -575,11 +669,36 @@
         const siteTabBtn = document.getElementById('ss-dash-sub-site');
         const addTabBtn = document.getElementById('ss-dash-sub-add');
         const usersTabBtn = document.getElementById('ss-dash-sub-users');
+        const groupsTabBtn = document.getElementById('ss-dash-sub-groups');
+        const labTabBtn = document.getElementById('ss-dash-sub-lab');
+        const dashPanel = document.getElementById('ss-panel-dashboard');
+        const groupsPanel = document.getElementById('ss-panel-groups');
+        const labPanel = document.getElementById('ss-panel-lab');
 
         const onSite = onDash && canManageServer && activeDashSubTab === 'site';
+        const onGroups = onDash && activeDashSubTab === 'groups';
+        const onLab = onDash && activeDashSubTab === 'lab';
         if (siteTabBtn) siteTabBtn.hidden = !canManageServer;
         if (addTabBtn) addTabBtn.hidden = !canManageUsers;
         if (usersTabBtn) usersTabBtn.hidden = !canManageUsers;
+        if (groupsTabBtn) groupsTabBtn.hidden = !(canManageUsers || canManageServer);
+        if (labTabBtn) {
+            labTabBtn.hidden = !canManageServer;
+            labTabBtn.textContent = String(labTabBtn.textContent || '').replace(/^[\s\u00a0\u200b]+/, '').trim();
+        }
+        if (dashPanel) {
+            const showDash = onDash && !onLab && !onGroups;
+            dashPanel.hidden = !showDash;
+            dashPanel.classList.toggle('active', showDash);
+        }
+        if (groupsPanel) {
+            groupsPanel.hidden = !onGroups;
+            groupsPanel.classList.toggle('active', onGroups);
+        }
+        if (labPanel) {
+            labPanel.hidden = !onLab;
+            labPanel.classList.toggle('active', onLab);
+        }
 
         if (siteSection) siteSection.hidden = !onSite;
         if (smtpSection) smtpSection.hidden = !onSite;
@@ -992,14 +1111,14 @@
             if (hide) {
                 el.hidden = true;
                 el.setAttribute('hidden', '');
-            } else if (el.id === 'ss-main-tab-server' || el.id === 'ss-panel-server'
+            } else if (el.id === 'ss-main-tab-infrastructure' || el.id === 'ss-panel-server'
                 || el.classList.contains('ss-inbound-checklist-card')
                 || el.getAttribute('data-ss-section') === 'ss-section-lan'
                 || el.getAttribute('data-ss-section') === 'ss-section-wan'
                 || el.id === 'ss-section-lan'
                 || el.id === 'ss-section-wan') {
                 /* LAN/WAN may stay hidden via updateDeploymentSections — only clear SaaS hide */
-                if (el.id === 'ss-main-tab-server' || el.id === 'ss-panel-server'
+                if (el.id === 'ss-main-tab-infrastructure' || el.id === 'ss-panel-server'
                     || el.classList.contains('ss-inbound-checklist-card')) {
                     el.hidden = false;
                     el.removeAttribute('hidden');
@@ -1014,8 +1133,8 @@
             else el.setAttribute('hidden', '');
         });
 
-        if (saasDeploymentMode === 'cloud_leased' && activeMainTab === 'server') {
-            setMainTab('bwc');
+        if (saasDeploymentMode === 'cloud_leased' && resolvePillar(activeMainTab) === 'infrastructure') {
+            setMainTab('fleet');
         }
         if (saasDeploymentMode === 'on_prem') {
             updateDeploymentSections(lastDeploymentMode);
@@ -1122,7 +1241,7 @@
         if (scrollEl && !networkSectionScrollBound) {
             networkSectionScrollBound = true;
             scrollEl.addEventListener('scroll', function () {
-                if (activeMainTab === 'server') syncNetworkSectionNavHighlight();
+                if (resolvePillar(activeMainTab) === 'infrastructure') syncNetworkSectionNavHighlight();
             }, { passive: true });
         }
     }
@@ -1508,18 +1627,18 @@
         const q = String(qEl && qEl.value || '').trim().toLowerCase();
         const role = String(roleEl && roleEl.value || '');
         const scope = String(scopeEl && scopeEl.value || '');
-        const cards = listRoot.querySelectorAll('.ss-user-card');
+        const rows = listRoot.querySelectorAll('tr[data-user-id]');
         let visible = 0;
-        cards.forEach(function (card) {
-            const roleOk = !role || card.getAttribute('data-role') === role;
-            const scopeOk = !scope || card.getAttribute('data-scope') === scope;
-            const hay = String(card.getAttribute('data-search') || '');
+        rows.forEach(function (row) {
+            const roleOk = !role || row.getAttribute('data-role') === role;
+            const scopeOk = !scope || row.getAttribute('data-scope') === scope;
+            const hay = String(row.getAttribute('data-search') || '');
             const qOk = !q || hay.indexOf(q) !== -1;
             const show = roleOk && scopeOk && qOk;
-            card.hidden = !show;
+            row.hidden = !show;
             if (show) visible += 1;
         });
-        if (emptyEl) emptyEl.hidden = !(cards.length > 0 && visible === 0);
+        if (emptyEl) emptyEl.hidden = !(rows.length > 0 && visible === 0);
     }
 
     function bindUsersListFilter() {
@@ -1544,16 +1663,13 @@
 
     function permCheckLabeled(className, checked, labelText) {
         return '<label class="ss-perm-check"><input type="checkbox" class="' + className + '"'
-            + (checked ? ' checked' : '') + '><span>' + esc(labelText) + '</span></label>';
+            + (checked ? ' checked' : '') + '><span class="ss-perm-slider" aria-hidden="true"></span><span>'
+            + esc(labelText) + '</span></label>';
     }
 
     function permField(isSuper, className, checked, labelKey) {
         const labelText = tr(labelKey);
-        if (isSuper) {
-            return '<div class="ss-perm-col ss-perm-all">' + permAllBadge()
-                + ' <span class="setup-hint" style="margin:0">' + esc(labelText) + '</span></div>';
-        }
-        return '<div class="ss-perm-col">' + permCheckLabeled(className, !!checked, labelText) + '</div>';
+        return '<div class="ss-perm-col">' + permCheckLabeled(className, isSuper ? true : !!checked, labelText) + '</div>';
     }
 
     function permKillSwitchField(checked) {
@@ -1611,6 +1727,145 @@
         return html;
     }
 
+    function permAcc(title, innerHtml) {
+        return '<details class="ss-user-acc" open><summary><span>' + esc(title)
+            + '</span><span class="ss-user-acc-hint"></span></summary><div class="ss-user-acc-body">'
+            + '<label class="ss-perm-check ss-perm-select-all-row"><input type="checkbox" class="ss-user-perm-select-all">'
+            + '<span class="ss-perm-slider" aria-hidden="true"></span><span>'
+            + esc(tr('common.selectAll') || 'Select all') + '</span></label>'
+            + innerHtml + '</div></details>';
+    }
+
+    function clearOpenUserRow() {
+        const listRoot = document.getElementById('ss-users-body');
+        if (!listRoot) return;
+        listRoot.querySelectorAll('tr.ss-user-row-open').forEach(function (r) {
+            r.classList.remove('ss-user-row-open');
+        });
+    }
+
+    function markOpenUserRow(userId) {
+        clearOpenUserRow();
+        if (!userId) return;
+        const row = document.querySelector('#ss-users-body tr[data-user-id="' + userId + '"]');
+        if (row) row.classList.add('ss-user-row-open');
+    }
+
+    function syncPermSelectAll(acc) {
+        if (!acc) return;
+        const master = acc.querySelector('.ss-user-perm-select-all');
+        const boxes = acc.querySelectorAll('.ss-user-acc-body input[type="checkbox"]:not(.ss-user-perm-select-all)');
+        if (!master || !boxes.length) return;
+        let n = 0;
+        boxes.forEach(function (cb) { if (cb.checked) n += 1; });
+        master.checked = n === boxes.length;
+        master.indeterminate = n > 0 && n < boxes.length;
+    }
+
+    function closeUserDrawer() {
+        const drawer = document.getElementById('ss-user-drawer');
+        if (drawer) drawer.hidden = true;
+        const panel = document.getElementById('ss-user-drawer-panel');
+        if (panel) {
+            panel.removeAttribute('data-user-id');
+            panel.removeAttribute('data-username');
+        }
+        clearOpenUserRow();
+    }
+
+    function renderUserDrawerInner(u) {
+        const isSuper = u.role === 'super_admin';
+        const perms = u.permissions || {};
+        const roleLabel = isSuper ? tr('role.superAdmin') : tr('role.operator');
+        const signInFromVal = (!isSuper && perms.signInStartsAt) ? String(perms.signInStartsAt).slice(0, 10) : '';
+        const signInVal = (!isSuper && perms.signInExpiresAt) ? String(perms.signInExpiresAt).slice(0, 10) : '';
+        const expVal = (!isSuper && perms.evidenceDownloadExpiresAt) ? String(perms.evidenceDownloadExpiresAt).slice(0, 10) : '';
+        const dashCell = isSuper
+            ? '<span class="ss-perm-na">\u2014</span>'
+            : ('<input type="date" class="ss-user-signin-from enterprise-form-control"'
+                + (signInFromVal ? ' value="' + esc(signInFromVal) + '"' : '') + '>');
+        const signInCell = isSuper
+            ? '<span class="ss-perm-na">\u2014</span>'
+            : ('<input type="date" class="ss-user-signin-exp enterprise-form-control"'
+                + (signInVal ? ' value="' + esc(signInVal) + '"' : '') + '>');
+        const expCell = isSuper
+            ? '<span class="ss-perm-na">\u2014</span>'
+            : ('<input type="date" class="ss-user-evidence-exp enterprise-form-control"'
+                + (expVal ? ' value="' + esc(expVal) + '"' : '') + '>');
+        const identity = '<div class="enterprise-form-grid ss-user-drawer-grid">'
+            + '<label><span>' + esc(tr('server.users.loginUsername') || 'Username') + '</span>'
+            + '<input type="text" class="ss-user-username enterprise-form-control" autocomplete="off" spellcheck="false" value="' + esc(u.username) + '"></label>'
+            + '<label><span>' + esc(tr('server.users.displayName')) + '</span>'
+            + '<input type="text" class="ss-user-display-name enterprise-form-control" autocomplete="off" value="'
+            + esc(u.displayName || '') + '"></label>'
+            + '<label><span>' + esc(tr('server.users.colRole')) + '</span>'
+            + '<select class="enterprise-form-control" disabled>'
+            + '<option selected>' + esc(roleLabel) + '</option></select></label>'
+            + '<label><span>' + esc(tr('server.users.contactNote')) + '</span>'
+            + '<input type="text" class="ss-user-contact-note enterprise-form-control" autocomplete="off" value="'
+            + esc(u.contactNote || '') + '"></label>'
+            + '<label class="' + (isSuper ? 'ss-perm-col ss-perm-all' : 'ss-dispatch-grps-col') + '">'
+            + '<span>' + esc(tr('server.users.filterScope')) + '</span>'
+            + renderDispatchGroupsCell(u) + '</label>'
+            + '<label><span>' + esc(tr('server.users.colSignInFrom')) + '</span>' + dashCell + '</label>'
+            + '<label><span>' + esc(tr('server.users.colSignInExpiry')) + '</span>' + signInCell + '</label>'
+            + '<label><span>' + esc(tr('server.users.colExpiry')) + '</span>' + expCell + '</label>'
+            + '</div>';
+        const acc = permAcc('Operations',
+                permField(isSuper, 'ss-user-map-control', perms.mapDeviceControl, 'server.users.colRemoteControl')
+                + permKillSwitchField(perms.deviceKillSwitch)
+                + permField(isSuper, 'ss-user-geofence', perms.geofenceControl, 'server.users.colGeofence')
+                + permField(isSuper, 'ss-user-clear-map-pins', perms.clearMapPins, 'server.users.colClearMapPins')
+                + permField(isSuper, 'ss-user-overlay-view', perms.overlayView || perms.overlayEdit, 'server.users.colOverlayView')
+                + permField(isSuper, 'ss-user-overlay-edit', perms.overlayEdit, 'server.users.colOverlayEdit'))
+            + permAcc('Tactical',
+                permField(isSuper, 'ss-user-tactical-view', perms.tacticalView, 'server.users.colTacticalView')
+                + permField(isSuper, 'ss-user-blueprint-manage', perms.blueprintManage, 'server.users.colBlueprintManage'))
+            + permAcc('Evidence',
+                permField(isSuper, 'ss-user-evidence-view', perms.evidenceView || perms.evidenceDownload, 'server.users.colEvidenceView')
+                + permField(isSuper, 'ss-user-evidence-dl', perms.evidenceDownload, 'server.users.colEvidence')
+                + permField(isSuper, 'ss-user-evidence-export', perms.evidenceExport, 'server.users.colEvidenceExport')
+                + permField(isSuper, 'ss-user-evidence-edit', perms.evidenceEdit, 'server.users.colEvidenceEdit')
+                + permField(isSuper, 'ss-user-dock-admin', perms.dockAdmin, 'server.users.colDockAdmin'))
+            + permAcc('Video Conference',
+                permField(isSuper, 'ss-user-conference-view', perms.conferenceView || perms.conferenceJoin, 'server.users.colConferenceView')
+                + permField(isSuper, 'ss-user-conference-join', perms.conferenceJoin, 'server.users.colConferenceJoin')
+                + permField(isSuper, 'ss-user-conference-host', perms.conferenceHost, 'server.users.colConferenceHost')
+                + permField(isSuper, 'ss-user-conference-record', perms.conferenceRecord, 'server.users.colConferenceRecord')
+                + permField(isSuper, 'ss-user-conference-bwc', perms.conferenceBwcShare, 'server.users.colConferenceBwc')
+                + permField(isSuper, 'ss-user-conference-cross', perms.conferenceCrossGroup, 'server.users.colConferenceCross'));
+        return identity + acc;
+    }
+
+    function openUserDrawer(userId) {
+        const u = (lastUsersList || []).find(function (x) { return x && x.id === userId; });
+        const drawer = document.getElementById('ss-user-drawer');
+        const panel = document.getElementById('ss-user-drawer-panel');
+        const body = document.getElementById('ss-user-drawer-body');
+        const title = document.getElementById('ss-user-drawer-title');
+        if (!u || !drawer || !panel || !body) return;
+        panel.setAttribute('data-user-id', u.id);
+        panel.setAttribute('data-username', u.username);
+        panel.setAttribute('data-role', u.role === 'super_admin' ? 'super_admin' : 'operator');
+        const isSuper = u.role === 'super_admin';
+        const roleLabel = isSuper ? tr('role.superAdmin') : tr('role.operator');
+        if (title) title.textContent = (u.username || 'Configure');
+        const roleEl = document.getElementById('ss-user-drawer-role');
+        if (roleEl) {
+            roleEl.hidden = false;
+            roleEl.textContent = roleLabel;
+            roleEl.setAttribute('data-role', isSuper ? 'super_admin' : 'operator');
+        }
+        body.innerHTML = renderUserDrawerInner(u);
+        body.scrollTop = 0;
+        markOpenUserRow(u.id);
+        body.querySelectorAll('.ss-user-acc').forEach(syncPermSelectAll);
+        const rm = panel.querySelector('.ss-user-remove');
+        if (rm) rm.hidden = u.role === 'super_admin';
+        drawer.hidden = false;
+        wireUserDatePickers(body);
+    }
+
     async function loadUsers() {
         if (!canManageUsers) return;
         if (global.DispatchGroupsAdmin && DispatchGroupsAdmin.fetchGroups) {
@@ -1640,98 +1895,23 @@
         lastUsersList = data.users || [];
         const listRoot = document.getElementById('ss-users-body');
         if (!listRoot) return;
-        listRoot.innerHTML = (data.users || []).map((u) => {
+        listRoot.innerHTML = (data.users || []).map(function (u) {
             const isSuper = u.role === 'super_admin';
-            const perms = u.permissions || {};
-            const roleCell = '<div class="ss-role-scope-cell">'
-                + (isSuper
-                    ? ('<span class="ss-role-badge-ui">' + esc(tr('role.superAdmin')) + '</span>')
-                    : ('<span class="ss-role-badge-ui operator">' + esc(tr('role.operator')) + '</span>'))
-                + hierarchyScopeBadgeHtml(u)
-                + '</div>';
-            const signInFromVal = (!isSuper && perms.signInStartsAt)
-                ? String(perms.signInStartsAt).slice(0, 10) : '';
-            const signInVal = (!isSuper && perms.signInExpiresAt)
-                ? String(perms.signInExpiresAt).slice(0, 10) : '';
-            const expVal = (!isSuper && perms.evidenceDownloadExpiresAt)
-                ? String(perms.evidenceDownloadExpiresAt).slice(0, 10) : '';
-            const dashCell = isSuper
-                ? '<span class="ss-perm-na">\u2014</span>'
-                : ('<input type="date" class="ss-user-signin-from"' +
-                    (signInFromVal ? ' value="' + esc(signInFromVal) + '"' : '') + ' title="' + tr('server.users.colSignInFrom') + '">');
-            const signInCell = isSuper
-                ? '<span class="ss-perm-na">\u2014</span>'
-                : ('<input type="date" class="ss-user-signin-exp"' +
-                    (signInVal ? ' value="' + esc(signInVal) + '"' : '') + ' title="' + tr('server.users.colSignInExpiry') + '">');
-            const expCell = isSuper
-                ? '<span class="ss-perm-na">\u2014</span>'
-                : ('<input type="date" class="ss-user-evidence-exp"' +
-                    (expVal ? ' value="' + esc(expVal) + '"' : '') + ' title="' + tr('server.users.expiryHint') + '">');
-            const actionsCell = '<div class="ss-user-actions">'
-                + '<button type="button" class="ss-user-save" disabled title="' + tr('server.users.saveRow') + '">' + tr('server.users.saveRow') + '</button>'
-                + '<button type="button" class="ss-user-reset" title="' + tr('server.users.setPassword') + '">' + tr('server.users.setPassword') + '</button>'
-                + (isSuper ? '' : ('<button type="button" class="ss-user-remove" title="' + tr('server.users.remove') + '">' + tr('server.users.remove') + '</button>'))
-                + '</div>';
-            const tierId = '<div class="ss-east-west-grid ss-user-tier-id">'
-                + '<label><span>' + esc(tr('server.users.loginUsername') || 'Login username') + '</span>'
-                + '<input type="text" class="ss-user-username enterprise-form-control" autocomplete="off" spellcheck="false" value="' + esc(u.username) + '"></label>'
-                + '<label><span>' + esc(tr('server.users.displayName')) + '</span>'
-                + '<input type="text" class="ss-user-display-name enterprise-form-control" autocomplete="off" value="'
-                + esc(u.displayName || '') + '" placeholder="e.g. Night shift lead"></label>'
-                + '<label><span>' + esc(tr('server.users.contactNote')) + '</span>'
-                + '<input type="text" class="ss-user-contact-note enterprise-form-control" autocomplete="off" value="'
-                + esc(u.contactNote || '') + '" placeholder="e.g. ext. 4021"></label>'
-                + '<label><span>User ID</span><div class="ss-user-id"><code>' + esc(u.id) + '</code></div></label>'
-                + '</div>';
-            const tierOps = '<div class="ss-east-west-grid ss-user-tier-ops">'
-                + '<label><span data-i18n="server.users.colRole">' + esc(tr('server.users.colRole')) + '</span>'
-                + '<div>' + roleCell + '</div></label>'
-                + '<label class="' + (isSuper ? 'ss-perm-col ss-perm-all' : 'ss-dispatch-grps-col') + '">'
-                + '<span data-i18n="server.users.colDispatchGroups">' + esc(tr('server.users.colDispatchGroups')) + '</span>'
-                + renderDispatchGroupsCell(u) + '</label>'
-                + '<label><span data-i18n="server.users.colSignInFrom">' + esc(tr('server.users.colSignInFrom')) + '</span>'
-                + dashCell + '</label>'
-                + '<label><span data-i18n="server.users.colSignInExpiry">' + esc(tr('server.users.colSignInExpiry')) + '</span>'
-                + signInCell + '</label>'
-                + '<label><span data-i18n="server.users.colExpiry">' + esc(tr('server.users.colExpiry')) + '</span>'
-                + expCell + '</label>'
-                + '<div class="ss-actions-col"><span>' + esc(tr('server.users.colActions')) + '</span>' + actionsCell + '</div>'
-                + '</div>';
-            const tier2 = '<div class="ss-east-west-grid ss-user-tier2">'
-                + '<div><h4 class="ss-user-perm-h">System</h4>'
-                + permField(isSuper, 'ss-user-map-control', perms.mapDeviceControl, 'server.users.colRemoteControl')
-                + permKillSwitchField(perms.deviceKillSwitch)
-                + permField(isSuper, 'ss-user-geofence', perms.geofenceControl, 'server.users.colGeofence')
-                + permField(isSuper, 'ss-user-clear-map-pins', perms.clearMapPins, 'server.users.colClearMapPins')
-                + '</div>'
-                + '<div><h4 class="ss-user-perm-h">Evidence</h4>'
-                + permField(isSuper, 'ss-user-evidence-view', perms.evidenceView || perms.evidenceDownload, 'server.users.colEvidenceView')
-                + permField(isSuper, 'ss-user-evidence-dl', perms.evidenceDownload, 'server.users.colEvidence')
-                + permField(isSuper, 'ss-user-evidence-export', perms.evidenceExport, 'server.users.colEvidenceExport')
-                + permField(isSuper, 'ss-user-evidence-edit', perms.evidenceEdit, 'server.users.colEvidenceEdit')
-                + permField(isSuper, 'ss-user-dock-admin', perms.dockAdmin, 'server.users.colDockAdmin')
-                + '</div>'
-                + '<div><h4 class="ss-user-perm-h">Video Conference</h4>'
-                + permField(isSuper, 'ss-user-conference-view', perms.conferenceView || perms.conferenceJoin, 'server.users.colConferenceView')
-                + permField(isSuper, 'ss-user-conference-join', perms.conferenceJoin, 'server.users.colConferenceJoin')
-                + permField(isSuper, 'ss-user-conference-host', perms.conferenceHost, 'server.users.colConferenceHost')
-                + permField(isSuper, 'ss-user-conference-record', perms.conferenceRecord, 'server.users.colConferenceRecord')
-                + permField(isSuper, 'ss-user-conference-bwc', perms.conferenceBwcShare, 'server.users.colConferenceBwc')
-                + permField(isSuper, 'ss-user-conference-cross', perms.conferenceCrossGroup, 'server.users.colConferenceCross')
-                + '</div>'
-                + '<div><h4 class="ss-user-perm-h">Audit</h4>'
-                + permField(isSuper, 'ss-user-audit-view', perms.auditView || perms.auditExport, 'server.users.colAuditView')
-                + permField(isSuper, 'ss-user-audit-export', perms.auditExport, 'server.users.colAuditExport')
-                + '</div>'
-                + '</div>';
-            return '<div class="ss-config-section ss-user-card' + (isSuper ? ' ss-user-row-super' : '') + '" data-user-id="'
-                + esc(u.id) + '" data-username="' + esc(u.username)
+            const roleLabel = isSuper ? tr('role.superAdmin') : tr('role.operator');
+            const stations = userIsAllStationsScope(u)
+                ? tr('server.users.scopeCorporate')
+                : tr('server.users.scopeStation');
+            return '<tr data-user-id="' + esc(u.id) + '" data-username="' + esc(u.username)
                 + '" data-role="' + esc(isSuper ? 'super_admin' : 'operator')
                 + '" data-scope="' + (userIsAllStationsScope(u) ? 'all' : 'assigned')
                 + '" data-search="' + esc(userFilterSearchBlob(u)) + '">'
-                + tierId + tierOps + tier2 + '</div>';
+                + '<td>' + esc(u.username) + '</td>'
+                + '<td>' + esc(u.displayName || '\u2014') + '</td>'
+                + '<td>' + esc(roleLabel) + '</td>'
+                + '<td>' + esc(stations) + '</td>'
+                + '<td><button type="button" class="btn btn-action btn-sm ss-user-configure">Configure</button></td>'
+                + '</tr>';
         }).join('');
-        wireUserDatePickers(listRoot);
         bindUsersListFilter();
         applyUsersListFilter();
     }
@@ -1803,6 +1983,10 @@
             deviceKillSwitch: !!(killSwitchEl && killSwitchEl.checked),
             geofenceControl: !!(gfEl && gfEl.checked),
             clearMapPins: !!(clearPinsEl && clearPinsEl.checked),
+            overlayView: !!(row.querySelector('.ss-user-overlay-view') && row.querySelector('.ss-user-overlay-view').checked),
+            overlayEdit: !!(row.querySelector('.ss-user-overlay-edit') && row.querySelector('.ss-user-overlay-edit').checked),
+            tacticalView: !!(row.querySelector('.ss-user-tactical-view') && row.querySelector('.ss-user-tactical-view').checked),
+            blueprintManage: !!(row.querySelector('.ss-user-blueprint-manage') && row.querySelector('.ss-user-blueprint-manage').checked),
             evidenceView: !!(evViewEl && evViewEl.checked),
             evidenceDownload: !!(evEl && evEl.checked),
             evidenceExport: !!(evExportEl && evExportEl.checked),
@@ -1960,23 +2144,22 @@
     async function loadTabExtras(tab, opts) {
         opts = opts || {};
         const force = !!opts.force;
-        tab = tab || activeMainTab;
+        tab = resolvePillar(tab || activeMainTab);
         const tasks = [];
-        if (tab === 'server' && (force || !tabExtrasLoaded.server)) {
+        if (tab === 'infrastructure' && (force || !tabExtrasLoaded.server)) {
             tabExtrasLoaded.server = true;
             tasks.push(loadSiteResilience());
             tasks.push(loadProductionAccess());
-            tasks.push(loadSiteReadiness());
             tasks.push(refreshDeviceSummary());
             tasks.push(loadDockFolder().then(fillDockPanel));
         }
-        if (tab === 'bwc' && (force || !tabExtrasLoaded.bwc)) {
+        if (tab === 'fleet' && (force || !tabExtrasLoaded.bwc)) {
             tabExtrasLoaded.bwc = true;
             tasks.push((async function () {
                 if (global.BwcDevices && BwcDevices.buildEmbeddedTable) BwcDevices.buildEmbeddedTable();
             })());
         }
-        if (tab === 'dashboard' && (force || !tabExtrasLoaded.dashboard)) {
+        if (tab === 'security' && (force || !tabExtrasLoaded.dashboard)) {
             tabExtrasLoaded.dashboard = true;
             if (canManageUsers) {
                 tasks.push(loadUsers().catch(function () { /* ignore */ }));
@@ -1984,9 +2167,13 @@
                 tasks.push(loadMyAccount().catch(function () { /* ignore */ }));
             }
         }
+        if (tab === 'diagnostics' && (force || !tabExtrasLoaded.diagnostics)) {
+            tabExtrasLoaded.diagnostics = true;
+            tasks.push(loadSiteReadiness());
+        }
         if (!tasks.length) return;
         await Promise.all(tasks);
-        if (tab === 'dashboard') applyDashboardAuthLayout();
+        if (tab === 'security') applyDashboardAuthLayout();
     }
 
     async function loadCore() {
@@ -2032,7 +2219,7 @@
     }
 
     function openConfigPanel(mainTab) {
-        activeMainTab = mainTab || 'server';
+        activeMainTab = resolvePillar(mainTab || 'infrastructure');
         if (cachedSettingsData) {
             applySettingsPayload(cachedSettingsData);
         } else if (global.SessionBus && SessionBus.peekSettings) {
@@ -2197,29 +2384,41 @@
                 row.click();
             });
         }
-        document.getElementById('ss-main-tab-server').addEventListener('click', () => setMainTab('server'));
-        document.getElementById('ss-main-tab-bwc').addEventListener('click', () => setMainTab('bwc'));
-        const tabGroups = document.getElementById('ss-main-tab-groups');
-        if (tabGroups) tabGroups.addEventListener('click', () => setMainTab('groups'));
-        const tabUsb = document.getElementById('ss-main-tab-usb');
-        if (tabUsb) tabUsb.addEventListener('click', () => setMainTab('usb'));
-        const tabFirmware = document.getElementById('ss-main-tab-firmware');
-        if (tabFirmware) tabFirmware.addEventListener('click', () => setMainTab('firmware'));
-        document.getElementById('ss-main-tab-dashboard').addEventListener('click', () => setMainTab('dashboard'));
-        const tabCloud = document.getElementById('ss-main-tab-cloud');
-        if (tabCloud && !tabCloud._ssBound) {
-            tabCloud._ssBound = true;
-            tabCloud.addEventListener('click', () => setMainTab('cloud'));
+        document.getElementById('ss-main-tab-infrastructure').addEventListener('click', () => setMainTab('infrastructure'));
+        document.getElementById('ss-main-tab-fleet').addEventListener('click', () => setMainTab('fleet'));
+        const tabSecurity = document.getElementById('ss-main-tab-security');
+        if (tabSecurity) tabSecurity.addEventListener('click', () => setMainTab('security'));
+        const tabDiagnostics = document.getElementById('ss-main-tab-diagnostics');
+        if (tabDiagnostics) {
+            tabDiagnostics.addEventListener('click', function () {
+                runWithTechAccess(function () { setMainTab('diagnostics'); });
+            });
         }
         if (global.FirmwareOtaAdmin && FirmwareOtaAdmin.init) FirmwareOtaAdmin.init();
         const subAdd = document.getElementById('ss-dash-sub-add');
         const subUsers = document.getElementById('ss-dash-sub-users');
         const subSite = document.getElementById('ss-dash-sub-site');
         const subMe = document.getElementById('ss-dash-sub-me');
+        const subGroups = document.getElementById('ss-dash-sub-groups');
+        const subLab = document.getElementById('ss-dash-sub-lab');
         if (subAdd) subAdd.addEventListener('click', () => setDashSubTab('add'));
         if (subUsers) subUsers.addEventListener('click', () => setDashSubTab('users'));
         if (subSite) subSite.addEventListener('click', () => setDashSubTab('site'));
         if (subMe) subMe.addEventListener('click', () => setDashSubTab('me'));
+        if (subGroups) subGroups.addEventListener('click', () => setDashSubTab('groups'));
+        if (subLab) subLab.addEventListener('click', () => setDashSubTab('lab'));
+        const fleetWireless = document.getElementById('ss-fleet-sub-wireless');
+        const fleetFixed = document.getElementById('ss-fleet-sub-fixed');
+        const fleetDocks = document.getElementById('ss-fleet-sub-docks');
+        const fleetFw = document.getElementById('ss-fleet-sub-firmware');
+        const fleetUsb = document.getElementById('ss-fleet-sub-usb');
+        if (fleetWireless) fleetWireless.addEventListener('click', () => setFleetSubTab('wireless'));
+        if (fleetFixed) fleetFixed.addEventListener('click', () => setFleetSubTab('fixed'));
+        if (fleetDocks) fleetDocks.addEventListener('click', () => setFleetSubTab('docks'));
+        if (fleetFw) fleetFw.addEventListener('click', () => setFleetSubTab('firmware'));
+        if (fleetUsb) fleetUsb.addEventListener('click', () => setFleetSubTab('usb'));
+        const fleetDocksStorage = document.getElementById('ss-fleet-docks-storage');
+        if (fleetDocksStorage) fleetDocksStorage.addEventListener('click', openEvidenceStorage);
 
         const openEvidenceStorageBtn = document.getElementById('ss-open-evidence-storage');
         if (openEvidenceStorageBtn) openEvidenceStorageBtn.addEventListener('click', openEvidenceStorage);
@@ -2389,12 +2588,29 @@
             }
         });
 
-        document.getElementById('ss-users-body').addEventListener('change', (e) => {
+        const usersHost = document.getElementById('ss-panel-users') || document.getElementById('ss-users-body');
+        const userEditHosts = [usersHost, document.getElementById('ss-user-drawer')].filter(Boolean);
+        userEditHosts.forEach(function (host) {
+        host.addEventListener('change', (e) => {
             const row = closestUserRow(e.target);
             if (!row) return;
+            if (e.target.matches('.ss-user-perm-select-all')) {
+                const acc = e.target.closest('.ss-user-acc');
+                const on = e.target.checked;
+                if (acc) {
+                    acc.querySelectorAll('.ss-user-acc-body input[type="checkbox"]:not(.ss-user-perm-select-all)').forEach(function (cb) {
+                        cb.checked = on;
+                    });
+                }
+                markUserRowDirty(row);
+                return;
+            }
             if (e.target.matches('.ss-user-map-control') || e.target.matches('.ss-user-kill-switch')
                 || e.target.matches('.ss-user-geofence')
-                || e.target.matches('.ss-user-clear-map-pins') || e.target.matches('.ss-user-evidence-view')
+                || e.target.matches('.ss-user-clear-map-pins')
+                || e.target.matches('.ss-user-overlay-view') || e.target.matches('.ss-user-overlay-edit')
+                || e.target.matches('.ss-user-tactical-view') || e.target.matches('.ss-user-blueprint-manage')
+                || e.target.matches('.ss-user-evidence-view')
                 || e.target.matches('.ss-user-evidence-dl') || e.target.matches('.ss-user-evidence-export')
                 || e.target.matches('.ss-user-evidence-edit')                 || e.target.matches('.ss-user-dock-admin')
                 || e.target.matches('.ss-user-conference-view') || e.target.matches('.ss-user-conference-join')
@@ -2414,10 +2630,12 @@
                     });
                 }
                 markUserRowDirty(row);
+                const acc = e.target.closest('.ss-user-acc');
+                if (acc) syncPermSelectAll(acc);
             }
         });
 
-        document.getElementById('ss-users-body').addEventListener('input', (e) => {
+        host.addEventListener('input', (e) => {
             const row = closestUserRow(e.target);
             if (!row) return;
             if (e.target.matches('.ss-user-signin-from') || e.target.matches('.ss-user-signin-exp')
@@ -2429,11 +2647,27 @@
             }
         });
 
-        document.getElementById('ss-users-body').addEventListener('click', async (e) => {
+        host.addEventListener('click', async (e) => {
+            if (e.target.closest && e.target.closest('#ss-user-drawer-close')) {
+                e.preventDefault();
+                closeUserDrawer();
+                return;
+            }
+            if (e.target.id === 'ss-user-drawer-backdrop') {
+                closeUserDrawer();
+                return;
+            }
+            const cfgBtn = e.target.closest && e.target.closest('.ss-user-configure');
+            if (cfgBtn) {
+                const tr = cfgBtn.closest('[data-user-id]');
+                if (tr) openUserDrawer(tr.getAttribute('data-user-id'));
+                return;
+            }
             const jumpBtn = e.target.closest && e.target.closest('.ss-dispatch-jump-groups');
             if (jumpBtn) {
                 e.preventDefault();
-                setMainTab('groups');
+                setMainTab('security');
+                setDashSubTab('groups');
                 return;
             }
             const row = closestUserRow(e.target);
@@ -2458,10 +2692,12 @@
                     });
                     clearUserRowDirty(row);
                     row.setAttribute('data-username', profile.username);
+                    closeUserDrawer();
                     await loadUsers();
                     alert(tr('server.users.saved', { name: name }));
                 } catch (err) {
                     alert(opMsg(err.opPayload || err.catalogPayload, err));
+                    btn.disabled = false;
                     await loadUsers();
                 }
                 return;
@@ -2480,6 +2716,7 @@
                     });
                     const data = await res.json();
                     if (!res.ok || !data.ok) throwOpErr(data);
+                    closeUserDrawer();
                     await loadUsers();
                     alert(tr('server.users.removed', { name: name }));
                 } catch (err) {
@@ -2490,6 +2727,7 @@
             if (e.target.matches('.ss-user-reset')) {
                 openResetPwdDialog(id);
             }
+        });
         });
 
         document.getElementById('server-setup-save').addEventListener('click', async () => {
@@ -2664,6 +2902,12 @@
         }
         pinEl.value = '';
         pin2El.value = '';
+        pinEl.type = 'password';
+        pin2El.type = 'password';
+        document.querySelectorAll('[data-ss-pass-toggle="ss-tech-provision-pin"],[data-ss-pass-toggle="ss-tech-provision-pin2"]').forEach(function (btn) {
+            btn.setAttribute('aria-pressed', 'false');
+            btn.textContent = tr('common.showPassword');
+        });
         if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
         hideModalsForTechProvision();
         backdrop.hidden = false;
@@ -2797,20 +3041,60 @@
         setTimeout(function () { pinEl.focus(); }, 50);
     }
 
+    function bindPasswordToggles() {
+        if (!document._ssPwClipBound) {
+            document._ssPwClipBound = true;
+            function ssBlockPwClip(e) {
+                const t = e.target;
+                if (!t || t.tagName !== 'INPUT') return;
+                if (t.type === 'password' || (t.closest && t.closest('.ss-pass-field'))) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }
+            document.addEventListener('copy', ssBlockPwClip, true);
+            document.addEventListener('cut', ssBlockPwClip, true);
+            document.addEventListener('paste', ssBlockPwClip, true);
+        }
+        document.querySelectorAll('[data-ss-pass-toggle]').forEach(function (btn) {
+            if (btn._ssPassBound) return;
+            btn._ssPassBound = true;
+            btn.addEventListener('click', function () {
+                const id = btn.getAttribute('data-ss-pass-toggle');
+                const inp = id ? document.getElementById(id) : null;
+                if (!inp) return;
+                const show = inp.type === 'password';
+                inp.type = show ? 'text' : 'password';
+                btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+                btn.textContent = tr(show ? 'common.hidePassword' : 'common.showPassword');
+            });
+            const id = btn.getAttribute('data-ss-pass-toggle');
+            const inp = id ? document.getElementById(id) : null;
+            if (inp && !inp._ssClipBound) {
+                inp._ssClipBound = true;
+                ['copy', 'cut', 'paste'].forEach(function (ev) {
+                    inp.addEventListener(ev, function (e) { e.preventDefault(); return false; });
+                });
+            }
+        });
+    }
+
     function bindTechProvisionUi() {
+        bindPasswordToggles();
+        const form = document.getElementById('ss-tech-provision-form');
         const backdrop = document.getElementById('ss-tech-provision-backdrop');
         const cancelBtn = document.getElementById('ss-tech-provision-cancel');
-        const submitBtn = document.getElementById('ss-tech-provision-submit');
+        if (form && backdrop && !form._ssTechProvBound) {
+            form._ssTechProvBound = true;
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                if (typeof backdrop._techProvisionSubmit === 'function') backdrop._techProvisionSubmit();
+            });
+        }
         if (cancelBtn && backdrop && !cancelBtn._ssTechProvBound) {
             cancelBtn._ssTechProvBound = true;
             cancelBtn.addEventListener('click', function () {
                 if (typeof backdrop._techProvisionCancel === 'function') backdrop._techProvisionCancel();
-            });
-        }
-        if (submitBtn && backdrop && !submitBtn._ssTechProvBound) {
-            submitBtn._ssTechProvBound = true;
-            submitBtn.addEventListener('click', function () {
-                if (typeof backdrop._techProvisionSubmit === 'function') backdrop._techProvisionSubmit();
             });
         }
         const setBtn = document.getElementById('ss-tech-pin-set');
@@ -2843,7 +3127,7 @@
                 showTechProvision(function () {
                     refreshTechPinStatus();
                     if (global.AdminActionBus) AdminActionBus.toast(tr('tech.provision.saved'));
-                }, {});
+                }, { onCancel: function () { /* stay in Server Config */ } });
             });
         }
     }
@@ -2915,7 +3199,7 @@
             const btn = e.target.closest('#server-setup-open');
             if (!btn || btn.disabled) return;
             e.preventDefault();
-            openConfigTab('server', { sourceBtn: btn });
+            openConfigTab('infrastructure', { sourceBtn: btn });
         });
     }
 
@@ -2933,8 +3217,8 @@
         if (global.EvidenceManager && EvidenceManager.showTab) {
             EvidenceManager.showTab('server');
         }
-        const mainTab = tab || 'server';
-        const needsTech = mainTab === 'diagnostics' || mainTab === 'lab';
+        const mainTab = resolvePillar(tab || 'infrastructure');
+        const needsTech = mainTab === 'diagnostics';
 
         const finishCancel = function () {
             setDiagnosticsFlowHints(false);
@@ -3013,6 +3297,7 @@
         bindSettingsAsideClicks: bindSettingsAsideClicks,
         closeConfig: function () { setOpen(false); },
         openEvidenceStorage: openEvidenceStorage,
+        openFleetDocks: openFleetDocks,
         syncAdvancedNav: syncAdvancedNav,
         canManageServer: function () { return canManageServer; },
     };

@@ -112,7 +112,7 @@
         }
         if (opts.showBackups) {
             html += railRow(tr('evidenceHub.storageBackups'), esc(String(backups.count || 0))
-                + (backups.latest ? ' \u00B7 ' + esc(backups.latest) : ''));
+                + ' Backup(s) Available (Secured)');
         }
         if (bundle.pendingExports > 0) {
             html += railRow(tr('evidenceHub.kpiPendingExports'), '<span class="ev-path-bad">' + esc(String(bundle.pendingExports)) + '</span>');

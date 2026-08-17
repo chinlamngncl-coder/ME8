@@ -325,6 +325,10 @@
     }
 
     function showTab(tab, opts) {
+        if (tab === 'tactical') {
+            var tacGate = document.getElementById('nav-tab-tactical');
+            if (tacGate && (tacGate.hidden || tacGate.classList.contains('lic-feature-locked'))) return;
+        }
         opts = opts || {};
         const loadData = tabShouldLoad(tab, opts);
         const ops = document.getElementById('app-view-ops');

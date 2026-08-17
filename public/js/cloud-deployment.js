@@ -304,9 +304,11 @@
         const verifyBtn = document.getElementById('cd-verify-now');
         if (verifyBtn) verifyBtn.addEventListener('click', verifyEntitlements);
         const tab = document.getElementById('ss-main-tab-cloud');
-        if (tab) tab.addEventListener('click', function () {
-            if (global.ServerSetup && ServerSetup.setMainTab) ServerSetup.setMainTab('cloud');
-        });
+        if (tab) {
+            tab.addEventListener('click', function () {
+                if (global.ServerSetup && ServerSetup.setMainTab) ServerSetup.setMainTab('infrastructure');
+            });
+        }
     }
 
     global.CloudDeployment = {

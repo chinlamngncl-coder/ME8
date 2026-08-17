@@ -38,3 +38,29 @@
 # Manuals = full teach. Not “hide all help” and not “essay on every page”.
 # Copy = words/visibility only. Before whole-UI Grep: ASK permission.
 # APPLY judgment pass: MOB-APPLY UI-COPY-PANEL-INTRO-JUDGMENT-V1
+
+# NEVER send absolute backend paths to the client (ME8)
+# Disc: path disclosure (folderHint / ftpRoot / STORAGE_DIR / open-folder)
+
+FORBIDDEN in res.json, res.send, HTML/EJS, i18n strings filled from the server, and operator toasts:
+- __dirname, process.cwd(), BASE_DIR, STORAGE_DIR, FTP_ROOT, FR_STORAGE_ROOT
+- path.resolve / path.normalize / path.join results that are absolute
+- folderHint, serverPath, absolutePath, storagePath, ftpRoot, liveCaptureRoot,
+  mountFull, configuredRoot, activeRoot, fleetLog, backups.dir, browse entry.path
+  when those values are OS absolute (C:\…, /var/, /opt/, /usr/, /home/, UNC)
+
+ALLOWED to the client:
+- install-relative labels only, via a helper that never returns an absolute path
+  (e.g. storage/ftp-uploads, storage/fr-kept). If the folder is outside the
+  install tree, send a role label ("Network archive" / "Custom folder") — never
+  the raw mount.
+- Super-admin path *input* fields the operator typed themselves (save what they
+  entered; do not echo resolved fs.realpath).
+- Super-admin browse-paths stays behind requireSuperAdmin; do not reuse that
+  payload on operator pages.
+
+Errors: always opErr() / operatorErrorVoice.jsonErr. NEVER err.message, err.stack,
+or String(err) in a client body.
+
+Logs may keep full paths server-side only.
+

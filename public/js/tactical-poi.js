@@ -495,44 +495,68 @@
         return 'poi' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     }
 
+    function applyPoiList(list) {
+        const src = Array.isArray(list) ? list : [];
+        pois = src.map(function (p) {
+            const lat = Number(p && p.lat);
+            const lng = Number(p && p.lng);
+            if (!p || !p.id || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+            return {
+                id: String(p.id),
+                name: String(p.name || '').trim() || 'POI',
+                lat: lat,
+                lng: lng,
+                notes: String(p.notes || ''),
+                fixedCamIds: Array.isArray(p.fixedCamIds)
+                    ? p.fixedCamIds.map(function (id) { return String(id || '').trim(); }).filter(Boolean)
+                    : (p.fixedCamId ? [String(p.fixedCamId).trim()] : []),
+                bwcCamIds: Array.isArray(p.bwcCamIds)
+                    ? p.bwcCamIds.map(function (id) { return String(id || '').trim(); }).filter(Boolean)
+                    : [],
+            };
+        }).filter(Boolean);
+    }
+
     function loadStore() {
         try {
             const raw = global.localStorage && localStorage.getItem(STORAGE_KEY);
             if (!raw) {
                 pois = [];
-                return;
+            } else {
+                const parsed = JSON.parse(raw);
+                applyPoiList(parsed && parsed.pois);
             }
-            const parsed = JSON.parse(raw);
-            const list = Array.isArray(parsed && parsed.pois) ? parsed.pois : [];
-            pois = list.map(function (p) {
-                const lat = Number(p && p.lat);
-                const lng = Number(p && p.lng);
-                if (!p || !p.id || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-                return {
-                    id: String(p.id),
-                    name: String(p.name || '').trim() || 'POI',
-                    lat: lat,
-                    lng: lng,
-                    notes: String(p.notes || ''),
-                    fixedCamIds: Array.isArray(p.fixedCamIds)
-                        ? p.fixedCamIds.map(function (id) { return String(id || '').trim(); }).filter(Boolean)
-                        : (p.fixedCamId ? [String(p.fixedCamId).trim()] : []),
-                    bwcCamIds: Array.isArray(p.bwcCamIds)
-                        ? p.bwcCamIds.map(function (id) { return String(id || '').trim(); }).filter(Boolean)
-                        : [],
-                };
-            }).filter(Boolean);
         } catch (_) {
             pois = [];
         }
+        fetch('/api/tactical/my-map-state', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                const serverPois = data && data.ok && data.state && Array.isArray(data.state.pois)
+                    ? data.state.pois
+                    : null;
+                if (serverPois && serverPois.length) {
+                    applyPoiList(serverPois);
+                    try { if (global.localStorage) localStorage.removeItem(STORAGE_KEY); } catch (_) { /* ignore */ }
+                    try { kickPinMount(); } catch (_) { /* ignore */ }
+                    return;
+                }
+                if (pois.length) saveStore();
+            })
+            .catch(function () { /* keep local until server ready */ });
     }
 
+    let mapStateSaveTimer = null;
     function saveStore() {
-        try {
-            if (global.localStorage) {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify({ pois: pois }));
-            }
-        } catch (_) { /* ignore */ }
+        if (mapStateSaveTimer) clearTimeout(mapStateSaveTimer);
+        mapStateSaveTimer = setTimeout(function () {
+            fetch('/api/tactical/my-map-state', {
+                method: 'PUT',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pois: pois }),
+            }).catch(function () { /* ignore */ });
+        }, 400);
     }
 
     function getActive() {

@@ -34,11 +34,6 @@
         btnRefresh: 'cs-btn-refresh',
         btnPopout: 'cs-btn-popout',
         yearMonth: 'cs-year-month',
-        llmStatus: 'cs-llm-status',
-        llmChat: 'cs-llm-chat',
-        llmInput: 'cs-llm-input',
-        llmAsk: 'cs-llm-ask',
-        llmSuggestions: 'cs-llm-suggestions',
         liveViewersTable: 'cs-live-viewers-table',
         btnLiveViewersRefresh: 'cs-btn-live-viewers-refresh',
     } : {
@@ -58,11 +53,6 @@
         btnExportChart: 'btn-export-chart',
         btnRefresh: 'btn-refresh',
         yearMonth: 'year-month',
-        llmStatus: 'llm-status',
-        llmChat: 'llm-chat',
-        llmInput: 'llm-input',
-        llmAsk: 'llm-ask',
-        llmSuggestions: 'llm-suggestions',
         liveViewersTable: 'live-viewers-table',
         btnLiveViewersRefresh: 'btn-live-viewers-refresh',
     };
@@ -409,116 +399,6 @@
         renderChart(period);
     }
 
-    let llmPollTimer = null;
-
-    function isLlmBusy(status) {
-        return !!(status && (status.downloading || status.installing || status.loading));
-    }
-
-    function isLlmOnline(status) {
-        return !!(status && status.ok && status.modelReady && !status.loading
-            && !status.downloading && !status.installing);
-    }
-
-    function setLlmAskEnabled(on) {
-        const btn = el('llmAsk');
-        if (btn) btn.disabled = !on;
-    }
-
-    function llmStatusLabel(status) {
-        if (!status) return tr('centre.llm.offline');
-        if (status.installing) {
-            const pct = typeof status.downloadPct === 'number' ? status.downloadPct : null;
-            if (pct != null && pct > 0) {
-                return tr('centre.llm.installingPct', { pct: pct });
-            }
-            return tr('centre.llm.installing');
-        }
-        if (status.downloading) {
-            const pct = typeof status.downloadPct === 'number' ? status.downloadPct : null;
-            if (pct != null && pct > 0) {
-                return tr('centre.llm.downloadingPct', { pct: pct });
-            }
-            return tr('centre.llm.downloading');
-        }
-        if (status.loading) return tr('centre.llm.loading');
-        if (status.needsInstall || (status.ok === false && !status.modelReady && !status.error)) {
-            return tr('centre.llm.modelMissing');
-        }
-        if (!status.modelReady && status.ok && status.hint) {
-            return tr('centre.llm.willDownload');
-        }
-        return tr('centre.llm.offline');
-    }
-
-    function renderLlmStatus(status) {
-        const node = el('llmStatus');
-        if (!node) return;
-        if (isLlmBusy(status)) {
-            if (!llmPollTimer) llmPollTimer = setInterval(loadLlmStatus, 1000);
-        } else if (llmPollTimer) {
-            clearInterval(llmPollTimer);
-            llmPollTimer = null;
-        }
-        if (isLlmOnline(status)) {
-            node.className = 'cs-llm-status online';
-            node.textContent = tr('centre.llm.online');
-            setLlmAskEnabled(true);
-            return;
-        }
-        node.className = 'cs-llm-status offline';
-        node.textContent = llmStatusLabel(status);
-        setLlmAskEnabled(false);
-    }
-
-    function appendChat(role, text) {
-        const chat = el('llmChat');
-        if (!chat) return;
-        const row = document.createElement('div');
-        row.className = 'cs-chat-row cs-chat-' + role;
-        row.innerHTML = '<div class="cs-chat-bubble">' + esc(text).replace(/\n/g, '<br>') + '</div>';
-        chat.appendChild(row);
-        chat.scrollTop = chat.scrollHeight;
-    }
-
-    function loadLlmStatus() {
-        return fetch('/api/command-centre/llm-status', { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(renderLlmStatus)
-            .catch(function () {
-                renderLlmStatus({ ok: false });
-            });
-    }
-
-    function askLlm() {
-        const input = el('llmInput');
-        const btn = el('llmAsk');
-        const q = input && input.value ? input.value.trim() : '';
-        if (!q) return;
-        appendChat('user', q);
-        if (input) input.value = '';
-        if (btn) btn.disabled = true;
-        fetch('/api/command-centre/ask', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question: q, lang: getLang() }),
-        })
-            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-            .then(function (res) {
-                if (!res.ok || !res.data || !res.data.ok) {
-                    throw new Error((res.data && res.data.error) || tr('centre.llm.failed'));
-                }
-                appendChat('assistant', res.data.answer);
-            })
-            .catch(function (err) {
-                appendChat('assistant', err.message || tr('centre.llm.failed'));
-            })
-            .finally(function () {
-                if (btn) btn.disabled = false;
-            });
-    }
-
     function exportChartPng() {
         const chartEl = el('trendChart');
         if (!chartEl || !summary) return;
@@ -640,7 +520,6 @@
                 }
                 populateYearMonthSelect();
                 setPeriod(activePeriod);
-                loadLlmStatus();
                 loadLiveViewers();
                 if (global.TabLifecycle) TabLifecycle.markLoaded('centre-summary');
             })
@@ -687,40 +566,6 @@
         if (lvRefresh) lvRefresh.addEventListener('click', loadLiveViewers);
         const popoutBtn = el('btnPopout');
         if (popoutBtn) popoutBtn.addEventListener('click', openCentreSummaryPopout);
-        const askBtn = el('llmAsk');
-        if (askBtn) askBtn.addEventListener('click', askLlm);
-        const input = el('llmInput');
-        if (input) {
-            input.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    askLlm();
-                }
-            });
-        }
-        const sug = el('llmSuggestions');
-        if (sug && !sug._llmSugBound) {
-            sug._llmSugBound = true;
-            sug.addEventListener('click', function (e) {
-                const btn = e.target.closest('[data-llm-q]');
-                if (!btn) return;
-                const q = btn.getAttribute('data-llm-q');
-                const inp = el('llmInput');
-                if (inp && q) {
-                    inp.value = tr(q);
-                    inp.focus();
-                }
-            });
-        }
-    }
-
-    function renderSuggestions() {
-        const sug = el('llmSuggestions');
-        if (!sug) return;
-        const keys = ['centre.llm.q1', 'centre.llm.q2'];
-        sug.innerHTML = keys.map(function (k) {
-            return '<button type="button" class="cs-sug-btn" data-llm-q="' + k + '">' + esc(tr(k)) + '</button>';
-        }).join('');
     }
 
     function startApp(opts) {
@@ -732,11 +577,6 @@
         }
         started = true;
         bindUi();
-        renderSuggestions();
-        const chat = el('llmChat');
-        if (chat) {
-            appendChat('assistant', tr('centre.llm.welcome'));
-        }
         load(!!opts.force);
         if (refreshTimer) clearInterval(refreshTimer);
         refreshTimer = setInterval(load, 60000);
@@ -746,7 +586,6 @@
                 renderStorage(summary);
                 renderServices(summary);
                 renderActivity(summary);
-                renderSuggestions();
             }
         });
     }

@@ -7,6 +7,8 @@
     var lastCount = 0;
     var statusFilter = 'open';
     var pendingClearId = null;
+    var lastHoldCam = '';
+    var lastHoldAt = '';
 
     function tr(key, fallback, params) {
         if (global.I18n && I18n.t) {
@@ -82,12 +84,12 @@
         if (filter === 'all') {
             return {
                 title: tr('evidenceHub.holdsEmptyAllTitle', 'No investigation holds yet'),
-                sub: tr('evidenceHub.holdsEmptyOpenSub', 'Flag a Face Recognition capture or pin a map event to create a hold.'),
+                sub: tr('evidenceHub.holdsEmptyOpenSub', 'Keep a Face Recognition capture to create a hold.'),
             };
         }
         return {
             title: tr('evidenceHub.holdsEmptyOpenTitle', 'No active investigation holds'),
-            sub: tr('evidenceHub.holdsEmptyOpenSub', 'Flag a Face Recognition capture or pin a map event to create a hold.'),
+            sub: tr('evidenceHub.holdsEmptyOpenSub', 'Keep a Face Recognition capture to create a hold.'),
         };
     }
 
@@ -115,9 +117,20 @@
         var grid = document.getElementById('ev-holds-grid');
         if (grid) {
             grid.addEventListener('click', function (e) {
+                var reconBtn = e.target.closest('[data-hold-reconstruct]');
+                if (reconBtn) {
+                    launchHoldReconstruct(
+                        reconBtn.getAttribute('data-hold-cam') || '',
+                        reconBtn.getAttribute('data-hold-at') || ''
+                    );
+                    return;
+                }
                 var openBtn = e.target.closest('[data-hold-open]');
                 if (openBtn) {
                     var url = openBtn.getAttribute('data-hold-open');
+                    var card = openBtn.closest('.ev-hold-card');
+                    lastHoldCam = (card && card.getAttribute('data-hold-cam')) || '';
+                    lastHoldAt = (card && card.getAttribute('data-hold-at')) || '';
                     if (url) openPreview(url, openBtn.getAttribute('data-hold-title') || '');
                     return;
                 }
@@ -148,6 +161,12 @@
             closePrev.addEventListener('click', function () {
                 var dlg = document.getElementById('ev-holds-preview');
                 if (dlg) dlg.hidden = true;
+            });
+        }
+        var reconPrev = document.getElementById('ev-holds-reconstruct');
+        if (reconPrev) {
+            reconPrev.addEventListener('click', function () {
+                launchHoldReconstruct(lastHoldCam, lastHoldAt);
             });
         }
         var clearCancel = document.getElementById('ev-holds-clear-cancel');
@@ -187,6 +206,17 @@
                 reject(err);
             }
         });
+    }
+
+    function launchHoldReconstruct(camId, atIso) {
+        var dlg = document.getElementById('ev-holds-preview');
+        if (dlg) dlg.hidden = true;
+        if (global.RouteTrace && RouteTrace.launchFromIncident) {
+            RouteTrace.launchFromIncident({
+                deviceId: camId || '',
+                atIso: atIso || '',
+            });
+        }
     }
 
     function openPreview(url, title) {
@@ -334,6 +364,10 @@
             var status = String(row.status || 'open').toLowerCase();
             var statusChip = '<span class="ev-hold-status ev-hold-status-' + esc(status) + '">' + esc(statusLabel(status)) + '</span>';
             var actions = ''
+                + '<button type="button" class="btn btn-primary btn-sm ev-hold-action-link" data-hold-reconstruct'
+                + ' data-hold-cam="' + esc(row.camId || '') + '" data-hold-at="' + esc(row.keptAt || row.at || '') + '"'
+                + ' title="View Geospatial Trace">Reconstruct Scene</button>'
+                + actionSep()
                 + '<button type="button" class="btn btn-ghost btn-sm ev-hold-action-link" data-hold-open="' + esc(thumb) + '" data-hold-title="' + esc(title) + '">'
                 + esc(tr('evidenceHub.holdsOpen', 'Open')) + '</button>'
                 + actionSep()
@@ -356,7 +390,7 @@
                 dispositionLine += '</div>';
             }
             return (
-                '<article class="ev-hold-card" data-hold-id="' + esc(id) + '">'
+                '<article class="ev-hold-card" data-hold-id="' + esc(id) + '" data-hold-cam="' + esc(row.camId || '') + '" data-hold-at="' + esc(row.keptAt || row.at || '') + '">'
                 + '<button type="button" class="ev-hold-thumb" data-hold-open="' + esc(thumb) + '" data-hold-title="' + esc(title) + '" title="' + esc(tr('evidenceHub.holdsOpen', 'Open')) + '">'
                 + '<img src="' + esc(thumb) + '" alt="" loading="lazy">'
                 + '</button>'
@@ -372,13 +406,6 @@
                 + '</div></article>'
             );
         }).join('');
-        if (folderHint) {
-            html += '<p class="hint ev-holds-folder">' + esc(tr(
-                'evidenceHub.holdsFolderHint',
-                'Server folder (IT): {folder}',
-                { folder: folderHint }
-            )) + '</p>';
-        }
         grid.innerHTML = html;
     }
 

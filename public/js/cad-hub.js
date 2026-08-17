@@ -1,11 +1,11 @@
 /**
- * CAD / RMS hub — FOMO padlock when features.cadIntegration is off.
- * MOB-APPLY 8.3-UNIFY-LICENSE-AND-CAD-MODULE-FINAL
+ * CAD / RMS hub — Module Locked upsell when features.cadIntegration is off.
  */
 (function (global) {
     'use strict';
 
     var lastIncidents = [];
+    var upsellToastTimer = null;
 
     function cadLicensed() {
         if (global.LicenseFeatures && LicenseFeatures.isEnabled) {
@@ -24,6 +24,7 @@
         if (panel) panel.classList.toggle('cad-premium-locked', !!locked);
         if (overlay) overlay.hidden = !locked;
         if (body) {
+            body.hidden = !!locked;
             body.setAttribute('aria-disabled', locked ? 'true' : 'false');
             var controls = body.querySelectorAll('button, input, select, textarea');
             for (var i = 0; i < controls.length; i++) {
@@ -60,36 +61,9 @@
     }
 
     function loadIncidents() {
-        var statusEl = document.getElementById('cad-status-line');
-        if (!cadLicensed()) {
-            setPadlock(true);
-            if (statusEl) statusEl.textContent = 'Premium license required for CAD/RMS.';
-            renderIncidents([]);
-            return Promise.resolve();
-        }
-        setPadlock(false);
-        if (statusEl) statusEl.textContent = 'Loading CAD incidents…';
-        return fetch('/api/cad/incidents', { credentials: 'same-origin' })
-            .then(function (r) {
-                if (r.status === 403) {
-                    setPadlock(true);
-                    if (statusEl) statusEl.textContent = 'Premium License Required';
-                    return null;
-                }
-                if (!r.ok) throw new Error('CAD request failed');
-                return r.json();
-            })
-            .then(function (data) {
-                if (!data) return;
-                lastIncidents = data.incidents || [];
-                renderIncidents(lastIncidents);
-                if (statusEl) {
-                    statusEl.textContent = 'Linked · ' + lastIncidents.length + ' incident(s)';
-                }
-            })
-            .catch(function () {
-                if (statusEl) statusEl.textContent = 'Unable to reach CAD bridge.';
-            });
+        /* CAD/RMS stays a premium upsell surface until cadIntegration ships. */
+        setPadlock(true);
+        return Promise.resolve();
     }
 
     function onShow(opts) {
@@ -105,6 +79,19 @@
         var refresh = document.getElementById('cad-refresh-btn');
         if (refresh) {
             refresh.addEventListener('click', function () { loadIncidents(); });
+        }
+        var upsell = document.getElementById('cad-upsell-btn');
+        if (upsell) {
+            upsell.addEventListener('click', function () {
+                var toast = document.getElementById('cad-upsell-toast');
+                if (!toast) return;
+                toast.textContent = 'Contact Administrator';
+                toast.hidden = false;
+                if (upsellToastTimer) clearTimeout(upsellToastTimer);
+                upsellToastTimer = setTimeout(function () {
+                    toast.hidden = true;
+                }, 3200);
+            });
         }
     }
 

@@ -73,25 +73,6 @@ try {
     fail('SOS group call blocks server startup: ' + err.message);
 }
 
-try {
-    const centreLlm = require('../lib/centreLlm');
-    const vendorModel = centreLlm.vendorModelPath(root);
-    const runtimeModel = path.join(root, 'storage', 'llm', centreLlm.modelFileName());
-    if (fs.existsSync(vendorModel)) {
-        ok('Centre Summary AI bundled at vendor/llm/ (ships to customers)');
-    } else if (fs.existsSync(runtimeModel)) {
-        ok('Centre Summary AI installed at storage/llm/');
-    } else if (process.env.FM_LLM_AUTO_DOWNLOAD === '1') {
-        if (!quiet) {
-            console.warn('[warn] Centre Summary AI model not bundled — will download on setup if internet available.');
-        }
-    } else if (!quiet) {
-        console.warn('[warn] Centre Summary AI model missing — vendor: scripts\\download-centre-llm.ps1 before shipping.');
-    }
-} catch (err) {
-    if (!quiet) console.warn('[warn] Centre Summary AI check skipped: ' + err.message);
-}
-
 const storage = path.join(root, 'storage');
 if (!fs.existsSync(storage)) {
     fs.mkdirSync(storage, { recursive: true });

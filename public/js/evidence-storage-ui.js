@@ -341,9 +341,9 @@
             if ($('ss-dock-folder')) $('ss-dock-folder').textContent = data.ftpLabel || '\u2014';
             if ($('ss-fr-storage-folder')) $('ss-fr-storage-folder').textContent = (data.frStorage && data.frStorage.configuredLabel) || '\u2014';
             if ($('ss-fr-storage-restart')) $('ss-fr-storage-restart').hidden = !(data.frStorage && data.frStorage.restartRequired);
-            if (applyRecommended && data.networkStorage && data.networkStorage.recommended) {
-                if ($('ss-ftp-upload-path')) $('ss-ftp-upload-path').value = data.networkStorage.recommended.ftp;
-                if ($('ss-evidence-live-path')) $('ss-evidence-live-path').value = data.networkStorage.recommended.liveCapture;
+            if (applyRecommended && data.docking) {
+                if ($('ss-ftp-upload-path')) $('ss-ftp-upload-path').value = data.docking.ftpUploadPath || '';
+                if ($('ss-evidence-live-path') && data.evidence) $('ss-evidence-live-path').value = data.evidence.liveCapturePath || '';
             }
             renderPathStatuses(data);
             if (typeof global.loadStoragePaths === 'function') global.loadStoragePaths();

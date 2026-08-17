@@ -15,6 +15,16 @@
     var passVisible = false;
     var totpChallenge = '';
 
+    function blockPassClipboard(e) {
+        var t = e.target;
+        if (!t || t.id !== 'login-pass') return;
+        e.preventDefault();
+        return false;
+    }
+    document.addEventListener('copy', blockPassClipboard, true);
+    document.addEventListener('cut', blockPassClipboard, true);
+    document.addEventListener('paste', blockPassClipboard, true);
+
     function tr(key) {
         return (window.I18n && I18n.t) ? I18n.t(key) : key;
     }

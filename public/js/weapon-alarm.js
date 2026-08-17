@@ -151,7 +151,7 @@
             caseId: hit.caseId || makeCaseId(hit),
         };
         try {
-            fetch('/api/ops-cases/from-weapon', {
+            fetch('/api/case-files/from-weapon', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -174,8 +174,8 @@
 
     function goToWeaponCases(caseId) {
         try {
-            if (global.OpsCasesUi && typeof OpsCasesUi.openWeaponCases === 'function') {
-                OpsCasesUi.openWeaponCases({ caseId: caseId || null });
+            if (global.CaseFilesUi && typeof CaseFilesUi.openCase === 'function') {
+                CaseFilesUi.openCase({ caseId: caseId || null });
                 return;
             }
         } catch (_) { /* ignore */ }
@@ -190,7 +190,7 @@
         setTimeout(function () {
             try {
                 if (global.EvidenceHub && EvidenceHub.showPanel) {
-                    EvidenceHub.showPanel('ops-cases', { force: true });
+                    EvidenceHub.showPanel('case-files', { force: true });
                 }
             } catch (_) { /* ignore */ }
         }, 150);

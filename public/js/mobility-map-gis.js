@@ -265,7 +265,8 @@
         if (!wrap) return;
         var bar = document.createElement('div');
         bar.id = 'map-view-controls';
-        bar.innerHTML = '<button type="button" id="map-fit-pins-btn" data-i18n="map.fitPins" data-i18n-title="map.fitPinsTitle">Fit pins</button>' +
+        bar.innerHTML = '<button type="button" id="geo-tools-map-chip" aria-expanded="false" aria-controls="geo-tools-palette" title="Geo Tools">Geo Tools</button>' +
+            '<button type="button" id="map-fit-pins-btn" data-i18n="map.fitPins" data-i18n-title="map.fitPinsTitle">Fit pins</button>' +
             buildPlaceSearchHtml() +
             '<select id="map-country-select" aria-label="Country"></select>';
         wrap.appendChild(bar);

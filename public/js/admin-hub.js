@@ -10,8 +10,11 @@
     var configMounted = false;
 
     var MAIN_TO_ADMIN = {
+        infrastructure: 'network',
         server: 'network',
+        fleet: 'devices',
         bwc: 'devices',
+        security: 'users',
         groups: 'groups',
         dashboard: 'users',
         firmware: 'advanced',
@@ -23,12 +26,12 @@
 
     var ADMIN_TO_MAIN = {
         overview: null,
-        devices: 'bwc',
-        groups: 'groups',
-        network: 'server',
-        users: 'dashboard',
+        devices: 'fleet',
+        groups: 'security',
+        network: 'infrastructure',
+        users: 'security',
         audit: null,
-        advanced: 'firmware',
+        advanced: 'diagnostics',
     };
 
     var ADVANCED_TABS = ['firmware', 'usb', 'cloud', 'diagnostics', 'lab'];

@@ -66,27 +66,7 @@
     }
 
     function renderReadiness(readiness, redirectUri) {
-        const el = document.getElementById('lab-readiness');
-        if (!el || !readiness) return;
-        const pct = readiness.readyPct || 0;
-        let rows = '';
-        (readiness.items || []).forEach(function (item) {
-            rows +=
-                '<div class="lab-readiness-row' + (item.ok ? ' ok' : '') + '">' +
-                '<span class="lab-readiness-dot" aria-hidden="true"></span>' +
-                '<div><strong>' + esc(item.label) + '</strong>' +
-                '<p class="setup-hint" style="margin:2px 0 0">' + esc(item.detail) + '</p></div></div>';
-        });
-        el.innerHTML =
-            '<div class="lab-readiness-score"><strong>' + pct + '%</strong> ' +
-            esc(tr('cloud.readiness.title')) + ' (' +
-            esc(readiness.score) + '/' + esc(readiness.total) + ')</div>' +
-            '<div class="lab-readiness-bar"><span style="width:' + pct + '%"></span></div>' +
-            rows +
-            (redirectUri
-                ? '<p class="setup-hint" style="margin-top:10px"><strong>OIDC redirect URI</strong> (register in IdP): <code>' +
-                  esc(redirectUri) + '</code></p>'
-                : '');
+        return;
     }
 
     async function loadSettings() {
@@ -171,21 +151,6 @@
                     if (el) el.textContent = JSON.stringify(data, null, 2);
                 } catch (err) {
                     if (el) el.textContent = err.message;
-                }
-            });
-        }
-        const tab = document.getElementById('ss-main-tab-lab');
-        if (tab) {
-            tab.addEventListener('click', function () {
-                const open = function () {
-                    if (global.ServerSetup && ServerSetup.setMainTab) ServerSetup.setMainTab('lab');
-                };
-                if (global.ServerSetup && ServerSetup.runWithTechAccess) {
-                    ServerSetup.runWithTechAccess(open);
-                } else if (global.TechDiagnostics && TechDiagnostics.requireTech) {
-                    TechDiagnostics.requireTech(open);
-                } else {
-                    open();
                 }
             });
         }

@@ -183,12 +183,20 @@
         if (typeof PttRx !== 'undefined') PttRx.init(socket);
         if (typeof CallMic !== 'undefined') CallMic.bindSocket(socket);
         socket.on('connect', function () {
-            refreshMapFromServer();
             fetch('/api/fleet').then(function (r) { return r.json(); }).then(function (data) {
                 if (data && data.fleet && typeof FleetUi !== 'undefined' && FleetUi.ingestFleet) {
                     FleetUi.ingestFleet(data.fleet);
                 }
-            }).catch(function () { /* ignore */ });
+                if (typeof flushPendingGpsUpdates === 'function') flushPendingGpsUpdates();
+                refreshMapFromServer();
+                (data && data.fleet ? data.fleet : []).forEach(function (m) {
+                    if (!m || !m.id || m.status !== '1') return;
+                    if (deviceMarkers[m.id]) return;
+                    if (typeof syncMapPinForCam === 'function') syncMapPinForCam(m.id);
+                });
+            }).catch(function () {
+                refreshMapFromServer();
+            });
         });
         socket.on('server-capabilities', function (data) {
             if (data && data.permissions && window.setDashboardPermissions) {
@@ -209,6 +217,9 @@
         });
         socket.on('kill-switch-request-ok', function () {
             alert(dashboardTr('map.killSwitch.fourEyesRequested'));
+        });
+        socket.on('kill-switch-override-ok', function () {
+            showKillSwitchOverrideToast(dashboardTr('map.killSwitch.overrideExecuted'));
         });
         socket.on('kill-switch-approve-ok', function () {
             alert(dashboardTr('map.killSwitch.fourEyesApproved'));
@@ -3195,6 +3206,22 @@
             return false;
         }
 
+        var pendingGpsUpdates = {};
+        function flushPendingGpsUpdates() {
+            var ids = Object.keys(pendingGpsUpdates);
+            if (!ids.length) return;
+            ids.forEach(function (id) {
+                var data = pendingGpsUpdates[id];
+                delete pendingGpsUpdates[id];
+                if (!data || data.lat == null || data.lon == null) return;
+                if (!isKnownFleetCam(data.cameraId || id)) return;
+                var lat = parseFloat(data.lat);
+                var lon = parseFloat(data.lon);
+                if (isNaN(lat) || isNaN(lon)) return;
+                applyGpsMapUpdate(id, lat, lon, isCamSosActive(id), isCamOnlineOnFleet(id));
+            });
+        }
+
         var syncMarkersDebounceTimer = null;
         var mapScopeFitDone = false;
         function maybeFitMapToScopedPins(devices) {
@@ -3529,6 +3556,21 @@
         var dashboardUsername = '';
         var lastDashboardSession = null;
         var killSwitchPendingCache = [];
+        var killSwitchOverrideToastTimer = null;
+
+        function showKillSwitchOverrideToast(text) {
+            var el = document.getElementById('kill-switch-override-toast');
+            if (!el) {
+                alert(text);
+                return;
+            }
+            el.textContent = text || dashboardTr('map.killSwitch.overrideExecuted');
+            el.hidden = false;
+            if (killSwitchOverrideToastTimer) clearTimeout(killSwitchOverrideToastTimer);
+            killSwitchOverrideToastTimer = setTimeout(function () {
+                el.hidden = true;
+            }, 6000);
+        }
         var KILL_SWITCH_REASON_MIN_LEN = 10;
 
         function dashboardRoleLabel(role) {
@@ -3587,12 +3629,17 @@
             try {
                 global.__fmDashboardRole = role ? String(role) : '';
                 if (username) global.__fmDashboardUsername = String(username);
+                global.__fmTacticalView = isSuperAdmin || !!(perms && perms.tacticalView);
+                global.__fmBlueprintManage = isSuperAdmin || !!(perms && perms.blueprintManage);
             } catch (_) { /* ignore */ }
             if (username) dashboardUsername = String(username);
             if (typeof FleetUi !== 'undefined' && FleetUi.setClearMapPinsPermission) {
                 FleetUi.setClearMapPinsPermission(canClearMapPinsPerm);
             }
             refreshMapToolbarState();
+            if (window.LicenseEntitlementsUi && typeof LicenseEntitlementsUi.applyNavLocks === 'function') {
+                LicenseEntitlementsUi.applyNavLocks();
+            }
             if (window.EvidenceManager && EvidenceManager.applyPermissions) {
                 EvidenceManager.applyPermissions(perms, role);
             }
@@ -3616,8 +3663,8 @@
             if (gfToolbar) gfToolbar.classList.toggle('no-geofence-perm', !canGeofenceControl);
             var rebootBtn = document.getElementById('map-kill-reboot-btn');
             var shutdownBtn = document.getElementById('map-kill-shutdown-btn');
-            if (rebootBtn) rebootBtn.hidden = !canDeviceKillSwitch;
-            if (shutdownBtn) shutdownBtn.hidden = !canDeviceKillSwitch;
+            if (rebootBtn) rebootBtn.hidden = false;
+            if (shutdownBtn) shutdownBtn.hidden = false;
             setToolbarButtonsEnabled(hasCam && canMapDeviceControl);
             renderKillSwitchPendingList(killSwitchPendingCache);
         }
@@ -3832,11 +3879,16 @@
             if (typeof GlobalDevicePresence !== 'undefined' && GlobalDevicePresence.ingestFleetRoster) {
                 GlobalDevicePresence.ingestFleetRoster(fleet);
             }
+            if (typeof flushPendingGpsUpdates === 'function') flushPendingGpsUpdates();
             (fleet || []).forEach(function (m) {
-                if (!m || !m.id || !deviceMarkers[m.id]) return;
-                var ll = deviceMarkers[m.id].getLatLng();
+                if (!m || !m.id) return;
                 var online = m.status === '1';
-                upsertDeviceMarker(m.id, ll.lat, ll.lng, isCamSosActive(m.id), false, online);
+                if (deviceMarkers[m.id]) {
+                    var ll = deviceMarkers[m.id].getLatLng();
+                    upsertDeviceMarker(m.id, ll.lat, ll.lng, isCamSosActive(m.id), false, online);
+                    return;
+                }
+                if (online && typeof syncMapPinForCam === 'function') syncMapPinForCam(m.id);
             });
             refreshAllDeviceMarkerStyles();
         });
@@ -3884,7 +3936,10 @@
 
         socket.on('gps-update', function (data) {
             if (!data || data.lat == null || data.lon == null) return;
-            if (!isKnownFleetCam(data.cameraId)) return;
+            if (!isKnownFleetCam(data.cameraId)) {
+                pendingGpsUpdates[normalizeCamId(data.cameraId)] = data;
+                return;
+            }
             var lat = parseFloat(data.lat);
             var lon = parseFloat(data.lon);
             var isSos = isCamSosActive(data.cameraId);
@@ -6127,10 +6182,10 @@
                 body: JSON.stringify({ incidentId: incidentId }),
             }).then(function (r) { return r.json(); }).then(function (data) {
                 if (data.ok) {
-                    notifyFolderOpenNonBlocking(dashboardTr('sos.alert.openedLocal', { path: data.path || '' }));
+                    notifyFolderOpenNonBlocking(dashboardTr('sos.alert.openedLocal'));
                     return;
                 }
-                notifyFolderOpenNonBlocking(dashboardTr('sos.alert.openFolderManual', { path: data.path || '' }));
+                notifyFolderOpenNonBlocking(dashboardTr('sos.alert.openFolderManual'));
             }).catch(function () {
                 notifyFolderOpenNonBlocking(dashboardTr('sos.alert.openFolderFailed'));
             });
@@ -6469,7 +6524,7 @@
                     actions = '<button type="button" class="btn btn-ghost btn-sm ks-cancel" data-request-id="'
                         + ksEscAttr(r.id) + '">' + dashboardTr('common.cancel') + '</button>';
                 } else {
-                    actions = '<button type="button" class="btn btn-stop btn-sm ks-approve" data-request-id="'
+                    actions = '<button type="button" class="btn btn-action btn-sm ks-approve" data-request-id="'
                         + ksEscAttr(r.id) + '">' + dashboardTr('map.killSwitch.approve') + '</button>';
                 }
                 var incident = r.incidentId ? (' \u00B7 ' + ksEscAttr(r.incidentId)) : '';
@@ -6664,17 +6719,9 @@
             } else if (cmd === 'Unlock') {
                 ok = confirm(dashboardTr('map.confirmUnlock', { id: label }));
             } else if (cmd === 'Reboot') {
-                if (!canDeviceKillSwitch) {
-                    alert(dashboardTr('map.killSwitchDenied'));
-                    return;
-                }
                 ok = confirm(dashboardTr('map.confirmReboot1', { id: label }));
                 if (ok) ok = confirm(dashboardTr('map.confirmReboot2', { id: label }));
             } else if (cmd === 'ShutDown') {
-                if (!canDeviceKillSwitch) {
-                    alert(dashboardTr('map.killSwitchDenied'));
-                    return;
-                }
                 ok = confirm(dashboardTr('map.confirmShutdown1', { id: label }));
                 if (ok) ok = confirm(dashboardTr('map.confirmShutdown2', { id: label }));
             } else {
@@ -6759,10 +6806,10 @@
                 var res = await fetch('/api/open-folder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folder: folder }) });
                 var data = await res.json();
                 if (data.ok) {
-                    notifyFolderOpenNonBlocking(dashboardTr('storage.alert.openedLocal', { path: data.path || '' }));
+                    notifyFolderOpenNonBlocking(dashboardTr('storage.alert.openedLocal'));
                     return;
                 }
-                notifyFolderOpenNonBlocking(dashboardTr('storage.alert.openManual', { path: data.path || '' }));
+                notifyFolderOpenNonBlocking(dashboardTr('storage.alert.openManual'));
             } catch (_) {
                 notifyFolderOpenNonBlocking(dashboardTr('storage.alert.openFailed'));
             }

@@ -286,7 +286,6 @@
     align-items: start;
 }
 
-#server-setup-panel .ss-east-west-grid > .ss-east-west-span,
 #server-setup-panel .ss-east-west-grid > .setup-hint.ss-east-west-span,
 #server-setup-panel .ss-east-west-grid > .ss-user-add-full,
 #server-setup-panel .ss-east-west-grid > button {
@@ -415,12 +414,12 @@
 
 /* 1) TYPE ON BWC — card + 2-col label/value grid (dt/dd from fillBwcChecklist) */
 #server-setup-panel .ss-type-on-bwc-card.enterprise-card {
-    margin: 12px 0 16px;
-    padding: var(--space-md, 14px);
+    margin: 32px 0 16px !important;
+    padding: 20px 14px 14px !important;
     background: var(--bg-surface);
     border: 1px solid var(--border-subtle, #334155);
     border-radius: var(--radius-lg);
-    max-width: 40rem;
+    max-width: none;
 }
 
 #server-setup-panel .ss-type-on-bwc-card > .enterprise-section-title {
@@ -429,8 +428,8 @@
 
 #server-setup-panel #server-setup-bwc.ss-type-on-bwc-grid {
     display: grid;
-    grid-template-columns: 200px 1fr;
-    gap: 8px;
+    grid-template-columns: max-content 1fr max-content 1fr;
+    gap: 8px 24px;
     margin: 0;
     padding: 0;
     background: transparent;
@@ -464,18 +463,20 @@
     background: var(--bg-surface);
     border: 1px solid var(--border-subtle, #334155);
     border-radius: var(--radius-lg);
-    max-width: 44rem;
+    max-width: none;
+    width: 100%;
 }
 
 #server-setup-panel #ss-smtp-section .ss-smtp-form {
-    max-width: 40rem;
+    max-width: none;
+    width: 100%;
 }
 
 #server-setup-panel #ss-smtp-section .enterprise-form-control,
 #server-setup-panel #ss-smtp-section input.enterprise-form-control,
 #server-setup-panel #ss-smtp-section select.enterprise-form-control {
     width: 100%;
-    max-width: 400px !important;
+    max-width: none !important;
 }
 
 #server-setup-panel #ss-smtp-section .ss-smtp-actions {
@@ -729,6 +730,34 @@
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+#server-setup-panel input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]):not([type="hidden"]):not([type="range"]),
+#server-setup-panel select,
+#server-setup-panel textarea {
+    width: 100%;
+    max-width: 420px !important;
+    box-sizing: border-box;
+}
+
+#server-setup-panel .ss-bwc-table input,
+#server-setup-panel .ss-bwc-table select,
+#server-setup-panel .ss-group-members-table input,
+#server-setup-panel .ss-group-members-table select {
+    max-width: none !important;
+}
+
+#server-setup-panel .ss-main-panel.active {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+#server-setup-panel #ss-network-section-nav {
+    display: none !important;
 }
 
 #server-setup-panel .ss-config-body {
@@ -798,10 +827,10 @@
     gap: 6px;
 }
 
-/* Permission ticks — dark box, bright checked state (readable in dense lists) */
+/* Permission matrix — uniform pill toggles (no native ticks) */
 #server-setup-panel #ss-users-body .ss-perm-check {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 10px;
     margin: 0 0 8px;
     line-height: 1.35;
@@ -811,44 +840,66 @@
 #server-setup-panel #ss-users-body .ss-perm-check > span {
     flex: 1 1 auto;
     min-width: 0;
-    padding-top: 1px;
+    padding-top: 0;
 }
 
-#server-setup-panel #ss-users-body .ss-perm-check input[type="checkbox"],
-#server-setup-panel #ss-users-body .ss-dispatch-row input[type="checkbox"] {
+#server-setup-panel #ss-users-body input[type="checkbox"] {
     -webkit-appearance: none;
+    -moz-appearance: none;
     appearance: none;
-    width: 16px;
-    height: 16px;
-    margin: 1px 0 0;
+    width: 36px;
+    height: 20px;
+    margin: 0;
     padding: 0;
-    flex: 0 0 16px;
-    border-radius: 4px;
-    border: 1.5px solid #64748b;
-    background: #0f172a;
-    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.6);
+    flex: 0 0 36px;
+    box-sizing: border-box;
+    border: 1px solid #475569;
+    border-radius: 20px;
+    background: #334155;
+    box-shadow: none;
     cursor: pointer;
     position: relative;
+    overflow: hidden;
+    background-image: none;
 }
 
-#server-setup-panel #ss-users-body .ss-perm-check input[type="checkbox"]:checked,
-#server-setup-panel #ss-users-body .ss-dispatch-row input[type="checkbox"]:checked {
-    background: #2563eb;
-    border-color: #60a5fa;
-    box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.35);
+#server-setup-panel #ss-users-body input[type="checkbox"]::-ms-check {
+    display: none;
 }
 
-#server-setup-panel #ss-users-body .ss-perm-check input[type="checkbox"]:checked::after,
-#server-setup-panel #ss-users-body .ss-dispatch-row input[type="checkbox"]:checked::after {
+#server-setup-panel #ss-users-body input[type="checkbox"]::after {
+    content: none;
+    display: none;
+}
+
+#server-setup-panel #ss-users-body input[type="checkbox"]::before {
     content: "";
     position: absolute;
-    left: 4px;
-    top: 1px;
-    width: 4px;
-    height: 8px;
-    border: solid #f8fafc;
-    border-width: 0 2px 2px 0;
-    transform: rotate(45deg);
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #cbd5e1;
+    transform: none;
+    border: none;
+}
+
+#server-setup-panel #ss-users-body input[type="checkbox"]:checked {
+    background: #2563eb;
+    border-color: #1d4ed8;
+    box-shadow: none;
+}
+
+#server-setup-panel #ss-users-body input[type="checkbox"]:checked::after {
+    content: none;
+    display: none;
+}
+
+#server-setup-panel #ss-users-body input[type="checkbox"]:checked::before {
+    background: #e2e8f0;
+    transform: translateX(16px);
+    border: none;
 }
 
 #server-setup-panel #ss-users-body .ss-perm-col {
@@ -912,4 +963,434 @@
     background: var(--bg-input);
     border-color: var(--border-subtle, #334155);
     border-radius: var(--radius-md);
+}
+
+/* SS-VISUAL-GLITCH — last-file wins over earlier global/unify */
+#settings-lifecycle-grid.settings-lifecycle-grid,
+.settings-lifecycle-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 24px !important;
+    max-width: 1400px;
+}
+.ss-pass-field {
+    position: relative !important;
+    display: block !important;
+    width: 100% !important;
+}
+.ss-pass-field input {
+    width: 100% !important;
+    padding-right: 60px !important;
+    box-sizing: border-box !important;
+}
+.ss-pass-toggle {
+    position: absolute !important;
+    right: 12px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    background: transparent !important;
+    border: none !important;
+    color: var(--accent-blue, #3b82f6) !important;
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    outline: none !important;
+    min-width: 0 !important;
+    box-shadow: none !important;
+}
+.ss-pass-toggle:hover {
+    text-decoration: underline;
+    color: var(--accent-blue-hover, #60a5fa) !important;
+    background: transparent !important;
+}
+
+#ss-panel-diagnostics.ss-main-panel.active {
+    gap: 12px !important;
+}
+.diagnostics-panel-wrapper {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 16px !important;
+    align-items: start !important;
+}
+#ss-panel-diagnostics .diagnostics-panel-wrapper > .ss-tech-section {
+    padding: 16px 20px !important;
+    min-height: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+}
+#ss-panel-diagnostics .ss-diagnostics-card--health {
+    grid-column: 1 / -1;
+}
+#ss-panel-diagnostics .ss-tech-grid {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    margin: 0 !important;
+}
+#ss-panel-diagnostics .ss-tech-card {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 110px;
+    max-width: 160px;
+    padding: 6px 10px;
+}
+
+#server-setup-panel #ss-users-body .ss-user-card,
+#server-setup-panel #ss-users-body .ss-user-edit-fields {
+    max-width: none;
+    width: 100%;
+}
+#server-setup-panel #ss-users-body .ss-user-edit-fields input:not([type="checkbox"]):not([type="radio"]),
+#server-setup-panel #ss-users-body .ss-user-edit-fields select {
+    max-width: 420px !important;
+    width: 100%;
+}
+#server-setup-panel #ss-users-body .ss-user-username.enterprise-form-control,
+#server-setup-panel #ss-users-body .ss-user-display-name.enterprise-form-control,
+#server-setup-panel #ss-users-body .ss-user-contact-note.enterprise-form-control {
+    max-width: 420px !important;
+}
+#server-setup-panel #ss-users-body .ss-user-tier-id,
+#server-setup-panel #ss-users-body .ss-user-tier-ops {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr) !important;
+    max-width: none;
+    width: 100%;
+}
+#server-setup-panel #ss-users-body .ss-user-perm-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 24px !important;
+    width: 100% !important;
+    max-width: none;
+    margin-top: 12px;
+    align-items: start;
+}
+#server-setup-panel #ss-users-body .ss-user-perm-block {
+    margin: 0;
+    padding: 12px 14px;
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid var(--border-color, #334155);
+    border-radius: 8px;
+}
+#server-setup-panel #ss-users-body .ss-perm-check {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+/* LAYOUT-REPAIR-V1 — tabs in document flow; unused panels stay hidden; perm sliders */
+#server-setup-panel .ss-dash-subtabs:not([hidden]),
+#server-setup-panel #ss-dash-subtabs:not([hidden]),
+#server-setup-panel #ss-fleet-subtabs:not([hidden]) {
+    margin-bottom: 24px !important;
+    display: inline-flex !important;
+    position: relative !important;
+    top: auto !important;
+    z-index: auto !important;
+    min-height: 0 !important;
+    float: none !important;
+}
+#server-setup-panel #ss-dash-subtabs[hidden],
+#server-setup-panel #ss-fleet-subtabs[hidden] {
+    display: none !important;
+}
+#server-setup-panel .ss-main-panel[hidden],
+#server-setup-panel .ss-main-panel:not(.active) {
+    display: none !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+#server-setup-panel #ss-panel-dashboard.ss-main-panel.active {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    margin: 0 0 24px !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+#server-setup-panel #ss-panel-lab.ss-main-panel.active,
+#server-setup-panel #ss-panel-usb.ss-main-panel.active,
+#server-setup-panel #ss-panel-bwc.ss-main-panel.active {
+    padding-top: 12px !important;
+    margin-top: 0 !important;
+}
+#server-setup-panel #ss-users-filter {
+    display: flex !important;
+    width: 100% !important;
+    margin-top: 24px !important;
+    clear: both !important;
+    position: relative !important;
+    gap: 16px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+#server-setup-panel #ss-users-body .ss-perm-check {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    position: relative !important;
+    cursor: pointer;
+    margin: 0 0 8px !important;
+}
+#server-setup-panel #ss-users-body .ss-perm-check > input[type="checkbox"] {
+    position: absolute !important;
+    opacity: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    flex: none !important;
+    appearance: none !important;
+    overflow: visible !important;
+}
+#server-setup-panel #ss-users-body .ss-perm-slider {
+    flex: 0 0 36px !important;
+    width: 36px !important;
+    height: 20px !important;
+    border-radius: 20px !important;
+    background: #334155 !important;
+    border: 1px solid #475569 !important;
+    position: relative !important;
+    display: inline-block !important;
+    box-sizing: border-box !important;
+}
+#server-setup-panel #ss-users-body .ss-perm-slider::before {
+    content: "" !important;
+    display: block !important;
+    position: absolute !important;
+    top: 1px !important;
+    left: 1px !important;
+    width: 16px !important;
+    height: 16px !important;
+    border-radius: 50% !important;
+    background: #cbd5e1 !important;
+}
+#server-setup-panel #ss-users-body .ss-perm-check input:checked + .ss-perm-slider {
+    background: #2563eb !important;
+    border-color: #1d4ed8 !important;
+}
+#server-setup-panel #ss-users-body .ss-perm-check input:checked + .ss-perm-slider::before {
+    transform: translateX(16px);
+}
+
+/* USERS-FULL-WIDTH-V1 — kill 1000px left trap; 50/50 fields; 4 perm cards across */
+#server-setup-panel #ss-users-body .ss-user-card,
+#server-setup-panel #ss-users-body .ss-user-edit-fields,
+#server-setup-panel #ss-users-body .ss-user-tier-id,
+#server-setup-panel #ss-users-body .ss-user-tier-ops,
+#server-setup-panel #ss-users-body .ss-user-perm-grid {
+    max-width: none !important;
+    width: 100% !important;
+}
+#server-setup-panel #ss-users-body .ss-user-tier-id,
+#server-setup-panel #ss-users-body .ss-user-tier-ops,
+#server-setup-panel #ss-users-body .ss-user-edit-fields .enterprise-form-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+}
+#server-setup-panel #ss-users-body .ss-user-perm-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 24px !important;
+}
+
+/* FLEET-SETTINGS-CHROME-UNIFY-V1 */
+#server-setup-panel #server-config-workspace[data-ss-pillar="fleet"] .ss-panel-scroll {
+    gap: 0 !important;
+}
+#server-setup-panel #ss-fleet-subtabs:not([hidden]) {
+    display: inline-flex !important;
+    align-items: center !important;
+    align-self: flex-start !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: 100% !important;
+    gap: 6px !important;
+    padding: 6px 8px !important;
+    margin: 0 0 12px !important;
+    position: relative !important;
+    top: auto !important;
+    z-index: auto !important;
+    float: none !important;
+    min-height: 0 !important;
+}
+#server-setup-panel #ss-fleet-subtabs button {
+    padding: 6px 14px !important;
+    line-height: 1.2 !important;
+}
+#server-setup-panel #ss-panel-bwc.ss-main-panel.active,
+#server-setup-panel #ss-panel-fixed.ss-main-panel.active,
+#server-setup-panel #ss-panel-docks.ss-main-panel.active,
+#server-setup-panel #ss-panel-firmware.ss-main-panel.active,
+#server-setup-panel #ss-panel-usb.ss-main-panel.active {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 0 0 auto !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    padding: 16px 20px !important;
+    min-height: 0 !important;
+    height: auto !important;
+    background: var(--bg-elevated, #1e293b) !important;
+    border: 1px solid var(--border-subtle, #334155) !important;
+    border-radius: var(--radius-lg, 10px) !important;
+    box-shadow: none !important;
+}
+#server-setup-panel #ss-panel-firmware h4,
+#server-setup-panel #ss-panel-usb h4,
+#server-setup-panel #ss-panel-docks h4,
+#server-setup-panel #ss-device-summary {
+    margin-top: 0 !important;
+    margin-bottom: 8px !important;
+}
+#server-setup-panel #ss-panel-docks .evidence-toolbar {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+}
+#fw-ota-controls,
+#fw-ota-select,
+#fw-ota-upgrade,
+#fw-ota-cancel,
+#fw-ota-pause,
+#fw-ota-phases,
+#fw-ota-section > h4[data-i18n="firmware.phases.title"] {
+    display: none !important;
+}
+#server-setup-panel #ss-panel-fixed.active #fixed-cams-dlg,
+#server-setup-panel #ss-panel-fixed #fixed-cams-dlg[open] {
+    position: relative !important;
+    inset: auto !important;
+    left: auto !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: visible !important;
+}
+#server-setup-panel #ss-panel-fixed.active .fc-toolbar {
+    position: relative !important;
+    inset: auto !important;
+    left: auto !important;
+    top: auto !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin: 0 0 12px !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+}
+#server-setup-panel #ss-panel-fixed.active .fc-scroll {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+}
+#server-setup-panel #ss-panel-fixed.active .fc-table-wrap,
+#server-setup-panel #ss-panel-fixed.active .ss-evidence-table-wrap {
+    margin: 0 !important;
+}
+#server-setup-panel #ss-panel-users .ss-evidence-table-wrap {
+    margin-top: 12px !important;
+    max-height: none !important;
+    overflow: auto !important;
+}
+
+/* SETTINGS-SUBTAB-GAP-KILL-V1 — void between subtabs and the card only */
+#server-setup-panel #server-config-workspace[data-ss-pillar="fleet"] .ss-panel-scroll,
+#server-setup-panel #server-config-workspace[data-ss-pillar="security"] .ss-panel-scroll {
+    gap: 0 !important;
+}
+#server-setup-panel .ss-dash-subtabs:not([hidden]),
+#server-setup-panel #ss-dash-subtabs:not([hidden]),
+#server-setup-panel #ss-fleet-subtabs:not([hidden]) {
+    margin-top: 0 !important;
+    margin-bottom: 8px !important;
+}
+#server-setup-panel #ss-panel-dashboard.ss-main-panel.active {
+    margin: 0 !important;
+    gap: 0 !important;
+}
+#server-setup-panel #ss-users-filter {
+    margin-top: 0 !important;
+}
+#server-setup-panel #ss-users-section,
+#server-setup-panel #ss-panel-users,
+#server-setup-panel #ss-users-list-section,
+#server-setup-panel #ss-users-add-section,
+#server-setup-panel #ss-my-account-section,
+#server-setup-panel #ss-site-security-section {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+#server-setup-panel #ss-users-list-section > h4,
+#server-setup-panel #ss-users-add-section > h4,
+#server-setup-panel #ss-my-account-section > h4,
+#server-setup-panel #ss-groups-section > h4 {
+    margin-top: 0 !important;
+}
+#server-setup-panel #ss-panel-lab.ss-main-panel.active,
+#server-setup-panel #ss-panel-groups.ss-main-panel.active {
+    margin-top: 0 !important;
+}
+
+/* SETTINGS-GAP-TOGGLE-SSO-V2 — Settings only; this file loads last */
+#server-setup-panel #ss-panel-lab label.ss-lab-check:has(#lab-oidc-auto-provision) {
+    margin-top: 16px !important;
+}
+#server-setup-panel #ss-my-account-section,
+#server-setup-panel #ss-my-account-info.ss-my-perms {
+    height: auto !important;
+    min-height: 0 !important;
+}
+#server-setup-panel #ss-my-account-info.ss-my-perms {
+    column-count: 5 !important;
+    column-width: auto !important;
+    column-gap: 1.25rem;
+}
+#server-setup-panel #ss-my-account-info.ss-my-perms dt {
+    margin-top: 0.85rem;
+}
+#server-setup-panel #ss-panel-scroll.ss-panel-scroll {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+#server-setup-panel #ss-panel-scroll:has(#ss-my-account-section:not([hidden])) {
+    overflow-y: hidden !important;
+}
+#server-setup-panel #ss-dash-sub-lab {
+    letter-spacing: -0.08em !important;
+    font-kerning: none !important;
+}
+#server-setup-panel #ss-panel-scroll .ss-type-on-bwc-card.enterprise-card {
+    margin-top: 32px !important;
+    margin-bottom: 16px !important;
+}
+#server-setup-panel #ss-panel-lab label.ss-lab-check {
+    margin-inline-end: 32px !important;
+    max-width: calc(50% - 16px);
 }

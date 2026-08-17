@@ -59,21 +59,14 @@
             var action = card.getAttribute('data-settings-action');
             var btn = card.querySelector('.settings-lifecycle-open');
             if (!btn) return;
-            if (action === 'faults') {
+            if (action === 'alarms') {
                 btn.hidden = !centreSummaryAvailable();
                 return;
             }
-            if (action === 'monitor') {
-                btn.hidden = !can;
-                return;
-            }
-            if (action === 'firmware' || action === 'onboarding' || action === 'assets'
-                || action === 'config' || action === 'maintenance') {
+            if (action === 'fleet' || action === 'infrastructure' || action === 'security') {
                 btn.hidden = !can;
             }
         });
-        var firmwareCard = document.querySelector('.settings-lifecycle-card[data-settings-action="firmware"]');
-        if (firmwareCard) firmwareCard.hidden = !can;
 
         var ftpChip = document.getElementById('settings-chip-ftp');
         var licChip = document.getElementById('settings-chip-license');
@@ -171,28 +164,17 @@
     function renderCards() {
         var reg = snapshot.bwcRegistered || snapshot.fleetTotal;
         var online = snapshot.fleetOnline;
-        setText('settings-status-onboarding', tr('settingsHub.status.onboarding', {
+        setText('settings-status-fleet', tr('settingsHub.status.fleet', {
             registered: reg,
             online: online,
         }));
-        setText('settings-status-assets', tr('settingsHub.status.assets', {
-            count: reg,
-        }));
-        setText('settings-status-config', snapshot.deploymentMode
+        setText('settings-status-infrastructure', snapshot.deploymentMode
             ? tr('settingsHub.status.configMode', { mode: snapshot.deploymentMode })
             : tr('settingsHub.status.configGeneric'));
-        setText('settings-status-maintenance', snapshot.ftpEnabled
-            ? tr('settingsHub.status.maintenanceFtpOn')
-            : tr('settingsHub.status.maintenanceFtpOff'));
-        setText('settings-status-faults', centreSummaryAvailable()
+        setText('settings-status-security', tr('settingsHub.status.security'));
+        setText('settings-status-alarms', centreSummaryAvailable()
             ? tr('settingsHub.status.faultsCentre')
             : tr('settingsHub.status.faultsOps'));
-        setText('settings-status-monitor', session.canManageServer
-            ? tr('settingsHub.status.monitorAdmin')
-            : tr('settingsHub.status.monitorOps'));
-        setText('settings-status-firmware', session.canManageServer
-            ? tr('settingsHub.status.firmwarePlanning')
-            : '\u2014');
     }
 
     function applyWarmSettings(sdata) {
@@ -299,27 +281,18 @@
     }
 
     function runAction(action, sourceBtn) {
-        if (action === 'faults') {
+        if (action === 'alarms') {
             openCentreSummary();
-            return;
-        }
-        if (action === 'maintenance') {
-            if (global.ServerSetup && ServerSetup.openEvidenceStorage) {
-                ServerSetup.openEvidenceStorage();
-            } else if (global.EvidenceManager && EvidenceManager.showTab) {
-                EvidenceManager.showTab('evidence');
-            }
             return;
         }
         if (!session.canManageServer) {
             if (global.AdminActionBus) AdminActionBus.toast(tr('adminAction.adminRequired'));
             return;
         }
-        var tab = 'server';
-        if (action === 'onboarding' || action === 'assets') tab = 'bwc';
-        else if (action === 'config') tab = 'server';
-        else if (action === 'monitor') tab = 'diagnostics';
-        else if (action === 'firmware') tab = 'firmware';
+        var tab = 'infrastructure';
+        if (action === 'fleet') tab = 'fleet';
+        else if (action === 'security') tab = 'security';
+        else if (action === 'infrastructure') tab = 'infrastructure';
 
         var launch = function () {
             if (!global.ServerSetup || !ServerSetup.openConfigTab) {

@@ -55,10 +55,6 @@
     }
 
     function updateTabVisibility() {
-        const tab = document.getElementById('ss-main-tab-diagnostics');
-        if (tab) tab.hidden = !techAuthenticated;
-        const labTab = document.getElementById('ss-main-tab-lab');
-        if (labTab) labTab.hidden = !techAuthenticated;
         if (global.ServerSetup && ServerSetup.syncAdvancedNav) ServerSetup.syncAdvancedNav();
     }
 
@@ -395,20 +391,6 @@
         if (healthRefresh) healthRefresh.addEventListener('click', loadHealth);
         const lvRefresh = document.getElementById('ss-tech-live-viewers-refresh');
         if (lvRefresh) lvRefresh.addEventListener('click', loadLiveViewers);
-        const diagTab = document.getElementById('ss-main-tab-diagnostics');
-        if (diagTab) {
-            diagTab.addEventListener('click', function () {
-                const openDiag = function () {
-                    if (global.ServerSetup && ServerSetup.setMainTab) ServerSetup.setMainTab('diagnostics');
-                    return refreshAll();
-                };
-                if (global.ServerSetup && ServerSetup.runWithTechAccess) {
-                    ServerSetup.runWithTechAccess(openDiag);
-                    return;
-                }
-                requireTech(openDiag);
-            });
-        }
     }
 
     global.TechDiagnostics = {

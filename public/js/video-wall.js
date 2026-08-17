@@ -4363,7 +4363,8 @@ function handoffPlayerAttaching(player) {
 
     async function playFixedCameraOnSlot(slotEl, sourceId) {
         const slotIndex = findSlotIndex(slotEl);
-        if (slotIndex < PIN_SLOT_COUNT || !isFixedCameraSourceId(sourceId)) return;
+        /* GEO-TOOLS-MIX-10-V1 — fixed may use leftover panels 1–8, not only 9–10 */
+        if (slotIndex == null || slotIndex < 0 || slotIndex >= SLOT_COUNT || !isFixedCameraSourceId(sourceId)) return;
         const duplicateSlot = getSlots().findIndex(function (candidate, index) {
             return index !== slotIndex && slotBoundCam(index) === sourceId
                 && (players.has(index) || activeStreams.get(index) === sourceId);

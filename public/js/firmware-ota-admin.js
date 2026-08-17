@@ -133,9 +133,6 @@
             banner.classList.toggle('fw-ota-banner-ready', !!(s.readyProfiles > 0));
             banner.textContent = data.message || tr('firmware.banner');
         }
-
-        const altEl = document.getElementById('fw-ota-dock-note');
-        if (altEl && data.alternatives) altEl.textContent = data.alternatives.docking || '';
     }
 
     async function load() {
@@ -143,7 +140,6 @@
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error((data && data.error) || tr('firmware.loadFailed'));
         renderSummary(data);
-        renderPhases(data.phases);
         renderProfiles(data.vendorProfiles);
         renderFleet(data.fleet);
         return data;

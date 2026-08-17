@@ -23,8 +23,12 @@ The server checks it at **startup** and enforces:
 
 | Field | Effect |
 |-------|--------|
+| `sku` | `core`, `professional`, or `enterprise` (set at issue with `--sku`) |
+| `maxSuperAdmins` | Hard cap when creating Super Admins |
+| `maxOperators` | Hard cap when creating Operators |
+| `maxDashboardUsers` | Total accounts (Super Admins + Operators) |
 | `maxBwcDevices` | Hard cap on BWC rows |
-| `maxDashboardUsers` | Hard cap when creating dashboard users |
+| `evidenceRetentionDays` | Auto-delete after N days; **0** = until manual (Enterprise) |
 | `expiresAt` | **Required** — server **refuses to start** after this date |
 | `type: perpetual` | Sold — use a **long** expiry (e.g. 10 years); renew by re-issuing |
 | `type: subscription` | Rental — shorter expiry |
@@ -78,7 +82,7 @@ Back up `keys\license-private.pem` offline (encrypted USB / vault).
 
 ### Issue a license (per customer / contract)
 
-**Sold (perpetual):**
+**Sold (perpetual) — Professional trial / sale:**
 
 ```powershell
 cd "C:\Users\user\Desktop\Enterprise Mobility\MobilityC2-VENDOR-IMPORTANT\LicenseIssuer"
@@ -86,13 +90,21 @@ cd "C:\Users\user\Desktop\Enterprise Mobility\MobilityC2-VENDOR-IMPORTANT\Licens
 node issue-license.js `
   --customer "Acme Security Ltd" `
   --type perpetual `
+  --sku professional `
   --bwc 8 `
-  --users 50 `
   --expires 2036-12-31 `
   --out issued\acme-platform-license.json
 
 node verify-license.js issued\acme-platform-license.json
 ```
+
+`--sku` fills seats (do not type them by hand):
+
+| `--sku` | Super Admins | Operators | Evidence retention |
+|---------|--------------|-----------|--------------------|
+| `core` | 3 | 10 | 30 days |
+| `professional` | 5 | 40 | 90 days |
+| `enterprise` | 8 | 60 | until manual |
 
 **Rental (subscription):**
 
@@ -100,8 +112,8 @@ node verify-license.js issued\acme-platform-license.json
 node issue-license.js `
   --customer "RentCo Site 1" `
   --type subscription `
+  --sku professional `
   --bwc 200 `
-  --users 20 `
   --expires 2027-06-01 `
   --out issued\rentco-platform-license.json
 ```
@@ -132,7 +144,7 @@ This copies the license to `storage\platform-license.json`, generates customer `
 
 ## Ship desk checklist (before zip leaves Ubitron)
 
-1. Contract limits match `--bwc` and `--users` on issued license  
+1. Contract SKU matches `--sku` (`core` / `professional` / `enterprise`) and `--bwc`  
 2. `node verify-license.js` on issued file — pass  
 3. `BUILD-ME8-CUSTOMER.ps1` — pass  
 4. `VERIFY-ME8-FRESH.ps1` on staged pack — pass  
@@ -144,7 +156,7 @@ This copies the license to `storage\platform-license.json`, generates customer `
 
 ## Renewal / upgrade
 
-1. Issue new file with later `--expires` and/or higher limits  
+1. Issue new file with later `--expires`, same or higher `--sku`, and/or higher `--bwc`  
 2. Replace `storage\platform-license.json` on site **or** ship new pack  
 3. `RESTART-FLEET.bat`
 

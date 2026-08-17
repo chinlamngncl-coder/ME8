@@ -84,7 +84,6 @@ const sosInviteLock = require('./lib/sosInviteLock');
 const geofence = require('./lib/geofence');
 const sosIncidents = require('./lib/sosIncidents');
 const commandCentreReport = require('./lib/commandCentreReport');
-const centreLlm = require('./lib/centreLlm');
 const dashboardAuth = require('./lib/dashboardAuth');
 const dashboardTotp = require('./lib/dashboardTotp');
 const authReverify = require('./lib/authReverify');
@@ -155,7 +154,6 @@ const weaponLivePoller = require('./lib/weaponLivePoller');
 const frLivePoller = require('./lib/frLivePoller');
 const frSnapLedger = require('./lib/frSnapLedger');
 const frKeptEvidence = require('./lib/frKeptEvidence');
-const frMatchDebug = require('./lib/frMatchDebug');
 const frOfflineVideo = require('./lib/frOfflineVideo');
 const frFieldAlert = require('./lib/frFieldAlert');
 const faceRedactRegions = require('./lib/faceRedactRegions');
@@ -197,7 +195,6 @@ function reverifyForbidden(req, res, body) {
     return false;
 }
 const liveCapture = require('./lib/liveCapture');
-const opsCaseStore = require('./lib/opsCaseStore');
 const evidenceRetentionCategories = require('./lib/evidenceRetentionCategories');
 const evidenceDeleteQueue = require('./lib/evidenceDeleteQueue');
 const licenseHeartbeat = require('./lib/licenseHeartbeat');
@@ -367,16 +364,9 @@ function applyLabSecurityRuntime() {
 platformLicense.init(STORAGE_DIR);
 licenseManager.init({ storageDir: STORAGE_DIR, baseDir: BASE_DIR });
 sosIncidents.init(STORAGE_DIR);
-opsCaseStore.init(STORAGE_DIR);
 evidenceRetentionCategories.init(STORAGE_DIR);
 evidenceDeleteQueue.init(STORAGE_DIR);
 liveCapture.wireSosIncidents(sosIncidents);
-centreLlm.init(STORAGE_DIR);
-if (process.env.FM_LLM_WARMUP === '1') {
-    centreLlm.warmup().catch(function (err) {
-        log.sip.warn('centre llm warmup skipped', { message: err.message });
-    });
-}
 dashboardAuth.init(STORAGE_DIR);
 dockRegistry.init(STORAGE_DIR);
 frBlacklist.init(FR_STORAGE_ROOT);
@@ -1360,13 +1350,13 @@ function evidencePathValidation(settings) {
     const network = storagePaths.isNetworkArchive(settings);
     return {
         ftp: storagePaths.pathExistsOnDisk(ftpRoot),
-        ftpDetail: storagePaths.testPathAccess(ftpRoot),
+        ftpDetail: storagePaths.clientSafeAccess(storagePaths.testPathAccess(ftpRoot)),
         liveCapture: storagePaths.pathExistsOnDisk(lcRoot),
-        liveCaptureDetail: storagePaths.testPathAccess(lcRoot),
+        liveCaptureDetail: storagePaths.clientSafeAccess(storagePaths.testPathAccess(lcRoot)),
         nas: nasRaw ? storagePaths.pathExistsOnDisk(nasPath) : null,
-        nasDetail: nasRaw ? storagePaths.testPathAccess(nasPath) : null,
+        nasDetail: nasRaw ? storagePaths.clientSafeAccess(storagePaths.testPathAccess(nasPath)) : null,
         frStorage: frAccess.ok,
-        frStorageDetail: frAccess,
+        frStorageDetail: storagePaths.clientSafeAccess(frAccess),
         networkArchive: network,
     };
 }
@@ -1395,13 +1385,9 @@ function evidenceSettingsPayload(settings) {
         runtime: runtimePortSnapshot(),
         liveCaptureLabel: storagePaths.displayPath(lcRoot, BASE_DIR),
         ftpLabel: storagePaths.displayPath(ftpRoot, BASE_DIR),
-        ftpRoot: ftpRoot,
-        liveCaptureRoot: lcRoot,
         frStorage: {
             rootPath: (settings.frStorage && settings.frStorage.rootPath) || '',
-            configuredRoot: configuredFrRoot,
             configuredLabel: storagePaths.displayPath(configuredFrRoot, BASE_DIR),
-            activeRoot: FR_STORAGE_ROOT,
             activeLabel: storagePaths.displayPath(FR_STORAGE_ROOT, BASE_DIR),
             managedDirectories: frStorageWorkspace.MANAGED_DIRS.slice(),
             restartRequired: frRestartRequired,
@@ -1410,10 +1396,12 @@ function evidenceSettingsPayload(settings) {
         networkStorage: {
             enabled: network,
             mountPath: mountRaw,
-            mountFull: mountFull,
             mountOk: validation.nas,
             mountWritable: validation.nasDetail && validation.nasDetail.writable,
-            recommended: recommended,
+            recommended: recommended ? {
+                ftp: 'Network archive',
+                liveCapture: 'Network archive',
+            } : null,
             protocolHint: 'iSCSI, Fibre Channel, NFS, or SMB — mount on this server first (Windows drive letter or Linux mount point).',
         },
         installerNote: network
@@ -1480,12 +1468,11 @@ app.get('/api/metrics', (req, res) => {
         if (!lab.metricsEnabled) {
             return res.status(404).send('# metrics disabled\n');
         }
-        if (lab.metricsToken) {
-            const auth = req.headers.authorization || '';
-            const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-            if (token !== lab.metricsToken) {
-                return res.status(401).send('# unauthorized\n');
-            }
+        const auth = req.headers.authorization || '';
+        const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+        const configured = String(lab.metricsToken || '').trim();
+        if (!configured || token !== configured) {
+            return res.status(401).send('# unauthorized\n');
         }
         const fleet = fleetRegistry.getDashboardFleet ? fleetRegistry.getDashboardFleet() : [];
         const online = fleet.filter(function (d) { return d.online; }).length;
@@ -1517,7 +1504,7 @@ app.get('/api/metrics', (req, res) => {
         res.setHeader('Content-Type', 'text/plain; charset=utf-8');
         res.send(lines.join('\n') + '\n');
     } catch (err) {
-        res.status(500).send('# error ' + err.message + '\n');
+        res.status(500).send('# error\n');
     }
 });
 
@@ -1554,6 +1541,7 @@ app.post('/api/auth/login', loginRateLimit, (req, res) => {
             return res.status(403).json(opErr("Account not active yet — check Sign-in from date"));
         }
         const user = dashboardAuth.verifyLoginUser(username, password);
+        console.log('[auth] login compare', { ok: !!user, userLen: username.length });
         if (!user) {
             return res.status(401).json(opErr("Invalid user or password"));
         }
@@ -2355,17 +2343,10 @@ app.get('/api/storage', (req, res) => {
     const ftpRoot = currentFtpRoot();
     const lcRoot = storagePaths.resolveLiveCaptureRoot(BASE_DIR, settings);
     res.json({
-        ftp: ftpRoot,
         ftpLabel: storagePaths.displayPath(ftpRoot, BASE_DIR),
         ftpConfigured: !!(settings.docking || {}).ftpUploadPath
             || !!(process.env.FM_FTP_ROOT || '').trim(),
-        liveCapture: lcRoot,
         liveCaptureLabel: storagePaths.displayPath(lcRoot, BASE_DIR),
-        nasMountPath: storagePaths.resolveNasMountPath(settings),
-        facePlate: FACE_PLATE_DIR,
-        fleetLog: log.logFile,
-        storage: STORAGE_DIR,
-        sosIncidents: sosIncidents.getBaseDir(),
     });
 });
 
@@ -2374,375 +2355,10 @@ app.get('/api/sos-incidents', (req, res) => {
         const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
         const limit = req.query && req.query.limit;
         const days = req.query && req.query.days;
-        const canSee = (camId) => sessionCanSeeCam(session, camId);
+        const canSee = (camId) => sessionCanSeeSosDevice(session, camId);
         res.json(sosIncidents.getDashboard(limit, days, canSee));
     } catch (err) {
         res.status(500).json(opErr(err, { entries: [], chart: [] }));
-    }
-});
-
-/** OPS-CASE-SERVER-STORE-V1 — API only; Cases UI desk = next APPLY. */
-function opsCaseActorFromSession(session) {
-    return {
-        username: session && session.username ? session.username : 'operator',
-        role: session && session.role ? session.role : 'operator',
-    };
-}
-
-function requireOpsCasesView(req, res, next) {
-    const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
-    if (!session || !dashboardAuth.canEvidenceView(session)) {
-        return res.status(403).json(opErr('Evidence access not authorized'));
-    }
-    req.dashboardUser = session;
-    return next();
-}
-
-app.get('/api/ops-cases', requireOpsCasesView, (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const canSee = (camId) => sessionCanSeeCam(session, camId);
-        const out = opsCaseStore.listCases(req.query || {}, canSee);
-        res.json(out);
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
-    }
-});
-
-/** SOS-OPS-STRIP-ACTIONS-V1 — resolve Ops Case by SOS ledger incident id. */
-app.get('/api/ops-cases/by-sos/:sosIncidentId', requireOpsCasesView, (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const canSee = (camId) => sessionCanSeeCam(session, camId);
-        const found = opsCaseStore.findBySosIncidentId(req.params.sosIncidentId);
-        if (!found) return res.status(404).json(opErr('Case not found'));
-        const row = opsCaseStore.getPublic(found.caseId, canSee);
-        if (!row) return res.status(404).json(opErr('Case not found'));
-        res.json({ ok: true, case: row });
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
-    }
-});
-
-app.get('/api/ops-cases/:caseId', requireOpsCasesView, (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const canSee = (camId) => sessionCanSeeCam(session, camId);
-        let row = opsCaseStore.getPublic(req.params.caseId, canSee);
-        if (!row) return res.status(404).json(opErr('Case not found'));
-        /* OPS-CASE-GPS-FROM-SOS-AND-MINIMAP-V1 — hydrate from SOS ledger when case refs lack GPS */
-        const refs = row.refs || {};
-        const needGps = refs.lat == null || refs.lon == null;
-        const sosId = refs.sosIncidentId ? String(refs.sosIncidentId) : '';
-        if (needGps && sosId) {
-            const entry = sosIncidents.findEntryById(sosId);
-            if (entry && (entry.lat != null || entry.lon != null)) {
-                row = opsCaseStore.attachGpsFromSos(
-                    req.params.caseId,
-                    entry,
-                    { username: 'system', role: 'system' },
-                    canSee
-                ) || row;
-            }
-        }
-        res.json({ ok: true, case: row });
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
-    }
-});
-
-app.post('/api/ops-cases', requireOpsCasesView, (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const body = req.body || {};
-        if (body.cameraId && !sessionCanSeeCam(session, body.cameraId)) {
-            return res.status(403).json(opErr('Camera not in your dispatch scope'));
-        }
-        const created = opsCaseStore.createCase(body, opsCaseActorFromSession(session));
-        log.web.info('ops case created', { caseId: created.caseId, type: created.type, by: session.username });
-        res.json({ ok: true, case: created });
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
-    }
-});
-
-/** OPS-CASE-WEAPON-MIGRATE-V1 — Ack/dismiss/overflow → WD- case (Ack only). */
-app.post('/api/ops-cases/from-weapon', requireOpsCasesView, (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const body = req.body || {};
-        const camId = body.cameraId || body.camId || null;
-        if (camId && !sessionCanSeeCam(session, camId)) {
-            return res.status(403).json(opErr('Camera not in your dispatch scope'));
-        }
-        const wired = opsCaseStore.ensureFromWeaponHit(body, opsCaseActorFromSession(session));
-        if (!wired || !wired.case) {
-            return res.status(400).json(opErr('hitId required'));
-        }
-        if (wired.created) {
-            auditLog.recordFromRequest(req, 'ops_case.weapon_wire', {
-                target: camId || null,
-                detail: {
-                    caseId: wired.case.caseId,
-                    weaponHitId: body.hitId,
-                    status: wired.case.status,
-                    closedReason: body.closedReason || body.reason || 'ack',
-                },
-            });
-        }
-        res.json({ ok: true, created: !!wired.created, case: wired.case });
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
-    }
-});
-
-/** OPS-CASE-FR-WIRE-V1 — FR Ack/dismiss → FR- case (Ack only). */
-app.post('/api/ops-cases/from-fr', requireOpsCasesView, (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const body = req.body || {};
-        const camId = body.cameraId || body.camId || null;
-        if (camId && !sessionCanSeeCam(session, camId)) {
-            return res.status(403).json(opErr('Camera not in your dispatch scope'));
-        }
-        const wired = opsCaseStore.ensureFromFrHit(body, opsCaseActorFromSession(session));
-        if (!wired || !wired.case) {
-            return res.status(400).json(opErr('hitId required'));
-        }
-        if (wired.created) {
-            auditLog.recordFromRequest(req, 'ops_case.fr_wire', {
-                target: camId || null,
-                detail: {
-                    caseId: wired.case.caseId,
-                    frHitId: body.hitId,
-                    status: wired.case.status,
-                    closedReason: body.closedReason || body.reason || 'ack',
-                },
-            });
-        }
-        res.json({ ok: true, created: !!wired.created, case: wired.case });
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
-    }
-});
-
-/** OPS-CASE-ANPR-WIRE-V1 — ANPR Ack/dismiss → AN- case (Ack only). */
-app.post('/api/ops-cases/from-anpr', requireOpsCasesView, (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const body = req.body || {};
-        const camId = body.cameraId || body.camId || null;
-        if (camId && !sessionCanSeeCam(session, camId)) {
-            return res.status(403).json(opErr('Camera not in your dispatch scope'));
-        }
-        const wired = opsCaseStore.ensureFromAnprHit(body, opsCaseActorFromSession(session));
-        if (!wired || !wired.case) {
-            return res.status(400).json(opErr('hitId required'));
-        }
-        if (wired.created) {
-            auditLog.recordFromRequest(req, 'ops_case.anpr_wire', {
-                target: camId || null,
-                detail: {
-                    caseId: wired.case.caseId,
-                    anprHitId: body.hitId,
-                    plate: body.plate || body.displayName || null,
-                    status: wired.case.status,
-                    closedReason: body.closedReason || body.reason || 'ack',
-                },
-            });
-        }
-        res.json({ ok: true, created: !!wired.created, case: wired.case });
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
-    }
-});
-
-app.post('/api/ops-cases/:caseId/notes', requireOpsCasesView, (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const canSee = (camId) => sessionCanSeeCam(session, camId);
-        const text = req.body && req.body.text != null ? req.body.text : (req.body && req.body.note);
-        const updated = opsCaseStore.addNote(req.params.caseId, text, opsCaseActorFromSession(session), canSee);
-        res.json({ ok: true, case: updated });
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
-    }
-});
-
-app.patch('/api/ops-cases/:caseId/notes/:noteId', requireOpsCasesView, (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const canSee = (camId) => sessionCanSeeCam(session, camId);
-        const text = req.body && req.body.text != null ? req.body.text : (req.body && req.body.note);
-        const updated = opsCaseStore.editNote(
-            req.params.caseId,
-            req.params.noteId,
-            text,
-            opsCaseActorFromSession(session),
-            canSee
-        );
-        res.json({ ok: true, case: updated });
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
-    }
-});
-
-app.delete('/api/ops-cases/:caseId/notes/:noteId', requireOpsCasesView, (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const canSee = (camId) => sessionCanSeeCam(session, camId);
-        const updated = opsCaseStore.deleteNote(
-            req.params.caseId,
-            req.params.noteId,
-            opsCaseActorFromSession(session),
-            canSee
-        );
-        res.json({ ok: true, case: updated });
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
-    }
-});
-
-app.post('/api/ops-cases/:caseId/reviewed', requireOpsCasesView, (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const canSee = (camId) => sessionCanSeeCam(session, camId);
-        const updated = opsCaseStore.markReviewed(
-            req.params.caseId,
-            opsCaseActorFromSession(session),
-            canSee
-        );
-        res.json({ ok: true, case: updated });
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
-    }
-});
-
-/** OPS-CASE-BIND-EVIDENCE-V1 — link Library file id onto case (bytes stay on Storage/FTP). */
-app.post('/api/ops-cases/:caseId/evidence', requireOpsCasesView, express.json({ limit: '16kb' }), async (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const canSee = (camId) => sessionCanSeeCam(session, camId);
-        const fileId = String((req.body && req.body.evidenceFileId) || '').trim();
-        if (!fileId) return res.status(400).json(opErr('evidenceFileId required'));
-        const file = await evidenceRegistry.getFile(fileId);
-        if (!file) return res.status(404).json(opErr('Evidence file not found'));
-        const updated = opsCaseStore.linkEvidence(
-            req.params.caseId,
-            fileId,
-            opsCaseActorFromSession(session),
-            canSee,
-            { fileName: file.fileName || null, source: 'manual' }
-        );
-        res.json({ ok: true, case: updated });
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
-    }
-});
-
-app.delete('/api/ops-cases/:caseId/evidence/:evidenceFileId', requireOpsCasesView, (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const canSee = (camId) => sessionCanSeeCam(session, camId);
-        const updated = opsCaseStore.unlinkEvidence(
-            req.params.caseId,
-            req.params.evidenceFileId,
-            opsCaseActorFromSession(session),
-            canSee
-        );
-        res.json({ ok: true, case: updated });
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
-    }
-});
-
-/** OPS-CASE-ARCHIVE-HIDE-V1 — soft archive / restore (Super admin). JSON stays on disk. */
-app.post('/api/ops-cases/:caseId/archive', requireOpsCasesView, (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const canSee = (camId) => sessionCanSeeCam(session, camId);
-        const updated = opsCaseStore.archiveCase(
-            req.params.caseId,
-            opsCaseActorFromSession(session),
-            canSee
-        );
-        res.json({ ok: true, case: updated });
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
-    }
-});
-
-app.post('/api/ops-cases/:caseId/unarchive', requireOpsCasesView, (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const canSee = (camId) => sessionCanSeeCam(session, camId);
-        const updated = opsCaseStore.unarchiveCase(
-            req.params.caseId,
-            opsCaseActorFromSession(session),
-            canSee
-        );
-        res.json({ ok: true, case: updated });
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
-    }
-});
-
-/** CASE-FILE-CONTINUE-FROM-OPS-CASE-V1 — create or open linked Case File from Ops Case desk. */
-app.post('/api/ops-cases/:caseId/continue-case-file', requireEvidenceEdit, express.json({ limit: '16kb' }), async (req, res) => {
-    try {
-        const session = req.dashboardUser;
-        const canSee = (camId) => sessionCanSeeCam(session, camId);
-        const caseId = String(req.params.caseId || '').trim();
-        let row = opsCaseStore.getPublic(caseId, canSee);
-        if (!row) return res.status(404).json(opErr('Case not found'));
-
-        const refs = row.refs || {};
-        let detail = null;
-        let existing = false;
-
-        if (refs.linkedCaseFileId) {
-            detail = await caseFiles.getDetail(String(refs.linkedCaseFileId));
-            if (detail && detail.caseFile) existing = true;
-        }
-        if (!detail) {
-            const byOps = await siteDb.findCaseFileByOpsCaseId(caseId);
-            if (byOps) {
-                detail = await caseFiles.getDetail(byOps.id);
-                if (detail && detail.caseFile) existing = true;
-            }
-        }
-        if (!detail) {
-            detail = await caseFiles.createFromOpsCase(row, session);
-            existing = false;
-        }
-        if (!detail || !detail.caseFile) {
-            return res.status(500).json(opErr('Could not create Case File'));
-        }
-
-        row = opsCaseStore.setLinkedCaseFile(
-            caseId,
-            detail.caseFile.id,
-            detail.caseFile.title,
-            opsCaseActorFromSession(session),
-            canSee
-        );
-
-        /* Keep Case File opsCaseId filled if migration applied and older row lacked it */
-        if (!detail.caseFile.opsCaseId) {
-            try {
-                detail = await caseFiles.update(detail.caseFile.id, { opsCaseId: caseId }, session);
-            } catch (_) { /* ignore */ }
-        }
-
-        res.json({
-            ok: true,
-            existing: existing,
-            case: row,
-            detail: detail,
-            caseFileId: detail.caseFile.id,
-        });
-    } catch (err) {
-        res.status(err.status || 500).json(opErr(err));
     }
 });
 
@@ -2762,10 +2378,13 @@ app.get('/api/sos-incidents/export', (req, res) => {
     }
 });
 
-app.post('/api/sos-incidents/clear', (req, res) => {
+app.post('/api/sos-incidents/clear', async (req, res) => {
     try {
-        sosIncidents.clearDashboardList();
-        log.web.info('sos dashboard list cleared');
+        const out = sosIncidents.clearDashboardList();
+        await auditLog.recordFromRequest(req, 'sos.incidents.clear', {
+            detail: { foldersRemoved: out && out.foldersRemoved != null ? out.foldersRemoved : 0 },
+        });
+        log.web.info('sos dashboard list cleared', { foldersRemoved: out && out.foldersRemoved });
         res.json({ ok: true });
     } catch (err) {
         res.status(500).json(opErr(err));
@@ -2790,9 +2409,9 @@ app.post('/api/sos-incidents/open', (req, res) => {
                 spawn('explorer.exe', [reportPath], { detached: true, stdio: 'ignore' }).unref();
             }
             log.web.info('opened sos incident folder', { incidentId, path: folderPath });
-            return res.json({ ok: true, path: folderPath, report: reportPath || null });
+            return res.json({ ok: true });
         }
-        res.json({ ok: false, path: folderPath, hint: 'Open this path on the server PC' });
+        res.json({ ok: false });
     } catch (err) {
         res.status(err.status || 500).json(opErr(err));
     }
@@ -2968,10 +2587,37 @@ setInterval(function () {
     evidenceRegistry.purgeDueQueuedDeletes().catch((err) => {
         log.web.warn('evidence delete-queue purge skipped', { message: err.message });
     });
+    evidenceRegistry.enqueueRetentionDue(serverSettings.load(STORAGE_DIR)).then(function (out) {
+        if (out && out.queued) log.web.info('evidence retention queued', out);
+    }).catch((err) => {
+        log.web.warn('evidence retention enqueue failed', { message: err.message });
+    });
     gpsTrack.runRetention().catch((err) => {
         log.web.warn('gps track retention failed', { message: err.message });
     });
+    try {
+        const frOut = frKeptEvidence.purgeExpiredDiscardedMedia();
+        if (frOut && frOut.purged) log.web.info('fr discarded media purged', frOut);
+    } catch (err) {
+        log.web.warn('fr discarded media purge failed', { message: err && err.message });
+    }
 }, 6 * 3600000);
+
+setTimeout(function () {
+    evidenceRegistry.enqueueRetentionDue(serverSettings.load(STORAGE_DIR)).then(function (out) {
+        if (out && (out.queued || out.reason === 'retention_disabled')) {
+            log.web.info('evidence retention enqueue (startup)', out);
+        }
+    }).catch((err) => {
+        log.web.warn('evidence retention enqueue failed', { message: err.message });
+    });
+    try {
+        const frOut = frKeptEvidence.purgeExpiredDiscardedMedia();
+        if (frOut && (frOut.purged || frOut.failed)) log.web.info('fr discarded media purge (startup)', frOut);
+    } catch (err) {
+        log.web.warn('fr discarded media purge failed', { message: err && err.message });
+    }
+}, 20000);
 
 function loadBwcDevices() {
     return bwcDevicesCache;
@@ -3898,19 +3544,20 @@ app.post('/api/sos-acknowledge', async (req, res) => {
                 endedGroupCall: !!endedGroupCall,
             }, alarmCamId);
         }
-        /* OPS-CASE-SOS-WIRE-V1 — file SO- case on Ack (Ack only if no note). Never fail Ack. */
+        /* Unified Cases — open case_files row on Ack. Never fail Ack. */
         let opsCase = null;
         if (entry && entry.id) {
             try {
-                const wired = opsCaseStore.ensureFromSosAck(entry, opsCaseActorFromSession(session));
-                opsCase = wired && wired.case ? wired.case : null;
-                if (wired && wired.created) {
-                    auditLog.recordFromRequest(req, 'ops_case.sos_wire', {
+                const wired = await caseFiles.ensureFromSos(entry, session);
+                const cf = wired && wired.detail && wired.detail.caseFile;
+                if (cf) opsCase = { caseId: cf.id, id: cf.id, status: cf.status };
+                if (wired && wired.created && cf) {
+                    auditLog.recordFromRequest(req, 'case_file.sos_wire', {
                         target: alarmCamId || null,
                         detail: {
-                            caseId: opsCase && opsCase.caseId,
+                            caseId: cf.id,
                             sosIncidentId: entry.id,
-                            status: opsCase && opsCase.status,
+                            status: cf.status,
                         },
                     });
                 }
@@ -4243,7 +3890,6 @@ app.get('/api/server-settings', (req, res) => {
         DEPLOYMENT_MODE: saas.DEPLOYMENT_MODE,
         saasDeployment: saas,
         docking: {
-            ftpRoot: currentFtpRoot(),
             ftpLabel: storagePaths.displayPath(currentFtpRoot(), BASE_DIR),
         },
         session: session ? {
@@ -4355,7 +4001,6 @@ app.post('/api/server-settings', dashboardAuth.requireSuperAdmin, (req, res) => 
             bwc: serverSettings.bwcChecklist(settings),
             firewall: serverSettings.firewallChecklist(settings, runtimePortSnapshot()),
             docking: {
-                ftpRoot: FTP_ROOT,
                 ftpLabel: storagePaths.displayPath(FTP_ROOT, BASE_DIR),
             },
             siteTimePreview: siteTime.formatEvidence(new Date()),
@@ -4383,7 +4028,6 @@ app.post('/api/docking-settings', dashboardAuth.requireSuperAdmin, (req, res) =>
         res.json({
             ok: true,
             docking: {
-                ftpRoot: FTP_ROOT,
                 ftpLabel: storagePaths.displayPath(FTP_ROOT, BASE_DIR),
             },
             ftpRestartRequired: true,
@@ -4975,7 +4619,6 @@ if (process.env.FM_LAB_ZLM === '1'
     });
 
     log.media.info('zlm lab/pack routes enabled', {
-        testPage: '/test-zlm.html',
         flvProxy: '/api/lab/zlm/flv/:stream.live.flv',
         pack: process.env.FM_ZLM_PACK === '1' || process.env.FM_ZLM_SPAWN === '1',
     });
@@ -5173,7 +4816,6 @@ if (process.env.FM_LAB_ZLM === '1'
     });
 
     log.media.info('wvp lab routes enabled', {
-        testPage: '/test-wvp-tile.html',
         base: (wvpLab.cfg() && wvpLab.cfg().base) || null,
     });
 })();
@@ -5525,6 +5167,31 @@ function requireOverlayClose(req, res, next) {
     return next();
 }
 
+function requireTacticalLicense(req, res, next) {
+    if (!licenseFeatures.isFeatureEnabled('tacticalOverwatch')) {
+        return res.status(403).json(opErr('Tactical Overwatch is not included in the current license'));
+    }
+    return next();
+}
+
+function requireTacticalView(req, res, next) {
+    const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+    if (!session || !dashboardAuth.canTacticalView(session)) {
+        return res.status(403).json(opErr('Tactical view permission required'));
+    }
+    req.dashboardUser = session;
+    return next();
+}
+
+function requireBlueprintManage(req, res, next) {
+    const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+    if (!session || !dashboardAuth.canBlueprintManage(session)) {
+        return res.status(403).json(opErr('Blueprint manage permission required'));
+    }
+    req.dashboardUser = session;
+    return next();
+}
+
 app.get('/api/operations/meta', requireOverlayView, (req, res) => {
     try {
         res.json(operationOverlay.metaForUser(req.dashboardUser));
@@ -5747,6 +5414,8 @@ app.get('/api/users', dashboardAuth.requireSuperAdmin, (req, res) => {
         users,
         superAdminCount,
         maxSuperAdmins: limits.maxSuperAdmins,
+        maxOperators: limits.maxOperators,
+        sku: limits.sku,
         secureEvidenceExport: evidenceSecureExport.secureExportEnabled(),
     });
 });
@@ -5882,6 +5551,20 @@ function sessionCanSeeCam(session, camId) {
     if (!camId) return true;
     const groups = listDispatchGroupsForScope();
     return dispatchScope.sessionCanAccessDevice(session, camId, groups);
+}
+
+/** SOS ledger / Cases dropdown: operators see assigned dispatch groups only. Super admin or seeAllDispatchGroups sees all. */
+function sessionCanSeeSosDevice(session, camId) {
+    if (!camId) return false;
+    const user = dispatchScope.userFromSession(session);
+    if (!user) return false;
+    if (dashboardAuth.normalizeRole(user.role) === 'super_admin') return true;
+    const perms = dashboardAuth.permissionsForUser(user);
+    if (perms && perms.seeAllDispatchGroups) return true;
+    const groups = listDispatchGroupsForScope();
+    const groupIds = dispatchScope.normalizeGroupIds(user.assignedGroupIds || [], groups);
+    const deviceIds = dispatchScope.deviceIdsForGroupIds(groups, groupIds);
+    return deviceIds.has(String(camId).trim());
 }
 
 function dispatchScopePayloadForSession(session) {
@@ -6281,7 +5964,7 @@ app.get('/api/ftp-inbox', dashboardAuth.requireDashboardAuth, dashboardAuth.requ
         res.json(out);
     } catch (err) {
         log.web.warn('ftp-inbox list failed', { message: err.message });
-        res.status(500).json({ ok: false, error: 'ftp_inbox_failed', message: String(err.message || err).slice(0, 160), files: [], items: [], count: 0 });
+        res.status(500).json(opErr(err, { files: [], items: [], count: 0 }));
     }
 });
 
@@ -6295,7 +5978,7 @@ app.get('/api/ftp-inbox/file', dashboardAuth.requireDashboardAuth, dashboardAuth
         if (!fs.existsSync(hit.abs)) return res.status(404).json({ ok: false, error: 'not_found' });
         res.sendFile(hit.abs);
     } catch (err) {
-        res.status(500).json({ ok: false, error: 'ftp_file_failed', message: String(err.message || err).slice(0, 120) });
+        res.status(500).json(opErr(err));
     }
 });
 
@@ -6309,7 +5992,7 @@ app.post('/api/ftp-inbox/purge', dashboardAuth.requireDashboardAuth, dashboardAu
         if (!rels.length) {
             return res.status(400).json({ ok: false, error: 'rels_required', message: 'Select at least one file to remove.' });
         }
-        const out = ftpInbox.purgeFiles(ftpRoot, rels);
+        const out = await ftpInbox.purgeFiles(ftpRoot, rels);
         try {
             await auditLog.recordFromRequest(req, 'ftp_inbox.purge', {
                 detail: { count: out.count, deleted: out.deleted.slice(0, 40) },
@@ -6318,7 +6001,7 @@ app.post('/api/ftp-inbox/purge', dashboardAuth.requireDashboardAuth, dashboardAu
         res.json(out);
     } catch (err) {
         log.web.warn('ftp-inbox purge failed', { message: err.message });
-        res.status(500).json({ ok: false, error: 'ftp_purge_failed', message: String(err.message || err).slice(0, 160) });
+        res.status(500).json(opErr(err));
     }
 });
 
@@ -6439,6 +6122,38 @@ app.get('/api/gps-track/route', requireEvidenceView, async (req, res) => {
         const points = await gpsTrack.queryRoute(deviceId, from, to, q.limit);
         const evidence = await gpsTrack.evidenceForWindow(deviceId, from, to);
         res.json({ ok: true, deviceId: deviceId, from: from, to: to, points: points, evidence: evidence });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+/* Evidence View toggle — not Super Admin. Cross-team: no dispatch-group filter. */
+app.get('/api/evidence/proximity-scan', requireEvidenceView, async (req, res) => {
+    try {
+        const q = req.query || {};
+        const deviceId = String(q.deviceId || q.bwcId || '').trim();
+        const at = String(q.at || q.timestamp || '').trim();
+        if (!deviceId || !at) {
+            return res.status(400).json(opErr('bwcId (or deviceId) and timestamp (or at) are required.'));
+        }
+        const atMs = Date.parse(at);
+        if (!Number.isFinite(atMs)) {
+            return res.status(400).json(opErr('at must be a valid ISO8601 timestamp.'));
+        }
+        const scan = await gpsTrack.proximityScan(deviceId, new Date(atMs).toISOString());
+        const payload = scan && !Array.isArray(scan) ? scan : { units: scan || [], origin: null, fixedCameras: [] };
+        res.json({
+            ok: true,
+            deviceId: deviceId,
+            at: new Date(atMs).toISOString(),
+            windowSec: payload.windowSec || 5,
+            radiusM: payload.radiusM || 1000,
+            origin: payload.origin || null,
+            units: payload.units || [],
+            fixedCameras: payload.fixedCameras || [],
+            crossTeamOverride: true,
+            originMissing: !!payload.originMissing,
+        });
     } catch (err) {
         res.status(500).json(opErr(err));
     }
@@ -7340,19 +7055,19 @@ const tacticalBpUpload = multer({
 
 app.post(
     '/api/tactical/blueprints/upload',
-    dashboardAuth.requireSuperAdmin,
+    dashboardAuth.requireDashboardAuth,
+    requireTacticalLicense,
+    requireTacticalView,
+    requireBlueprintManage,
     requireStorageFreeDiskSpace,
     (req, res) => {
         tacticalBpUpload.single('file')(req, res, async (err) => {
             if (err) {
                 const tooLarge = err && (err.code === 'LIMIT_FILE_SIZE' || /File too large/i.test(String(err.message || '')));
                 log.web.warn('tactical blueprint upload rejected', { message: err && err.message, ip: req.ip });
-                return res.status(400).json({
-                    ok: false,
-                    error: tooLarge
-                        ? ('Blueprint exceeds ' + TACTICAL_BP_MAX_MB_LABEL + ' MB')
-                        : (err.message || 'Upload failed'),
-                });
+                return res.status(400).json(tooLarge
+                    ? opErr('Blueprint exceeds ' + TACTICAL_BP_MAX_MB_LABEL + ' MB')
+                    : opErr('Upload failed'));
             }
             if (!req.file) {
                 return res.status(400).json({ ok: false, error: 'file required' });
@@ -7406,26 +7121,116 @@ app.post(
             } catch (uploadErr) {
                 unlinkQuiet();
                 const status = uploadErr && uploadErr.status ? uploadErr.status : 400;
-                return res.status(status).json({
-                    ok: false,
-                    error: (uploadErr && uploadErr.message) || 'Blueprint upload failed',
-                });
+                return res.status(status).json(opErr(uploadErr));
             }
         });
     },
 );
 
-app.get('/api/tactical/blueprints', dashboardAuth.requireSuperAdmin, async (req, res) => {
+app.get('/api/tactical/blueprints', dashboardAuth.requireDashboardAuth, requireTacticalLicense, requireTacticalView, async (req, res) => {
     try {
-        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready' });
-        const blueprints = await siteDb.listTacticalBlueprints(req.query && req.query.limit);
-        res.json({ ok: true, blueprints });
+        if (!siteDb.isReady()) return res.status(503).json(opErr('Catalog database is not ready'));
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        const user = dispatchScope.userFromSession(session);
+        const all = await siteDb.listTacticalBlueprints(req.query && req.query.limit);
+        const blueprints = dispatchScope.filterBlueprintsForUser(all, user, listDispatchGroupsForScope());
+        res.json({ ok: true, blueprints: blueprints });
     } catch (err) {
-        res.status(400).json({ ok: false, error: err.message || String(err) });
+        res.status(400).json(opErr(err));
     }
 });
 
-app.patch('/api/tactical/blueprints/:id/placement', dashboardAuth.requireSuperAdmin, async (req, res) => {
+const USER_MAP_STATE_PREFIX = 'userMapState:';
+
+function sanitizeUserMapPois(raw) {
+    const list = Array.isArray(raw) ? raw : [];
+    const out = [];
+    for (let i = 0; i < list.length && out.length < 200; i++) {
+        const p = list[i];
+        const lat = Number(p && p.lat);
+        const lng = Number(p && p.lng);
+        if (!p || !p.id || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+        out.push({
+            id: String(p.id).slice(0, 80),
+            name: String(p.name || '').trim().slice(0, 80) || 'POI',
+            lat: lat,
+            lng: lng,
+            notes: String(p.notes || '').slice(0, 500),
+            fixedCamIds: Array.isArray(p.fixedCamIds)
+                ? p.fixedCamIds.map(function (id) { return String(id || '').trim(); }).filter(Boolean).slice(0, 16)
+                : [],
+            bwcCamIds: Array.isArray(p.bwcCamIds)
+                ? p.bwcCamIds.map(function (id) { return String(id || '').trim(); }).filter(Boolean).slice(0, 32)
+                : [],
+        });
+    }
+    return out;
+}
+
+function sanitizeUserMapCircles(raw) {
+    const list = Array.isArray(raw) ? raw : [];
+    const out = [];
+    for (let i = 0; i < list.length && out.length < 40; i++) {
+        const c = list[i];
+        if (!c || !c.id) continue;
+        out.push({
+            id: String(c.id).slice(0, 80),
+            name: String(c.name || '').trim().slice(0, 80) || 'Circle',
+            camIds: Array.isArray(c.camIds)
+                ? c.camIds.map(function (id) { return String(id || '').trim(); }).filter(Boolean).slice(0, 64)
+                : [],
+        });
+    }
+    return out;
+}
+
+function emptyUserMapState() {
+    return { pois: [], circles: [], activeCircleId: '' };
+}
+
+app.get('/api/tactical/my-map-state', dashboardAuth.requireDashboardAuth, requireTacticalLicense, requireTacticalView, async (req, res) => {
+    try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        if (!session || !session.userId) return res.status(401).json(opErr('Unauthorized'));
+        if (!siteDb.isReady()) return res.status(503).json(opErr('Database not ready'));
+        const raw = await siteDb.getSetting(USER_MAP_STATE_PREFIX + session.userId, emptyUserMapState());
+        res.json({
+            ok: true,
+            state: {
+                pois: sanitizeUserMapPois(raw && raw.pois),
+                circles: sanitizeUserMapCircles(raw && raw.circles),
+                activeCircleId: String((raw && raw.activeCircleId) || ''),
+            },
+        });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.put('/api/tactical/my-map-state', dashboardAuth.requireDashboardAuth, requireTacticalLicense, requireTacticalView, async (req, res) => {
+    try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        if (!session || !session.userId) return res.status(401).json(opErr('Unauthorized'));
+        if (!siteDb.isReady()) return res.status(503).json(opErr('Database not ready'));
+        const key = USER_MAP_STATE_PREFIX + session.userId;
+        const prev = (await siteDb.getSetting(key, emptyUserMapState())) || emptyUserMapState();
+        const body = (req.body && req.body.state) ? req.body.state : (req.body || {});
+        const next = {
+            pois: body.pois != null ? sanitizeUserMapPois(body.pois) : sanitizeUserMapPois(prev.pois),
+            circles: body.circles != null ? sanitizeUserMapCircles(body.circles) : sanitizeUserMapCircles(prev.circles),
+            activeCircleId: body.activeCircleId != null
+                ? String(body.activeCircleId || '')
+                : String(prev.activeCircleId || ''),
+            updatedAt: new Date().toISOString(),
+        };
+        await siteDb.setSetting(key, next);
+        res.json({ ok: true, state: next });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.patch('/api/tactical/blueprints/:id/placement', dashboardAuth.requireDashboardAuth, requireTacticalLicense, requireTacticalView, requireBlueprintManage, async (req, res) => {
     try {
         if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready' });
         const body = req.body || {};
@@ -7442,7 +7247,7 @@ app.patch('/api/tactical/blueprints/:id/placement', dashboardAuth.requireSuperAd
     }
 });
 
-app.delete('/api/tactical/blueprints/:id', dashboardAuth.requireSuperAdmin, async (req, res) => {
+app.delete('/api/tactical/blueprints/:id', dashboardAuth.requireDashboardAuth, requireTacticalLicense, requireTacticalView, requireBlueprintManage, async (req, res) => {
     try {
         if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready' });
         const blueprint = await siteDb.deleteTacticalBlueprint(req.params.id);
@@ -7774,6 +7579,38 @@ app.post('/api/evidence/detail/:fileId/trim-export', requireEvidenceExport, asyn
             detail: { exportId: out.exportId, trimStartSec: out.trimStartSec, trimEndSec: out.trimEndSec },
         });
         res.json({ ok: true, export: out });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+/* Evidence Edit — lossless clip as a new catalog file. Never overwrites the master. */
+app.post('/api/evidence/trim', requireEvidenceEdit, express.json({ limit: '32kb' }), async (req, res) => {
+    try {
+        const body = req.body || {};
+        const fileId = String(body.fileId || body.evidenceFileId || '').trim();
+        if (!fileId) return res.status(400).json(opErr('fileId is required'));
+        const out = await evidenceWorkflow.runTrimClip(fileId, body, req.dashboardUser);
+        let caseFileId = String(body.caseId || body.caseFileId || '').trim();
+        if (caseFileId) {
+            try {
+                await caseFiles.linkEvidence(caseFileId, out.fileId, req.dashboardUser);
+                out.caseFileId = caseFileId;
+            } catch (linkErr) {
+                out.caseLinkError = String((linkErr && linkErr.message) || 'Could not link case file');
+            }
+        }
+        await auditLog.recordFromRequest(req, 'evidence.trim_clip', {
+            target: fileId,
+            detail: {
+                clipFileId: out.fileId,
+                trimStartSec: out.trimStartSec,
+                trimEndSec: out.trimEndSec,
+                lossless: true,
+                caseFileId: out.caseFileId || null,
+            },
+        });
+        res.json({ ok: true, clip: out });
     } catch (err) {
         res.status(400).json(opErr(err));
     }
@@ -9180,53 +9017,6 @@ app.get('/api/analytics/fr/snap/:file', dashboardAuth.requireDashboardAuth, (req
     res.type('image/jpeg').sendFile(p);
 });
 
-/** mob-fr-match-debug-enroll-vs-live — gallery (+ fresh enroll) vs live snap crop % */
-app.post('/api/analytics/fr/match-debug', dashboardAuth.requireDashboardAuth, express.json({ limit: '8kb' }), async (req, res) => {
-    if (!licenseFeatures.isFeatureEnabled('fr')) {
-        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
-    }
-    try {
-        const body = req.body || {};
-        const out = await frMatchDebug.compareEnrollVsLive({
-            entryId: body.entryId || body.id,
-            cropFile: body.cropFile || null,
-        });
-        if (!out.ok) {
-            const status = out.error === 'not_found' ? 404
-                : (out.error === 'sidecar_down' ? 503 : 400);
-            try {
-                log.web.info('fr match-debug fail', {
-                    error: out.error,
-                    entryId: body.entryId || body.id || null,
-                    cropFile: body.cropFile || null,
-                });
-            } catch (_) { /* ignore */ }
-            return res.status(status).json(out);
-        }
-        try {
-            log.web.info('fr match-debug', {
-                entryId: out.entry && out.entry.id,
-                displayName: out.entry && out.entry.displayName,
-                scorePct: out.scorePct,
-                clears70: out.clears70,
-                enrollFreshVsProbePct: out.enrollFreshVsProbePct,
-                enrollFreshVsGalleryPct: out.enrollFreshVsGalleryPct,
-                engine: out.engine,
-                cropFile: out.crop && out.crop.cropFile,
-                camId: out.crop && out.crop.camId,
-                dims: out.dims,
-            });
-        } catch (_) { /* ignore */ }
-        res.json(out);
-    } catch (err) {
-        res.status(500).json({
-            ok: false,
-            error: 'failed',
-            message: String(err && err.message || err).slice(0, 160),
-        });
-    }
-});
-
 /* mob-fr-snap-keep-evidence-pack — Keep → storage/fr-kept (toast only, no second UI tab) */
 app.post('/api/analytics/fr/kept', dashboardAuth.requireDashboardAuth, express.json({ limit: '6mb' }), (req, res) => {
     if (!licenseFeatures.isFeatureEnabled('fr')) {
@@ -9259,13 +9049,11 @@ app.post('/api/analytics/fr/kept', dashboardAuth.requireDashboardAuth, express.j
         res.json({
             ok: true,
             id: result.id,
-            folderHint: result.folderHint,
             jpgFile: result.jpgFile,
             jsonFile: result.jsonFile,
-            hint: 'Saved to Investigation holds on the server (Evidence tab). IT path: ' + result.folderHint + '.',
         });
     } catch (err) {
-        res.status(500).json({ ok: false, error: String(err && err.message || err).slice(0, 120) });
+        res.status(500).json(opErr(err));
     }
 });
 
@@ -9293,11 +9081,10 @@ app.get('/api/analytics/fr/kept', dashboardAuth.requireDashboardAuth, (req, res)
         res.json({
             ok: true,
             holds: rows,
-            folderHint: frKeptEvidence.folderHint(),
             count: rows.length,
         });
     } catch (err) {
-        res.status(500).json({ ok: false, error: String(err && err.message || err).slice(0, 120) });
+        res.status(500).json(opErr(err));
     }
 });
 
@@ -9618,7 +9405,7 @@ app.get('/api/evidence/sos-incidents', requireEvidenceView, (req, res) => {
         const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
         const days = req.query && req.query.days ? parseInt(req.query.days, 10) : 90;
         const limit = req.query && req.query.limit ? parseInt(req.query.limit, 10) : 100;
-        const canSee = (camId) => sessionCanSeeCam(session, camId);
+        const canSee = (camId) => sessionCanSeeSosDevice(session, camId);
         res.json({ ok: true, incidents: sosIncidents.getDashboard(limit, days, canSee) });
     } catch (err) {
         res.status(500).json(opErr(err));
@@ -9672,6 +9459,97 @@ app.get('/api/case-files', requireEvidenceView, async (req, res) => {
     }
 });
 
+function packCaseWire(wired) {
+    const cf = wired && wired.detail && wired.detail.caseFile;
+    if (!cf) return { created: false, case: null, detail: null };
+    return {
+        created: !!wired.created,
+        case: { caseId: cf.id, id: cf.id, status: cf.status, title: cf.title },
+        detail: wired.detail,
+    };
+}
+
+app.get('/api/case-files/by-sos/:sosIncidentId', requireEvidenceView, async (req, res) => {
+    try {
+        const sosId = String(req.params.sosIncidentId || '').trim();
+        const row = await siteDb.findCaseFileBySosIncidentId(sosId)
+            || await siteDb.findCaseFileByOpsCaseId('SO:' + sosId);
+        if (!row) return res.status(404).json(opErr('Case not found'));
+        res.json({ ok: true, case: { caseId: row.id, id: row.id, status: row.status, title: row.title } });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.post('/api/case-files/from-weapon', requireEvidenceView, express.json({ limit: '32kb' }), async (req, res) => {
+    try {
+        const session = req.dashboardUser;
+        const body = req.body || {};
+        const camId = body.cameraId || body.camId || null;
+        if (camId && !sessionCanSeeCam(session, camId)) {
+            return res.status(403).json(opErr('Camera not in your dispatch scope'));
+        }
+        const wired = await caseFiles.ensureFromWeaponHit(body, session);
+        if (!wired || !wired.detail) return res.status(400).json(opErr('hitId required'));
+        const packed = packCaseWire(wired);
+        if (wired.created) {
+            await auditLog.recordFromRequest(req, 'case_file.weapon_wire', {
+                target: camId || null,
+                detail: { caseId: packed.case.caseId, weaponHitId: body.hitId },
+            });
+        }
+        res.json({ ok: true, created: packed.created, case: packed.case, detail: packed.detail });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.post('/api/case-files/from-fr', requireEvidenceView, express.json({ limit: '32kb' }), async (req, res) => {
+    try {
+        const session = req.dashboardUser;
+        const body = req.body || {};
+        const camId = body.cameraId || body.camId || null;
+        if (camId && !sessionCanSeeCam(session, camId)) {
+            return res.status(403).json(opErr('Camera not in your dispatch scope'));
+        }
+        const wired = await caseFiles.ensureFromFrHit(body, session);
+        if (!wired || !wired.detail) return res.status(400).json(opErr('hitId required'));
+        const packed = packCaseWire(wired);
+        if (wired.created) {
+            await auditLog.recordFromRequest(req, 'case_file.fr_wire', {
+                target: camId || null,
+                detail: { caseId: packed.case.caseId, frHitId: body.hitId },
+            });
+        }
+        res.json({ ok: true, created: packed.created, case: packed.case, detail: packed.detail });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.post('/api/case-files/from-anpr', requireEvidenceView, express.json({ limit: '32kb' }), async (req, res) => {
+    try {
+        const session = req.dashboardUser;
+        const body = req.body || {};
+        const camId = body.cameraId || body.camId || null;
+        if (camId && !sessionCanSeeCam(session, camId)) {
+            return res.status(403).json(opErr('Camera not in your dispatch scope'));
+        }
+        const wired = await caseFiles.ensureFromAnprHit(body, session);
+        if (!wired || !wired.detail) return res.status(400).json(opErr('hitId required'));
+        const packed = packCaseWire(wired);
+        if (wired.created) {
+            await auditLog.recordFromRequest(req, 'case_file.anpr_wire', {
+                target: camId || null,
+                detail: { caseId: packed.case.caseId, anprHitId: body.hitId, plate: body.plate || null },
+            });
+        }
+        res.json({ ok: true, created: packed.created, case: packed.case, detail: packed.detail });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
 app.get('/api/case-files/:id', requireEvidenceView, async (req, res) => {
     try {
         const detail = await caseFiles.getDetail(req.params.id);
@@ -9701,7 +9579,9 @@ app.post('/api/case-files/from-sos', requireEvidenceEdit, express.json({ limit: 
         const incidentId = (req.body && req.body.incidentId) ? String(req.body.incidentId).trim() : '';
         if (!incidentId) return res.status(400).json(opErr('SOS incident ID required'));
         const entry = sosIncidents.findEntryById(incidentId);
-        if (entry && entry.cameraId) assertSessionCanAccessCam(session, entry.cameraId);
+        if (!entry || !entry.cameraId || !sessionCanSeeSosDevice(session, entry.cameraId)) {
+            return res.status(403).json(opErr('SOS incident is not in your dispatch scope'));
+        }
         const detail = await caseFiles.createFromSos(incidentId, req.dashboardUser, sosIncidents);
         await auditLog.recordFromRequest(req, 'case_file.create_from_sos', {
             target: detail.caseFile.id,
@@ -9717,6 +9597,18 @@ app.patch('/api/case-files/:id', requireEvidenceEdit, express.json({ limit: '512
     try {
         const detail = await caseFiles.update(req.params.id, req.body || {}, req.dashboardUser);
         await auditLog.recordFromRequest(req, 'case_file.update', { target: req.params.id });
+        res.json({ ok: true, detail: detail });
+    } catch (err) {
+        const status = String(err && err.message || '').toLowerCase().includes('not found') ? 404 : 400;
+        res.status(status).json(opErr(err));
+    }
+});
+
+/* Evidence Edit toggle — not Super Admin. */
+app.post('/api/case-files/:id/geospatial-trace', requireEvidenceEdit, express.json({ limit: '256kb' }), async (req, res) => {
+    try {
+        const detail = await caseFiles.attachGeospatialTrace(req.params.id, req.body || {}, req.dashboardUser);
+        await auditLog.recordFromRequest(req, 'case_file.attach_geospatial', { target: req.params.id });
         res.json({ ok: true, detail: detail });
     } catch (err) {
         const status = String(err && err.message || '').toLowerCase().includes('not found') ? 404 : 400;
@@ -10341,6 +10233,7 @@ app.post('/api/auth/change-password', (req, res) => {
         }
         dashboardAuth.changeOwnPassword(session.username, String(body.currentPassword), newPassword);
         authReverify.revokeTokensForUser(session.userId);
+        console.log('[auth] change-password ok', { username: session.username });
         log.web.info('dashboard password changed', { username: session.username });
         auditLog.recordFromRequest(req, 'auth.password_change', { target: session.username });
         res.json({ ok: true, username: session.username, mustChangePassword: false });
@@ -10358,7 +10251,9 @@ app.post('/api/auth/reverify', (req, res) => {
         if (!password) {
             return res.status(400).json(opErr("Password is required"));
         }
-        if (!dashboardAuth.verifySessionPassword(session, password)) {
+        const reverifyOk = dashboardAuth.verifySessionPassword(session, password);
+        console.log('[auth] reverify compare', { ok: reverifyOk });
+        if (!reverifyOk) {
             return res.status(403).json(opErr("Incorrect password"));
         }
         const token = authReverify.issueToken(session);
@@ -10486,14 +10381,14 @@ app.post('/api/open-folder', (req, res) => {
     try {
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     } catch (err) {
-        return res.status(500).json(Object.assign({ path: dir }, opErr(err)));
+        return res.status(500).json(opErr(err));
     }
     if (process.platform === 'win32') {
         spawn('explorer.exe', [dir], { detached: true, stdio: 'ignore' }).unref();
         log.web.info('opened folder', { folder: key || 'ftp', path: dir });
-        return res.json({ ok: true, path: dir });
+        return res.json({ ok: true });
     }
-    res.json({ ok: false, path: dir, hint: 'Open this path on the server machine' });
+    res.json({ ok: false });
 });
 
 app.use('/sos-media', express.static(path.join(STORAGE_DIR, 'sos-incidents')));
@@ -10891,27 +10786,6 @@ app.get('/api/command-centre/export', dashboardAuth.requireSuperAdmin, async (re
     }
 });
 
-app.get('/api/command-centre/llm-status', dashboardAuth.requireSuperAdmin, async (req, res) => {
-    try {
-        const status = await centreLlm.checkStatus();
-        res.json(status);
-    } catch (err) {
-        res.status(500).json(opErr(err));
-    }
-});
-
-app.post('/api/command-centre/ask', dashboardAuth.requireSuperAdmin, async (req, res) => {
-    try {
-        const question = req.body && req.body.question;
-        const lang = req.body && req.body.lang;
-        const summary = commandCentreReport.buildSummary(await commandCentreDeps());
-        const result = await centreLlm.ask(question, summary, lang);
-        res.json(result);
-    } catch (err) {
-        res.status(503).json(opErr(err));
-    }
-});
-
 let dashboardSelectedCamId = null;
 
 /* DEVICE-CONTROL-SIP-ACK-TRACE-V1 — resolve URI + source for control logs */
@@ -11181,22 +11055,28 @@ deviceAlarm.configure({
     restoreCameraContact: (camId, request) => restoreCameraContactForCam(camId, request),
     auditRecord: (action, opts) => auditLog.record(action, opts),
     ensureOpsCaseOnRaise: (incident) => {
-        const wired = opsCaseStore.ensureFromSosRaise(incident, { username: 'system', role: 'system' });
-        if (wired && wired.created && wired.case) {
-            auditLog.record('ops_case.sos_raise', {
-                target: incident && incident.cameraId ? incident.cameraId : null,
-                detail: {
-                    caseId: wired.case.caseId,
+        Promise.resolve(caseFiles.ensureFromSos(incident, { username: 'system' })).then(function (wired) {
+            const cf = wired && wired.detail && wired.detail.caseFile;
+            if (wired && wired.created && cf) {
+                auditLog.record('case_file.sos_raise', {
+                    target: incident && incident.cameraId ? incident.cameraId : null,
+                    detail: {
+                        caseId: cf.id,
+                        sosIncidentId: incident && incident.id,
+                        status: cf.status,
+                    },
+                });
+                log.web.info('case file SOS raise', {
+                    caseId: cf.id,
                     sosIncidentId: incident && incident.id,
-                    status: wired.case.status,
-                },
-            });
-            log.web.info('ops case SOS raise wire', {
-                caseId: wired.case.caseId,
+                });
+            }
+        }).catch(function (wireErr) {
+            log.web.warn('case file SOS raise skipped', {
                 sosIncidentId: incident && incident.id,
+                message: wireErr && wireErr.message,
             });
-        }
-        return wired;
+        });
     },
 });
 
@@ -12933,8 +12813,8 @@ io.on('connection', (socket) => {
             socket.emit('kill-switch-denied', { error: 'Invalid kill switch command.' });
             return;
         }
-        if (!dashboardAuth.canDeviceKillSwitch(session)) {
-            socket.emit('kill-switch-denied', { error: 'Shut down and reboot require the device kill switch permission.' });
+        if (!dashboardAuth.canMapDeviceControl(session)) {
+            socket.emit('kill-switch-denied', { error: 'Remote control permission not granted for your account.' });
             return;
         }
         const reasonCheck = dashboardAuth.validateRemoteControlReason(cmd, parsed.reason);
@@ -12944,6 +12824,48 @@ io.on('connection', (socket) => {
         }
         if (!camId) {
             socket.emit('kill-switch-denied', { error: 'Select a BWC first.' });
+            return;
+        }
+        if (killSwitchFourEyes.shouldBypassQueue(session)) {
+            const resolved = resolveContactForCam(camId);
+            if (!resolved || !resolved.uri) {
+                socket.emit('kill-switch-denied', { error: 'BWC is not reachable for remote control.' });
+                return;
+            }
+            deviceControl.sendDeviceControl(sip, {
+                cameraContactUri: resolved.uri,
+                deviceId: camId,
+                realm: REALM,
+                serverId: SERVER_ID,
+                publicHost: HOST,
+                sipPort: SIP_PORT,
+                recordCmd: cmd,
+                contactSource: resolved.source,
+                log,
+            });
+            const forceAction = killSwitchFourEyes.forceActionLabel(cmd);
+            const overrideDetail = {
+                action: forceAction,
+                recordCmd: cmd,
+                reason: reasonCheck.reason,
+                actorUserId: session.userId,
+                actorUsername: session.username,
+                override: 'super_admin',
+                outcome: 'executed',
+            };
+            if (parsed.incidentId) overrideDetail.incidentId = parsed.incidentId;
+            auditLog.record('device.kill_switch_override', {
+                actor: session.userId,
+                role: session.role,
+                target: camId,
+                detail: overrideDetail,
+                clientIp: sockIp,
+            });
+            socket.emit('kill-switch-override-ok', {
+                camId: camId,
+                recordCmd: cmd,
+                action: forceAction,
+            });
             return;
         }
         const entry = killSwitchFourEyes.createRequest({

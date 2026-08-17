@@ -1985,11 +1985,8 @@
                     }
                     return;
                 }
-                var hint = pack.data.hint
-                    || tr('analytics.fr.snapKeptFolderHint',
-                        'Saved to Investigation holds (Evidence tab). IT path: {folder}.',
-                        { folder: pack.data.folderHint || 'storage/fr-kept' });
-                showStandbyToast(hint, 7000);
+                var hint = tr('analytics.fr.snapKeptOk', 'Snapshot kept');
+                showStandbyToast(hint, 5000);
                 try {
                     if (global.FrKeptUi && FrKeptUi.refresh) FrKeptUi.refresh();
                 } catch (_) { /* ignore */ }
@@ -2576,7 +2573,7 @@
         if (!hit || !hit.hitId || hit._labPreview) return;
         var kindRaw = String(hit.kind || '').toLowerCase();
         var isAnpr = hit.anpr === true || kindRaw === 'anpr';
-        var url = isAnpr ? '/api/ops-cases/from-anpr' : '/api/ops-cases/from-fr';
+        var url = isAnpr ? '/api/case-files/from-anpr' : '/api/case-files/from-fr';
         var payload = {
             hitId: hit.hitId,
             camId: hit.camId,

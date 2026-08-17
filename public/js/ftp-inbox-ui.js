@@ -314,7 +314,7 @@
             }));
         } catch (_) { /* ignore */ }
         if (global.EvidenceHub && EvidenceHub.showPanel) {
-            EvidenceHub.showPanel('ops-cases');
+            EvidenceHub.showPanel('case-files');
         }
         var meta = document.getElementById('ftp-inbox-meta');
         if (meta) meta.textContent = 'Ready for case assignment: ' + (name || 'selected file');
@@ -341,7 +341,7 @@
             }
         } catch (_) { /* ignore */ }
         if (global.EvidenceHub && EvidenceHub.showPanel) {
-            EvidenceHub.showPanel('ops-cases');
+            EvidenceHub.showPanel('case-files');
         }
         var meta = document.getElementById('ftp-inbox-meta');
         if (meta) meta.textContent = items.length + ' file(s) ready for case assignment';
@@ -498,8 +498,8 @@
         }
         var bulkCase = document.getElementById('ftp-inbox-bulk-case');
         if (bulkCase) bulkCase.addEventListener('click', bulkAddToCase);
-        var bulkPurge = document.getElementById('ftp-inbox-bulk-purge');
-        if (bulkPurge) bulkPurge.addEventListener('click', bulkPurge);
+        var bulkPurgeBtn = document.getElementById('ftp-inbox-bulk-purge');
+        if (bulkPurgeBtn) bulkPurgeBtn.addEventListener('click', bulkPurge);
         var prevClose = document.getElementById('ftp-inbox-preview-close');
         if (prevClose) prevClose.addEventListener('click', closePreview);
         var mapClose = document.getElementById('ftp-inbox-map-close');

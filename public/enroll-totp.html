@@ -16,7 +16,7 @@
             <p class="setup-hint" data-i18n="totpEnroll.startHint">Super admin must use an authenticator app (Microsoft Authenticator, Google Authenticator, etc.). Works offline &mdash; no internet needed for codes.</p>
             <form id="enroll-start-form">
                 <label><span data-i18n="totpEnroll.password">Your password</span>
-                    <input type="password" id="enroll-password" class="login-input" autocomplete="current-password" required>
+                    <input type="password" oncopy="return false" onpaste="return false" oncut="return false" id="enroll-password" class="login-input" autocomplete="current-password" required>
                 </label>
                 <button type="submit" class="btn-primary btn-block" data-i18n="totpEnroll.start">Show QR code</button>
             </form>

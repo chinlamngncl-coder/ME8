@@ -41,17 +41,33 @@
         }
     }
 
+    function tacticalPermOk() {
+        if (global.__fmDashboardRole === 'super_admin') return true;
+        return !!global.__fmTacticalView;
+    }
+
     function applyNavLocks(ent) {
+        if (!ent) ent = CACHE;
         var tactical = document.getElementById('nav-tab-tactical');
         var analytics = document.getElementById('nav-tab-analytics');
         var conference = document.getElementById('nav-tab-conference');
         var cad = document.getElementById('nav-tab-cad');
-        /* Basic + Command both have Tactical. Never grey the whole tab on Overwatch. */
-        applyUpgradeBadge(tactical, false);
+        var permOk = tacticalPermOk();
+        var licOk = featureOn(ent, 'tacticalOverwatch');
+        if (tactical) {
+            if (!permOk) {
+                applyUpgradeBadge(tactical, false);
+                tactical.hidden = true;
+            } else {
+                tactical.hidden = false;
+                applyUpgradeBadge(tactical, !licOk);
+            }
+        }
         var axOn = featureOn(ent, 'analyticsFr') || featureOn(ent, 'analytics');
         applyUpgradeBadge(analytics, !axOn);
         applyUpgradeBadge(conference, !featureOn(ent, 'videoConference'));
-        applyUpgradeBadge(cad, !featureOn(ent, 'cadIntegration'));
+        /* CAD/RMS stays clickable as a premium upsell surface — never grey the tab. */
+        applyUpgradeBadge(cad, false);
 
         /* Overwatch is Command-only */
         var owBtn = document.getElementById('ax-tactical-ar-open');
@@ -165,6 +181,7 @@
         hasFeature: hasFeature,
         getCached: getCached,
         getTacticalPinLiveCap: getTacticalPinLiveCap,
+        applyNavLocks: function () { applyNavLocks(CACHE); },
     };
 
     function boot() {

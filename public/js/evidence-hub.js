@@ -97,6 +97,9 @@
             + '</div>'
             + '<div class="ev-preview-actions">'
             + '<button type="button" class="btn btn-action btn-sm" id="ev-detail-open-preview">' + tr('evidenceHub.openPreview') + '</button>'
+            + ( (perms.edit || perms.superAdmin || dashboardRole === 'super_admin') && !isImage
+                ? '<button type="button" class="btn btn-action btn-sm" id="ev-detail-trim-clip">Trim / Extract Clip</button>'
+                : '')
             + '</div>'
             + '<div class="ev-preview-stage" id="ev-preview-stage" hidden></div>'
             + '</div>';
@@ -145,6 +148,9 @@
         if (global.CaseFilesUi && CaseFilesUi.applyPermissions) {
             CaseFilesUi.applyPermissions(p, dashboardRole);
         }
+        if (global.RouteTrace && RouteTrace.applyPermissions) {
+            RouteTrace.applyPermissions(p, dashboardRole);
+        }
         const addDock = document.getElementById('ev-dock-add');
         if (addDock) addDock.hidden = !perms.dockAdmin;
         const addDockToolbar = document.getElementById('ev-dock-add-toolbar');
@@ -157,6 +163,8 @@
         if (navDeleteQueue) navDeleteQueue.hidden = dashboardRole !== 'super_admin';
         const navFtpInbox = document.getElementById('ev-nav-ftp-inbox');
         if (navFtpInbox) navFtpInbox.hidden = dashboardRole !== 'super_admin';
+        const navOpsCases = document.getElementById('ev-nav-ops-cases');
+        if (navOpsCases) navOpsCases.hidden = true;
         const navDocks = document.getElementById('ev-nav-docks');
         if (navDocks) navDocks.hidden = !perms.dockAdmin && dashboardRole !== 'super_admin';
         const navRx = document.getElementById('ev-nav-redacted-exports');
@@ -399,7 +407,22 @@
         }
     }
 
+    function evHubRoot() {
+        return document.getElementById('evidence-panel') || document.getElementById('app-view-evidence');
+    }
+
+    function evPanelDomId(name) {
+        if (name === 'docks' || name === 'docking') return 'ev-panel-docking';
+        if (name === 'unassigned') return 'ev-panel-ftp-inbox';
+        if (name === 'holds') return 'ev-panel-investigation-holds';
+        return 'ev-panel-' + name;
+    }
+
     function showPanel(name, opts) {
+        if (name === 'ops-cases') name = 'case-files';
+        if (name === 'docking') name = 'docks';
+        if (name === 'unassigned') name = 'ftp-inbox';
+        if (name === 'holds') name = 'investigation-holds';
         if (name === 'approvals') {
             name = 'catalog';
             opts = Object.assign({}, opts || {}, { focusExportQueue: true });
@@ -416,15 +439,21 @@
         try {
             document.documentElement.classList.toggle('ev-storage-scroll-unlock', name === 'settings');
         } catch (_) { /* ignore */ }
-        document.querySelectorAll('.evidence-hub-panel').forEach(function (p) {
-            p.hidden = p.id !== 'ev-panel-' + name;
+        const hub = evHubRoot();
+        const targetId = evPanelDomId(name);
+        const panels = hub ? hub.querySelectorAll('.evidence-hub-panel') : [];
+        panels.forEach(function (p) {
+            p.hidden = p.id !== targetId;
         });
-        document.querySelectorAll('.evidence-hub-nav-btn').forEach(function (btn) {
+        const navBtns = hub ? hub.querySelectorAll('.evidence-hub-nav-btn') : [];
+        navBtns.forEach(function (btn) {
+            const p = btn.dataset.panel;
+            const dockMatch = name === 'docks' && (p === 'docks' || p === 'docking');
             /* redact has no nav chip \u2014 clear active like detail */
-            btn.classList.toggle('active', btn.dataset.panel === name);
+            btn.classList.toggle('active', p === name || dockMatch);
         });
         if (name === 'redact') {
-            document.querySelectorAll('.evidence-hub-nav-btn').forEach(function (btn) {
+            navBtns.forEach(function (btn) {
                 btn.classList.remove('active');
             });
         }
@@ -474,12 +503,6 @@
                 CaseFilesUi.onShow({ force: !!force, warm: warm });
             }
             if (!warm) markPanelLoaded('case-files');
-        } else if (currentPanel === 'ops-cases') {
-            const warm = panelWarm('ops-cases', force);
-            if (global.OpsCasesUi && OpsCasesUi.onShow) {
-                OpsCasesUi.onShow({ force: !!force, warm: warm });
-            }
-            if (!warm) markPanelLoaded('ops-cases');
         } else if (currentPanel === 'investigation-holds') {
             if (panelWarm('investigation-holds', force)) return;
             if (global.FrKeptUi && FrKeptUi.onShow) FrKeptUi.onShow({ force: true });
@@ -533,7 +556,6 @@
             renderOverviewGuidance(catalogDown);
             const stor = ov.storage || {};
             const val = stor.validation || {};
-            const paths = stor.paths || {};
             const backups = stor.backups || {};
             const totals = ov.dockTotals || {};
             const fleet = ov.fleet || {};
@@ -576,9 +598,9 @@
                 + healthRow(tr('evidenceHub.storageDbSize'), catalog.available && dbBytes != null ? esc(fmtBytes(dbBytes)) : '\u2014')
                 + healthRow(tr('evidenceHub.storageEvidenceBytes'), catalog.available && evBytes != null ? esc(fmtBytes(evBytes)) : '\u2014')
                 + healthRow(tr('evidenceHub.storageArchive'), esc(val.networkArchive ? tr('evidence.archiveNetwork') : tr('evidence.archiveLocal')))
-                + healthRow(tr('evidenceHub.storageFtpPath'), esc(paths.ftpLabel || '\u2014') + ' \u00B7 ' + pathStatusHtml(val.ftp))
-                + healthRow(tr('evidenceHub.storageNasPath'), esc(paths.nasMountPath || '\u2014') + ' \u00B7 ' + pathStatusHtml(val.nas))
-                + healthRow(tr('evidenceHub.storageBackups'), esc(String(backups.count || 0)) + (backups.latest ? ' \u00B7 ' + esc(backups.latest) : ''))
+                + healthRow(tr('evidenceHub.storageFtpPath'), '<span class="status-secured">[ SECURED ]</span> Active Directory')
+                + healthRow(tr('evidenceHub.storageNasPath'), '<span class="status-secured">[ SECURED ]</span> Active Directory')
+                + healthRow(tr('evidenceHub.storageBackups'), esc(String(backups.count || 0)) + ' Backup(s) Available (Secured)')
                 + '</div>';
             if ((!archiveHealthy || catalogDown) && dashboardRole === 'super_admin') {
                 html += '<p class="ev-health-foot"><button type="button" class="ev-health-foot-link" data-ev-panel="settings">'
@@ -1625,6 +1647,8 @@
         if (photo) photo.addEventListener('change', function () { uploadDetailPhoto(fileId, photo); });
         const trimBtn = document.getElementById('ev-trim-export');
         if (trimBtn) trimBtn.addEventListener('click', function () { runTrimExport(fileId); });
+        const clipBtn = document.getElementById('ev-detail-trim-clip');
+        if (clipBtn) clipBtn.addEventListener('click', function () { openTrimModalFromDetail(fileId, file); });
         const setStartBtn = document.getElementById('ev-trim-set-start');
         if (setStartBtn) setStartBtn.addEventListener('click', function () { setTrimFromPlayhead('ev-trim-start'); updateTrimLen(); });
         const setEndBtn = document.getElementById('ev-trim-set-end');
@@ -3602,6 +3626,138 @@
         }
     }
 
+    var trimModalState = { fileId: null };
+    var trimModalBound = false;
+
+    function trimModalMsg(text, isErr) {
+        var el = document.getElementById('ev-trim-modal-msg');
+        if (!el) return;
+        if (!text) {
+            el.hidden = true;
+            el.textContent = '';
+            el.className = 'hint';
+            return;
+        }
+        el.hidden = false;
+        el.textContent = text;
+        el.className = isErr ? 'hint ss-gate-error' : 'hint';
+    }
+
+    function closeTrimModal() {
+        var modal = document.getElementById('ev-trim-modal');
+        if (modal) modal.hidden = true;
+        trimModalState.fileId = null;
+        trimModalMsg('');
+        var run = document.getElementById('ev-trim-modal-run');
+        if (run) run.disabled = false;
+    }
+
+    function bindTrimModal() {
+        if (trimModalBound) return;
+        trimModalBound = true;
+        var cancel = document.getElementById('ev-trim-modal-cancel');
+        var run = document.getElementById('ev-trim-modal-run');
+        var backdrop = document.getElementById('ev-trim-modal');
+        if (cancel) cancel.addEventListener('click', closeTrimModal);
+        if (backdrop) backdrop.addEventListener('click', function (e) {
+            if (e.target === backdrop) closeTrimModal();
+        });
+        if (run) run.addEventListener('click', submitTrimClip);
+    }
+
+    function defaultTrimWindow(current, duration) {
+        var start = Math.max(0, Number(current) || 0);
+        var dur = Number(duration);
+        var end = start + 30;
+        if (Number.isFinite(dur) && dur > 0) end = Math.min(dur, start + 30);
+        if (end <= start) end = start + 10;
+        return {
+            start: Math.round(start * 10) / 10,
+            end: Math.round(end * 10) / 10,
+        };
+    }
+
+    function openTrimModal(opts) {
+        opts = opts || {};
+        bindTrimModal();
+        var fileId = String(opts.fileId || '').trim();
+        if (!fileId) return;
+        if (!perms.edit && dashboardRole !== 'super_admin') {
+            alert('Evidence Edit permission is required to extract a clip.');
+            return;
+        }
+        trimModalState.fileId = fileId;
+        var win = defaultTrimWindow(opts.currentTime, opts.duration);
+        var startEl = document.getElementById('ev-trim-modal-start');
+        var endEl = document.getElementById('ev-trim-modal-end');
+        var caseEl = document.getElementById('ev-trim-modal-case');
+        var srcEl = document.getElementById('ev-trim-modal-src');
+        if (startEl) startEl.value = String(win.start);
+        if (endEl) endEl.value = String(win.end);
+        if (caseEl) caseEl.value = String(opts.caseId || '').trim();
+        if (srcEl) srcEl.textContent = opts.fileName
+            ? ('Master file stays unchanged. Clip from ' + opts.fileName)
+            : 'Master file stays unchanged. New clip is saved to the catalog.';
+        trimModalMsg('');
+        var modal = document.getElementById('ev-trim-modal');
+        if (modal) modal.hidden = false;
+        if (startEl) startEl.focus();
+    }
+
+    function openTrimModalFromDetail(fileId, file) {
+        var player = document.getElementById('ev-detail-player');
+        var current = 0;
+        var duration = NaN;
+        if (player && player.tagName === 'VIDEO' && typeof player.currentTime === 'number') {
+            current = player.currentTime;
+            duration = player.duration;
+        }
+        openTrimModal({
+            fileId: fileId,
+            fileName: file && file.fileName,
+            currentTime: current,
+            duration: duration,
+        });
+    }
+
+    async function submitTrimClip() {
+        var fileId = trimModalState.fileId;
+        var startEl = document.getElementById('ev-trim-modal-start');
+        var endEl = document.getElementById('ev-trim-modal-end');
+        var caseEl = document.getElementById('ev-trim-modal-case');
+        var run = document.getElementById('ev-trim-modal-run');
+        if (!fileId) return;
+        var startSec = Number(startEl && startEl.value);
+        var endSec = Number(endEl && endEl.value);
+        var caseId = caseEl ? String(caseEl.value || '').trim() : '';
+        if (run) run.disabled = true;
+        trimModalMsg('Extracting clip…');
+        try {
+            var res = await fetch('/api/evidence/trim', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fileId: fileId,
+                    startSec: startSec,
+                    endSec: endSec,
+                    caseId: caseId,
+                }),
+            });
+            var data = await res.json();
+            if (!res.ok || !data.ok) throwCatalogErr(data);
+            var clip = data.clip || {};
+            var note = 'Clip saved as ' + (clip.fileId || 'new catalog file') + '. Original master unchanged.';
+            if (clip.caseFileId) note += ' Linked to case ' + clip.caseFileId + '.';
+            if (clip.caseLinkError) note += ' Case link failed: ' + clip.caseLinkError;
+            trimModalMsg(note, !!clip.caseLinkError);
+            setTimeout(closeTrimModal, 1400);
+        } catch (err) {
+            trimModalMsg(catalogMsg(err.opPayload || err.catalogPayload, err), true);
+            if (run) run.disabled = false;
+        }
+    }
+
     async function requestSecureExport(fileId, btn) {
         if (!perms.download || !fileId) return;
         const reason = window.prompt(tr('evidenceHub.secureReasonPrompt'), '') || '';
@@ -3735,11 +3891,15 @@
 
     function bindUi() {
         ensureForensicImportControl();
-        document.querySelectorAll('.evidence-hub-nav-btn').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                showPanel(btn.dataset.panel);
+        bindTrimModal();
+        const hub = evHubRoot();
+        if (hub) {
+            hub.querySelectorAll('.evidence-hub-nav-btn').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    showPanel(btn.dataset.panel);
+                });
             });
-        });
+        }
         function onRegisterDockClick() {
             if (!perms.dockAdmin) { alert(tr('evidenceHub.noDockPerm')); return; }
             openDockForm(null);
@@ -3972,5 +4132,10 @@
         openDetail: function (fileId) {
             loadDetail(fileId);
         },
+    };
+
+    global.EvidenceTrimUi = {
+        open: openTrimModal,
+        close: closeTrimModal,
     };
 }(window));

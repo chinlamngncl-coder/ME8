@@ -16,6 +16,7 @@
         current: null,
         loading: false,
         playingEvidenceId: null,
+        selected: Object.create(null),
         deskMap: null,
         deskMarker: null,
         deskMapLat: null,
@@ -174,6 +175,7 @@
             if (tableWrap) tableWrap.hidden = true;
             if (meta) meta.textContent = '';
             syncOpsListLayout(0, !!state.current);
+            syncBulkUi();
             return;
         }
         if (empty) empty.hidden = true;
@@ -183,11 +185,14 @@
         }
         tbody.innerHTML = '';
         rows.forEach(function (row) {
+            var id = row.caseId || '';
             var trEl = document.createElement('tr');
             trEl.className = 'ops-cases-row';
             trEl.tabIndex = 0;
-            trEl.setAttribute('data-case-id', row.caseId || '');
+            trEl.setAttribute('data-case-id', id);
+            var checked = state.selected[id] ? ' checked' : '';
             trEl.innerHTML =
+                '<td class="ops-cases-check-cell"><input type="checkbox" class="case-select-checkbox" data-case-id="' + esc(id) + '"' + checked + '></td>' +
                 '<td><code>' + esc(row.caseId) + '</code></td>' +
                 '<td>Rev ' + esc(row.rev) + '</td>' +
                 '<td><span class="' + statusClass(row.status) + '">' + esc(statusLabel(row.status)) + '</span></td>' +
@@ -196,16 +201,26 @@
                 '<td>' + esc(row.cameraId || '—') + '</td>' +
                 '<td>' + esc(formatWhen(row.closedAt)) + '</td>' +
                 '<td>' + esc(row.closedBy || '—') + '</td>';
-            trEl.addEventListener('click', function () { openCase(row.caseId); });
+            trEl.addEventListener('click', function (e) {
+                if (e.target && e.target.closest && e.target.closest('.ops-cases-check-cell')) return;
+                openCase(row.caseId);
+            });
             trEl.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter' || e.key === ' ') {
+                    if (e.target && e.target.closest && e.target.closest('.ops-cases-check-cell')) return;
                     e.preventDefault();
                     openCase(row.caseId);
                 }
             });
+            var checkCell = trEl.querySelector('.ops-cases-check-cell');
+            if (checkCell) {
+                checkCell.addEventListener('click', function (e) { e.stopPropagation(); });
+                checkCell.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+            }
             tbody.appendChild(trEl);
         });
         syncOpsListLayout(rows.length, !!state.current);
+        syncBulkUi();
     }
 
     function showList() {
@@ -899,9 +914,33 @@
         }
     }
 
-    function syncBulkPurgeVisibility() {
+    function selectedCaseIds() {
+        return Object.keys(state.selected).filter(function (k) { return state.selected[k]; });
+    }
+
+    function syncBulkUi() {
+        var n = selectedCaseIds().length;
+        var wrap = document.getElementById('ops-cases-bulk-actions');
         var btn = document.getElementById('ops-cases-bulk-purge');
-        if (btn) btn.hidden = !isSuperAdmin();
+        if (wrap) wrap.hidden = !isSuperAdmin();
+        if (btn) btn.disabled = n < 1;
+        syncCheckAll();
+    }
+
+    function syncCheckAll() {
+        var all = document.getElementById('ops-cases-check-all');
+        if (!all) return;
+        var boxes = document.querySelectorAll('#ops-cases-tbody .case-select-checkbox');
+        var n = 0;
+        for (var i = 0; i < boxes.length; i += 1) {
+            if (boxes[i].checked) n += 1;
+        }
+        all.checked = boxes.length > 0 && n === boxes.length;
+        all.indeterminate = n > 0 && n < boxes.length;
+    }
+
+    function syncBulkPurgeVisibility() {
+        syncBulkUi();
     }
 
     async function bulkPurgeCases() {
@@ -909,31 +948,32 @@
             window.alert(tr('opsCases.archiveNeedAdmin', 'Super admin required to archive cases.'));
             return;
         }
-        var targets = filterClient(state.rows).filter(function (r) {
-            return r && r.caseId && !(r.archived === true || r.archivedAt || r.status === 'archived');
-        });
-        if (!targets.length) {
-            window.alert(tr('opsCases.bulkPurgeNone', 'No active cases in this view to purge.'));
+        var ids = selectedCaseIds();
+        if (!ids.length) {
+            window.alert(tr('opsCases.bulkArchiveNone', 'No cases selected to archive.'));
             return;
         }
         var confirmMsg = tr(
-            'opsCases.bulkPurgeConfirm',
-            'Soft-archive {n} active case(s)? They leave the Active list and stay on disk for retention (same as Archive). This is not a permanent wipe.'
-        ).replace('{n}', String(targets.length));
+            'opsCases.bulkArchiveConfirm',
+            'Are you sure you want to archive the selected cases? They will be hidden from the Active list but can be restored later.'
+        );
         if (!window.confirm(confirmMsg)) return;
         var btn = document.getElementById('ops-cases-bulk-purge');
         if (btn) btn.disabled = true;
         var ok = 0;
         var fail = 0;
-        for (var i = 0; i < targets.length; i += 1) {
+        for (var i = 0; i < ids.length; i += 1) {
             try {
-                var res = await fetch('/api/ops-cases/' + encodeURIComponent(targets[i].caseId) + '/archive', {
+                var res = await fetch('/api/ops-cases/' + encodeURIComponent(ids[i]) + '/archive', {
                     method: 'POST',
                     credentials: 'same-origin',
                 });
                 var data = await res.json();
                 if (!res.ok || !data.ok) fail += 1;
-                else ok += 1;
+                else {
+                    ok += 1;
+                    delete state.selected[ids[i]];
+                }
             } catch (_) {
                 fail += 1;
             }
@@ -941,11 +981,12 @@
         if (btn) btn.disabled = false;
         var meta = document.getElementById('ops-cases-meta');
         if (meta) {
-            meta.textContent = tr('opsCases.bulkPurgeDone', 'Purged {ok}, failed {fail}')
+            meta.textContent = tr('opsCases.bulkArchiveDone', 'Archived {ok}, failed {fail}')
                 .replace('{ok}', String(ok))
                 .replace('{fail}', String(fail));
         }
         await loadList(true);
+        syncBulkUi();
     }
 
     async function unarchiveCurrent() {
@@ -1075,7 +1116,38 @@
             bulkPurge._opsBulkBound = true;
             bulkPurge.addEventListener('click', function () { bulkPurgeCases(); });
         }
-        syncBulkPurgeVisibility();
+        var tbody = document.getElementById('ops-cases-tbody');
+        if (tbody && !tbody._opsCheckBound) {
+            tbody._opsCheckBound = true;
+            tbody.addEventListener('change', function (e) {
+                var t = e.target;
+                if (!t || !t.classList || !t.classList.contains('case-select-checkbox')) return;
+                var id = t.getAttribute('data-case-id') || '';
+                if (id) state.selected[id] = !!t.checked;
+                syncBulkUi();
+            });
+            tbody.addEventListener('click', function (e) {
+                if (e.target && e.target.closest && e.target.closest('.ops-cases-check-cell')) {
+                    e.stopPropagation();
+                }
+            }, true);
+        }
+        var checkAll = document.getElementById('ops-cases-check-all');
+        if (checkAll && !checkAll._opsCheckAllBound) {
+            checkAll._opsCheckAllBound = true;
+            checkAll.addEventListener('change', function () {
+                var on = !!checkAll.checked;
+                var boxes = document.querySelectorAll('#ops-cases-tbody .case-select-checkbox');
+                for (var i = 0; i < boxes.length; i += 1) {
+                    boxes[i].checked = on;
+                    var id = boxes[i].getAttribute('data-case-id') || '';
+                    if (id) state.selected[id] = on;
+                }
+                syncBulkUi();
+            });
+            checkAll.addEventListener('click', function (e) { e.stopPropagation(); });
+        }
+        syncBulkUi();
         var mapReset = document.getElementById('ops-cases-desk-map-reset');
         if (mapReset) mapReset.addEventListener('click', resetDeskMapView);
     }
@@ -1106,7 +1178,7 @@
             bindUi();
             bound = true;
         }
-        syncBulkPurgeVisibility();
+        syncBulkUi();
         if (opts && opts.weaponOnly) {
             applyWeaponFilters();
         } else if (opts && (opts.family === 'SOS' || opts.sosOnly)) {

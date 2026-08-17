@@ -138,6 +138,51 @@
         return role === 'super_admin';
     }
 
+    function sessionPerms(session) {
+        return (session && session.permissions)
+            || (session && session.user && session.user.permissions)
+            || {};
+    }
+
+    function canViewTactical(session) {
+        if (isSuperAdmin(session)) return true;
+        if (global.__fmTacticalView) return true;
+        return !!sessionPerms(session).tacticalView;
+    }
+
+    function canManageBlueprints(session) {
+        if (isSuperAdmin(session)) return true;
+        if (global.__fmBlueprintManage) return true;
+        return !!sessionPerms(session).blueprintManage;
+    }
+
+    function applyManageChrome(canManage) {
+        const block = el('ax-tactical-bp-block');
+        const ids = [
+            'ax-tactical-bp-upload',
+            'ax-tactical-bp-remove',
+            'ax-tactical-bp-adjust',
+            'ax-tactical-bp-save-place',
+            'ax-tactical-bp-file',
+            'ax-tactical-bp-name',
+        ];
+        ids.forEach(function (id) {
+            const node = el(id);
+            if (!node) return;
+            node.hidden = !canManage;
+        });
+        const fileLabel = el('ax-tactical-bp-file-label');
+        if (fileLabel) fileLabel.hidden = !canManage;
+        if (block) {
+            const fileBtn = block.querySelector('.ax-tactical-bp-file-btn');
+            if (fileBtn) fileBtn.hidden = !canManage;
+            const nameWrap = block.querySelector('label[for="ax-tactical-bp-name"]');
+            if (nameWrap) nameWrap.hidden = !canManage;
+            const hint = block.querySelector('.ax-tactical-bp-hint');
+            if (hint) hint.hidden = !canManage;
+        }
+    }
+
     function getMap() {
         if (global.TacticalShell && typeof TacticalShell.ensureMap === 'function') {
             return TacticalShell.ensureMap();
@@ -834,12 +879,13 @@
             : fetch('/api/auth/session', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).catch(function () { return null; });
 
         sessionP.then(function (session) {
-            if (!isSuperAdmin(session)) {
+            if (!canViewTactical(session)) {
                 revealBlock(false);
                 stopAdjustMode({ silent: true });
                 return;
             }
             revealBlock(true);
+            applyManageChrome(canManageBlueprints(session));
             if (typeof global.I18n !== 'undefined' && I18n.scheduleApply) {
                 I18n.scheduleApply(el('ax-tactical-bp-block') || el('ax-tactical-prepare-block'));
             }

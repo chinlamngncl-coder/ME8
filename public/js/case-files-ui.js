@@ -8,6 +8,7 @@
     var pendingLinkEvidenceId = null;
     var deleteModalResolver = null;
     var deleteModalBound = false;
+    var sosModalBound = false;
 
     function tr(key, params) {
         if (global.I18n && I18n.t) return I18n.t(key, params);
@@ -141,6 +142,30 @@
         }
     }
 
+    async function reconstructScene(opts) {
+        opts = opts || {};
+        var atIso = opts.atIso || '';
+        var sosId = opts.sosIncidentId || '';
+        if (sosId) {
+            try {
+                const res = await fetch('/api/evidence/sos-incidents?days=365&limit=200', { credentials: 'same-origin' });
+                const data = await res.json();
+                const entries = (data && data.incidents && data.incidents.entries) ? data.incidents.entries : [];
+                const hit = entries.find(function (e) {
+                    return (e.id || e.incidentId) === sosId;
+                });
+                if (hit && hit.at) atIso = hit.at;
+            } catch (_) { /* keep fallback atIso */ }
+        }
+        if (global.RouteTrace && RouteTrace.launchFromIncident) {
+            RouteTrace.launchFromIncident({
+                deviceId: opts.deviceId || '',
+                atIso: atIso,
+                caseFileId: opts.caseFileId || '',
+            });
+        }
+    }
+
     function listColspan() {
         return 7;
     }
@@ -243,6 +268,28 @@
             + '</tbody></table>';
     }
 
+    function isVideoEvidenceName(name) {
+        return /\.(mp4|mov|m4v|mkv|avi|webm|ts)$/i.test(String(name || ''));
+    }
+
+    function renderMediaGallery(evidence) {
+        var videos = (evidence || []).filter(function (ev) {
+            return ev && !ev.missing && isVideoEvidenceName(ev.fileName);
+        });
+        if (!videos.length) return '';
+        return '<div class="cf-media-gallery">'
+            + '<h4>Video Evidence</h4>'
+            + '<div class="cf-media-grid">'
+            + videos.map(function (ev) {
+                return '<div class="cf-media-tile">'
+                    + '<video controls playsinline src="/api/evidence/preview/'
+                    + esc(ev.evidenceFileId) + '"></video>'
+                    + '<p class="hint">' + esc(ev.fileName) + '</p>'
+                    + '</div>';
+            }).join('')
+            + '</div></div>';
+    }
+
     async function loadDetail(id) {
         const wrap = document.getElementById('cf-detail-body');
         if (!wrap) return;
@@ -256,9 +303,7 @@
             const sosOpts = await fetchSosOptions(cf.sosIncidentId);
             const statusOpen = cf.status !== 'closed';
             const opsLinkHtml = cf.opsCaseId
-                ? ('<p class="hint cf-ops-case-link">' + esc(tr('caseFiles.linkedOpsCase', 'Linked Ops Case'))
-                    + ': <button type="button" class="btn btn-ghost btn-sm" id="cf-open-ops-case" data-ops-case-id="'
-                    + esc(cf.opsCaseId) + '">' + esc(cf.opsCaseId) + '</button></p>')
+                ? ('<p class="hint cf-ops-case-link">Source: <code>' + esc(cf.opsCaseId) + '</code></p>')
                 : '';
             wrap.innerHTML =
                 '<div class="cf-detail-back-bar">'
@@ -275,6 +320,14 @@
                 + '</div>'
                 + '<div class="cf-detail-head-actions">'
                 + '<span id="cf-save-msg" class="hint"></span>'
+                + '<button type="button" class="btn btn-primary btn-sm" id="cf-reconstruct" title="View Geospatial Trace"'
+                + ' data-device="' + esc(cf.deviceId || '') + '"'
+                + ' data-at="' + esc((function () {
+                    var times = evidence.map(function (ev) { return ev && ev.uploadedAt; }).filter(Boolean).sort();
+                    return times[0] || cf.createdAt || '';
+                })()) + '"'
+                + ' data-case-id="' + esc(cf.id) + '"'
+                + ' data-sos="' + esc(cf.sosIncidentId || '') + '">Reconstruct Scene</button>'
                 + (perms.edit ? '<button type="button" class="btn btn-action btn-sm" id="cf-save">' + tr('caseFiles.save') + '</button>' : '')
                 + (perms.superAdmin
                     ? '<button type="button" class="btn btn-ghost btn-sm cf-delete-btn" id="cf-detail-delete">' + tr('caseFiles.deleteCase') + '</button>'
@@ -330,6 +383,7 @@
                     + '</div>'
                 ) : '')
                 + '<div id="cf-evidence-table" class="cf-ev-scroll">' + renderEvidenceTable(evidence) + '</div>'
+                + renderMediaGallery(evidence)
                 + '</section>'
                 + '</div>';
             if (pendingLinkEvidenceId && perms.edit) {
@@ -355,6 +409,15 @@
                 if (el) el.textContent = msg(err.opPayload, err);
             });
         });
+        const recon = document.getElementById('cf-reconstruct');
+        if (recon) recon.addEventListener('click', function () {
+            reconstructScene({
+                deviceId: recon.getAttribute('data-device') || '',
+                atIso: recon.getAttribute('data-at') || '',
+                caseFileId: recon.getAttribute('data-case-id') || id,
+                sosIncidentId: recon.getAttribute('data-sos') || '',
+            }).catch(function () { /* ignore */ });
+        });
         const linkBtn = document.getElementById('cf-link-btn');
         if (linkBtn) linkBtn.addEventListener('click', function () {
             const inp = document.getElementById('cf-link-evidence-id');
@@ -366,19 +429,6 @@
         if (delBtn) delBtn.addEventListener('click', function () {
             confirmDeleteCase(id, caseTitle || id, evidenceCount || 0);
         });
-        const opsBtn = document.getElementById('cf-open-ops-case');
-        if (opsBtn) {
-            opsBtn.addEventListener('click', function () {
-                const ocId = opsBtn.getAttribute('data-ops-case-id');
-                if (!ocId) return;
-                if (global.EvidenceHub && EvidenceHub.showPanel) {
-                    EvidenceHub.showPanel('ops-cases', { force: true });
-                }
-                setTimeout(function () {
-                    if (global.OpsCasesUi && OpsCasesUi.openCase) OpsCasesUi.openCase(ocId);
-                }, 80);
-            });
-        }
         const wrap = document.getElementById('cf-detail-body');
         if (wrap) {
             wrap.querySelectorAll('.cf-unlink').forEach(function (btn) {
@@ -603,6 +653,23 @@
         });
     }
 
+    function bindSosPickModal() {
+        if (sosModalBound) return;
+        sosModalBound = true;
+        var cancel = document.getElementById('cf-sos-modal-cancel');
+        var run = document.getElementById('cf-sos-modal-run');
+        var backdrop = document.getElementById('cf-sos-modal');
+        if (cancel) cancel.addEventListener('click', closeSosPickModal);
+        if (run) run.addEventListener('click', function () {
+            submitSosPickModal().catch(function (err) {
+                setSosModalMsg(msg(err.opPayload, err), true);
+            });
+        });
+        if (backdrop) backdrop.addEventListener('click', function (e) {
+            if (e.target === backdrop) closeSosPickModal();
+        });
+    }
+
     async function confirmDeleteCase(caseId, title, evidenceCount) {
         if (!perms.superAdmin) return;
         bindDeleteModal();
@@ -646,18 +713,97 @@
     }
 
     async function createFromSos() {
-        const incidentId = window.prompt(tr('caseFiles.sosPrompt'));
-        if (!incidentId || !incidentId.trim()) return;
-        const res = await fetch('/api/case-files/from-sos', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ incidentId: incidentId.trim() }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.ok) throwOp(data);
-        showDetail(data.detail.caseFile.id);
-        loadList();
+        openSosPickModal();
+    }
+
+    function sosPickLabel(entry) {
+        var when = entry && entry.at ? fmtTime(entry.at) : '—';
+        var device = (entry && (entry.operatorName || entry.cameraId || entry.deviceId)) || '—';
+        return when + ' - Device: ' + device;
+    }
+
+    function setSosModalMsg(text, isErr) {
+        var el = document.getElementById('cf-sos-modal-msg');
+        if (!el) return;
+        if (!text) {
+            el.hidden = true;
+            el.textContent = '';
+            el.className = 'hint';
+            return;
+        }
+        el.hidden = false;
+        el.textContent = text;
+        el.className = isErr ? 'hint ss-gate-error' : 'hint';
+    }
+
+    function closeSosPickModal() {
+        var modal = document.getElementById('cf-sos-modal');
+        if (modal) modal.hidden = true;
+        setSosModalMsg('');
+        var run = document.getElementById('cf-sos-modal-run');
+        if (run) run.disabled = false;
+    }
+
+    async function openSosPickModal() {
+        var modal = document.getElementById('cf-sos-modal');
+        var sel = document.getElementById('cf-sos-modal-select');
+        var run = document.getElementById('cf-sos-modal-run');
+        if (!modal || !sel) return;
+        sel.innerHTML = '<option value="">Loading…</option>';
+        if (run) run.disabled = true;
+        setSosModalMsg('');
+        modal.hidden = false;
+        try {
+            const res = await fetch('/api/evidence/sos-incidents?days=365&limit=200', { credentials: 'same-origin' });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throwOp(data);
+            const entries = (data.incidents && data.incidents.entries) ? data.incidents.entries : [];
+            if (!entries.length) {
+                sel.innerHTML = '<option value="">No SOS incidents in this period</option>';
+                setSosModalMsg('No SOS incidents available.', true);
+                return;
+            }
+            var html = '<option value="">Select an incident</option>';
+            entries.forEach(function (e) {
+                var id = e && (e.id || e.incidentId);
+                if (!id) return;
+                html += '<option value="' + esc(id) + '">' + esc(sosPickLabel(e)) + '</option>';
+            });
+            sel.innerHTML = html;
+            if (run) run.disabled = false;
+            sel.focus();
+        } catch (err) {
+            sel.innerHTML = '<option value="">Could not load incidents</option>';
+            setSosModalMsg(msg(err.opPayload, err), true);
+        }
+    }
+
+    async function submitSosPickModal() {
+        var sel = document.getElementById('cf-sos-modal-select');
+        var run = document.getElementById('cf-sos-modal-run');
+        var incidentId = sel ? String(sel.value || '').trim() : '';
+        if (!incidentId) {
+            setSosModalMsg('Select an SOS incident.', true);
+            return;
+        }
+        if (run) run.disabled = true;
+        setSosModalMsg('Creating case…');
+        try {
+            const res = await fetch('/api/case-files/from-sos', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ incidentId: incidentId }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throwOp(data);
+            closeSosPickModal();
+            showDetail(data.detail.caseFile.id);
+            loadList();
+        } catch (err) {
+            setSosModalMsg(msg(err.opPayload, err), true);
+            if (run) run.disabled = false;
+        }
     }
 
     function updateToolbar() {
@@ -669,6 +815,7 @@
 
     function bindUi() {
         bindDeleteModal();
+        bindSosPickModal();
         const createBtn = document.getElementById('cf-create');
         if (createBtn && !createBtn._cfBound) {
             createBtn._cfBound = true;
@@ -812,6 +959,20 @@
         alert(tr('caseFiles.linkDone'));
     }
 
+    function openCase(opts) {
+        opts = opts || {};
+        var caseId = typeof opts === 'string' ? opts : (opts.caseId || opts.id || null);
+        try {
+            if (global.EvidenceManager && EvidenceManager.showTab) EvidenceManager.showTab('evidence');
+        } catch (_) { /* ignore */ }
+        if (global.EvidenceHub && EvidenceHub.showPanel) {
+            EvidenceHub.showPanel('case-files', { force: true });
+        }
+        if (caseId) {
+            setTimeout(function () { showDetail(caseId); }, 80);
+        }
+    }
+
     global.CaseFilesUi = {
         applyPermissions: applyPermissions,
         onShow: onShow,
@@ -819,5 +980,6 @@
         promptAddToCase: promptAddToCase,
         refreshList: loadList,
         openDetail: showDetail,
+        openCase: openCase,
     };
 }(window));

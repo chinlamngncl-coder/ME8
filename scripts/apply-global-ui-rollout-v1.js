@@ -31,9 +31,6 @@ function injectLink(file) {
   'public/command-wall.html',
   'public/live.html',
   'public/matrix.html',
-  'public/test-seeta.html',
-  'public/test-wvp-tile.html',
-  'public/test-zlm.html',
 ].forEach(injectLink);
 
 {
