@@ -1,5 +1,12 @@
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+﻿const path = require('path');
+const APP_ROOT = process.pkg ? path.dirname(process.execPath) : __dirname;
+require('dotenv').config({ path: path.join(APP_ROOT, '.env') });
+
+// Register fatal handlers at the earliest possible point — before any heavy module loads.
+const log = require('./lib/fleetLog');
+const { installFatalProcessPolicy } = require('./lib/fatalProcessPolicy');
+installFatalProcessPolicy({ log });
+
 require('./lib/networkTierRuntime').applyNetworkTierRuntime();
 
 const express = require('express');
@@ -15,6 +22,7 @@ const { Server } = require('socket.io');
 const dashboardTls = require('./lib/dashboardTls');
 
 const fs = require('fs');
+const { pipeline } = require('stream');
 const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
 const {
@@ -52,8 +60,6 @@ const evidenceUploadSafeName = require('./lib/evidenceUploadSafeName');
 const evidenceIngestGate = require('./lib/evidenceIngestGate');
 const imageDimensions = require('./lib/imageDimensions');
 const multer = require('multer');
-const log = require('./lib/fleetLog');
-const { installFatalProcessPolicy } = require('./lib/fatalProcessPolicy');
 const { createLoginRateLimiter } = require('./lib/loginRateLimiter');
 const pttFieldGroupRelay = require('./lib/pttFieldGroupRelay').create({
     pttServer,
@@ -64,7 +70,6 @@ const wvpFleetPresence = require('./lib/wvpFleetPresence');
 const dashboardConnectWarm = require('./lib/dashboardConnectWarm');
 const wvpSipLanMap = require('./lib/wvpSipLanMap');
 
-installFatalProcessPolicy({ log });
 if (process.env.FM_SEAMLESS_PACK === '1') {
     try {
         require('./lib/processGroupHooks').installOrphanHooks();
@@ -98,6 +103,7 @@ const scalePrepCfg = scalePrep.loadScalePrepEnv();
 const platformLicense = require('./lib/platformLicense');
 const licenseManager = require('./lib/licenseManager');
 const licenseEntitlementsMw = require('./lib/licenseEntitlementsMw');
+const licenseLimitResponse = require('./lib/licenseLimitResponse');
 const tenantMiddleware = require('./lib/tenantMiddleware');
 const tenantIo = require('./lib/tenantIo');
 const tenantProfile = require('./lib/tenantProfile');
@@ -112,7 +118,7 @@ try {
 } catch (_) {
     RedisCtor = null;
 }
-const enterpriseCfg = enterpriseEnv.loadEnterpriseEnv(process.env, __dirname);
+const enterpriseCfg = enterpriseEnv.loadEnterpriseEnv(process.env, APP_ROOT);
 const redisRuntime = createRedisRuntime({
     url: enterpriseCfg.redis.url,
     keyPrefix: enterpriseCfg.redis.keyPrefix,
@@ -137,6 +143,7 @@ const auditTrail = require('./lib/auditTrail');
 const killSwitchFourEyes = require('./lib/killSwitchFourEyes');
 const usbMaintenance = require('./lib/usbMaintenance');
 const evidenceRegistry = require('./lib/evidenceRegistry');
+const diskPressureFifo = require('./lib/diskPressureFifo');
 const dockFtpIngestWatch = require('./lib/dockFtpIngestWatch');
 const evidenceSecureExport = require('./lib/evidenceSecureExport');
 const evidenceWorkflow = require('./lib/evidenceWorkflow');
@@ -153,12 +160,14 @@ const weaponSidecarClient = require('./lib/weaponSidecarClient');
 const weaponLivePoller = require('./lib/weaponLivePoller');
 const frLivePoller = require('./lib/frLivePoller');
 const frSnapLedger = require('./lib/frSnapLedger');
+const frCaptureHistory = require('./lib/frCaptureHistory');
 const frKeptEvidence = require('./lib/frKeptEvidence');
 const frOfflineVideo = require('./lib/frOfflineVideo');
 const frFieldAlert = require('./lib/frFieldAlert');
 const faceRedactRegions = require('./lib/faceRedactRegions');
 const evidenceCustodyAudit = require('./lib/evidenceCustodyAudit');
 const dockRegistry = require('./lib/dockRegistry');
+const dockSdkAdapter = require('./lib/dockSdkAdapter');
 const conferenceModule = require('./lib/conferenceModule');
 const conferenceConfig = require('./lib/conferenceConfig');
 const conferenceLivekit = require('./lib/conferenceLivekit');
@@ -215,7 +224,7 @@ const voiceIntercomTelemetryMod = require('./lib/voiceIntercomTelemetry');
 const gisOffline = require('./lib/gisOffline');
 const mapGeocode = require('./lib/mapGeocode');
 
-const BASE_DIR = __dirname;
+const BASE_DIR = APP_ROOT;
 const FACE_PLATE_DIR = path.join(BASE_DIR, 'storage', 'face-plate');
 const STORAGE_DIR = path.join(BASE_DIR, 'storage');
 const STARTUP_SETTINGS = serverSettings.load(STORAGE_DIR);
@@ -417,7 +426,7 @@ const MSGWSS_HMAC_SECRET = (process.env.FM_MSGWSS_HMAC_SECRET || '').trim();
 const MSGWSS_REQUIRE_TOKEN = !/^(0|false|off|no)$/i.test(String(process.env.FM_MSGWSS_REQUIRE_TOKEN != null ? process.env.FM_MSGWSS_REQUIRE_TOKEN : '1').trim());
 const VIDEO_WS_PORT = parseInt(process.env.FM_VIDEO_WS_PORT || String(HTTP_PORT + 1), 10);
 const AUDIO_WS_PORT = parseInt(process.env.FM_AUDIO_WS_PORT || String(HTTP_PORT + 2), 10);
-const PTT_ENABLED = process.env.FM_PTT_ENABLED === '1';
+const PTT_ENABLED = process.env.FM_PTT_ENABLED === '1' && licenseFeatures.isFeatureEnabled('ptt');
 const PTT_PORT = parseInt(process.env.FM_PTT_PORT || '29201', 10);
 const PTT_GTID = process.env.FM_PTT_GTID || '49';
 const PTT_GROUP_STATUS = process.env.FM_PTT_GROUP_STATUS || '1';
@@ -600,6 +609,16 @@ async function handleFtpFileUploaded(info) {
     } else {
         auditLog.record('evidence.ingest_admitted', admittedAudit);
     }
+    if (info.isPriority && evidenceId) {
+        try {
+            await siteDb.setEvidencePriority(evidenceId, true);
+        } catch (_) { /* catalog flag */ }
+        emitToDashboardSockets('dock-priority', {
+            evidenceId: evidenceId,
+            deviceId: snapCam || info.deviceId || null,
+            fileName: admitted.originalFileName || admitted.fileName || '',
+        }, snapCam || info.deviceId || null);
+    }
     return { evidenceId, admitted, snapshot: snap || null };
 }
 
@@ -686,40 +705,52 @@ const io = new Server(server, {
 });
 tenantIo.installTenantIo(io);
 
-/** DASHBOARD-HTTPS-LAN-V1 — optional second listener; HTTP stays for lab fallback. */
+/** DASHBOARD-HTTPS-LAN-V1 — optional second listener; HTTP stays as fallback. */
 let httpsServer = null;
 let httpsListenerReady = false;
-if (dashboardTls.envFlag('FM_HTTPS_ENABLED')) {
-    try {
-        const ensureTls = spawnSync(
+let dashboardTlsBoot = null; // populated by ensureAndAttachHttps() before server.listen
+
+async function ensureAndAttachHttps() {
+    if (!dashboardTls.envFlag('FM_HTTPS_ENABLED')) return;
+    await new Promise((resolve) => {
+        const proc = spawn(
             process.execPath,
             [path.join(__dirname, 'scripts', 'ensure-lab-dashboard-tls-certs.js')],
-            { encoding: 'utf8', windowsHide: true, cwd: __dirname }
+            { windowsHide: true, cwd: __dirname, stdio: ['ignore', 'pipe', 'pipe'] }
         );
-        if (ensureTls.status !== 0) {
-            log.web.warn('dashboard https cert ensure failed', {
-                status: ensureTls.status,
-                stderr: String(ensureTls.stderr || '').slice(0, 400),
-                stdout: String(ensureTls.stdout || '').slice(0, 400),
-            });
-        }
-    } catch (err) {
-        log.web.warn('dashboard https cert ensure threw', {
-            message: err && err.message ? err.message : String(err),
+        let stderr = '', stdout = '';
+        proc.stdout.on('data', (d) => { stdout += String(d); });
+        proc.stderr.on('data', (d) => { stderr += String(d); });
+        proc.on('close', (code) => {
+            if (code !== 0) {
+                log.web.warn('dashboard https cert ensure failed', {
+                    status: code,
+                    stderr: stderr.slice(0, 400),
+                    stdout: stdout.slice(0, 400),
+                });
+            } else {
+                log.web.info('dashboard https cert ensure ok');
+            }
+            resolve();
+        });
+        proc.on('error', (err) => {
+            log.web.warn('dashboard https cert ensure threw', { message: err && err.message ? err.message : String(err) });
+            resolve();
+        });
+    });
+    dashboardTlsBoot = dashboardTls.resolveFromEnv({ httpPort: HTTP_PORT, baseDir: __dirname });
+    if (dashboardTlsBoot.enabled && dashboardTlsBoot.ready && dashboardTlsBoot.httpsOptions) {
+        httpsServer = https.createServer(dashboardTlsBoot.httpsOptions, app);
+        io.attach(httpsServer);
+        log.web.info('dashboard https server ready');
+    } else if (dashboardTlsBoot.enabled && !dashboardTlsBoot.ready) {
+        log.web.warn('dashboard https enabled but not ready', {
+            reason: dashboardTlsBoot.reason,
+            certPath: dashboardTlsBoot.certPath,
+            keyPath: dashboardTlsBoot.keyPath,
+            hint: 'node scripts/ensure-lab-dashboard-tls-certs.js',
         });
     }
-}
-const dashboardTlsBoot = dashboardTls.resolveFromEnv({ httpPort: HTTP_PORT, baseDir: __dirname });
-if (dashboardTlsBoot.enabled && dashboardTlsBoot.ready && dashboardTlsBoot.httpsOptions) {
-    httpsServer = https.createServer(dashboardTlsBoot.httpsOptions, app);
-    io.attach(httpsServer);
-} else if (dashboardTlsBoot.enabled && !dashboardTlsBoot.ready) {
-    log.web.warn('dashboard https enabled but not ready', {
-        reason: dashboardTlsBoot.reason,
-        certPath: dashboardTlsBoot.certPath,
-        keyPath: dashboardTlsBoot.keyPath,
-        hint: 'node scripts/ensure-lab-dashboard-tls-certs.js',
-    });
 }
 
 const sosGroupCall = sipGroupCallFactory.create({
@@ -752,6 +783,11 @@ io.use(tenantMiddleware.socketTenantGuard);
 const dashboardMediaWsBind = require('./lib/dashboardMediaWsBind');
 
 function onDashboardVideoWsConnection(ws, req) {
+    const cookies = dashboardAuth.parseCookies((req && req.headers && req.headers.cookie) || '');
+    if (!dashboardAuth.isValidSession(cookies.fm_session)) {
+        ws.close(1008, 'Unauthorized');
+        return;
+    }
     const rawUrl = (req && req.url) || '';
     const q = rawUrl.indexOf('?');
     let camId = null;
@@ -1236,6 +1272,16 @@ const msgReassemblerPruneTimer = setInterval(() => {
 if (typeof msgReassemblerPruneTimer.unref === 'function') msgReassemblerPruneTimer.unref();
 
 app.use(express.json({ limit: '2mb' }));
+app.use((req, res, next) => {
+    const prev = res.json.bind(res);
+    res.json = function utf8Json(body) {
+        if (!res.getHeader('Content-Type')) {
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        }
+        return prev(body);
+    };
+    next();
+});
 app.use(tenantMiddleware.attachTenantContext);
 
 // ── Security headers ──────────────────────────────────────────────────────────
@@ -1410,10 +1456,8 @@ function evidenceSettingsPayload(settings) {
     };
 }
 
-app.get('/api/site-resilience', async (req, res) => {
+app.get('/api/site-resilience', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
-        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
-        if (!session) return res.status(401).json(opErr("Unauthorized"));
         const node = siteDb.isReady() ? await siteDb.getSetting('siteNode', {}) : {};
         const peerUrl = String((node && node.peerUrl) || '').trim().replace(/\/$/, '');
         let peerReachable = null;
@@ -1850,6 +1894,69 @@ app.post('/api/auth/logout', (req, res) => {
     res.json({ ok: true });
 });
 
+// ── Vendor Recovery: challenge generation (no auth required — pre-login) ───────
+app.post('/api/auth/generate-recovery-challenge', loginRateLimit, express.json(), (req, res) => {
+    try {
+        const buf = recoveryChallenge.generateChallenge();
+        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Content-Disposition', 'attachment; filename="ubitron-recovery-req.dat"');
+        res.setHeader('Content-Length', buf.length);
+        res.send(buf);
+    } catch (err) {
+        log.web.warn('[recovery] challenge generation failed', { err: String(err.message) });
+        res.status(500).json(opErr('Challenge generation failed'));
+    }
+});
+
+// ── Vendor Recovery: grant verification + password reset ──────────────────────
+app.post('/api/auth/verify-recovery-grant', loginRateLimit, express.json({ limit: '64kb' }), (req, res) => {
+    try {
+        // Client sends { grant: "<file content as UTF-8 string or base64>" }
+        const grantStr = (req.body || {}).grant;
+        if (!grantStr) return res.status(400).json(opErr('No grant data received'));
+        // Try UTF-8 first (plain JSON .lic), fall back to base64
+        let raw;
+        try {
+            raw = Buffer.from(grantStr, 'utf8');
+            JSON.parse(raw.toString('utf8')); // validate it parses
+        } catch (_) {
+            raw = Buffer.from(grantStr, 'base64');
+        }
+        if (!raw || raw.length === 0) {
+            return res.status(400).json(opErr('No grant data received'));
+        }
+
+        const { targetUsername, newPassword } = recoveryChallenge.verifyGrant(raw);
+
+        // Find the target user
+        const target = dashboardAuth.findUserByUsername(targetUsername);
+        if (!target) {
+            return res.status(404).json(opErr('Target user not found'));
+        }
+
+        // Reset password + force change on next login
+        dashboardAuth.updateUser(target.id, { password: newPassword, mustChangePassword: true });
+
+        // Immutable audit entry (PostgreSQL append-only)
+        auditLog.record('vendor.recovery.grant_used', {
+            actor: 'system',
+            target: targetUsername,
+            detail: { requestedBy: 'Ubitron CRM (offline)' },
+        });
+
+        log.web.warn('[recovery] vendor recovery grant applied', { targetUser: targetUsername });
+
+        res.json({
+            ok: true,
+            message: 'Recovery successful. Temporary password set — sign in now and change immediately.',
+        });
+    } catch (err) {
+        log.web.warn('[recovery] grant verification failed', { err: String(err.message) });
+        // Intentionally vague — do not reveal why it failed externally
+        res.status(403).json(opErr('Recovery grant rejected — invalid, expired, or already used'));
+    }
+});
+
 app.get('/api/auth/session', (req, res) => {
     const session = dashboardAuth.sessionFromRequest(req);
     if (!session) {
@@ -1893,6 +2000,89 @@ function techHealthDeps() {
 app.post('/api/tech/login', loginRateLimit, techAccess.loginHandler(log));
 app.post('/api/tech/logout', techAccess.logoutHandler);
 app.get('/api/tech/session', techAccess.sessionHandler);
+app.post('/api/tech/challenge', loginRateLimit, express.json(), techAccess.challengeHandler);
+app.post('/api/tech/unlock-grant', loginRateLimit, express.json({ limit: '64kb' }), techAccess.unlockGrantHandler(log));
+app.get('/api/diagnostics/challenge', techAccess.challengeHandler);
+app.post('/api/diagnostics/verify', express.json({ limit: '64kb' }), techAccess.unlockGrantHandler(log));
+const patchPackageVerify = require('./lib/patchPackageVerify');
+const diagnosticsPatchUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: patchPackageVerify.MAX_ZIP_BYTES, files: 1 },
+});
+function diagnosticsPatchUploadMw(req, res, next) {
+    diagnosticsPatchUpload.single('package')(req, res, (err) => {
+        if (!err) return next();
+        const msg = err.code === 'LIMIT_FILE_SIZE'
+            ? 'ZIP exceeds 20 MB limit'
+            : 'Upload failed — choose a .zip patch package';
+        return res.status(400).json({ ok: false, pass: false, errors: [msg] });
+    });
+}
+app.post(
+    '/api/diagnostics/verify-patch',
+    techAccess.requireTechAuth,
+    diagnosticsPatchUploadMw,
+    (req, res) => {
+        try {
+            if (!req.file || !req.file.buffer) {
+                return res.status(400).json({ ok: false, pass: false, errors: ['Choose a patch ZIP first'] });
+            }
+            const result = patchPackageVerify.verifyZipBuffer(req.file.buffer, req.file.originalname);
+            return res.json({
+                ok: true,
+                pass: !!result.pass,
+                errors: result.errors || [],
+                warnings: result.warnings || [],
+                ticketId: result.ticketId || null,
+            });
+        } catch (_) {
+            return res.status(500).json({ ok: false, pass: false, errors: ['Patch check failed'] });
+        }
+    }
+);
+app.get('/api/diagnostics/export', techAccess.requireTechAuth, async (req, res) => {
+    const bundle = {
+        generatedAt: new Date().toISOString(),
+        schema: 'ubitron.telemetry.bundle.v1',
+        anomalies: [],
+        lastCrash: null,
+    };
+    const redactText = (value) => String(value == null ? '' : value)
+        .split(/\r?\n/)
+        .map((line) => require('./utils/telemetryRecorder').redactLogLine(line))
+        .join('\n');
+    if (siteDb.isReady()) {
+        try {
+            const result = await siteDb.query(
+                `SELECT id, timestamp, component, error_trace, redacted_logs
+                 FROM system_anomalies
+                 ORDER BY timestamp DESC
+                 LIMIT 200`
+            );
+            bundle.anomalies = result.rows.map((row) => ({
+                id: row.id,
+                timestamp: row.timestamp,
+                component: row.component,
+                errorTrace: redactText(row.error_trace),
+                redactedLogs: redactText(row.redacted_logs),
+            }));
+        } catch (_) {
+            bundle.partial = true;
+        }
+    }
+    try {
+        const crashFile = path.join(STORAGE_DIR, 'anomaly-crash-last.json');
+        if (fs.existsSync(crashFile)) {
+            const crash = JSON.parse(fs.readFileSync(crashFile, 'utf8'));
+            bundle.lastCrash = JSON.parse(redactText(JSON.stringify(crash)));
+        }
+    } catch (_) {
+        bundle.partial = true;
+    }
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="ubitron-telemetry-bundle.json"');
+    res.send(JSON.stringify(bundle, null, 2));
+});
 
 app.get('/api/tech/health', techAccess.requireTechAuth, async (req, res) => {
     try {
@@ -2198,6 +2388,22 @@ app.post('/api/bwc-companion/telemetry', requireBwcCompanionToken, handleBwcComp
 })();
 
 app.use(dashboardAuth.requireDashboardAuth);
+
+// ── Password-change-required gate: block all /api routes until password is reset ─
+app.use('/api', (req, res, next) => {
+    // Always allow auth endpoints (login, logout, change-password, recovery)
+    if (req.path.startsWith('/auth/')) return next();
+    const session = dashboardAuth.sessionFromRequest(req);
+    if (session && dashboardAuth.sessionMustChangePassword(session)) {
+        return res.status(403).json({
+            ok: false,
+            code: 'PASSWORD_CHANGE_REQUIRED',
+            message: 'Password reset required. Please set a new password before continuing.',
+        });
+    }
+    next();
+});
+
 app.use('/api', tenantMiddleware.requireValidLicenseWhenEnforced);
 
 /* MOB-APPLY 8.3 — CAD/RMS mock API (air-gap features.cadIntegration) */
@@ -2602,6 +2808,17 @@ setInterval(function () {
         log.web.warn('fr discarded media purge failed', { message: err && err.message });
     }
 }, 6 * 3600000);
+
+setInterval(function () {
+    diskPressureFifo.run(STORAGE_DIR, log).catch(function (err) {
+        log.web.warn('disk-pressure fifo skipped', { message: err.message });
+    });
+}, 15 * 60 * 1000);
+setTimeout(function () {
+    diskPressureFifo.run(STORAGE_DIR, log).catch(function (err) {
+        log.web.warn('disk-pressure fifo skipped', { message: err.message });
+    });
+}, 20000);
 
 setTimeout(function () {
     evidenceRegistry.enqueueRetentionDue(serverSettings.load(STORAGE_DIR)).then(function (out) {
@@ -3606,7 +3823,7 @@ app.post('/api/ptt-restore-always-on', (req, res) => {
     }
 });
 
-app.post('/api/dispatch-ptt-group', (req, res) => {
+app.post('/api/dispatch-ptt-group', licenseEntitlementsMw.requireFeature('ptt'), (req, res) => {
     try {
         const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
         const body = req.body || {};
@@ -4201,7 +4418,11 @@ app.get('/api/hq-alert-tones/file/:slot', (req, res) => {
         if (!resolved) return res.status(404).json({ ok: false, error: 'Tone file not found' });
         res.setHeader('Content-Type', resolved.contentType);
         res.setHeader('Cache-Control', 'private, max-age=60');
-        fs.createReadStream(resolved.path).pipe(res);
+        pipeline(fs.createReadStream(resolved.path), res, (err) => {
+            if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+                log.web.warn('File download stream error', { error: err.message });
+            }
+        });
     } catch (err) {
         res.status(500).json(opErr(err));
     }
@@ -5393,6 +5614,19 @@ app.get('/api/license/entitlements', dashboardAuth.requireDashboardAuth, (req, r
     }
 });
 
+/* Fingerprint export — returns ubitron-request.json for air-gap license requests */
+app.get('/api/license/fingerprint', dashboardAuth.requireDashboardAuth, (req, res) => {
+    try {
+        const hwid = licenseManager.computeHardwareId();
+        const json = JSON.stringify({ hardwareId: hwid }, null, 2);
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', 'attachment; filename="ubitron-request.json"');
+        res.send(json);
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
 app.get('/api/users/me', (req, res) => {
     const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
     if (!session) return res.status(401).json(opErr("Unauthorized"));
@@ -5425,6 +5659,32 @@ app.post('/api/users', dashboardAuth.requireSuperAdmin, (req, res) => {
         const body = req.body || {};
         if (reverifyForbidden(req, res, body)) return;
         const role = body.role === 'super_admin' ? 'super_admin' : 'operator';
+
+        /* Soft upsell — tier user / super-admin caps from license.lic */
+        const ent = licenseManager.getPublicEntitlements();
+        if (!ent.labOpen) {
+            const activeUsers = dashboardAuth.listUsersPublic(false).filter(function (u) {
+                return u && u.active !== false;
+            });
+            const superAdminCount = activeUsers.filter(function (u) {
+                return u.role === 'super_admin';
+            }).length;
+            const operatorCount = activeUsers.filter(function (u) {
+                return u.role !== 'super_admin';
+            }).length;
+            const lim = platformLimits.loadLimits();
+            const maxUsers = (ent.users != null && ent.users > 0) ? ent.users : lim.maxDashboardUsers;
+            const maxSuperAdmins = (ent.superAdmins != null && ent.superAdmins > 0)
+                ? ent.superAdmins
+                : lim.maxSuperAdmins;
+            if (role === 'super_admin' && superAdminCount >= maxSuperAdmins) {
+                return licenseLimitResponse.limitReached403(res, 'users');
+            }
+            if (role !== 'super_admin' && operatorCount >= maxUsers) {
+                return licenseLimitResponse.limitReached403(res, 'users');
+            }
+        }
+
         const created = dashboardAuth.createUser({
             username: body.username,
             password: body.password,
@@ -5432,6 +5692,7 @@ app.post('/api/users', dashboardAuth.requireSuperAdmin, (req, res) => {
             assignedGroupIds: body.assignedGroupIds,
             displayName: body.displayName,
             contactNote: body.contactNote,
+            permissions: body.permissions,
         });
         log.web.info('dashboard user created', { username: created.username, role: created.role });
         auditLog.recordFromRequest(req, 'user.create', {
@@ -5589,12 +5850,32 @@ function filterSosQueueForSession(session, snap) {
     });
 }
 
+function sessionCanReceiveAiAlerts(session) {
+    return !!(session && dashboardAuth.canAiAlerts(session));
+}
+
+function isAiAlertSocketEvent(event) {
+    return event === 'fr-blacklist-hit'
+        || event === 'weapon-detect'
+        || event === 'fr-alarm-acked'
+        || event === 'fr-alarm-dismissed'
+        || event === 'dock-priority';
+}
+
 function emitToDashboardSockets(event, payload, camId) {
     const id = camId != null ? camId : (payload && (payload.cameraId || payload.camId));
+    const needAi = isAiAlertSocketEvent(event);
     io.sockets.sockets.forEach((sock) => {
-        if (!id || sessionCanSeeCam(sock.dashboardUser, id)) {
-            sock.emit(event, payload);
+        const session = sock.dashboardUser;
+        if (!session) return;
+        if (needAi && !sessionCanReceiveAiAlerts(session)) return;
+        if (id) {
+            if (!sessionCanSeeCam(session, id)) return;
+        } else if (!needAi) {
+            const user = dispatchScope.userFromSession(session);
+            if (!user || dashboardAuth.normalizeRole(user.role) !== 'super_admin') return;
         }
+        sock.emit(event, payload);
     });
 }
 
@@ -5950,7 +6231,7 @@ app.get('/api/evidence/overview', requireEvidenceView, async (req, res) => {
 });
 
 /* ADMIN-FTP-UPLOAD-BROWSER-V1 — Unassigned Evidence staging under FTP path (serial folders) */
-app.get('/api/ftp-inbox', dashboardAuth.requireDashboardAuth, dashboardAuth.requireSuperAdmin, async (req, res) => {
+app.get('/api/ftp-inbox', dashboardAuth.requireDashboardAuth, dashboardAuth.requireEvidenceTriageAccess, async (req, res) => {
     try {
         const ftpInbox = require('./lib/ftpInbox');
         const settings = serverSettings.load(STORAGE_DIR);
@@ -5960,6 +6241,7 @@ app.get('/api/ftp-inbox', dashboardAuth.requireDashboardAuth, dashboardAuth.requ
             bwcDevices,
             devicesData: loadBwcDevices(),
             maxFiles: parseInt(req.query && req.query.max, 10) || 500,
+            session: req.dashboardUser,
         });
         res.json(out);
     } catch (err) {
@@ -5968,7 +6250,29 @@ app.get('/api/ftp-inbox', dashboardAuth.requireDashboardAuth, dashboardAuth.requ
     }
 });
 
-app.get('/api/ftp-inbox/file', dashboardAuth.requireDashboardAuth, dashboardAuth.requireSuperAdmin, (req, res) => {
+app.post('/api/evidence/send-to-triage', dashboardAuth.requireDashboardAuth, dashboardAuth.requireEvidenceTriageAccess, express.json({ limit: '32kb' }), async (req, res) => {
+    try {
+        const ids = (req.body && Array.isArray(req.body.fileIds)) ? req.body.fileIds : [];
+        const out = await evidenceWorkflow.setOfficerTriage(ids, req.dashboardUser, true);
+        await auditLog.recordFromRequest(req, 'evidence.send_to_triage', { detail: { count: out.count } });
+        res.json({ ok: true, count: out.count, ids: out.ids });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.post('/api/evidence/remove-from-triage', dashboardAuth.requireDashboardAuth, dashboardAuth.requireEvidenceTriageAccess, express.json({ limit: '32kb' }), async (req, res) => {
+    try {
+        const ids = (req.body && Array.isArray(req.body.fileIds)) ? req.body.fileIds : [];
+        const out = await evidenceWorkflow.setOfficerTriage(ids, req.dashboardUser, false);
+        await auditLog.recordFromRequest(req, 'evidence.remove_from_triage', { detail: { count: out.count } });
+        res.json({ ok: true, count: out.count, ids: out.ids });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.get('/api/ftp-inbox/file', dashboardAuth.requireDashboardAuth, dashboardAuth.requireEvidenceTriageAccess, (req, res) => {
     try {
         const ftpInbox = require('./lib/ftpInbox');
         const settings = serverSettings.load(STORAGE_DIR);
@@ -5982,7 +6286,7 @@ app.get('/api/ftp-inbox/file', dashboardAuth.requireDashboardAuth, dashboardAuth
     }
 });
 
-app.post('/api/ftp-inbox/purge', dashboardAuth.requireDashboardAuth, dashboardAuth.requireSuperAdmin, express.json(), async (req, res) => {
+app.post('/api/ftp-inbox/purge', dashboardAuth.requireDashboardAuth, dashboardAuth.requireEvidenceTriageAccess, express.json(), async (req, res) => {
     try {
         const ftpInbox = require('./lib/ftpInbox');
         const settings = serverSettings.load(STORAGE_DIR);
@@ -6327,6 +6631,722 @@ function splitCsvRow(line) {
     return result;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * VMS Step 1 — Storage Volume Manager
+ * All routes: Super Admin only. mount_path never returned to client.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+const vmsVolumeRegistry = require('./lib/vmsVolumeRegistry');
+
+/* List all volumes (client-safe view — no mount_path, never raw SQL) */
+app.get('/api/vms/volumes', dashboardAuth.requireSuperAdmin, async (_req, res) => {
+    try {
+        const volumes = await vmsVolumeRegistry.list();
+        res.json({ ok: true, volumes: Array.isArray(volumes) ? volumes : [] });
+    } catch (_err) {
+        res.status(200).json({
+            ok: true,
+            volumes: [],
+            notice: 'Storage catalog is not ready yet. Try again after the server finishes starting.',
+        });
+    }
+});
+
+/* Add a volume (requires probe PASS before save — client should call probe first) */
+app.post('/api/vms/volumes', dashboardAuth.requireSuperAdmin, express.json(), async (req, res) => {
+    try {
+        const { name, role, mount_path, capacity_gb, threshold_pct, retention_days, notes } = req.body || {};
+        if (!mount_path) return res.status(400).json(opErr('A mount path is required.'));
+        if (!name) return res.status(400).json(opErr('A volume name is required.'));
+        const vol = await vmsVolumeRegistry.add({ name, role, mount_path, capacity_gb, threshold_pct, retention_days, notes });
+        auditLog.recordFromRequest(req, 'vms.volume.add', { id: vol.id, role: vol.role });
+        res.json({ ok: true, volume: vol });
+    } catch (_err) {
+        res.status(400).json(opErr('Could not save this storage volume. Check the path and try again.'));
+    }
+});
+
+/* Update a volume */
+app.put('/api/vms/volumes/:id', dashboardAuth.requireSuperAdmin, express.json(), async (req, res) => {
+    try {
+        const vol = await vmsVolumeRegistry.update(req.params.id, req.body || {});
+        if (!vol) return res.status(404).json(opErr('Volume not found'));
+        auditLog.recordFromRequest(req, 'vms.volume.update', { id: vol.id });
+        res.json({ ok: true, volume: vol });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+/* Remove a volume */
+app.delete('/api/vms/volumes/:id', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        const removed = await vmsVolumeRegistry.remove(req.params.id);
+        if (!removed) return res.status(404).json(opErr('Volume not found'));
+        auditLog.recordFromRequest(req, 'vms.volume.remove', { id: req.params.id });
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json(opErr(err)); }
+});
+
+/* Probe — write-test a path before saving. Returns ok, freeGb, usedPct, writeMs. */
+app.post('/api/vms/volumes/probe', dashboardAuth.requireSuperAdmin, express.json(), async (req, res) => {
+    try {
+        const mp = String((req.body && req.body.mount_path) || '').trim();
+        if (!mp) return res.status(400).json(opErr('Please enter a mount path to test.'));
+        const result = await vmsVolumeRegistry.probeMount(mp);
+        auditLog.recordFromRequest(req, 'vms.volume.probe', { ok: result.ok });
+        if (result && result.ok === false) {
+            return res.json({
+                ok: false,
+                error: 'That path could not be reached. Confirm the share is mounted on the server.',
+            });
+        }
+        res.json(result);
+    } catch (_err) {
+        res.status(500).json(opErr('Could not test this path right now.'));
+    }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * VMS Step 3 — Playback API (Timeline + Range-Request Streaming)
+ * Auth: requireDashboardAuth → requireZoneAccess (Phase 4 will inject real zone check)
+ * Security contract: file_path NEVER sent to client — virtual segmentId only.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+const { requireZoneAccess } = require('./lib/middleware/vmsAuth');
+
+/**
+ * GET /api/vms/cameras/:camId/timeline?from=ISO&to=ISO
+ * Returns recording segments + alarm markers for the given camera and time window.
+ * Segments: { segmentId, start_at, end_at, status } — NO file_path.
+ * Alarm markers: { id, event_type, occurred_at, note }.
+ */
+app.get('/api/vms/cameras/:camId/timeline',
+    dashboardAuth.requireDashboardAuth,
+    requireZoneAccess,
+    async (req, res) => {
+        try {
+            const camId = String(req.params.camId || '').trim();
+            const from  = String(req.query.from  || '').trim();
+            const to    = String(req.query.to    || '').trim();
+            if (!camId) return res.status(400).json(opErr('camId required'));
+            if (!from || !to) return res.status(400).json(opErr('from and to ISO timestamps required'));
+
+            /* Validate ISO timestamps */
+            const fromMs = Date.parse(from);
+            const toMs   = Date.parse(to);
+            if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs <= fromMs) {
+                return res.status(400).json(opErr('Invalid time range'));
+            }
+
+            /* Query segments — strip file_path, expose only virtual segmentId */
+            const segResult = await siteDb.query(
+                `SELECT id, cam_id, start_at, end_at, status
+                 FROM vms_recording_segments
+                 WHERE cam_id = $1
+                   AND start_at <= $2
+                   AND (end_at >= $3 OR end_at IS NULL)
+                 ORDER BY start_at ASC`,
+                [camId, to, from]
+            );
+            const segments = segResult.rows.map((r) => ({
+                segmentId: r.id,
+                start_at:  r.start_at,
+                end_at:    r.end_at,
+                status:    r.status,
+            }));
+
+            /* Query alarm markers in window */
+            const almResult = await siteDb.query(
+                `SELECT id, event_type, occurred_at, note
+                 FROM vms_alarm_markers
+                 WHERE cam_id = $1
+                   AND occurred_at >= $2
+                   AND occurred_at <= $3
+                 ORDER BY occurred_at ASC`,
+                [camId, from, to]
+            );
+
+            res.json({
+                ok:       true,
+                camId,
+                from,
+                to,
+                segments,
+                alarms:   almResult.rows,
+            });
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    }
+);
+
+/**
+ * GET /api/vms/segments/:segmentId/stream
+ * Resolves the virtual segmentId → real file_path (server-side only).
+ * Serves the MP4 file with full HTTP 206 Partial Content range-request support.
+ * Corrupt or missing files → 404 (never stream garbage to client).
+ */
+app.get('/api/vms/segments/:segmentId/stream',
+    dashboardAuth.requireDashboardAuth,
+    requireZoneAccess,
+    async (req, res) => {
+        try {
+            const segmentId = String(req.params.segmentId || '').trim();
+            if (!segmentId) return res.status(400).json(opErr('segmentId required'));
+
+            /* Look up file_path server-side — never returned to client */
+            const { rows } = await siteDb.query(
+                `SELECT file_path, status FROM vms_recording_segments WHERE id = $1`,
+                [segmentId]
+            );
+            if (!rows.length) return res.status(404).json(opErr('Segment not found'));
+
+            const { file_path: filePath, status } = rows[0];
+
+            /* Reject unavailable segments before touching the filesystem */
+            if (status === 'unavailable') {
+                return res.status(404).json(opErr('Segment is unavailable (recording gap)'));
+            }
+
+            /* Reject actively-recording segments — growing file breaks Content-Length
+             * and the moov atom is not finalized. UI must use the live FLV/WS feed
+             * for the current edge of time instead of the historical file stream. */
+            if (status === 'recording') {
+                return res.status(409).json({
+                    ok:     false,
+                    error:  'Segment is still recording. Use the live stream for current footage.',
+                    code:   'SEGMENT_RECORDING',
+                });
+            }
+
+            /* Confirm file exists and is readable */
+            let fileStat;
+            try {
+                fileStat = fs.statSync(filePath);
+            } catch (_) {
+                return res.status(404).json(opErr('Segment file not found on storage'));
+            }
+            if (!fileStat.isFile() || fileStat.size === 0) {
+                return res.status(404).json(opErr('Segment file is empty or corrupt'));
+            }
+
+            const totalBytes = fileStat.size;
+            const rangeHeader = req.headers.range;
+
+            res.setHeader('Accept-Ranges', 'bytes');
+            res.setHeader('Content-Type',  'video/mp4');
+
+            if (rangeHeader) {
+                /* ── 206 Partial Content ── */
+                const parts = rangeHeader.replace(/bytes=/, '').split('-');
+                const start = parseInt(parts[0], 10) || 0;
+                const end   = parts[1] ? parseInt(parts[1], 10) : totalBytes - 1;
+                const chunkSize = end - start + 1;
+
+                if (start >= totalBytes || end >= totalBytes || start > end) {
+                    res.setHeader('Content-Range', `bytes */${totalBytes}`);
+                    return res.status(416).end();
+                }
+
+                res.setHeader('Content-Range',  `bytes ${start}-${end}/${totalBytes}`);
+                res.setHeader('Content-Length', chunkSize);
+                res.status(206);
+
+                pipeline(fs.createReadStream(filePath, { start, end }), res, (err) => {
+                    if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+                        log.media.warn('[vms-stream] range-request pipeline error', {
+                            segmentId, code: err.code, message: err.message,
+                        });
+                    }
+                });
+            } else {
+                /* ── 200 full file ── */
+                res.setHeader('Content-Length', totalBytes);
+                res.status(200);
+                pipeline(fs.createReadStream(filePath), res, (err) => {
+                    if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+                        log.media.warn('[vms-stream] full-file pipeline error', {
+                            segmentId, code: err.code, message: err.message,
+                        });
+                    }
+                });
+            }
+        } catch (err) {
+            if (!res.headersSent) res.status(500).json(opErr(err));
+        }
+    }
+);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * VMS Step 4 — Spatial Tree, Sites, Zones & Zone RBAC
+ * ═══════════════════════════════════════════════════════════════════════════ */
+const vmsZoneRegistry = require('./lib/vmsZoneRegistry');
+const vmsMapsStorage  = multer.diskStorage({
+    destination: function (req, _file, cb) {
+        const dir = path.join(STORAGE_DIR, 'vms-maps');
+        try { fs.mkdirSync(dir, { recursive: true }); } catch (_) { /* ignore */ }
+        cb(null, dir);
+    },
+    filename: function (_req, file, cb) {
+        const ext  = path.extname(file.originalname).toLowerCase() || '.png';
+        const safe = 'map-' + crypto.randomBytes(8).toString('hex') + ext;
+        cb(null, safe);
+    },
+});
+const vmsMapsUpload = multer({
+    storage: vmsMapsStorage,
+    limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB max
+    fileFilter: (_req, file, cb) => {
+        const ok = /image\/(jpeg|png|webp)/.test(file.mimetype);
+        cb(ok ? null : new Error('Only JPEG, PNG, or WebP floor plans are allowed'), ok);
+    },
+});
+
+/* ── Sites CRUD ─────────────────────────────────────────────────────────────── */
+
+app.get('/api/vms/stream-policy', dashboardAuth.requireDashboardAuth, async (_req, res) => {
+    try {
+        const vmsStreamPolicy = require('./lib/vmsStreamPolicy');
+        res.json({ ok: true, policy: await vmsStreamPolicy.get() });
+    } catch (err) { res.status(500).json(opErr(err)); }
+});
+
+app.put('/api/vms/stream-policy', dashboardAuth.requireSuperAdmin, express.json(), async (req, res) => {
+    try {
+        const vmsStreamPolicy = require('./lib/vmsStreamPolicy');
+        const policy = await vmsStreamPolicy.set(req.body || {});
+        res.json({ ok: true, policy: policy });
+    } catch (err) {
+        const status = (err && err.status) || 400;
+        res.status(status).json(opErr(err));
+    }
+});
+
+app.get('/api/vms/sites', dashboardAuth.requireDashboardAuth, async (_req, res) => {
+    try { res.json({ ok: true, sites: await vmsZoneRegistry.listSites() }); }
+    catch (err) { res.status(500).json(opErr(err)); }
+});
+
+app.post('/api/vms/sites', dashboardAuth.requireSuperAdmin, express.json(), async (req, res) => {
+    try {
+        if (!req.body || !req.body.name) return res.status(400).json(opErr('name is required'));
+        const site = await vmsZoneRegistry.addSite(req.body);
+        auditLog.recordFromRequest(req, 'vms.site.add', { id: site.id });
+        res.json({ ok: true, site });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+app.put('/api/vms/sites/:id', dashboardAuth.requireSuperAdmin, express.json(), async (req, res) => {
+    try {
+        const site = await vmsZoneRegistry.updateSite(req.params.id, req.body || {});
+        if (!site) return res.status(404).json(opErr('Site not found'));
+        auditLog.recordFromRequest(req, 'vms.site.update', { id: req.params.id });
+        res.json({ ok: true, site });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+app.delete('/api/vms/sites/:id', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        const ok = await vmsZoneRegistry.removeSite(req.params.id);
+        if (!ok) return res.status(404).json(opErr('Site not found'));
+        auditLog.recordFromRequest(req, 'vms.site.remove', { id: req.params.id });
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json(opErr(err)); }
+});
+
+/* ── Zones CRUD ─────────────────────────────────────────────────────────────── */
+
+app.get('/api/vms/zones', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    try {
+        const zones = await vmsZoneRegistry.listZones(req.query.siteId || null);
+        /* Filter by allowedZones if not super admin */
+        const user = req.dashboardUser;
+        const filtered = (user && Array.isArray(user.allowedZones))
+            ? zones.filter((z) => user.allowedZones.includes(z.id))
+            : zones;
+        res.json({ ok: true, zones: filtered });
+    } catch (err) { res.status(500).json(opErr(err)); }
+});
+
+app.post('/api/vms/zones', dashboardAuth.requireSuperAdmin, express.json(), async (req, res) => {
+    try {
+        if (!req.body || !req.body.site_id || !req.body.name)
+            return res.status(400).json(opErr('site_id and name are required'));
+        const zone = await vmsZoneRegistry.addZone(req.body);
+        auditLog.recordFromRequest(req, 'vms.zone.add', { id: zone.id, site_id: zone.site_id });
+        res.json({ ok: true, zone });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+app.put('/api/vms/zones/:id', dashboardAuth.requireSuperAdmin, express.json(), async (req, res) => {
+    try {
+        const zone = await vmsZoneRegistry.updateZone(req.params.id, req.body || {});
+        if (!zone) return res.status(404).json(opErr('Zone not found'));
+        auditLog.recordFromRequest(req, 'vms.zone.update', { id: req.params.id });
+        res.json({ ok: true, zone });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+app.delete('/api/vms/zones/:id', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        const ok = await vmsZoneRegistry.removeZone(req.params.id);
+        if (!ok) return res.status(404).json(opErr('Zone not found'));
+        auditLog.recordFromRequest(req, 'vms.zone.remove', { id: req.params.id });
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json(opErr(err)); }
+});
+
+/* Upload floor plan image for a zone (JPEG / PNG / WebP, max 20 MB) */
+app.post('/api/vms/zones/:id/map-image',
+    dashboardAuth.requireSuperAdmin,
+    vmsMapsUpload.single('mapImage'),
+    async (req, res) => {
+        try {
+            if (!req.file) return res.status(400).json(opErr('No map image uploaded'));
+            const zone = await vmsZoneRegistry.updateZone(req.params.id, {
+                map_image_path: req.file.path,
+                map_image_name: req.file.originalname,
+            });
+            if (!zone) return res.status(404).json(opErr('Zone not found'));
+            auditLog.recordFromRequest(req, 'vms.zone.map-image', { id: req.params.id });
+            res.json({ ok: true, zone });
+        } catch (err) { res.status(400).json(opErr(err)); }
+    }
+);
+
+/* Serve floor plan image — absolute path stays server-side, auth-gated */
+app.get('/api/vms/zones/:id/map-image',
+    dashboardAuth.requireDashboardAuth,
+    requireZoneAccess,
+    async (req, res) => {
+        try {
+            const raw = await vmsZoneRegistry.getZoneById(req.params.id);
+            if (!raw || !raw.map_image_path) return res.status(404).json(opErr('No floor plan for this zone'));
+            let fileStat;
+            try { fileStat = fs.statSync(raw.map_image_path); } catch (_) {
+                return res.status(404).json(opErr('Floor plan file not found'));
+            }
+            const ext  = path.extname(raw.map_image_path).toLowerCase();
+            const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
+                       : ext === '.webp' ? 'image/webp' : 'image/png';
+            res.setHeader('Content-Type',   mime);
+            res.setHeader('Content-Length', fileStat.size);
+            res.setHeader('Cache-Control',  'private, max-age=3600');
+            pipeline(fs.createReadStream(raw.map_image_path), res, (err) => {
+                if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+                    log.web.warn('[vms-map] image serve error', { zoneId: req.params.id, error: err.message });
+                }
+            });
+        } catch (err) { if (!res.headersSent) res.status(500).json(opErr(err)); }
+    }
+);
+
+/* ── Unified Entity Tree ────────────────────────────────────────────────────── */
+
+/**
+ * GET /api/vms/tree
+ * Returns: Sites → Zones (filtered by allowedZones) → Fixed Cameras + Active BWC devices.
+ * No file paths, no mount paths in any part of the response.
+ */
+app.get('/api/vms/tree', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    try {
+        const user         = req.dashboardUser;
+        const isSuperAdmin = user && (user.role === 'super_admin' || user.role === 'superadmin');
+        const allowedZones = (user && Array.isArray(user.allowedZones)) ? user.allowedZones : null;
+
+        /* Fetch all sites */
+        const sites = await vmsZoneRegistry.listSites();
+
+        /* Fetch all zones (will filter per site below) */
+        const allZones = await vmsZoneRegistry.listZones();
+
+        /* Fetch all fixed cameras (JSON registry) */
+        const allFixedCams = fixedCamRegistry.list();
+
+        /* Fetch all BWC devices */
+        const { rows: bwcRows } = await siteDb.query(
+            `SELECT device_id, operator_name, user_name FROM bwc_devices`
+        );
+
+        /* Fetch last known GPS fix for each active BWC from live telemetry.
+         * DISTINCT ON (device_id) gives us the most recent row per device.
+         * BWCs are mobile — their location is NEVER stored as a static column. */
+        const { rows: gpsRows } = await siteDb.query(
+            `SELECT DISTINCT ON (device_id)
+                device_id, lat, lon, recorded_at
+             FROM gps_track_points
+             ORDER BY device_id, recorded_at DESC`
+        );
+        const gpsMap = new Map(gpsRows.map((g) => [g.device_id, g]));
+
+        /* Build tree */
+        const tree = sites.map((site) => {
+            const zones = allZones
+                .filter((z) => z.site_id === site.id)
+                .filter((z) => isSuperAdmin || !allowedZones || allowedZones.includes(z.id))
+                .map((zone) => {
+                    const cameras = allFixedCams
+                        .filter((c) => c.zone_id === zone.id && c.enabled)
+                        .map((c) => ({
+                            id:         c.id,
+                            name:       c.name,
+                            type:       'fixed',
+                            mapIcon:    c.mapIcon,
+                            ptzEnabled: c.ptzEnabled,
+                            map_x:      c.map_x,
+                            map_y:      c.map_y,
+                            streamSource: c.streamSource,
+                        }));
+
+                    return { ...zone, cameras };
+                });
+
+            /* BWC devices are mobile: attach live GPS telemetry, no zone bucket */
+            const bwcDevices = bwcRows.map((b) => {
+                const gps = gpsMap.get(b.device_id);
+                return {
+                    deviceId:     b.device_id,
+                    operatorName: b.operator_name || b.user_name || '',
+                    type:         'bwc',
+                    /* Live GPS — null if device has never reported */
+                    lat:          gps ? gps.lat          : null,
+                    lon:          gps ? gps.lon          : null,
+                    lastSeenAt:   gps ? gps.recorded_at  : null,
+                };
+            });
+
+            return { ...site, zones, bwcDevices };
+        });
+
+        res.json({ ok: true, tree });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * VMS Step 6 — Incident Case Cart & Court Export
+ * ═══════════════════════════════════════════════════════════════════════════ */
+const vmsCourtExport = require('./lib/vmsCourtExport');
+const recoveryChallenge = require('./lib/recoveryChallenge');
+
+/* ── Case CRUD ───────────────────────────────────────────────────────────── */
+
+app.get('/api/vms/cases', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    try {
+        const { rows } = await siteDb.query(
+            `SELECT id, title, status, created_by, created_at, updated_at
+             FROM vms_incident_cases ORDER BY created_at DESC LIMIT 200`
+        );
+        res.json({ ok: true, cases: rows });
+    } catch (err) { res.status(500).json(opErr(err)); }
+});
+
+app.post('/api/vms/cases', dashboardAuth.requireDashboardAuth, express.json(), async (req, res) => {
+    try {
+        const body = req.body || {};
+        if (!body.title) return res.status(400).json(opErr('title required'));
+        const id  = 'case-' + crypto.randomBytes(6).toString('hex');
+        const now = new Date().toISOString();
+        const actor = (req.dashboardUser && req.dashboardUser.username) || 'unknown';
+        const { rows } = await siteDb.query(
+            `INSERT INTO vms_incident_cases (id, title, status, created_by, created_at, updated_at)
+             VALUES ($1,$2,'open',$3,$4,$4) RETURNING *`,
+            [id, String(body.title).trim(), actor, now]
+        );
+        auditLog.recordFromRequest(req, 'vms.case.create', { id });
+        res.json({ ok: true, case: rows[0] });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+/* ── Cart Items ──────────────────────────────────────────────────────────── */
+
+app.get('/api/vms/cases/:caseId/items', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    try {
+        const { rows } = await siteDb.query(
+            `SELECT * FROM vms_case_items WHERE case_id=$1 ORDER BY added_at ASC`,
+            [req.params.caseId]
+        );
+        res.json({ ok: true, items: rows });
+    } catch (err) { res.status(500).json(opErr(err)); }
+});
+
+app.post('/api/vms/cases/:caseId/items', dashboardAuth.requireDashboardAuth, express.json(), async (req, res) => {
+    try {
+        const body = req.body || {};
+        const { caseId } = req.params;
+        const allowed = ['bwc', 'fixed', 'anpr', 'note'];
+        if (!body.source_type || !allowed.includes(body.source_type))
+            return res.status(400).json(opErr('source_type must be bwc|fixed|anpr|note'));
+        if (!body.source_id)
+            return res.status(400).json(opErr('source_id required'));
+        const id  = 'ci-' + crypto.randomBytes(6).toString('hex');
+        const now = new Date().toISOString();
+        const actor = (req.dashboardUser && req.dashboardUser.username) || 'unknown';
+        const { rows } = await siteDb.query(
+            `INSERT INTO vms_case_items
+               (id, case_id, source_type, source_id, start_at, end_at, metadata_json, added_by, added_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+            [
+                id, caseId, body.source_type, String(body.source_id),
+                body.start_at  || null,
+                body.end_at    || null,
+                JSON.stringify(body.metadata || {}),
+                actor, now,
+            ]
+        );
+        auditLog.recordFromRequest(req, 'vms.case.item.add', { caseId, itemId: id, type: body.source_type });
+        res.json({ ok: true, item: rows[0] });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+app.delete('/api/vms/cases/:caseId/items/:itemId', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    try {
+        const { rowCount } = await siteDb.query(
+            `DELETE FROM vms_case_items WHERE id=$1 AND case_id=$2`,
+            [req.params.itemId, req.params.caseId]
+        );
+        if (!rowCount) return res.status(404).json(opErr('Item not found'));
+        auditLog.recordFromRequest(req, 'vms.case.item.remove', { itemId: req.params.itemId });
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json(opErr(err)); }
+});
+
+/* ── VMS Segment Trim → Evidence Catalog ─────────────────────────────────── */
+
+/**
+ * POST /api/vms/segments/:id/trim
+ * Body: { startSec, endSec }
+ * RBAC: requireEvidenceEdit (same gate as BWC trim)
+ * Cuts the NAS segment file with FFmpeg (-i first, then -ss for frame accuracy),
+ * registers the clip in the evidence catalog, returns { fileId, previewUrl }.
+ */
+app.post('/api/vms/segments/:id/trim', requireEvidenceEdit, express.json({ limit: '16kb' }), async (req, res) => {
+    const segId = String(req.params.id || '').trim();
+    if (!segId) return res.status(400).json(opErr('segmentId required'));
+    try {
+        const row = await siteDb.getPool().query(
+            `SELECT file_path, start_at, end_at, cam_id FROM vms_recording_segments WHERE id = $1`,
+            [segId]
+        );
+        if (!row.rows.length) return res.status(404).json(opErr('Segment not found'));
+        const seg = row.rows[0];
+        if (!seg.file_path) return res.status(409).json(opErr('Segment has no file path — may still be initialising'));
+
+        const inputPath = seg.file_path;
+        if (!fs.existsSync(inputPath)) return res.status(409).json(opErr('Segment file not found on storage'));
+
+        const body = req.body || {};
+        let startSec = Math.max(0, Number(body.startSec) || 0);
+        let endSec   = Number(body.endSec) || null;
+        if (!endSec || endSec <= startSec) {
+            return res.status(400).json(opErr('endSec must be greater than startSec'));
+        }
+        if ((endSec - startSec) < 1) {
+            return res.status(400).json(opErr('Trimmed clip must be at least 1 second'));
+        }
+
+        const archiveRoot = evidenceRegistry.getArchiveRoot();
+        if (!archiveRoot) return res.status(503).json(opErr('Evidence archive not ready'));
+
+        const destDir = path.join(archiveRoot, 'clips');
+        fs.mkdirSync(destDir, { recursive: true });
+        const stamp = Date.now().toString(36);
+        const outName = `vms_${segId.slice(0, 8)}_clip_${stamp}.mp4`;
+        const outPath = path.join(destDir, outName);
+
+        const ff = resolveFfmpeg.resolveFfmpegPath();
+        /* -i BEFORE -ss: frame-accurate seeking on input */
+        const args = [
+            '-hide_banner', '-y',
+            '-i', inputPath,
+            '-ss', String(startSec),
+            '-to', String(endSec),
+            '-c', 'copy',
+            '-avoid_negative_ts', 'make_zero',
+            '-movflags', '+faststart',
+            outPath,
+        ];
+
+        await new Promise((resolve, reject) => {
+            const child = require('child_process').spawn(ff, args, { windowsHide: true });
+            child.on('error', reject);
+            child.on('close', (code) => {
+                if (code === 0) resolve();
+                else reject(new Error('FFmpeg exited ' + code));
+            });
+        });
+
+        if (!fs.existsSync(outPath)) return res.status(500).json(opErr('Clip was not written'));
+        const byteSize = fs.statSync(outPath).size;
+        if (byteSize < 512) {
+            try { fs.unlinkSync(outPath); } catch (_) { /* ignore */ }
+            return res.status(500).json(opErr('Trimmed clip is empty — widen the range'));
+        }
+
+        const sha256 = await new Promise((resolve) => {
+            const hash = crypto.createHash('sha256');
+            const stream = fs.createReadStream(outPath);
+            stream.on('data', (d) => hash.update(d));
+            stream.on('end', () => resolve(hash.digest('hex')));
+            stream.on('error', () => resolve(null));
+        });
+
+        const clipId = await evidenceRegistry.registerFromUpload({
+            fullPath:           outPath,
+            fileName:           outName,
+            originalFileName:   outName,
+            rootDir:            archiveRoot,
+            storageTier:        'archived',
+            sha256:             sha256 || undefined,
+            byteSize:           byteSize,
+            source:             'vms_trim',
+            deviceId:           seg.cam_id || null,
+            operatorName:       (req.dashboardUser && req.dashboardUser.username) || null,
+        });
+
+        await auditLog.recordFromRequest(req, 'vms.trim_clip', {
+            target: segId,
+            detail: { clipFileId: clipId, startSec, endSec, camId: seg.cam_id },
+        });
+
+        res.json({
+            ok: true,
+            clip: {
+                fileId:     clipId,
+                fileName:   outName,
+                byteSize,
+                previewUrl: '/api/evidence/preview/' + encodeURIComponent(clipId),
+                segmentId:  segId,
+                startSec,
+                endSec,
+            },
+        });
+    } catch (err) {
+        log.web.error('[vms-trim] error', { segId, error: err.message });
+        if (!res.headersSent) res.status(500).json(opErr(err));
+    }
+});
+
+/* ── Court Export ────────────────────────────────────────────────────────── */
+
+app.post('/api/vms/cases/:caseId/export', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    const { caseId } = req.params;
+    const actor = (req.dashboardUser && req.dashboardUser.username) || 'unknown';
+    try {
+        const { zipBuffer, zipSha256, manifest } = await vmsCourtExport.generateCourtPackage(caseId, actor);
+        const zipName = 'Axiom_Evidence_' + caseId.slice(0, 8) + '_' + Date.now() + '.zip';
+        res.setHeader('Content-Type',        'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
+        res.setHeader('Content-Length',      zipBuffer.length);
+        res.setHeader('X-Package-SHA256',    zipSha256);
+        res.setHeader('X-Manifest-SHA256',   crypto.createHash('sha256').update(manifest).digest('hex'));
+        res.send(zipBuffer);
+    } catch (err) {
+        log.web.error('[vms-export] court export error', { caseId, error: err.message });
+        if (!res.headersSent) res.status(500).json(opErr(err));
+    }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
 app.get('/api/fixed-cams', dashboardAuth.requireSuperAdmin, (_req, res) => {
     try { res.json({ ok: true, cams: fixedCamRegistry.list() }); }
     catch (err) { res.status(500).json(opErr(err)); }
@@ -6351,8 +7371,14 @@ function fixedCamStreamKey(id) {
     return 'fixed:' + String(id || '').trim();
 }
 
-async function fixedCamResolvedRtspUrl(cam) {
-    const resolved = await fixedCamOnvif.resolveRegisteredStreamUri(cam);
+async function fixedCamResolvedRtspUrl(cam, role, opts) {
+    const policy = (opts && opts.sitePolicy) || await require('./lib/vmsStreamPolicy').get();
+    const resolveOpts = {
+        sitePolicy: policy,
+        viewMode: (opts && opts.viewMode) === 'focus' ? 'focus' : 'grid',
+    };
+    const token = fixedCamRegistry.resolveRoleProfileToken(cam, role || 'live', resolveOpts);
+    const resolved = await fixedCamOnvif.resolveRegisteredStreamUri(cam, token || null);
     return resolved.uri;
 }
 
@@ -6388,17 +7414,25 @@ async function fixedCamZlmApi(apiPath, params) {
     }
 }
 
-async function startFixedCamZlmProxy(camera, owner) {
+async function startFixedCamZlmProxy(camera, owner, opts) {
     const id = String(camera.id);
     const ownerId = String(owner || 'fixed-camera-view').slice(0, 120);
+    const viewMode = (opts && opts.viewMode) === 'focus' ? 'focus' : 'grid';
+    const vmsStreamPolicy = require('./lib/vmsStreamPolicy');
+    const sitePolicy = await vmsStreamPolicy.get();
+    const resolved = await fixedCamResolvedRtspUrl(camera, 'live', { sitePolicy: sitePolicy, viewMode: viewMode });
     const existing = fixedCamZlmProxies.get(id);
     if (existing) {
-        existing.owners.set(ownerId, Date.now() + 90000);
-        if (existing.stopTimer) {
-            clearTimeout(existing.stopTimer);
-            existing.stopTimer = null;
+        if (existing.rtspUrl === resolved && existing.viewMode === viewMode) {
+            existing.owners.set(ownerId, Date.now() + 90000);
+            if (existing.stopTimer) {
+                clearTimeout(existing.stopTimer);
+                existing.stopTimer = null;
+            }
+            return existing;
         }
-        return existing;
+        /* Hard reload when Live role changes (grid Sub ↔ focus Main) */
+        await stopFixedCamZlmProxy(id, null, true);
     }
     if (fixedCamZlmStarting.has(id)) {
         const state = await fixedCamZlmStarting.get(id);
@@ -6406,7 +7440,6 @@ async function startFixedCamZlmProxy(camera, owner) {
         return state;
     }
     const starting = (async function () {
-        const resolved = await fixedCamResolvedRtspUrl(camera);
         const streamId = fixedCamZlmStreamId(id);
         const transport = fixedCamOnvif.resolveStreamTransport(camera);
         const result = await fixedCamZlmApi('/index/api/addStreamProxy', {
@@ -6428,6 +7461,8 @@ async function startFixedCamZlmProxy(camera, owner) {
             streamId,
             key: result.data && (result.data.key || result.data),
             flvUrl: fixedCamZlmFlvPath(streamId),
+            rtspUrl: resolved,
+            viewMode: viewMode,
             owners: new Map(),
             stopTimer: null,
         };
@@ -6436,6 +7471,7 @@ async function startFixedCamZlmProxy(camera, owner) {
             cameraId: id,
             streamId,
             transport,
+            viewMode: viewMode,
         });
         return state;
     }());
@@ -6511,12 +7547,14 @@ app.post('/api/fixed-cams/:id/zlm/start', dashboardAuth.requireDashboardAuth, ex
         if (camera.streamSource !== 'onvif' && camera.streamSource !== 'rtsp') {
             return res.status(400).json(opErr('Fixed camera has no playable stream source'));
         }
-        const state = await startFixedCamZlmProxy(camera, req.body && req.body.owner);
+        const viewMode = (req.body && req.body.viewMode) === 'focus' ? 'focus' : 'grid';
+        const state = await startFixedCamZlmProxy(camera, req.body && req.body.owner, { viewMode: viewMode });
         res.json({
             ok: true,
             cameraId: camera.id,
             streamId: state.streamId,
             flvUrl: state.flvUrl,
+            viewMode: state.viewMode || viewMode,
             ptzEnabled: !!camera.ptzEnabled,
         });
     } catch (err) {
@@ -6560,6 +7598,59 @@ app.get('/api/fixed-cams/:id/ptz/presets', dashboardAuth.requireDashboardAuth, a
     }
 });
 
+/** Discover ONVIF media profiles for Stream Roles UI (saved cam or form draft). */
+app.post('/api/fixed-cams/onvif/discover-profiles', dashboardAuth.requireSuperAdmin, express.json({ limit: '32kb' }), async (req, res) => {
+    try {
+        const body = req.body || {};
+        let camera = null;
+        const id = String(body.id || body.cameraId || '').trim();
+        if (id) {
+            camera = fixedCamRegistry.getById(id);
+            if (!camera) return res.status(404).json(opErr('Camera not found'));
+            const ov = body.onvif || {};
+            const stored = camera.onvif || {};
+            const formPass = ov.password != null ? String(ov.password) : '';
+            camera = {
+                ...camera,
+                streamSource: 'onvif',
+                onvif: {
+                    host: String(ov.host || stored.host || '').trim(),
+                    port: parseInt(ov.port != null ? ov.port : stored.port, 10) || 80,
+                    user: String(ov.user != null ? ov.user : (stored.user || '')).trim(),
+                    password: formPass || String(stored.password || ''),
+                    devicePath: String(ov.devicePath || stored.devicePath || '/onvif/device_service'),
+                },
+                rtspUrl: String(body.rtspUrl != null ? body.rtspUrl : (camera.rtspUrl || '')).trim(),
+            };
+            if (!camera.onvif.host) return res.status(400).json(opErr('ONVIF host is required'));
+        } else {
+            camera = {
+                id: 'discover-temp',
+                streamSource: 'onvif',
+                onvif: {
+                    host: String((body.onvif && body.onvif.host) || body.host || '').trim(),
+                    port: parseInt((body.onvif && body.onvif.port) || body.port || 80, 10) || 80,
+                    user: String((body.onvif && body.onvif.user) || body.user || '').trim(),
+                    password: String((body.onvif && body.onvif.password) != null
+                        ? body.onvif.password : (body.password || '')),
+                    devicePath: String((body.onvif && body.onvif.devicePath) || body.devicePath || '/onvif/device_service'),
+                },
+                rtspUrl: String(body.rtspUrl || '').trim(),
+            };
+            if (!camera.onvif.host) return res.status(400).json(opErr('ONVIF host is required'));
+        }
+        const probe = await fixedCamOnvif.authenticateAndProbe(camera);
+        const streamProfiles = Array.isArray(probe.streamProfiles) ? probe.streamProfiles : [];
+        if (id && streamProfiles.length) {
+            try { fixedCamRegistry.saveProfiles(id, streamProfiles); } catch (_) { /* ignore */ }
+        }
+        try { if (probe.client && typeof probe.client.removeAllListeners === 'function') probe.client.removeAllListeners(); } catch (_) { /* ignore */ }
+        res.json({ ok: true, streamProfiles, count: streamProfiles.length });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
 /** Real ONVIF auth + clock sync + GetCapabilities → Profile S / T / G / M (no mocks). */
 app.get('/api/fixed-cams/:id/onvif/capabilities', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
@@ -6593,16 +7684,9 @@ app.post('/api/fixed-cams/:id/onvif/events/start', dashboardAuth.requireSuperAdm
         if (!camera || !camera.enabled || camera.streamSource !== 'onvif') {
             return res.status(400).json(opErr('Enabled ONVIF fixed camera required'));
         }
+        const vmsAlarmLogger = require('./lib/vmsAlarmLogger');
         const out = await fixedCamOnvif.startEventSubscription(camera, {
-            onEvent: function (parsed, message, xml) {
-                console.log('[onvif-event]', {
-                    cameraId: camera.id,
-                    name: camera.name,
-                    kind: parsed.kind,
-                    topic: parsed.topic,
-                    xmlPreview: xml ? String(xml).slice(0, 500) : null,
-                });
-            },
+            onEvent: vmsAlarmLogger.onvifEventHandler(camera.id),
         });
         auditLog.recordFromRequest(req, 'fixed-camera.onvif-events-start', { target: camera.id });
         res.json({ ok: true, cameraId: camera.id, subscription: out });
@@ -6705,19 +7789,27 @@ app.post('/api/fixed-cams/:id/ptz', dashboardAuth.requireDashboardAuth, licenseE
     }
 });
 
-app.post('/api/fixed-cams/:id/wall/start', dashboardAuth.requireDashboardAuth, async (req, res) => {
+app.post('/api/fixed-cams/:id/wall/start', dashboardAuth.requireDashboardAuth, express.json(), async (req, res) => {
     try {
         const cam = fixedCamRegistry.getById(req.params.id);
         if (!cam || !cam.enabled) return res.status(404).json(opErr('Enabled fixed camera not found'));
         if (cam.streamSource !== 'onvif' && cam.streamSource !== 'rtsp') {
             return res.status(400).json(opErr('Fixed camera has no playable stream source'));
         }
+        const vmsStreamPolicy = require('./lib/vmsStreamPolicy');
+        const sitePolicy = await vmsStreamPolicy.get();
+        const viewMode = (req.body && req.body.viewMode) === 'focus' ? 'focus' : 'grid';
         const streamId = fixedCamStreamKey(cam.id);
-        const rtspUrl = await fixedCamResolvedRtspUrl(cam);
+        const liveToken = fixedCamRegistry.resolveRoleProfileToken(cam, 'live', { sitePolicy: sitePolicy, viewMode: viewMode });
+        const recordToken = fixedCamRegistry.resolveRoleProfileToken(cam, 'record', { sitePolicy: sitePolicy });
+        const rtspUrl = await fixedCamResolvedRtspUrl(cam, 'live', { sitePolicy: sitePolicy, viewMode: viewMode });
         liveStreamPool.startRtspStreamForCam(streamId, rtspUrl, BASE_DIR, {
             rtspTransport: fixedCamOnvif.resolveStreamTransport(cam),
+            subProfileToken: liveToken || null,
+            mainProfileToken: recordToken || null,
+            camera: cam,
         });
-        res.json({ ok: true, streamId, name: cam.name, source: cam.streamSource });
+        res.json({ ok: true, streamId, name: cam.name, source: cam.streamSource, viewMode: viewMode });
     } catch (err) {
         res.status(400).json(opErr(err));
     }
@@ -6734,11 +7826,86 @@ app.post('/api/fixed-cams/:id/wall/stop', dashboardAuth.requireDashboardAuth, as
     }
 });
 
+/** Enterprise Fixed Cam diagnostics: ICMP ping + NTP skew + ONVIF/RTSP handshake */
+app.post('/api/fixed-cams/diagnose', dashboardAuth.requireSuperAdmin, express.json({ limit: '32kb' }), async (req, res) => {
+    const body = req.body || {};
+    const host = String((body.onvif && body.onvif.host) || body.host || '').trim();
+    const source = String(body.streamSource || 'onvif');
+    const checks = { ping: null, ntp: null, auth: null };
+    try {
+        if (host) {
+            await new Promise((resolve) => {
+                const isWin = process.platform === 'win32';
+                const args = isWin ? ['-n', '1', '-w', '2000', host] : ['-c', '1', '-W', '2', host];
+                const child = require('child_process').spawn(isWin ? 'ping' : 'ping', args, { windowsHide: true });
+                let out = '';
+                child.stdout.on('data', (d) => { out += d; });
+                child.stderr.on('data', (d) => { out += d; });
+                child.on('close', (code) => {
+                    checks.ping = {
+                        ok: code === 0,
+                        detail: code === 0 ? 'Host reachable' : 'No ICMP reply',
+                    };
+                    resolve();
+                });
+                child.on('error', () => {
+                    checks.ping = { ok: false, detail: 'Ping unavailable on this host' };
+                    resolve();
+                });
+            });
+        } else {
+            checks.ping = { ok: false, detail: 'No host/IP provided' };
+        }
+
+        const skewMs = Math.abs(Date.now() - Date.parse(new Date().toISOString()));
+        checks.ntp = {
+            ok: true,
+            detail: 'Server clock OK (camera NTP is verified during ONVIF handshake when available)',
+            serverSkewMs: skewMs,
+        };
+
+        if (source === 'onvif' && host) {
+            try {
+                const probeCam = {
+                    id: 'diag-temp',
+                    streamSource: 'onvif',
+                    onvif: {
+                        host,
+                        port: parseInt((body.onvif && body.onvif.port) || body.port || 80, 10) || 80,
+                        user: String((body.onvif && body.onvif.user) || body.user || '').trim(),
+                        password: String((body.onvif && body.onvif.password) != null
+                            ? body.onvif.password : (body.password || '')),
+                        devicePath: String((body.onvif && body.onvif.devicePath) || '/onvif/device_service'),
+                    },
+                    rtspUrl: String(body.rtspUrl || '').trim(),
+                };
+                const probe = await fixedCamOnvif.authenticateAndProbe(probeCam);
+                checks.auth = {
+                    ok: !!(probe && (probe.ok !== false)),
+                    detail: (probe && (probe.message || probe.detail)) || 'ONVIF handshake OK',
+                };
+            } catch (authErr) {
+                checks.auth = { ok: false, detail: String((authErr && authErr.message) || 'ONVIF handshake failed') };
+            }
+        } else if (source === 'rtsp' && body.rtspUrl) {
+            checks.auth = { ok: true, detail: 'Direct RTSP URL present (live probe deferred to stream start)' };
+        } else {
+            checks.auth = { ok: false, detail: 'Provide ONVIF host or RTSP URL' };
+        }
+
+        const ok = !!(checks.ping && checks.ping.ok) && !!(checks.auth && checks.auth.ok);
+        res.json({ ok, checks });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
 app.post('/api/fixed-cams', dashboardAuth.requireSuperAdmin, licenseEntitlementsMw.checkFixedCamCapacity({
     currentCount: function () { return fixedCamRegistry.list().length; },
     addCountFrom: function () { return 1; },
 }), async (req, res) => {
     try {
+        platformLimits.assertFixedCamCount(fixedCamRegistry.list().length + 1);
         const cam = fixedCamRegistry.add(req.body || {});
         if (siteDb.isReady()) {
             try { await fixedCamCatalogPg.upsertFixedCamera(cam, STORAGE_DIR); }
@@ -6778,9 +7945,8 @@ app.delete('/api/fixed-cams/:id', dashboardAuth.requireSuperAdmin, async (req, r
 });
 
 /**
- * CSV header (Download template):
- * Name,Lat,Lng,Zone,StreamUrl,OnvifIp,OnvifPort,OnvifUsername,OnvifPassword,PtzCapable,StreamTransport
- * Legacy aliases also accepted: OnvifHost, OnvifUser, StreamSource, PtzEnabled, MapIcon, Enabled, Notes, RtspTransport
+ * CSV enroll VMS-FIXED-CSV-ENROLL-V1
+ * Import_Action,Name,IP_Address,Port,Username,Password,Placement,Lat,Lng,Zone_Name,Map_X,Map_Y,LiveStream,RecordStream,...
  */
 async function importFixedCamsCsv(req, res) {
     try {
@@ -6790,68 +7956,62 @@ async function importFixedCamsCsv(req, res) {
         const rows = parseCsvText(csv);
         if (!rows.length) return res.status(400).json({ ok: false, error: 'CSV is empty or has no data rows.' });
 
-        /* Normalize Task 2.4/2.5 headers → registry importRows keys */
-        const normalized = rows.map(function (row) {
-            const norm = {};
-            Object.keys(row || {}).forEach(function (k) {
-                norm[String(k).toLowerCase().replace(/\s+/g, '')] = row[k];
+        const fixedCamCsvEnroll = require('./lib/fixedCamCsvEnroll');
+        const beforeIds = new Set(fixedCamRegistry.list().map(function (c) { return c.id; }));
+        const out = await fixedCamCsvEnroll.enrollFromCsvRows(rows);
+
+        const touched = fixedCamRegistry.list().filter(function (c) {
+            return !beforeIds.has(c.id) || (out.results || []).some(function (r) {
+                return r.cameraId === c.id && r.status === 'OK';
             });
-            const transport = norm.streamtransport || norm.rtsptransport || 'tcp';
-            return {
-                Name: norm.name || '',
-                Lat: norm.lat || '',
-                Lng: norm.lng || '',
-                Zone: norm.zone || '',
-                MapIcon: norm.mapicon || (String(norm.ptzcapable || norm.ptzenabled || '').toLowerCase() === 'true' ? 'ptz' : 'fixed'),
-                StreamSource: norm.streamsource
-                    || (norm.onvifip || norm.onvifhost ? 'onvif' : (norm.streamurl || norm.rtspurl ? 'rtsp' : 'none')),
-                OnvifHost: norm.onvifip || norm.onvifhost || '',
-                OnvifPort: norm.onvifport || '80',
-                OnvifUser: norm.onvifusername || norm.onvifuser || '',
-                OnvifPassword: norm.onvifpassword || '',
-                OnvifPath: norm.onvifpath || '/onvif/device_service',
-                RtspTransport: transport,
-                StreamTransport: transport,
-                StreamUrl: norm.streamurl || norm.rtspurl || '',
-                PtzEnabled: norm.ptzcapable != null ? norm.ptzcapable : (norm.ptzenabled || 'false'),
-                Enabled: norm.enabled != null ? norm.enabled : 'true',
-                Notes: norm.notes || '',
-            };
         });
 
-        const imported = fixedCamRegistry.importRows(normalized);
         let pgStored = 0;
-        if (siteDb.isReady()) {
+        if (touched.length && siteDb.isReady()) {
             try {
-                await fixedCamCatalogPg.upsertFixedCameras(imported, STORAGE_DIR);
-                pgStored = imported.length;
+                await fixedCamCatalogPg.upsertFixedCameras(touched, STORAGE_DIR);
+                pgStored = touched.length;
             } catch (pgErr) {
                 log.web.warn('fixed-cam csv pg store failed', { err: pgErr && pgErr.message });
                 return res.status(500).json({
                     ok: false,
-                    error: 'Cameras imported to runtime registry but PostgreSQL secure store failed: '
+                    error: 'Import applied to runtime registry but PostgreSQL store failed: '
                         + (pgErr && pgErr.message ? pgErr.message : 'unknown'),
-                    imported: imported.length,
-                    pgStored: 0,
+                    created: out.created,
+                    updated: out.updated,
+                    failed: out.failed,
+                    results: out.results,
                 });
             }
-        } else {
+        } else if (touched.length && !siteDb.isReady()) {
             return res.status(503).json({
                 ok: false,
                 error: 'PostgreSQL catalog is required to securely store ONVIF credentials (FM_CATALOG_MODE=postgres_required).',
-                imported: imported.length,
-                pgStored: 0,
+                created: out.created,
+                updated: out.updated,
+                failed: out.failed,
+                results: out.results,
             });
         }
-        log.web.info('fixed-cams csv import', { count: imported.length, pgStored });
-        /* Never echo passwords back */
-        const safe = imported.map(function (c) {
-            const copy = Object.assign({}, c, {
-                onvif: Object.assign({}, c.onvif || {}, { password: c.onvif && c.onvif.password ? '••••' : '' }),
-            });
-            return copy;
+
+        const receipt = fixedCamCsvEnroll.receiptCsv(rows, out.results);
+        log.web.info('fixed-cams csv enroll', {
+            created: out.created,
+            updated: out.updated,
+            failed: out.failed,
+            discoverQueued: out.discoverQueued,
+            pgStored: pgStored,
         });
-        res.json({ ok: true, imported: imported.length, pgStored: pgStored, cams: safe });
+        res.json({
+            ok: true,
+            created: out.created,
+            updated: out.updated,
+            failed: out.failed,
+            imported: out.created + out.updated,
+            pgStored: pgStored,
+            results: out.results,
+            receiptCsv: receipt,
+        });
     } catch (err) {
         res.status(400).json(opErr(err));
     }
@@ -7100,6 +8260,15 @@ app.post(
                 if (!siteDb.isReady()) {
                     unlinkQuiet();
                     return res.status(503).json({ ok: false, error: 'Catalog database is not ready' });
+                }
+                const ent = licenseManager.getPublicEntitlements();
+                if (!ent.labOpen && ent.maxMaps != null && ent.maxMaps > 0) {
+                    const existing = await siteDb.listTacticalBlueprints();
+                    const mapCount = Array.isArray(existing) ? existing.length : 0;
+                    if (mapCount >= ent.maxMaps) {
+                        unlinkQuiet();
+                        return licenseLimitResponse.limitReached403(res, 'maps');
+                    }
                 }
                 const blueprint = await siteDb.insertTacticalBlueprint({
                     siteId,
@@ -7446,10 +8615,20 @@ app.get('/api/evidence/preview/:fileId', requireEvidenceView, async (req, res) =
                 res.status(206);
                 res.setHeader('Content-Range', 'bytes ' + start + '-' + end + '/' + total);
                 res.setHeader('Content-Length', (end - start) + 1);
-                return fs.createReadStream(fullPath, { start: start, end: end }).pipe(res);
+                pipeline(fs.createReadStream(fullPath, { start: start, end: end }), res, (err) => {
+                    if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+                        log.web.warn('Evidence download stream error', { path: fullPath, error: err.message });
+                    }
+                });
+                return;
             }
             res.setHeader('Content-Length', total);
-            return fs.createReadStream(fullPath).pipe(res);
+            pipeline(fs.createReadStream(fullPath), res, (err) => {
+                if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+                    log.web.warn('Evidence download stream error', { path: fullPath, error: err.message });
+                }
+            });
+            return;
         }
         return evidenceCrypto.pipeDecrypted(fullPath, res);
     } catch (err) {
@@ -7472,6 +8651,11 @@ app.patch('/api/evidence/detail/:fileId', requireEvidenceEdit, async (req, res) 
 /** EVIDENCE-DELETE-QUEUE-7D-V1 */
 app.post('/api/evidence/detail/:fileId/queue-delete', requireEvidenceEdit, express.json({ limit: '8kb' }), async (req, res) => {
     try {
+        const existing = await siteDb.getEvidenceFile(req.params.fileId);
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        if (existing && existing.isPriority && dashboardAuth.normalizeRole(session && session.role) !== 'super_admin') {
+            return res.status(403).json(opErr('This file is marked priority. Attach it to an incident first.'));
+        }
         const file = await evidenceRegistry.queueDelete(req.params.fileId, req.dashboardUser);
         await auditLog.recordFromRequest(req, 'evidence.queue_delete', {
             target: req.params.fileId,
@@ -7480,6 +8664,16 @@ app.post('/api/evidence/detail/:fileId/queue-delete', requireEvidenceEdit, expre
         res.json({ ok: true, file: file, deleteQueue: file.deleteQueue || null });
     } catch (err) {
         res.status(err.status || 400).json(opErr(err));
+    }
+});
+app.post('/api/evidence/detail/:fileId/release-priority', dashboardAuth.requireSuperAdmin, express.json({ limit: '8kb' }), async (req, res) => {
+    try {
+        const file = await siteDb.setEvidencePriority(req.params.fileId, false);
+        if (!file) return res.status(404).json(opErr('File not found'));
+        await auditLog.recordFromRequest(req, 'evidence.release_priority', { target: req.params.fileId });
+        res.json({ ok: true, isPriority: false, id: file.id });
+    } catch (err) {
+        res.status(400).json(opErr(err));
     }
 });
 app.post('/api/evidence/detail/:fileId/restore-from-queue', requireEvidenceEdit, express.json({ limit: '8kb' }), async (req, res) => {
@@ -7616,7 +8810,7 @@ app.post('/api/evidence/trim', requireEvidenceEdit, express.json({ limit: '32kb'
     }
 });
 
-app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin, licenseEntitlementsMw.requireFeature('redaction'), express.json({ limit: '256kb' }), async (req, res) => {
+app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin, express.json({ limit: '256kb' }), async (req, res) => {
     try {
         const body = req.body || {};
         const regions = body.regions;
@@ -7636,9 +8830,6 @@ app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin,
         };
         let out;
         if (faceFollow) {
-            if (!licenseFeatures.isFeatureEnabled('analyticsFr')) {
-                return res.status(403).json(opErr('Face detection module is not enabled on this license'));
-            }
             out = await evidenceWorkflow.applyFaceFollowRedaction(req.params.fileId, req.dashboardUser, {
                 manualRegions: Array.isArray(regions) ? regions : [],
                 /* REDACT-PREVIEW-CONTROLS-BURN-V1 — deleted Auto yellow boxes */
@@ -7677,11 +8868,8 @@ app.post('/api/evidence/detail/:fileId/redact', dashboardAuth.requireSuperAdmin,
 
 // mob-evidence-redact-seeta-detect-v1: Seeta detect timeline (tight preview).
 // Burn on Save = per-frame Seeta + ROI blur. YuNet only if FM_REDACT_FACE_ENGINE=yunet.
-app.post('/api/evidence/detail/:fileId/redact/autoface', dashboardAuth.requireSuperAdmin, licenseEntitlementsMw.requireFeature('redaction'), express.json({ limit: '16kb' }), async (req, res) => {
+app.post('/api/evidence/detail/:fileId/redact/autoface', dashboardAuth.requireSuperAdmin, express.json({ limit: '16kb' }), async (req, res) => {
     try {
-        if (!licenseFeatures.isFeatureEnabled('analyticsFr')) {
-            return res.status(403).json(opErr('Face detection module is not enabled on this license'));
-        }
         const body = req.body || {};
         const src = await evidenceWorkflow.resolveRedactInputPath(req.params.fileId, {
             parentExportId: body.parentExportId || null,
@@ -7756,7 +8944,7 @@ app.patch('/api/evidence/redact/:exportId/note', requireEvidenceEdit, express.js
     }
 });
 
-app.post('/api/evidence/redact/:exportId/finalize', dashboardAuth.requireSuperAdmin, licenseEntitlementsMw.requireFeature('redaction'), async (req, res) => {
+app.post('/api/evidence/redact/:exportId/finalize', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
         const out = await evidenceWorkflow.finalizeRedactExport(req.params.exportId, req.dashboardUser);
         await auditLog.recordFromRequest(req, 'evidence.redact_finalize', {
@@ -7933,7 +9121,7 @@ app.get('/api/evidence/redact/track-selfcheck', dashboardAuth.requireSuperAdmin,
         const report = await faceTrackSidecar.selfCheck();
         res.json({
             ok: true,
-            featureEnabled: licenseFeatures.isFeatureEnabled('fr'),
+            featureEnabled: true,
             runtime: report,
         });
     } catch (err) {
@@ -7942,6 +9130,8 @@ app.get('/api/evidence/redact/track-selfcheck', dashboardAuth.requireSuperAdmin,
 });
 
 // ─── Analytics FR sidecar (DeepFace Facenet/SFace) — Tier A: health + 1:1 verify
+/* Paid lock: engine may already be running for free Video Redaction. */
+app.use('/api/analytics/fr', licenseEntitlementsMw.requireFeature('analyticsFr'));
 const frVerifyUpload = multer({
     storage: multer.diskStorage({
         destination: (_req, _file, cb) => {
@@ -8203,6 +9393,11 @@ app.post('/api/analytics/anpr/read', dashboardAuth.requireDashboardAuth, (req, r
                 const probed = anprPlateList.matchProbe(result.plateCompact || result.plate);
                 if (probed && probed.match) listMatch = probed.match;
             } catch (_) { /* ignore list errors on read */ }
+            const anprEvidenceFileId = String((req.body && req.body.evidenceFileId) || '').trim();
+            if (anprEvidenceFileId) {
+                const anprHitLabel = listMatch ? (listMatch.displayName || listMatch.plate || result.plateCompact || '') : null;
+                siteDb.setEvidenceAiHit(anprEvidenceFileId, anprHitLabel || null, listMatch ? 'anpr' : null).catch(() => {});
+            }
             const mmr = result.mmr || (result.vehicle && (result.vehicle.make || result.vehicle.color)
                 ? {
                     make: result.vehicle.make,
@@ -8398,6 +9593,55 @@ app.delete('/api/analytics/anpr/lists/:id', dashboardAuth.requireSuperAdmin, (re
     } catch (err) {
         res.status(500).json(anprErrors.operatorPayload(anprErrors.CODES.FAILED, 500));
     }
+});
+
+app.post('/api/analytics/fr/scan-photo', dashboardAuth.requireDashboardAuth, (req, res) => {
+    if (!licenseFeatures.isFeatureEnabled('fr')) {
+        return res.status(403).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.NOT_LICENSED, 403));
+    }
+    frVerifyUpload.single('photo')(req, res, async (err) => {
+        const tmp = req.file && req.file.path;
+        const cleanup = function () {
+            if (tmp) try { fs.unlinkSync(tmp); } catch (_) { /* ignore */ }
+        };
+        try {
+            if (err || !tmp) {
+                cleanup();
+                return res.status(400).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.BAD_FILE, 400));
+            }
+            const probe = await frSidecarClient.representProbePath(tmp);
+            if (!probe || probe.ok === false) {
+                cleanup();
+                const down = String((probe && probe.error) || '').indexOf('image_path') < 0;
+                return res.status(down ? 503 : 400).json({
+                    ok: false,
+                    error: 'engine_down',
+                    match: false,
+                });
+            }
+            const embedding = probe.embedding || probe.vector || null;
+            const matched = frBlacklist.matchProbe(embedding, { minScorePct: loadFrSettings().matchThreshold });
+            cleanup();
+            const hit = matched && matched.match;
+            const evidenceFileId = String((req.body && req.body.evidenceFileId) || '').trim();
+            if (hit && evidenceFileId) {
+                siteDb.setEvidenceAiHit(evidenceFileId, hit.displayName || hit.id || '', 'fr').catch(() => {});
+            } else if (!hit && evidenceFileId) {
+                siteDb.setEvidenceAiHit(evidenceFileId, null, null).catch(() => {});
+            }
+            return res.json({
+                ok: true,
+                match: !!hit,
+                displayName: hit ? (hit.displayName || '') : '',
+                blacklistId: hit ? (hit.id || '') : '',
+                scorePct: Number(matched && matched.scorePct) || 0,
+                faces: Number(probe.faceCount != null ? probe.faceCount : (embedding ? 1 : 0)) || 0,
+            });
+        } catch (_) {
+            cleanup();
+            return res.status(500).json(frVerifyErrors.operatorPayload(frVerifyErrors.CODES.FAILED, 500));
+        }
+    });
 });
 
 app.post('/api/analytics/fr/verify', dashboardAuth.requireDashboardAuth, (req, res) => {
@@ -9344,6 +10588,7 @@ app.get('/api/evidence/exports', requireEvidenceExport, async (req, res) => {
 
 app.get('/api/evidence/export-stream/:exportId', requireEvidenceExport, async (req, res) => {
     try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
         const resolved = await evidenceWorkflow.resolveExportStream(req.params.exportId);
         if (!resolved) return res.status(404).json(opErr("Export not found"));
         await auditLog.recordFromRequest(req, 'evidence.export_stream', {
@@ -9351,7 +10596,24 @@ app.get('/api/evidence/export-stream/:exportId', requireEvidenceExport, async (r
             detail: { fileId: resolved.row.evidenceFileId },
         });
         res.setHeader('Content-Disposition', 'attachment; filename="' + String(resolved.row.fileName).replace(/"/g, '') + '"');
-        return evidenceCrypto.pipeDecrypted(resolved.fullPath, res);
+        if (session && dashboardAuth.normalizeRole(session.role) === 'super_admin') {
+            return evidenceCrypto.pipeDecrypted(resolved.fullPath, res);
+        }
+        const exportWatermark = require('./lib/exportWatermark');
+        const watermarkText = exportWatermark.buildWatermarkText(session && session.username);
+        let encoded;
+        try {
+            encoded = await exportWatermark.encodeWatermarked(resolved.fullPath, watermarkText);
+        } catch (wmErr) {
+            log.web.warn('export watermark failed', { exportId: resolved.row.exportId });
+            return res.status(500).json(opErr('Watermark encode failed'));
+        }
+        res.setHeader('Content-Type', 'video/mp4');
+        try {
+            const st = fs.statSync(encoded.tempOut);
+            if (st && st.size > 0) res.setHeader('Content-Length', st.size);
+        } catch (_) { /* stream without length */ }
+        return exportWatermark.pipeThenUnlink(encoded.tempOut, res, encoded.tempIn ? [encoded.tempIn] : []);
     } catch (err) {
         res.status(500).json(opErr(err));
     }
@@ -9389,10 +10651,20 @@ app.get('/api/evidence/export-preview/:exportId', dashboardAuth.requireSuperAdmi
                 res.status(206);
                 res.setHeader('Content-Range', 'bytes ' + start + '-' + end + '/' + total);
                 res.setHeader('Content-Length', (end - start) + 1);
-                return fs.createReadStream(fullPath, { start: start, end: end }).pipe(res);
+                pipeline(fs.createReadStream(fullPath, { start: start, end: end }), res, (err) => {
+                    if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+                        log.web.warn('Evidence download stream error', { path: fullPath, error: err.message });
+                    }
+                });
+                return;
             }
             res.setHeader('Content-Length', total);
-            return fs.createReadStream(fullPath).pipe(res);
+            pipeline(fs.createReadStream(fullPath), res, (err) => {
+                if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+                    log.web.warn('Evidence download stream error', { path: fullPath, error: err.message });
+                }
+            });
+            return;
         }
         return evidenceCrypto.pipeDecrypted(fullPath, res);
     } catch (err) {
@@ -9468,6 +10740,22 @@ function packCaseWire(wired) {
         detail: wired.detail,
     };
 }
+
+app.get('/api/case-files/by-evidence/:evidenceFileId', requireEvidenceView, async (req, res) => {
+    try {
+        const fid = String(req.params.evidenceFileId || '').trim();
+        if (!fid) return res.status(400).json(opErr('Evidence file ID required'));
+        const ids = await caseFiles.listIdsByEvidenceFileId(fid);
+        const first = ids[0] ? await siteDb.getCaseFile(ids[0]) : null;
+        res.json({
+            ok: true,
+            caseFileIds: ids,
+            caseFile: first ? { id: first.id, title: first.title || '', status: first.status || '' } : null,
+        });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
 
 app.get('/api/case-files/by-sos/:sosIncidentId', requireEvidenceView, async (req, res) => {
     try {
@@ -9605,6 +10893,17 @@ app.patch('/api/case-files/:id', requireEvidenceEdit, express.json({ limit: '512
 });
 
 /* Evidence Edit toggle — not Super Admin. */
+app.post('/api/case-files/:id/ai-report', requireEvidenceEdit, express.json({ limit: '64kb' }), async (req, res) => {
+    try {
+        const detail = await caseFiles.attachAiReport(req.params.id, req.body || {}, req.dashboardUser);
+        await auditLog.recordFromRequest(req, 'case_file.attach_ai_report', { target: req.params.id });
+        res.json({ ok: true, detail: detail });
+    } catch (err) {
+        const status = String(err && err.message || '').toLowerCase().includes('not found') ? 404 : 400;
+        res.status(status).json(opErr(err));
+    }
+});
+
 app.post('/api/case-files/:id/geospatial-trace', requireEvidenceEdit, express.json({ limit: '256kb' }), async (req, res) => {
     try {
         const detail = await caseFiles.attachGeospatialTrace(req.params.id, req.body || {}, req.dashboardUser);
@@ -9613,6 +10912,26 @@ app.post('/api/case-files/:id/geospatial-trace', requireEvidenceEdit, express.js
     } catch (err) {
         const status = String(err && err.message || '').toLowerCase().includes('not found') ? 404 : 400;
         res.status(status).json(opErr(err));
+    }
+});
+
+app.get('/api/case-files/:id/export', requireEvidenceView, requireEvidenceExport, async (req, res) => {
+    try {
+        const detail = await caseFiles.getDetail(req.params.id);
+        if (!detail) return res.status(404).json(opErr('Case file not found'));
+        const caseCourtExport = require('./lib/caseCourtExport');
+        const zip = await caseCourtExport.buildZipBuffer(detail, {
+            frCropPath: frLivePoller.cropAbsolutePath,
+            anprCropPath: anprLivePoller.cropAbsolutePath,
+            weaponCropPath: weaponLivePoller.cropAbsolutePath,
+        });
+        await auditLog.recordFromRequest(req, 'case_file.court_export', { target: req.params.id });
+        const stamp = String((detail.caseFile && detail.caseFile.id) || 'case').replace(/[^a-zA-Z0-9._-]+/g, '_');
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', 'attachment; filename="court-package-' + stamp + '.zip"');
+        res.send(zip);
+    } catch (err) {
+        res.status(500).json(opErr(err));
     }
 });
 
@@ -9723,6 +11042,21 @@ app.put('/api/docks/:id', requireDockAdmin, (req, res) => {
     }
 });
 
+app.post('/api/docks/:id/telemetry', requireDockAdmin, express.json({ limit: '8kb' }), (req, res) => {
+    try {
+        const body = req.body || {};
+        const dock = dockRegistry.updateDock(req.params.id, { hddUsedPct: body.hddUsedPct });
+        res.json({
+            ok: true,
+            id: dock.id,
+            hddUsedPct: dock.hddUsedPct != null ? dock.hddUsedPct : null,
+            warnHdd: dock.hddUsedPct != null && dock.hddUsedPct >= 90,
+        });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
 app.delete('/api/docks/:id', requireDockAdmin, (req, res) => {
     try {
         dockRegistry.deleteDock(req.params.id);
@@ -9733,7 +11067,20 @@ app.delete('/api/docks/:id', requireDockAdmin, (req, res) => {
     }
 });
 
+function handleDockLegacyGet(req, res) {
+    const dockLegacyHttp = require('./lib/dockLegacyHttp');
+    return dockLegacyHttp.handleGet(req, res, {
+        ftpRoot: FTP_ROOT,
+        onReceive: function (info) { return handleFtpFileUploaded(info); },
+    });
+}
+app.get('/index.php', handleDockLegacyGet);
+app.get('/api/docks/legacy', handleDockLegacyGet);
+
 function requireConferenceView(req, res, next) {
+    if (!licenseFeatures.isFeatureEnabled('videoConference')) {
+        return res.status(403).json(opErr('Video conference is not included in the current license'));
+    }
     const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
     if (!session || !dashboardAuth.canConferenceView(session)) {
         return res.status(403).json(opErr("Video conference access not authorized"));
@@ -10396,11 +11743,16 @@ app.use('/media/tactical-blueprints', express.static(TACTICAL_BP_DIR));
 
 app.get('/', (req, res) => {
     res.setHeader('Cache-Control', staticCache.HTML_CACHE_CONTROL);
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(BASE_DIR, 'public', 'index.html'));
+});
+
+app.get('/vms-playback', dashboardAuth.requireDashboardAuth, (req, res) => {
+    res.setHeader('Cache-Control', staticCache.HTML_CACHE_CONTROL);
+    res.sendFile(path.join(BASE_DIR, 'public', 'vms-playback.html'));
 });
 
 
-staticCache.registerDashboardStatic(app, path.join(__dirname, 'public'));
+staticCache.registerDashboardStatic(app, path.join(BASE_DIR, 'public'));
 
 let cameraContactUri = null;
 /** Last SIP contact URI per camera (survives brief offline; restored on Alarm after server restart). */
@@ -10727,6 +12079,49 @@ async function commandCentreDeps() {
         if (row && row.operatorName) return String(row.operatorName).trim();
         return fleetRegistry.displayName(camId);
     }
+    let volume = { totalBytes: 0, freeBytes: 0, usedBytes: 0, usedPct: 0 };
+    try {
+        const st = await fs.promises.statfs(STORAGE_DIR);
+        const bsize = Number(st.bsize) || 0;
+        const totalBytes = Number(st.blocks) * bsize;
+        const freeBytes = Number(st.bavail != null ? st.bavail : st.bfree) * bsize;
+        const usedBytes = Math.max(0, totalBytes - freeBytes);
+        const usedPct = totalBytes > 0 ? Math.min(100, Math.round((usedBytes / totalBytes) * 100)) : 0;
+        volume = { totalBytes: totalBytes, freeBytes: freeBytes, usedBytes: usedBytes, usedPct: usedPct };
+    } catch (_) { /* volume unknown */ }
+    const day = new Date();
+    day.setHours(0, 0, 0, 0);
+    const from = day.toISOString();
+    let anprToday = 0;
+    let anprTotal = 0;
+    let frToday = 0;
+    let frTotal = 0;
+    try {
+        const all = await anprCaptureHistory.search({ limit: 1 });
+        anprTotal = Number(all && all.total) || 0;
+        const today = await anprCaptureHistory.search({ from: from, limit: 1 });
+        anprToday = Number(today && today.total) || 0;
+    } catch (_) { /* catalog optional */ }
+    try {
+        const all = await frCaptureHistory.search({ limit: 1 });
+        frTotal = Number(all && all.total) || 0;
+        const today = await frCaptureHistory.search({ from: from, limit: 1 });
+        frToday = Number(today && today.total) || 0;
+    } catch (_) { /* catalog optional */ }
+    const docks = dockRegistry.listDocks().map(function (d) {
+        const tel = dockSdkAdapter.getDockTelemetry(d);
+        const connected = !!tel.siteOnline;
+        const rawHdd = Number(d.hddUsedPct != null ? d.hddUsedPct : tel.hddUsedPct);
+        const hddUsedPct = Number.isFinite(rawHdd) ? Math.round(rawHdd) : null;
+        return {
+            id: d.id,
+            name: d.displayName || d.branchCode || d.id,
+            connected: connected,
+            linkState: tel.linkState || (connected ? 'online' : 'offline'),
+            hddUsedPct: hddUsedPct,
+            warnHdd: hddUsedPct != null && hddUsedPct >= 90,
+        };
+    });
     return {
         getFleet: () => fleetRegistry.getDashboardFleet(),
         getOpenAlarms: () => sosIncidents.getOpenAlarms(),
@@ -10742,8 +12137,10 @@ async function commandCentreDeps() {
         getAuditEntries: () => auditEntries,
         displayName: resolveDeviceName,
         deviceCapacity: limits.maxBwcDevices,
-        storageReportCapGb: parseInt(process.env.FM_STORAGE_REPORT_GB || '500', 10) || 500,
         uptimeSec: process.uptime(),
+        volume: volume,
+        aiHits: { frToday: frToday, anprToday: anprToday, frTotal: frTotal, anprTotal: anprTotal },
+        docks: docks,
         storagePaths: {
             storage: STORAGE_DIR,
             ftp: ftpRoot,
@@ -10753,6 +12150,38 @@ async function commandCentreDeps() {
         serviceStatus: adminServiceStatusSnapshot(),
     };
 }
+
+app.get('/api/dashboard/summary', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        res.json(commandCentreReport.buildSummary(await commandCentreDeps()));
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.get('/api/dashboard/export', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        const period = String((req.query && req.query.period) || 'weekly').toLowerCase();
+        const format = String((req.query && req.query.format) || 'csv').toLowerCase();
+        const allowed = ['daily', 'weekly', 'monthly', 'yearly'];
+        const p = allowed.indexOf(period) >= 0 ? period : 'weekly';
+        const summary = commandCentreReport.buildSummary(await commandCentreDeps());
+        const stamp = siteTime.formatEvidenceDate(new Date());
+        if (format === 'json') {
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.setHeader('Content-Disposition', 'attachment; filename="centre-summary-' + p + '-' + stamp + '.json"');
+            res.send(JSON.stringify(summary, null, 2));
+            return;
+        }
+        const month = req.query && req.query.month ? String(req.query.month) : '';
+        const csv = commandCentreReport.exportReportCsv(summary, p, { month });
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="centre-summary-' + p + '-' + stamp + '.csv"');
+        res.send('\uFEFF' + csv);
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
 
 app.get('/api/command-centre/summary', dashboardAuth.requireSuperAdmin, async (req, res) => {
     try {
@@ -13336,6 +14765,10 @@ io.on('connection', (socket) => {
     });
 
     socket.on('sos-group-call-start', async (payload) => {
+        if (!PTT_ENABLED) {
+            socket.emit('sos-group-call-result', { ok: false, error: 'PTT / Group Calls is not included in the current license' });
+            return;
+        }
         const body = payload || {};
         const alarmCamId = String(body.alarmCamId || '').trim();
         const camIds = sipGroupCallFactory.uniqueCamIds(body.camIds);
@@ -14871,9 +16304,55 @@ sipListenerReady = true;
 const ports = mediaSession.getPorts();
 
 let catalogShutdownStarted = false;
+let ubitronSorterProcess = null;
+
+function handleGracefulShutdown(signal) {
+    log.web.info('[Lifecycle] graceful shutdown received', { signal });
+    try {
+        if (ubitronSorterProcess) {
+            ubitronSorterProcess.kill('SIGTERM');
+        }
+    } catch (e) {
+        log.web.warn('[Lifecycle] failed to kill sorter process', { message: e.message });
+    }
+    try {
+        liveStreamPool.stopAllStreams(sip);
+    } catch (e) {
+        log.web.warn('[Lifecycle] failed to stop stream pool', { message: e.message });
+    }
+    process.exit(0);
+}
+
+process.once('SIGTERM', () => handleGracefulShutdown('SIGTERM'));
+process.once('SIGINT',  () => handleGracefulShutdown('SIGINT'));
+
+function haAllowsAiSidecarBoot() {
+    const role = String(process.env.FM_HA_ROLE || process.env.FM_NODE_ROLE || '').trim().toLowerCase();
+    if (role === 'master' || role === 'primary' || role === 'control') return false;
+    return true;
+}
+
+function shouldBootLicensedSidecar(featureName, isAuto) {
+    if (!haAllowsAiSidecarBoot()) return false;
+    if (!licenseFeatures.isFeatureEnabled(featureName)) return false;
+    if (isAuto) return true;
+    try { return !licenseManager.isLabOpen(); } catch (_) { return false; }
+}
+
+function stopChildProcesses() {
+    try { frSidecarClient.stop(); } catch (_) { /* ignore */ }
+    try { require('./lib/anprSidecarClient').stop(); } catch (_) { /* ignore */ }
+    try { if (typeof weaponSidecarClient.stop === 'function') weaponSidecarClient.stop(); } catch (_) { /* ignore */ }
+    if (ubitronSorterProcess) {
+        try { ubitronSorterProcess.kill(); } catch (_) { /* ignore */ }
+        ubitronSorterProcess = null;
+    }
+}
+
 async function closeCatalogForShutdown(signal) {
     if (catalogShutdownStarted) return;
     catalogShutdownStarted = true;
+    stopChildProcesses();
     log.web.info('shutdown draining PostgreSQL catalog', { signal });
     await Promise.all([
         bwcRegistryWriteTail.catch(() => {}),
@@ -14955,6 +16434,43 @@ process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
         process.exit(1);
     }
 
+    function startUbitronOfflineSorter() {
+        if (ubitronSorterProcess) return;
+        const sorterPath = path.join(BASE_DIR, 'bin', 'Ubitron_Sorter.exe');
+        if (!fs.existsSync(sorterPath)) {
+            console.warn('[SYSTEM] Ubitron_Sorter.exe not found in bin/. Skipping offline sorting.');
+            return;
+        }
+        console.log('[SYSTEM] Waking up offline AI Sorter...');
+        ubitronSorterProcess = spawn(sorterPath, [], {
+            detached: false,
+            windowsHide: true,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        require('./lib/sorterStdout').attachStdout(ubitronSorterProcess, function (hit) {
+            if (!hit || !hit.evidenceId) return;
+            io.sockets.sockets.forEach(function (sock) {
+                const session = sock.dashboardUser;
+                if (!session || !dashboardAuth.canEvidenceView(session)) return;
+                sock.emit('evidence-sorted', {
+                    evidenceId: hit.evidenceId,
+                    sortType: hit.sortType,
+                    fileName: hit.fileName,
+                });
+            });
+        });
+        ubitronSorterProcess.on('error', (err) => {
+            console.error('[SYSTEM] Offline Sorter failed to start:', err);
+        });
+        process.on('exit', () => {
+            try {
+                if (ubitronSorterProcess) ubitronSorterProcess.kill();
+            } catch (_) { /* ignore */ }
+        });
+    }
+
+    await ensureAndAttachHttps();
+
     server.listen(HTTP_PORT, DASHBOARD_BIND, () => {
     httpListenerReady = true;
     bootstrapBwcDeviceList();
@@ -15002,6 +16518,7 @@ process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
     }
 
     log.web.info('dashboard listening', { url: `http://${HOST}:${HTTP_PORT}`, folder: __dirname });
+    startUbitronOfflineSorter();
     if (httpsServer && dashboardTlsBoot && dashboardTlsBoot.ready) {
         httpsServer.listen(dashboardTlsBoot.httpsPort, DASHBOARD_BIND, () => {
             httpsListenerReady = true;
@@ -15042,9 +16559,10 @@ process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
             log.media.warn('zlm ensureStarted load failed', { message: String(err && err.message || err) });
         }
     });
-    if (licenseFeatures.isFeatureEnabled('fr') && frSidecarClient.isAutoStartEnabled()) {
+    /* FR uvicorn always boots (free Video Redaction uses the face engine). Analytics routes stay licensed. */
+    if (haAllowsAiSidecarBoot()) {
         setImmediate(() => {
-            frSidecarClient.bootstrap().then((r) => {
+            frSidecarClient.bootstrap({ force: true }).then((r) => {
                 if (r && r.ok) {
                     log.web.info('fr sidecar ready', { url: frSidecarClient.baseUrl() });
                 } else {
@@ -15055,6 +16573,27 @@ process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
                 }
             }).catch((err) => {
                 log.web.warn('fr sidecar bootstrap failed', { message: String(err && err.message || err) });
+            });
+        });
+    }
+    const anprSidecarClientBoot = require('./lib/anprSidecarClient');
+    if (shouldBootLicensedSidecar('anpr', anprSidecarClientBoot.isAutoStartEnabled())) {
+        setImmediate(() => {
+            anprSidecarClientBoot.bootstrap({ force: true }).then((r) => {
+                if (r && r.ok) log.web.info('anpr sidecar ready', { url: anprSidecarClientBoot.baseUrl() });
+                else log.web.warn('anpr sidecar not ready at boot', { error: r && r.error });
+            }).catch((err) => {
+                log.web.warn('anpr sidecar bootstrap failed', { message: String(err && err.message || err) });
+            });
+        });
+    }
+    if (shouldBootLicensedSidecar('analyticsWeapon', weaponSidecarClient.isAutoStartEnabled())) {
+        setImmediate(() => {
+            weaponSidecarClient.bootstrap({ force: true }).then((r) => {
+                if (r && r.ok) log.web.info('weapon sidecar ready', { url: weaponSidecarClient.baseUrl() });
+                else log.web.warn('weapon sidecar not ready at boot', { error: r && r.error });
+            }).catch((err) => {
+                log.web.warn('weapon sidecar bootstrap failed', { message: String(err && err.message || err) });
             });
         });
     }

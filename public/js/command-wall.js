@@ -344,10 +344,12 @@
         spotlightActive = true;
         spotlightSlot = slot;
         applyWallLayout();
+        hardReloadFixedCameraSlot(slot);
     }
 
     function exitSpotlight() {
         if (!spotlightActive) return;
+        const slot = spotlightSlot;
         const restore = spotlightPrevLayout && LAYOUT_SCHEMES[spotlightPrevLayout]
             ? spotlightPrevLayout
             : currentLayout;
@@ -356,6 +358,7 @@
         spotlightPrevLayout = null;
         currentLayout = restore;
         applyWallLayout();
+        if (slot >= 0) hardReloadFixedCameraSlot(slot);
     }
 
     function maybeExitSpotlightIfInvalid() {
@@ -1621,7 +1624,7 @@
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ owner: fixedCameraOwner }),
+            body: JSON.stringify({ owner: fixedCameraOwner, viewMode: slotLiveViewMode(slot) }),
         }).then(function (response) {
             return response.json().then(function (data) {
                 if (!response.ok || !data.ok) throw new Error((data && data.error) || ('HTTP ' + response.status));
@@ -1644,6 +1647,22 @@
             }
             updateCellControls(slot);
         });
+    }
+
+    function slotLiveViewMode(slot) {
+        const scheme = LAYOUT_SCHEMES[currentLayout] || LAYOUT_SCHEMES['16'];
+        if (spotlightActive && spotlightSlot === slot) return 'focus';
+        if (scheme && scheme.count === 1) return 'focus';
+        if (scheme && scheme.focus && slot === 0) return 'focus';
+        return 'grid';
+    }
+
+    function hardReloadFixedCameraSlot(slot) {
+        const camId = slotCamId(slot);
+        if (!camId || !isFixedCameraId(camId)) return;
+        destroyPlayer(slot);
+        streaming.delete(camId);
+        startFixedCameraSlot(slot, camId);
     }
 
     function attachPlayer(slot) {
@@ -2124,8 +2143,8 @@
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ owner: fixedCameraOwner }),
-            }).catch(function () { /* next heartbeat retries */ });
+            body: JSON.stringify({ owner: fixedCameraOwner, viewMode: slotLiveViewMode(slot) }),
+        }).catch(function () { /* next heartbeat retries */ });
         }
     }, 30000);
 
