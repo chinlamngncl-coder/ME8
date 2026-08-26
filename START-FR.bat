@@ -1,6 +1,13 @@
 @echo off
+REM LAB USE ONLY. In production, server.js automatically spawns these AI engines invisibly.
 title Ubitron — Start face recognition (lab / first-time install)
 cd /d "%~dp0"
+
+if exist "%~dp0bin\fr-engine.exe" (
+  echo Starting compiled face engine...
+  "%~dp0bin\fr-engine.exe"
+  goto :eof
+)
 
 echo.
 echo  LAB / FIRST-TIME ONLY — enterprise uses UbitronC2 service + FM_FR_SIDECAR_AUTO=1

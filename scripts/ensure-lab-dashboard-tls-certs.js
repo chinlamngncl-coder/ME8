@@ -1,19 +1,23 @@
 'use strict';
 
 /**
- * DASHBOARD-HTTPS-LAN-V1 — create lab self-signed cert + key for Ops HTTPS.
+ * DASHBOARD-HTTPS-LAN-V1 + DASHBOARD-TLS-SAN-LAN-IP-V1
+ * Lab self-signed cert + key for Ops HTTPS.
  * Prefer OpenSSL when present; else Windows PowerShell New-SelfSignedCertificate.
  * SAN includes localhost, 127.0.0.1, and preferred LAN IPv4 (never 172.17–172.31).
+ * Auto-regenerates when existing cert is missing the current LAN IP (DHCP drift).
  */
 
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const crypto = require('crypto');
 const dashboardTls = require('../lib/dashboardTls');
 
 const root = path.join(__dirname, '..');
 const { certPath, keyPath } = dashboardTls.resolvePaths(root);
 const force = process.argv.includes('--force') || process.argv.includes('-f');
+const trustUser = process.argv.includes('--trust-user');
 
 function isBadLanIp(ip) {
     if (!ip) return true;
@@ -64,6 +68,73 @@ function buildSanList() {
 
 function ensureDir(filePath) {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
+}
+
+/** @returns {Set<string>} */
+function readExistingSanHosts() {
+    const out = new Set();
+    if (!fs.existsSync(certPath)) return out;
+    try {
+        const x509 = new crypto.X509Certificate(fs.readFileSync(certPath));
+        const san = String(x509.subjectAltName || '');
+        for (const part of san.split(',')) {
+            const p = part.trim();
+            const dns = /^DNS:(.+)$/i.exec(p);
+            const ip = /^IP Address:(.+)$/i.exec(p);
+            if (dns) out.add(dns[1].trim());
+            if (ip) out.add(ip[1].trim());
+        }
+        const cn = /CN\s*=\s*([^,]+)/i.exec(String(x509.subject || ''));
+        if (cn) out.add(cn[1].trim());
+    } catch (_) {
+        /* treat as empty → regen */
+    }
+    return out;
+}
+
+function certMissingLanSan(sanList) {
+    const have = readExistingSanHosts();
+    if (!have.size) return true;
+    for (const h of sanList) {
+        if (!have.has(h)) return true;
+    }
+    return false;
+}
+
+function trustCertCurrentUserRoot() {
+    if (process.platform !== 'win32' || !fs.existsSync(certPath)) return;
+    const certEsc = certPath.replace(/'/g, "''");
+    const script = `
+$ErrorActionPreference = 'Stop'
+$cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2('${certEsc}')
+$store = New-Object System.Security.Cryptography.X509Certificates.X509Store('Root','CurrentUser')
+$store.Open('ReadWrite')
+$dup = $store.Certificates | Where-Object { $_.Thumbprint -eq $cert.Thumbprint }
+if (-not $dup) { $store.Add($cert) | Out-Null; Write-Output 'trusted' } else { Write-Output 'already' }
+$store.Close()
+`;
+    const r = spawnSync(
+        'powershell',
+        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script],
+        { encoding: 'utf8', windowsHide: true }
+    );
+    if (r.status !== 0) {
+        console.warn('[warn] --trust-user failed:', (r.stderr || r.stdout || '').slice(0, 300));
+        return;
+    }
+    console.log('[ok] trusted lab cert in CurrentUser Root (' + String(r.stdout || '').trim() + ')');
+}
+
+function printOperatorHint(sanList) {
+    const lan = sanList.find((h) => /^\d+\.\d+\.\d+\.\d+$/.test(h) && !/^127\./.test(h));
+    const httpsPort = parseInt(process.env.FM_HTTPS_PORT || '4438', 10) || 4438;
+    console.log('[hint] Clients must NOT use localhost on another PC.');
+    if (lan) {
+        console.log('[hint] Open https://' + lan + ':' + httpsPort + ' — Accept cert once (Advanced → Continue), then mic/unmute.');
+        console.log('[hint] Or: node scripts/ensure-lab-dashboard-tls-certs.js --trust-user  (this Windows user only)');
+    } else {
+        console.log('[hint] No LAN IP in SAN — set FM_HTTPS_LAN_IP=192.168.x.x then --force');
+    }
 }
 
 function resolveOpenssl() {
@@ -190,15 +261,23 @@ Get-ChildItem Cert:\\CurrentUser\\My | Where-Object { $_.Thumbprint -eq $cert.Th
 }
 
 function main() {
-    if (!force && fs.existsSync(certPath) && fs.existsSync(keyPath)) {
-        console.log('[ok] lab TLS certs already present');
+    const san = buildSanList();
+    const present = fs.existsSync(certPath) && fs.existsSync(keyPath);
+    const drift = present && certMissingLanSan(san);
+    if (!force && present && !drift) {
+        console.log('[ok] lab TLS certs already present (SAN covers current hosts)');
         console.log('  cert:', certPath);
-        console.log('  key:', keyPath);
-        console.log('  use --force to regenerate (needed if LAN IP changed)');
+        console.log('  SAN:', Array.from(readExistingSanHosts()).join(', ') || san.join(', '));
+        console.log('  use --force to regenerate; --trust-user to trust in this Windows profile');
+        printOperatorHint(san);
+        if (trustUser) trustCertCurrentUserRoot();
         return;
     }
-    const san = buildSanList();
-    console.log('[ensure] generating lab dashboard TLS cert');
+    if (drift && !force) {
+        console.log('[ensure] SAN drift — regenerating (missing host(s) vs', san.join(', ') + ')');
+    } else {
+        console.log('[ensure] generating lab dashboard TLS cert');
+    }
     console.log('  SAN:', san.join(', '));
     if (haveOpenssl()) {
         generateWithOpenssl(san);
@@ -214,6 +293,8 @@ function main() {
     }
     console.log('  cert:', certPath);
     console.log('  key:', keyPath);
+    printOperatorHint(san);
+    if (trustUser) trustCertCurrentUserRoot();
 }
 
 try {

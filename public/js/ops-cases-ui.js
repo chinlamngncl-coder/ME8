@@ -58,7 +58,15 @@
         if (st === 'amended') return tr('opsCases.statusAmended', 'Amended');
         if (st === 'reviewed') return tr('opsCases.statusReviewed', 'Reviewed');
         if (st === 'archived') return tr('opsCases.statusArchived', 'Archived');
-        return st || '—';
+        return fmtTag(st) || '—';
+    }
+
+    function fmtTag(raw) {
+        if (raw == null || raw === '') return '';
+        if (typeof UiFormatter !== 'undefined' && UiFormatter.formatEventTag) {
+            return UiFormatter.formatEventTag(raw);
+        }
+        return String(raw);
     }
 
     function statusClass(st) {
@@ -72,14 +80,7 @@
     }
 
     function formatWhen(iso) {
-        if (!iso) return '—';
-        try {
-            var d = new Date(iso);
-            if (Number.isNaN(d.getTime())) return String(iso);
-            return d.toLocaleString();
-        } catch (_) {
-            return String(iso);
-        }
+        return (typeof fmtDateTime === 'function') ? fmtDateTime(iso) : String(iso || '—');
     }
 
     function setAnalyticsTypeVisible() {
@@ -196,8 +197,8 @@
                 '<td><code>' + esc(row.caseId) + '</code></td>' +
                 '<td>Rev ' + esc(row.rev) + '</td>' +
                 '<td><span class="' + statusClass(row.status) + '">' + esc(statusLabel(row.status)) + '</span></td>' +
-                '<td>' + esc(row.type || row.family || '—') + '</td>' +
-                '<td>' + esc(row.kind || '—') + '</td>' +
+                '<td>' + esc(fmtTag(row.type || row.family) || '—') + '</td>' +
+                '<td>' + esc(fmtTag(row.kind) || '—') + '</td>' +
                 '<td>' + esc(row.cameraId || '—') + '</td>' +
                 '<td>' + esc(formatWhen(row.closedAt)) + '</td>' +
                 '<td>' + esc(row.closedBy || '—') + '</td>';
@@ -306,7 +307,7 @@
         var titleEl = document.getElementById('ops-cases-desk-title');
 
         if (camEl) camEl.textContent = (c && c.cameraId) || '—';
-        if (typeEl) typeEl.textContent = (c && (c.kind || c.type)) || '—';
+        if (typeEl) typeEl.textContent = fmtTag(c && (c.kind || c.type)) || '—';
         if (statusEl) statusEl.textContent = statusLabel(c && c.status);
         if (titleEl) titleEl.textContent = (c && c.title) || '—';
 
@@ -319,7 +320,7 @@
                 var label = document.createElement('span');
                 label.className = 'mono';
                 label.textContent = (l.fileName || l.evidenceFileId) +
-                    (l.source ? (' · ' + l.source) : '');
+                    (l.source ? (' · ' + fmtTag(l.source)) : '');
                 var actions = document.createElement('div');
                 actions.className = 'ops-case-ev-actions';
                 var playBtn = document.createElement('button');
@@ -528,7 +529,7 @@
         if (!f) return '';
         var name = f.fileName || f.id || '—';
         var cam = f.deviceId || '';
-        var when = f.uploadedAt ? String(f.uploadedAt).slice(0, 16).replace('T', ' ') : '';
+        var when = f.uploadedAt ? (typeof fmtDateTime === 'function' ? fmtDateTime(f.uploadedAt) : String(f.uploadedAt).slice(0,16).replace('T',' ')) : '';
         var mark = (camPrefer && cam && String(cam) === String(camPrefer))
             ? (' ' + tr('opsCases.bindCamMatch', '(this camera)'))
             : '';
@@ -632,14 +633,14 @@
         }
         if (sub) {
             sub.textContent =
-                (c.cameraId || '—') + ' · ' + (c.kind || c.type || '—') +
+                (c.cameraId || '—') + ' · ' + (fmtTag(c.kind || c.type) || '—') +
                 ' · ' + tr('opsCases.closed', 'closed') + ' ' + formatWhen(c.closedAt) +
                 ' ' + tr('opsCases.by', 'by') + ' ' + (c.closedBy || '—');
         }
         if (touch) {
             var lt = c.lastTouch || {};
             touch.textContent = tr('opsCases.lastTouch', 'Last activity') + ': ' +
-                (lt.by || '—') + ' · ' + (lt.action || '—') + ' · ' + formatWhen(lt.at);
+                (lt.by || '—') + ' · ' + (fmtTag(lt.action) || '—') + ' · ' + formatWhen(lt.at);
         }
         if (gate) {
             gate.textContent = isSuperAdmin()

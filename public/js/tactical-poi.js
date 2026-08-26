@@ -488,7 +488,14 @@
 
     function setStatus(key, fallback, params) {
         const status = document.getElementById('ax-tactical-status');
-        if (status) status.textContent = tr(key, fallback, params);
+        if (!status) return;
+        if (key === 'tactical.statusIdle') {
+            status.hidden = true;
+            status.textContent = '';
+            return;
+        }
+        status.hidden = false;
+        status.textContent = tr(key, fallback, params);
     }
 
     function makeId() {
@@ -1428,7 +1435,15 @@
 
     function setStatusRaw(text) {
         const status = document.getElementById('ax-tactical-status');
-        if (status) status.textContent = text;
+        if (!status) return;
+        const msg = String(text || '').trim();
+        if (!msg) {
+            status.hidden = true;
+            status.textContent = '';
+            return;
+        }
+        status.hidden = false;
+        status.textContent = msg;
     }
 
     function pointInCircle(lat, lng, center, radiusM) {

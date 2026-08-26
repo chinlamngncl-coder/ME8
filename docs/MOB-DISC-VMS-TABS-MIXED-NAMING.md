@@ -11,7 +11,7 @@
 
 | Question | Answer |
 |----------|--------|
-| Are we Milestone? | **No** — we are Ubitron Mobility C2. |
+| Are we Milestone? | **No** — we are Mobility Axiom. |
 | Should tabs copy Milestone Smart Client? | **No** — no “Smart Client”, “Smart Wall”, “preset” in top-level tabs. |
 | What should we do? | **Mix-and-match** one familiar word per concept from the big VMS vendors, then **lock one vocabulary** and use it in nav, Settings, and cards. |
 

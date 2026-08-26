@@ -1,4 +1,4 @@
-# Ubitron Mobility C2 — 설치 가이드
+# Mobility Axiom — 설치 가이드
 
 **대상:** IT 설치 담당자, 시스템 관리자  
 **함께 읽기:** Quick-Guide.md · Configuration-Manual.md · User-Manual.md · Migration-Guide.md  
@@ -236,4 +236,4 @@
 
 ---
 
-*Ubitron Mobility C2 — Mobility Test 2 배송 패키지. 지원: vendor에 문의.*
+*Mobility Axiom — Mobility Test 2 배송 패키지. 지원: vendor에 문의.*

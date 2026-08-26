@@ -1,0 +1,32 @@
+---
+description: Agent packs only on user command; user issues licenses; one master 1-pack for all clients.
+alwaysApply: true
+---
+
+# Agent packs. User licenses. One pack.
+
+**Disc:** `docs/MOB-DISC-ENTERPRISE-ONEPACK-AGENT-PACKS-USER-LICENSES.md`
+
+## Locked
+
+- The operator does **not** pack. The agent packs **only** when the user says pack / ship / 1-pack / enterprise release / send to client. At that moment print pack-gather (`MOB-DISC-SHIP-PACK-GATHER-REMINDER`) + leak inspect. Do not wait to be reminded.
+- **HWID is automatic:** Setup page shows Hardware ID (`/api/setup/status`). Installer copies it and sends it to Ubitron. No npm. `license:print-hwid` is lab/support only.
+- Ubitron signs `.lic` (that HWID + expiry + modules). File comes back. Installer **uploads on Setup** (or engineer drops `storage/license.lic`). Same loop for temp, migration, hardware change.
+- **Client never issues licenses.** Manuals will split sales / tech / installer. License-ui stays internal. Agent never tells an installer to run npm for HWID.
+- **One master software** for all clients. License gates features. Do not build a second app or a trial-only tree as the product.
+- PH-KR / delivery trial zips are **not** the product. Do not use them as the ship path unless the user names a trial pack.
+- Daily work stays in **ME8**. Do not develop in a second “Enterprise” working copy.
+
+## When user says pack
+
+1. Pack from ME8 via `npm run build:ship` and/or `npm run build:1pack` (compiled `me8-server.exe` + engine exes).
+2. Inspect the output folder: no `server.js`, no `lib/`, no `run.js`, no FR/ANPR/Weapon `.py`, no `license-private.pem`, no `tools/generate-license.js`.
+3. Analytics (FR / ANPR / Weapon) stay route-locked. Redaction stays free. FR sidecar may boot for redaction.
+4. Stop. HWID comes back from the site; Ubitron signs; installer uploads. Agent does not invent the `.lic`.
+
+## Never
+
+- Zip the live ME8 source tree as a customer pack.
+- Tell the user to run pack scripts themselves as the normal path.
+- Leave paid analytics ungated because “the engine is already running”.
+---

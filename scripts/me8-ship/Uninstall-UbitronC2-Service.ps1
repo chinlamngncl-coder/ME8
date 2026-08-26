@@ -1,4 +1,4 @@
-# Remove Ubitron Mobility C2 Windows service (lab rollback or reinstall).
+# Remove Mobility Axiom Windows service (lab rollback or reinstall).
 param([string]$AppRoot = '')
 $ErrorActionPreference = 'Stop'
 

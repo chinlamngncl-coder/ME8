@@ -1,4 +1,4 @@
-# Ubitron Mobility C2 — Gabay sa Paglipat (Lumang Trial → Mobility Test 2)
+# Mobility Axiom — Gabay sa Paglipat (Lumang Trial → Mobility Test 2)
 
 **Para sa:** IT installer sa site na may dating trial pack  
 **Basahin kasama:** Installation-Guide.md (pagkatapos ng migration) · Quick-Guide.md · Configuration-Manual.md  
@@ -152,4 +152,4 @@ Kung hindi matatag ang lumang trial, **laktawan** ang seksyong ito — malinis n
 
 ---
 
-*Ubitron Mobility C2 — Mobility Test 2. Paglipat mula sa lumang trial. Suporta: kontakin ang vendor.*
+*Mobility Axiom — Mobility Test 2. Paglipat mula sa lumang trial. Suporta: kontakin ang vendor.*

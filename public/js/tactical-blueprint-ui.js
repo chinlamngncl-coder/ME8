@@ -731,6 +731,11 @@
             body: fd,
         })
             .then(function (pack) {
+                if (pack.data && global.LicenseEntitlementsUi
+                    && typeof LicenseEntitlementsUi.tryHandleLimitResponse === 'function'
+                    && LicenseEntitlementsUi.tryHandleLimitResponse({ status: pack.status }, pack.data)) {
+                    return null;
+                }
                 if (!pack.ok || pack.parseFail || !pack.data || !pack.data.ok) {
                     setStatus(failMsg('tactical.bpUploadFail', 'Upload failed', pack, pack.err), 'err');
                     return null;

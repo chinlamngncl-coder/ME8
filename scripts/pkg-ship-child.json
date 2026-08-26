@@ -1,0 +1,8 @@
+{
+  "name": "me8-anpr-child",
+  "pkg": {
+    "assets": [],
+    "scripts": []
+  },
+  "comment": "Slim pkg wrap for ANPR isolate/ingest workers. No public/ assets. No private keys."
+}

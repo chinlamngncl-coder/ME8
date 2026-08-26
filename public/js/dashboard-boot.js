@@ -4862,7 +4862,11 @@
                 el.id = 'sos-received-toast';
                 document.body.appendChild(el);
             }
-            el.textContent = 'SOS received \u00B7 ' + (camId || '');
+            el.textContent = 'SOS received \u00B7 ' + (
+                (global.FleetDisplay && typeof global.FleetDisplay.friendlyDeviceName === 'function')
+                    ? global.FleetDisplay.friendlyDeviceName(camId)
+                    : (camId && String(camId).length > 8 ? ('Camera \u00B7' + String(camId).slice(-4)) : (camId || 'Camera'))
+            );
             el.hidden = false;
             positionSosReceivedToast(el);
             requestAnimationFrame(function () { positionSosReceivedToast(el); });
@@ -5973,12 +5977,7 @@
         }
 
         function formatLedgerTime(iso) {
-            if (!iso) return '';
-            try {
-                return new Date(iso).toLocaleString();
-            } catch (_) {
-                return iso;
-            }
+            return (typeof fmtDateTime === 'function') ? fmtDateTime(iso) : String(iso || '');
         }
 
         function renderSosChart(chart) {
@@ -6326,19 +6325,24 @@
                         : '<div class="sos-ledger-thumb"></div>';
                     var tag = row.acknowledged ? dashboardTr('sos.ledger.tagAck') : dashboardTr('sos.ledger.tagOpen');
                     var typeTag = row.alarmKind === 'fall' ? dashboardTr('sos.ledger.tagFall') : dashboardTr('sos.ledger.tagSos');
-                    var hint = row.acknowledged ? dashboardTr('sos.ledger.hintAck') : dashboardTr('sos.ledger.hintOpen');
+                    var fmt = (typeof UiFormatter !== 'undefined') ? UiFormatter : null;
+                    var tagLine = fmt
+                        ? fmt.joinEventTags([typeTag, tag])
+                        : (typeTag + ' \u00B7 ' + tag);
+                    var hint = row.acknowledged ? '' : dashboardTr('sos.ledger.hintOpen');
                     if (row.serverRecordingEvidenceId || row.serverRecordingLocalUrl) {
-                        hint += ' \u00B7 ' + dashboardTr('sos.ledger.hasHq');
+                        hint += (hint ? ' \u00B7 ' : '') + dashboardTr('sos.ledger.hasHq');
                     }
                     if (row.deviceRecordingEvidenceId || row.deviceRecordingLocalUrl) {
-                        hint += ' \u00B7 ' + dashboardTr('sos.ledger.hasGround');
+                        hint += (hint ? ' \u00B7 ' : '') + dashboardTr('sos.ledger.hasGround');
                     }
+                    if (fmt) hint = fmt.scrubMojibake(hint);
                     var op = row.operatorName ? String(row.operatorName) : (typeof FleetDisplay !== 'undefined' ? FleetDisplay.friendlyDeviceName(row.cameraId) : dashboardTr('fleet.bwc'));
                     var cam = '';
                     item.innerHTML = thumb +
-                        '<div class="sos-ledger-body"><div class="sos-ledger-tag">' + typeTag + ' \u00B7 ' + tag + '</div>' +
+                        '<div class="sos-ledger-body"><div class="sos-ledger-tag">' + tagLine + '</div>' +
                         '<div class="when">' + formatLedgerTime(row.at) + ' \u00B7 ' + op.replace(/</g, '&lt;') + cam + '</div>' +
-                        '<div class="note-hint">' + hint + '</div></div>';
+                        (hint ? '<div class="note-hint">' + hint + '</div>' : '') + '</div>';
                     item.addEventListener('click', function () { openSosLedgerDetail(row.id); });
                     list.appendChild(item);
                 });

@@ -86,6 +86,7 @@
         }
         #lost-opener.show { display: flex; }
     </style>
+    <script src="/js/ui-formatter.js?v=20260821-tag-dict-v1"></script>
     <script src="/js/operator-error-voice.js?v=20260702-op-voice-standalone"></script>
     <script src="/js/operator-ui.js?v=20260702-op-voice-standalone"></script>
     <script src="/vendor/jsmpeg.min.js"></script>
@@ -246,7 +247,9 @@
                 '<span class="matrix-cell-idle">' + tr('matrix.noVideo') + '</span>' +
                 '</div>';
             cell.querySelector('.cam').textContent = camLabel;
-            cell.querySelector('.status').textContent = info.status || '';
+            cell.querySelector('.status').textContent = (typeof UiFormatter !== 'undefined' && UiFormatter.formatEventTag)
+                ? UiFormatter.formatEventTag(info.status || '')
+                : (info.status || '');
             grid.appendChild(cell);
             return {
                 slotIndex: slotIndex,
@@ -389,7 +392,11 @@
             var info = getMatrixInfo(cell.slotIndex);
             if (!info) return;
             if (info.label && cell.camEl) cell.camEl.textContent = info.label;
-            if (info.status && cell.statusEl) cell.statusEl.textContent = info.status;
+            if (info.status && cell.statusEl) {
+                cell.statusEl.textContent = (typeof UiFormatter !== 'undefined' && UiFormatter.formatEventTag)
+                    ? UiFormatter.formatEventTag(info.status)
+                    : info.status;
+            }
             syncCellAudioBtn(cell, info);
 
             var camId = info.camId || '';

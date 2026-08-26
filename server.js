@@ -1,4 +1,4 @@
-﻿const path = require('path');
+const path = require('path');
 const APP_ROOT = process.pkg ? path.dirname(process.execPath) : __dirname;
 require('dotenv').config({ path: path.join(APP_ROOT, '.env') });
 
@@ -741,7 +741,11 @@ async function ensureAndAttachHttps() {
     dashboardTlsBoot = dashboardTls.resolveFromEnv({ httpPort: HTTP_PORT, baseDir: __dirname });
     if (dashboardTlsBoot.enabled && dashboardTlsBoot.ready && dashboardTlsBoot.httpsOptions) {
         httpsServer = https.createServer(dashboardTlsBoot.httpsOptions, app);
+        /* Attach Socket.IO first, then media router wraps it (must capture Engine.IO upgrade). */
         io.attach(httpsServer);
+        if (dashboardMediaWs && typeof dashboardMediaWs.bindUpgrade === 'function') {
+            dashboardMediaWs.bindUpgrade(httpsServer);
+        }
         log.web.info('dashboard https server ready');
     } else if (dashboardTlsBoot.enabled && !dashboardTlsBoot.ready) {
         log.web.warn('dashboard https enabled but not ready', {
@@ -818,9 +822,7 @@ const dashboardMediaWs = dashboardMediaWsBind.createDashboardMediaWs({
 const wss = dashboardMediaWs.wss;
 const audioWss = dashboardMediaWs.audioWss;
 dashboardMediaWs.bindUpgrade(server);
-if (httpsServer) {
-    dashboardMediaWs.bindUpgrade(httpsServer);
-}
+/* HTTPS /ws bind is in ensureAndAttachHttps — httpsServer is still null here (WSS-HTTPS-UPGRADE-LAN-V1). */
 mediaSession.setAudioWss(audioWss);
 liveStreamPool.setAudioWss(audioWss);
 try {
@@ -3628,6 +3630,206 @@ app.get('/api/sos-open-alarms', (req, res) => {
     }
 });
 
+/* COMMAND-WALL-ALARM-STRIP-V1 — unified ACK for BWC SOS + VMS strip rows */
+app.post('/api/wall-alarms/ack', dashboardAuth.requireDashboardAuth, express.json(), async (req, res) => {
+    try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        const body = req.body || {};
+        const source = String(body.source || '').trim().toLowerCase();
+        const camId = String(body.camId || body.cameraId || '').trim();
+        const eventId = String(body.eventId || '').trim();
+        if (!source || !camId) {
+            return res.status(400).json(opErr('source and camId required'));
+        }
+        assertSessionCanAccessCam(session, camId);
+
+        // WALL-ALARM-DISMISS-LOCAL-V1 — Wall never site-clears SOS; Operations owns ACK
+        if (source === 'bwc_sos') {
+            return res.status(400).json(opErr('Wall dismiss is local only. Acknowledge SOS from Operations.'));
+        }
+
+        if (source.indexOf('vms_') === 0) {
+            emitToDashboardSockets('wall-alarm-ack', { source, camId, eventId }, camId);
+            clearWallNudgesByFilter(function (r) {
+                return r.camId === camId && String(r.source || '').indexOf('vms_') === 0;
+            });
+            auditLog.recordFromRequest(req, 'wall_alarm.ack', {
+                target: camId,
+                detail: { source, eventId: eventId || null },
+            });
+            return res.json({ ok: true, source, camId, eventId: eventId || null });
+        }
+
+        return res.status(400).json(opErr('Unknown alarm source'));
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+/* WALL-ALARM-NUDGE-SA-V1 — one SA inbox row via missed-activity; Wall button lock */
+const WALL_NUDGE_MAX = 40;
+let wallNudgeSeq = 0;
+/** @type {Map<string, {id:number,eventKey:string,camId:string,source:string,alarmType:string,label:string,note:string,at:string,atMs:number,nudgedBy:string}>} */
+const wallNudges = new Map();
+
+function isSessionSuperAdmin(session) {
+    try {
+        return dashboardAuth.normalizeRole(session && session.role) === 'super_admin';
+    } catch (_) {
+        return false;
+    }
+}
+
+function wallNudgeEventKey(body) {
+    const source = String((body && body.source) || '').trim().toLowerCase();
+    const camId = String((body && (body.camId || body.cameraId)) || '').trim();
+    const ek = String((body && (body.eventKey || body.rowKey || body.hitId)) || '').trim();
+    return source + '|' + camId + '|' + (ek || camId);
+}
+
+function publicWallNudge(rec) {
+    return {
+        id: 'wn-' + rec.id,
+        kind: 'wall_nudge',
+        camId: rec.camId,
+        source: rec.source,
+        alarmType: rec.alarmType || '',
+        eventKey: rec.eventKey,
+        label: rec.label || rec.camId,
+        note: rec.note || '',
+        at: rec.at,
+        atMs: rec.atMs,
+        urgent: true,
+        nudgedBy: rec.nudgedBy || '',
+    };
+}
+
+function emitWallNudgeState(payload) {
+    try {
+        emitToDashboardSockets('wall-nudge-state', payload, payload && payload.camId);
+    } catch (_) { /* ignore */ }
+}
+
+function emitMissedActivityChanged() {
+    try {
+        if (io) io.emit('missed-activity-changed', { total: missedPttLog.length + wallNudges.size });
+    } catch (_) { /* ignore */ }
+}
+
+function clearWallNudgesByFilter(fn) {
+    const clearedKeys = [];
+    wallNudges.forEach((rec, key) => {
+        if (fn(rec)) clearedKeys.push(key);
+    });
+    clearedKeys.forEach((key) => {
+        const rec = wallNudges.get(key);
+        wallNudges.delete(key);
+        if (rec) {
+            emitWallNudgeState({
+                eventKey: rec.eventKey,
+                camId: rec.camId,
+                source: rec.source,
+                notified: false,
+                cleared: true,
+            });
+        }
+    });
+    if (clearedKeys.length) emitMissedActivityChanged();
+    return clearedKeys.length;
+}
+
+app.post('/api/wall-alarms/nudge-sa', dashboardAuth.requireDashboardAuth, express.json({ limit: '8kb' }), (req, res) => {
+    try {
+        const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        const body = req.body || {};
+        const source = String(body.source || '').trim().toLowerCase();
+        const camId = String(body.camId || body.cameraId || '').trim();
+        const eventKey = wallNudgeEventKey(body);
+        if (!source || !camId) {
+            return res.status(400).json(opErr('source and camId required'));
+        }
+        assertSessionCanAccessCam(session, camId);
+        if (wallNudges.has(eventKey)) {
+            const existing = wallNudges.get(eventKey);
+            emitWallNudgeState({
+                eventKey,
+                camId,
+                source,
+                notified: true,
+                already: true,
+            });
+            return res.json({ ok: true, already: true, eventKey, nudge: publicWallNudge(existing) });
+        }
+        const now = Date.now();
+        const rec = {
+            id: ++wallNudgeSeq,
+            eventKey,
+            camId,
+            source,
+            alarmType: String(body.alarmType || '').trim(),
+            label: String(body.label || '').trim() || camId,
+            note: String(body.note || '').trim().slice(0, 200),
+            at: new Date(now).toISOString(),
+            atMs: now,
+            nudgedBy: String((session && (session.username || session.user || session.name)) || ''),
+        };
+        wallNudges.set(eventKey, rec);
+        while (wallNudges.size > WALL_NUDGE_MAX) {
+            const oldest = wallNudges.keys().next().value;
+            wallNudges.delete(oldest);
+        }
+        emitWallNudgeState({ eventKey, camId, source, notified: true });
+        emitMissedActivityChanged();
+        try {
+            auditLog.recordFromRequest(req, 'wall_alarm.nudge_sa', {
+                target: camId,
+                detail: { source, eventKey, alarmType: rec.alarmType || null },
+            });
+        } catch (_) { /* ignore */ }
+        return res.json({ ok: true, already: false, eventKey, nudge: publicWallNudge(rec) });
+    } catch (err) {
+        return res.status(400).json(opErr(err));
+    }
+});
+
+app.get('/api/wall-alarms/nudge-locks', dashboardAuth.requireDashboardAuth, (req, res) => {
+    try {
+        const locks = [];
+        wallNudges.forEach((rec) => {
+            locks.push({ eventKey: rec.eventKey, camId: rec.camId, source: rec.source });
+        });
+        res.json({ ok: true, locks });
+    } catch (err) {
+        res.status(500).json(opErr(err, { locks: [] }));
+    }
+});
+
+app.post('/api/wall-alarms/nudge-clear', dashboardAuth.requireDashboardAuth, express.json({ limit: '8kb' }), (req, res) => {
+    try {
+        const body = req.body || {};
+        const source = String(body.source || '').trim().toLowerCase();
+        const camId = String(body.camId || body.cameraId || '').trim();
+        let eventKey = String(body.eventKey || '').trim();
+        if (!eventKey && source && camId) eventKey = wallNudgeEventKey(body);
+        const existing = eventKey ? wallNudges.get(eventKey) : null;
+        /* SOS: site ACK only — never clear via Wall dismiss / cool / this route */
+        if (source === 'bwc_sos' || (existing && existing.source === 'bwc_sos')) {
+            return res.status(400).json(opErr('SOS nudges clear only on site ACK'));
+        }
+        let n = 0;
+        if (eventKey && wallNudges.has(eventKey)) {
+            n = clearWallNudgesByFilter((r) => r.eventKey === eventKey && r.source !== 'bwc_sos');
+        } else if (camId && source) {
+            n = clearWallNudgesByFilter((r) => r.camId === camId && r.source === source && r.source !== 'bwc_sos');
+        } else if (camId) {
+            n = clearWallNudgesByFilter((r) => r.camId === camId && r.source !== 'bwc_sos');
+        }
+        return res.json({ ok: true, cleared: n });
+    } catch (err) {
+        return res.status(400).json(opErr(err));
+    }
+});
+
 app.post('/api/sos-acknowledge', async (req, res) => {
     try {
         const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
@@ -3760,6 +3962,10 @@ app.post('/api/sos-acknowledge', async (req, res) => {
                 cameraId: alarmCamId,
                 endedGroupCall: !!endedGroupCall,
             }, alarmCamId);
+            /* WALL-ALARM-NUDGE-SA-V1 — SOS nudge clears only on site ACK */
+            clearWallNudgesByFilter(function (r) {
+                return r.source === 'bwc_sos' && r.camId === alarmCamId;
+            });
         }
         /* Unified Cases — open case_files row on Ack. Never fail Ack. */
         let opsCase = null;
@@ -5879,6 +6085,16 @@ function emitToDashboardSockets(event, payload, camId) {
     });
 }
 
+/* COMMAND-WALL-ALARM-STRIP-V1 — bridge ONVIF markers to live wall-alarm socket */
+try {
+    const vmsAlarmLoggerBoot = require('./lib/vmsAlarmLogger');
+    vmsAlarmLoggerBoot.setLiveEmit(function (payload) {
+        emitToDashboardSockets('wall-alarm', payload, payload && payload.camId);
+    });
+} catch (err) {
+    log.web.warn('vms alarm live emit bridge skipped', { message: err && err.message });
+}
+
 function emitFleetRosterToDashboards() {
     syncFleetDeviceMeta();
     const groups = listDispatchGroupsForScope();
@@ -6192,7 +6408,7 @@ app.get('/api/evidence/retention-categories', requireEvidenceView, (req, res) =>
         res.status(err.status || 500).json(opErr(err));
     }
 });
-app.post('/api/evidence/retention-categories', dashboardAuth.requireSuperAdmin, express.json({ limit: '32kb' }), (req, res) => {
+app.post('/api/evidence/retention-categories', dashboardAuth.requireEvidenceLifecycle, express.json({ limit: '32kb' }), (req, res) => {
     try {
         const session = req.dashboardUser;
         const actor = session && (session.displayName || session.username);
@@ -6202,7 +6418,7 @@ app.post('/api/evidence/retention-categories', dashboardAuth.requireSuperAdmin, 
         res.status(err.status || 500).json(opErr(err));
     }
 });
-app.patch('/api/evidence/retention-categories/:id', dashboardAuth.requireSuperAdmin, express.json({ limit: '32kb' }), (req, res) => {
+app.patch('/api/evidence/retention-categories/:id', dashboardAuth.requireEvidenceLifecycle, express.json({ limit: '32kb' }), (req, res) => {
     try {
         const session = req.dashboardUser;
         const actor = session && (session.displayName || session.username);
@@ -6212,7 +6428,7 @@ app.patch('/api/evidence/retention-categories/:id', dashboardAuth.requireSuperAd
         res.status(err.status || 500).json(opErr(err));
     }
 });
-app.delete('/api/evidence/retention-categories/:id', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.delete('/api/evidence/retention-categories/:id', dashboardAuth.requireEvidenceLifecycle, (req, res) => {
     try {
         evidenceRetentionCategories.remove(req.params.id);
         res.json({ ok: true, categories: evidenceRetentionCategories.list() });
@@ -7331,17 +7547,69 @@ app.post('/api/vms/cases/:caseId/export', dashboardAuth.requireDashboardAuth, as
     const { caseId } = req.params;
     const actor = (req.dashboardUser && req.dashboardUser.username) || 'unknown';
     try {
-        const { zipBuffer, zipSha256, manifest } = await vmsCourtExport.generateCourtPackage(caseId, actor);
+        const { zipBuffer, zipSha256, manifest, manifestSha } = await vmsCourtExport.generateEvidencePackage(caseId, actor);
+        let packageId = null;
+        try {
+            const evidencePackageStore = require('./lib/evidencePackageStore');
+            const saved = evidencePackageStore.savePackage({
+                storageDir: STORAGE_DIR,
+                zipBuffer,
+                zipSha256,
+                caseId,
+                manifestSha: manifestSha || crypto.createHash('sha256').update(manifest || '').digest('hex'),
+                actor,
+            });
+            packageId = saved.packageId;
+        } catch (saveErr) {
+            log.web.warn('[vms-export] package persist skipped', {
+                caseId,
+                message: saveErr && saveErr.message ? saveErr.message : String(saveErr),
+            });
+        }
         const zipName = 'Axiom_Evidence_' + caseId.slice(0, 8) + '_' + Date.now() + '.zip';
         res.setHeader('Content-Type',        'application/zip');
         res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
         res.setHeader('Content-Length',      zipBuffer.length);
         res.setHeader('X-Package-SHA256',    zipSha256);
         res.setHeader('X-Manifest-SHA256',   crypto.createHash('sha256').update(manifest).digest('hex'));
+        if (packageId) res.setHeader('X-Package-Id', packageId);
         res.send(zipBuffer);
     } catch (err) {
-        log.web.error('[vms-export] court export error', { caseId, error: err.message });
+        log.web.error('[vms-export] evidence package export error', { caseId, error: err.message });
         if (!res.headersSent) res.status(500).json(opErr(err));
+    }
+});
+
+/* EVIDENCE-PACKAGE-API-V1 — list + zero-upload verify (server hashes local disk) */
+app.get('/api/evidence/packages', dashboardAuth.requireDashboardAuth, (req, res) => {
+    try {
+        const evidencePackageStore = require('./lib/evidencePackageStore');
+        const packages = evidencePackageStore.listPackages(STORAGE_DIR, req.query.limit);
+        res.json({
+            ok: true,
+            packages: packages.map((p) => ({
+                packageId: p.packageId,
+                caseId: p.caseId,
+                zipSha256: p.zipSha256,
+                createdAt: p.createdAt,
+                byteSize: p.byteSize,
+                actor: p.actor,
+            })),
+        });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.post('/api/evidence/packages/:packageId/verify', dashboardAuth.requireDashboardAuth, async (req, res) => {
+    try {
+        const evidencePackageStore = require('./lib/evidencePackageStore');
+        const result = await evidencePackageStore.verifyPackageOnDisk(STORAGE_DIR, req.params.packageId);
+        res.json(result);
+    } catch (err) {
+        if (err && err.code === 'not_found') return res.status(404).json(opErr(err));
+        if (err && err.code === 'bad_id') return res.status(400).json(opErr(err));
+        res.status(500).json(opErr(err));
     }
 });
 
@@ -7646,6 +7914,98 @@ app.post('/api/fixed-cams/onvif/discover-profiles', dashboardAuth.requireSuperAd
         }
         try { if (probe.client && typeof probe.client.removeAllListeners === 'function') probe.client.removeAllListeners(); } catch (_) { /* ignore */ }
         res.json({ ok: true, streamProfiles, count: streamProfiles.length });
+    } catch (err) {
+        res.status(400).json(opErr(err));
+    }
+});
+
+/* VMS-NETWORK-DISCOVER-V1 — CIDR primary scan, poll job, commit + GetProfiles queue */
+app.post('/api/fixed-cams/discover/start', dashboardAuth.requireSuperAdmin, express.json({ limit: '32kb' }), async (req, res) => {
+    try {
+        const fixedCamNetworkDiscover = require('./lib/fixedCamNetworkDiscover');
+        const job = await fixedCamNetworkDiscover.startScan(req.body || {});
+        res.json({ ok: true, job: job });
+    } catch (err) {
+        const status = (err && err.status) || 400;
+        res.status(status).json(opErr(err));
+    }
+});
+
+app.get('/api/fixed-cams/discover/job/:id', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        const fixedCamNetworkDiscover = require('./lib/fixedCamNetworkDiscover');
+        const job = fixedCamNetworkDiscover.getActiveJob();
+        if (!job || job.id !== String(req.params.id || '').trim()) {
+            return res.status(404).json(opErr('Discover job not found'));
+        }
+        res.json({ ok: true, job: fixedCamNetworkDiscover.jobPublicView(job) });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.get('/api/fixed-cams/discover/active', dashboardAuth.requireSuperAdmin, async (_req, res) => {
+    try {
+        const fixedCamNetworkDiscover = require('./lib/fixedCamNetworkDiscover');
+        const job = fixedCamNetworkDiscover.getActiveJob();
+        res.json({
+            ok: true,
+            job: job ? fixedCamNetworkDiscover.jobPublicView(job) : null,
+        });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.post('/api/fixed-cams/discover/commit', dashboardAuth.requireSuperAdmin, express.json({ limit: '2mb' }), licenseEntitlementsMw.checkFixedCamCapacity({
+    currentCount: function () { return fixedCamRegistry.list().length; },
+    addCountFrom: function (req) {
+        const rows = (req.body && req.body.selected) || [];
+        let n = 0;
+        rows.forEach(function (row) {
+            if (!row || !row.ip) return;
+            if (row.update) return;
+            if (String(row.status || '') === 'Already_Exists') return;
+            n += 1;
+        });
+        return n;
+    },
+}), async (req, res) => {
+    try {
+        const fixedCamNetworkDiscover = require('./lib/fixedCamNetworkDiscover');
+        const out = await fixedCamNetworkDiscover.commitSelection(req.body || {});
+        const ids = [].concat(out.createdIds || [], out.updatedIds || []);
+        const cams = ids.map(function (id) { return fixedCamRegistry.getById(id); }).filter(Boolean);
+        let pgStored = 0;
+        if (cams.length && siteDb.isReady()) {
+            try {
+                await fixedCamCatalogPg.upsertFixedCameras(cams, STORAGE_DIR);
+                pgStored = cams.length;
+            } catch (pgErr) {
+                log.web.warn('discover commit pg store failed', { err: pgErr && pgErr.message });
+                return res.status(500).json({
+                    ok: false,
+                    error: 'Cameras saved to registry but PostgreSQL store failed.',
+                    created: out.created,
+                    updated: out.updated,
+                });
+            }
+        } else if (cams.length && !siteDb.isReady()) {
+            return res.status(503).json({
+                ok: false,
+                error: 'PostgreSQL catalog is required to securely store ONVIF credentials.',
+                created: out.created,
+                updated: out.updated,
+            });
+        }
+        log.web.info('fixed-cams network discover commit', {
+            created: out.created,
+            updated: out.updated,
+            skipped: out.skipped,
+            profileQueue: out.profileQueue,
+            pgStored: pgStored,
+        });
+        res.json(Object.assign({ ok: true, pgStored: pgStored }, out));
     } catch (err) {
         res.status(400).json(opErr(err));
     }
@@ -8685,7 +9045,7 @@ app.post('/api/evidence/detail/:fileId/restore-from-queue', requireEvidenceEdit,
         res.status(err.status || 400).json(opErr(err));
     }
 });
-app.get('/api/evidence/delete-queue', dashboardAuth.requireSuperAdmin, (req, res) => {
+app.get('/api/evidence/delete-queue', dashboardAuth.requireEvidenceLifecycle, (req, res) => {
     try {
         res.json({
             ok: true,
@@ -8696,7 +9056,7 @@ app.get('/api/evidence/delete-queue', dashboardAuth.requireSuperAdmin, (req, res
         res.status(500).json(opErr(err));
     }
 });
-app.post('/api/evidence/delete-queue/purge-due', dashboardAuth.requireSuperAdmin, async (req, res) => {
+app.post('/api/evidence/delete-queue/purge-due', dashboardAuth.requireEvidenceLifecycle, async (req, res) => {
     try {
         const out = await evidenceRegistry.purgeDueQueuedDeletes();
         await auditLog.recordFromRequest(req, 'evidence.purge_due', { detail: { purged: out.purged } });
@@ -10694,7 +11054,16 @@ app.get('/api/missed-activity', (req, res) => {
     try {
         const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
         if (!session) return res.status(401).json(opErr('Unauthorized'));
-        const items = getMissedPttItems();
+        let items = getMissedPttItems();
+        /* WALL-ALARM-NUDGE-SA-V1 — Wall Nudge rows for super_admin only */
+        if (isSessionSuperAdmin(session)) {
+            const nudges = [];
+            wallNudges.forEach(function (rec) {
+                nudges.push(publicWallNudge(rec));
+            });
+            nudges.sort(function (a, b) { return (b.atMs || 0) - (a.atMs || 0); });
+            items = nudges.concat(items);
+        }
         res.json({ ok: true, items: items, counts: { total: items.length } });
     } catch (err) {
         res.status(500).json(opErr(err));
@@ -14702,6 +15071,12 @@ io.on('connection', (socket) => {
             camId: payload.camId,
             by: user && user.username,
         }, payload.camId);
+        clearWallNudgesByFilter(function (r) {
+            if (r.source !== 'fr_blacklist') return false;
+            const hitId = String(payload.hitId || '');
+            if (hitId && String(r.eventKey || '').indexOf(hitId) !== -1) return true;
+            return r.camId === String(payload.camId || '').trim();
+        });
     });
 
     socket.on('fr-alarm-dismiss', (payload) => {
@@ -14718,6 +15093,12 @@ io.on('connection', (socket) => {
             camId: payload.camId,
             by: user && user.username,
         }, payload.camId);
+        clearWallNudgesByFilter(function (r) {
+            if (r.source !== 'fr_blacklist') return false;
+            const hitId = String(payload.hitId || '');
+            if (hitId && String(r.eventKey || '').indexOf(hitId) !== -1) return true;
+            return r.camId === String(payload.camId || '').trim();
+        });
     });
 
     /* FR field alert only — does not touch SOS handlers or ptt-start / ptt-audio. */

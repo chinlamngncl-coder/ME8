@@ -76,9 +76,9 @@ Do **not** open Related manuals with “Glass Fortress recovery” as if every I
 
 ---
 
-### 4) Brand: still “Ubitron Mobility C2”
+### 4) Brand: still “Mobility Axiom”
 
-**In the guide:** “display name similar to Ubitron Mobility C2 / Mobility Axiom”
+**In the guide:** “display name similar to Mobility Axiom / Mobility Axiom”
 
 **Locked brand (already):** Product = **Mobility Axiom**. Company = **Ubitron**.  
 Say: **Ubitron Mobility Axiom** or **Mobility Axiom**.  

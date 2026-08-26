@@ -1,6 +1,6 @@
 @echo off
 
-title Mobility C2 Server
+title Mobility Axiom Server
 
 cd /d "%~dp0"
 
@@ -8,7 +8,7 @@ cd /d "%~dp0"
 
 echo.
 
-echo  RESTART Mobility C2
+echo  RESTART Mobility Axiom
 
 echo  Folder: %~dp0
 

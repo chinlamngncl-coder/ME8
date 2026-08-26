@@ -1,5 +1,5 @@
-# Install Ubitron Mobility C2 as a Windows service (auto-start, no console window).
-# mob-me8-windows-service — IT runs once after NEW-ME8-INSTALL; operators use the portal URL only.
+﻿# Install Mobility Axiom as a Windows service (auto-start, no console window).
+# mob-me8-windows-service â€” IT runs once after NEW-ME8-INSTALL; operators use the portal URL only.
 param(
     [string]$AppRoot = '',
     [switch]$SkipPortKill,
@@ -9,7 +9,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $ServiceName = 'UbitronC2'
-$DisplayName = 'Ubitron Mobility C2'
+$DisplayName = 'Mobility Axiom'
 
 function Resolve-Me8Root([string]$Start) {
     if ($Start -and (Test-Path (Join-Path $Start 'server.js'))) { return (Resolve-Path $Start).Path }
@@ -18,7 +18,7 @@ function Resolve-Me8Root([string]$Start) {
     $grand = Split-Path $parent -Parent
     if (Test-Path (Join-Path $grand 'server.js')) { return $grand }
     if (Test-Path (Join-Path $parent 'server.js')) { return $parent }
-    throw 'ME8 AppRoot not found — run from ME8 root or pass -AppRoot'
+    throw 'ME8 AppRoot not found â€” run from ME8 root or pass -AppRoot'
 }
 
 function Test-Admin {
@@ -55,7 +55,7 @@ try {
 [IO.File]::WriteAllBytes(`$p,`$new)
 "@
     & powershell -NoProfile -ExecutionPolicy Bypass -Command $ps
-    if ($LASTEXITCODE -ne 0) { Write-Host '  Warning: vault key migrate skipped — service may need RESTART-FLEET lab mode.' -ForegroundColor Yellow }
+    if ($LASTEXITCODE -ne 0) { Write-Host '  Warning: vault key migrate skipped â€” service may need RESTART-FLEET lab mode.' -ForegroundColor Yellow }
 }
 
 function Grant-SystemFolderAccess {
@@ -76,13 +76,20 @@ if (-not (Test-Admin)) {
 if (-not $AppRoot) { $AppRoot = Resolve-Me8Root '' }
 else {
     $AppRoot = (Resolve-Path $AppRoot).Path
-    if (-not (Test-Path (Join-Path $AppRoot 'server.js'))) { throw "Not ME8 root: $AppRoot" }
+    $onePackExeCheck = Join-Path $AppRoot 'me8-server.exe'
+    if (-not (Test-Path (Join-Path $AppRoot 'server.js')) -and -not (Test-Path $onePackExeCheck)) {
+        throw "Not ME8 root: $AppRoot"
+    }
 }
 
-$nodeExe = Resolve-NodeExe
-$serverJs = Join-Path $AppRoot 'server.js'
 $onePackExe = Join-Path $AppRoot 'me8-server.exe'
 $onePackJs = Join-Path $AppRoot 'bin\me8-server.js'
+if ($Use1Pack -and (Test-Path $onePackExe)) {
+    $nodeExe = $onePackExe
+} else {
+    $nodeExe = Resolve-NodeExe
+}
+$serverJs = Join-Path $AppRoot 'server.js'
 $storageDir = Join-Path $AppRoot 'storage'
 New-Item -ItemType Directory -Force -Path $storageDir | Out-Null
 $stdoutLog = Join-Path $storageDir 'service-stdout.log'
@@ -106,7 +113,7 @@ if ($Use1Pack) {
 }
 
 Write-Host ''
-Write-Host 'Install Ubitron Mobility C2 — Windows service' -ForegroundColor Cyan
+Write-Host 'Install Mobility Axiom â€” Windows service' -ForegroundColor Cyan
 Write-Host "  App:     $AppRoot"
 Write-Host "  Entry:   $entryLabel"
 Write-Host "  Node:    $nodeExe"
@@ -118,7 +125,7 @@ if (-not (Test-Path $nssm)) { throw "NSSM not found: $nssm" }
 
 $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if ($existing) {
-    Write-Host '  Existing service found — using transactional upgrade gate.' -ForegroundColor Cyan
+    Write-Host '  Existing service found â€” using transactional upgrade gate.' -ForegroundColor Cyan
     Grant-SystemFolderAccess -Root $AppRoot
     & (Join-Path $PSScriptRoot 'Invoke-UbitronServiceUpgrade.ps1') `
         -CandidateRoot $AppRoot -ServiceName $ServiceName
@@ -126,8 +133,10 @@ if ($existing) {
 }
 
 $preflightReport = Join-Path $storageDir 'install-preflight.json'
-& (Join-Path $PSScriptRoot 'Test-UbitronStartupPreflight.ps1') `
-    -AppRoot $AppRoot -StorageRoot $storageDir -NodeExe $nodeExe -ReportPath $preflightReport | Out-Null
+if (-not ($Use1Pack -and (Test-Path $onePackExe))) {
+    & (Join-Path $PSScriptRoot 'Test-UbitronStartupPreflight.ps1') `
+        -AppRoot $AppRoot -StorageRoot $storageDir -NodeExe $nodeExe -ReportPath $preflightReport | Out-Null
+}
 
 if (-not $SkipPortKill) {
     $killScript = Join-Path $AppRoot 'kill-fleet-ports.ps1'
@@ -149,7 +158,7 @@ if (Test-Path $frPy) {
     $envExtra += "`r`nFM_FR_PY=$frPy"
     Write-Host "  FR Python: $frPy" -ForegroundColor Gray
 } else {
-    Write-Host '  Warning: fr-sidecar venv not found — run START-FACE-MATCHING.bat once after install.' -ForegroundColor Yellow
+    Write-Host '  Warning: fr-sidecar venv not found â€” run START-FACE-MATCHING.bat once after install.' -ForegroundColor Yellow
 }
 
 Write-Host '  Registering service...' -ForegroundColor Gray
@@ -161,7 +170,7 @@ if ($appParams) {
     & $nssm set $ServiceName AppParameters ''
 }
 & $nssm set $ServiceName DisplayName $DisplayName
-& $nssm set $ServiceName Description 'Ubitron Mobility C2 - BWC fleet, live video, PTT, analytics. Operators use the portal URL; no console required.'
+& $nssm set $ServiceName Description 'Mobility Axiom - BWC devices, live video, PTT, analytics. Operators use the portal URL; no console required.'
 & $nssm set $ServiceName Start SERVICE_AUTO_START
 & $nssm set $ServiceName AppStdout $stdoutLog
 & $nssm set $ServiceName AppStderr $stderrLog
@@ -222,7 +231,7 @@ while ($svc -and $svc.Status -eq 'Running' -and (Get-Date) -lt $healthDeadline) 
 }
 
 if ($svc -and $svc.Status -eq 'Running' -and $healthStable -ge 3) {
-    Write-Host 'UBITRON C2 SERVICE OK' -ForegroundColor Green
+    Write-Host 'MOBILITY AXIOM SERVICE OK' -ForegroundColor Green
     Write-Host "  Status:  Running ($ServiceName)"
     Write-Host '  Health:  HTTP, SIP, PTT, media, database and storage ready'
     Write-Host "  Portal:  http://localhost:$port  (or Operator URL from Settings)"
@@ -230,7 +239,7 @@ if ($svc -and $svc.Status -eq 'Running' -and $healthStable -ge 3) {
     Write-Host '  IT:      net stop UbitronC2  |  net start UbitronC2'
     Write-Host '  Remove:  .\UNINSTALL-UBITRON-SERVICE.ps1'
     Write-Host ''
-    Write-Host 'Operators: bookmark the portal — do not use RESTART-FLEET.bat in production.' -ForegroundColor DarkGray
+    Write-Host 'Operators: bookmark the portal â€” do not use RESTART-FLEET.bat in production.' -ForegroundColor DarkGray
     if ($PauseAtEnd -or $env:UBITRON_SERVICE_INSTALL_PAUSE -eq '1') {
         Write-Host 'Press any key to close...' -ForegroundColor Gray
         $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')

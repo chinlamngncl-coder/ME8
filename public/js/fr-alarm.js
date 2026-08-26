@@ -97,7 +97,7 @@
             '<button type="button" class="btn btn-action btn-sm" id="fr-red-toast-map">' +
             esc(tr('analytics.fr.redToastGoMap', 'Go to map')) + '</button>' +
             '<button type="button" class="btn btn-action btn-sm" id="fr-red-toast-field">' +
-            esc(tr('analytics.fr.alarmField', 'Alert field')) + '</button>' +
+            esc(tr('analytics.fr.alarmField', 'Alert BWC')) + '</button>' +
             '<button type="button" class="btn btn-action btn-sm" id="fr-red-toast-live" disabled ' +
             'title="' + esc(tr('analytics.fr.redToastShowLiveHint', 'Live promote connects in Act 3')) + '">' +
             esc(tr('analytics.fr.redToastShowLive', 'Show live')) + '</button>' +
@@ -774,7 +774,12 @@
                 setTimeout(function () {
                     try {
                         if (global.VideoWall && typeof VideoWall.promoteFrBlacklistLive === 'function') {
+                            /* FR-BLACKLIST-AUTO-UNMUTE-V1 — live only; >= 80%. Offline never reaches here. */
+                            var scoreUnmute = Number(hit.scorePct);
+                            var autoUnmute = Number.isFinite(scoreUnmute) && scoreUnmute >= 80;
                             VideoWall.promoteFrBlacklistLive(hit.camId, {
+                                autoUnmute: autoUnmute,
+                                scorePct: scoreUnmute,
                                 onPinnedSteal: function () {
                                     showStandbyToast(tr(
                                         'analytics.fr.blacklistPinStealPinned',
@@ -828,7 +833,7 @@
             if (active) {
                 b.textContent = tr('analytics.fr.standbyPttTeamOnBtn', 'Standby PTT \u00B7 ON');
             } else {
-                b.textContent = tr('analytics.fr.standbyPttTeam', 'Standby PTT team');
+                b.textContent = tr('analytics.fr.standbyPttTeam', 'Alert PTT Group');
             }
         });
         var status = document.getElementById('fr-alarm-standby-status');
@@ -956,6 +961,12 @@
     }
 
     function playChime() {
+        /* WALL-ALARM-GRID-HOPPER-V1 interim mute — Wall view silent until FR HUD Phase 2 */
+        try {
+            var cw = document.getElementById('app-view-command-wall');
+            if (cw && !cw.hidden) return;
+            if (!document.getElementById('app-view-ops') && document.getElementById('wall')) return;
+        } catch (_) { /* ignore */ }
         try {
             if (global.HqAlertAudio && typeof HqAlertAudio.play === 'function') {
                 HqAlertAudio.play('fr', { tier: 'strong', key: 'fr-chime' });
@@ -966,6 +977,12 @@
 
     /** Soft grades: quiet or soft beep; blacklist keeps strong chime. HQ-ALERT-AUDIO-V1 */
     function playChimeForHit(hit) {
+        /* WALL-ALARM-GRID-HOPPER-V1 interim mute — no FR chime on Command Wall */
+        try {
+            var cw = document.getElementById('app-view-command-wall');
+            if (cw && !cw.hidden) return;
+            if (!document.getElementById('app-view-ops') && document.getElementById('wall')) return;
+        } catch (_) { /* ignore */ }
         var tier = alertTierForHit(hit);
         if (tier === 'silent' || tier === 'low') return;
         var kind = (hit && (hit.kind === 'anpr' || hit.anpr)) ? 'anpr' : 'fr';
@@ -1550,14 +1567,7 @@
     }
 
     function formatSnapTime(iso) {
-        if (!iso) return '\u2014';
-        try {
-            var d = new Date(iso);
-            if (isNaN(d.getTime())) return String(iso);
-            return d.toLocaleString();
-        } catch (_) {
-            return String(iso);
-        }
+        return (typeof fmtDateTime === 'function') ? fmtDateTime(iso) : String(iso || '\u2014');
     }
 
     function snapHasGps(slot) {
@@ -2111,7 +2121,7 @@
             '<div class="fr-alert-drawer-body">' +
             '<div class="fr-alert-drawer-compare">' +
             '<div class="fr-alert-drawer-photo-card">' +
-            '<span class="fr-alert-drawer-photo-label">' + esc(tr('analytics.fr.alertDrawerFieldSnap', 'Field snap')) + '</span>' +
+            '<span class="fr-alert-drawer-photo-label">' + esc(tr('analytics.fr.alertDrawerFieldSnap', 'Live Capture')) + '</span>' +
             '<div class="fr-alert-drawer-photo-frame">' +
             '<img id="fr-alert-drawer-crop" alt="">' +
             '<span class="fr-alert-drawer-photo-empty" id="fr-alert-drawer-crop-empty">' +
@@ -2144,9 +2154,9 @@
             '<button type="button" class="btn btn-action btn-sm" id="fr-alert-drawer-keep">' +
             esc(tr('analytics.fr.snapKeep', 'Keep for Investigation')) + '</button>' +
             '<button type="button" class="btn btn-action btn-sm" id="fr-alert-drawer-field">' +
-            esc(tr('analytics.fr.alarmField', 'Alert field')) + '</button>' +
+            esc(tr('analytics.fr.alarmField', 'Alert BWC')) + '</button>' +
             '<button type="button" class="btn btn-action btn-sm sos-ptt-btn" id="fr-alert-drawer-standby-ptt">' +
-            esc(tr('analytics.fr.standbyPttTeam', 'Standby PTT team')) + '</button>' +
+            esc(tr('analytics.fr.standbyPttTeam', 'Alert PTT Group')) + '</button>' +
             '<button type="button" class="btn btn-ghost btn-sm" id="fr-alert-drawer-map">' +
             esc(tr('analytics.fr.alertDrawerGoMap', 'Go to map')) + '</button>' +
             '<button type="button" class="btn btn-ghost btn-sm" id="fr-alert-drawer-dismiss">' +
@@ -2496,6 +2506,15 @@
         if (btnHqPtt) btnHqPtt.style.display = offlineChrome ? 'none' : '';
     }
 
+    function isCommandWallViewActive() {
+        try {
+            var cw = document.getElementById('app-view-command-wall');
+            if (cw && !cw.hidden) return true;
+            if (!document.getElementById('app-view-ops') && document.getElementById('wall')) return true;
+        } catch (_) { /* ignore */ }
+        return false;
+    }
+
     function showHit(hit) {
         if (!hit) return;
 
@@ -2512,6 +2531,25 @@
 
         current = hit;
         fillModal(hit);
+        /* WALL-ALARM-FR-CORNER-HUD-V1 — Wall owns Plan B UI; suppress HQ/drawer/toast/goOps */
+        var onWall = isCommandWallViewActive();
+        if (onWall) {
+            updateHqBar(null);
+            try { closeAlertDrawer(); } catch (_) { /* ignore */ }
+            var toast = redToastEl();
+            if (toast) toast.hidden = true;
+            markRailAlertActive(hit);
+            /* WALL-ALARM-ANPR-CORNER-HUD-V1 — live ANPR list hits → Wall chip (chime already muted) */
+            if (isAnprHit) {
+                try {
+                    if (global.CommandWall && typeof global.CommandWall.ingestAnprCornerHudHit === 'function') {
+                        global.CommandWall.ingestAnprCornerHudHit(hit);
+                    }
+                } catch (_) { /* ignore */ }
+            }
+            playChimeForHit(hit);
+            return;
+        }
         updateHqBar(hit);
         showRedToast(hit);
         goOpsOnHit(hit);
@@ -2751,9 +2789,9 @@
                     && nextScore >= mapAutoScoreMin()
                     && alertTierForHit(hit) === 'high';
                 current = hit;
-                updateHqBar(hit);
+                if (!isCommandWallViewActive()) updateHqBar(hit);
                 if (crossed) {
-                    goOpsOnHit(hit);
+                    if (!isCommandWallViewActive()) goOpsOnHit(hit);
                     playChimeForHit(hit);
                 }
             }

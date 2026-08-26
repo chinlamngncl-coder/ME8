@@ -25,7 +25,13 @@
     const csvImport  = document.getElementById('fc-csv-import-btn');
     const csvCancel  = document.getElementById('fc-csv-cancel');
     const toast      = document.getElementById('fc-toast');
+    const netDiscoverBtn = document.getElementById('fc-discover-btn');
+    const netDiscoverWrap = document.getElementById('fc-discover');
     let formStreamProfiles = [];
+    let discJobId = '';
+    let discPollTimer = null;
+    let discAuth = { user: '', password: '', port: 80 };
+    let discResults = [];
 
     function profilePix(p) {
         return (p && p.resolution && p.resolution.width * p.resolution.height) || 0;
@@ -162,11 +168,13 @@
         setToggleActive(['fc-place-outdoor', 'fc-place-indoor'], m === 'indoor' ? 'fc-place-indoor' : 'fc-place-outdoor');
         const out = document.getElementById('fc-outdoor-fields');
         const inn = document.getElementById('fc-indoor-fields');
-        if (out) out.hidden = (m === 'indoor');
+        if (out) {
+            out.hidden = (m === 'indoor');
+            out.style.display = out.hidden ? 'none' : 'grid';
+        }
         if (inn) {
             inn.hidden = (m !== 'indoor');
-            if (!inn.hidden) inn.style.display = 'grid';
-            else inn.style.display = '';
+            inn.style.display = inn.hidden ? 'none' : 'grid';
         }
     }
 
@@ -179,10 +187,11 @@
             const el = document.getElementById(id);
             if (el) el.hidden = (src === 'none');
         });
+        // Legacy empty spacers — always stay out of the grid (never unhide)
         const hostPort = document.getElementById('fc-host-port-row');
-        if (hostPort) hostPort.hidden = (src === 'none');
+        if (hostPort) { hostPort.hidden = true; hostPort.style.display = 'none'; }
         const authRow = document.getElementById('fc-auth-row');
-        if (authRow) authRow.hidden = (src === 'none');
+        if (authRow) { authRow.hidden = true; authRow.style.display = 'none'; }
         const pathRow = document.getElementById('fc-onvif-path-row');
         if (pathRow) pathRow.hidden = (src !== 'onvif');
         if (rtspRow) rtspRow.hidden = (src === 'none');
@@ -523,6 +532,7 @@
 
     csvBtn.addEventListener('click', () => {
         hideForm();
+        if (netDiscoverWrap) netDiscoverWrap.hidden = true;
         csvWrap.hidden = !csvWrap.hidden;
         if (!csvWrap.hidden) csvWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -697,6 +707,7 @@
             clearForm();
             hideForm();
             csvWrap.hidden = true;
+            if (netDiscoverWrap) netDiscoverWrap.hidden = true;
             if (dlg.open) dlg.close();
             dlg.show();
             loadTable();
@@ -706,5 +717,175 @@
             if (dlg.open) dlg.close();
         },
     };
+
+    function stopDiscPoll() {
+        if (discPollTimer) {
+            clearInterval(discPollTimer);
+            discPollTimer = null;
+        }
+    }
+
+    function renderDiscResults(results) {
+        discResults = Array.isArray(results) ? results : [];
+        const tb = document.getElementById('fc-disc-tbody');
+        if (!tb) return;
+        if (!discResults.length) {
+            tb.innerHTML = '<tr><td colspan="7" class="fc-empty">No devices found yet (timeouts are not listed).</td></tr>';
+            const commit = document.getElementById('fc-disc-commit');
+            if (commit) commit.disabled = true;
+            return;
+        }
+        tb.innerHTML = discResults.map(function (row, idx) {
+            const st = String(row.status || '');
+            const canAdd = st === 'Ready' || (st === 'Already_Exists' && row.authOk !== false);
+            const updateDis = st !== 'Already_Exists' ? 'disabled' : '';
+            const checkDis = (!canAdd && st !== 'Already_Exists') ? 'disabled' : '';
+            return '<tr data-disc-idx="' + idx + '">'
+                + '<td><input type="checkbox" class="fc-disc-check" data-idx="' + idx + '" ' + checkDis + '></td>'
+                + '<td class="fc-mono">' + escapeHtml(row.ip || '') + '</td>'
+                + '<td>' + escapeHtml(row.name || '') + '</td>'
+                + '<td>' + escapeHtml(row.manufacturer || '') + '</td>'
+                + '<td class="fc-mono">' + escapeHtml(row.mac || '') + '</td>'
+                + '<td>' + escapeHtml(st.replace(/_/g, ' ')) + '</td>'
+                + '<td><input type="checkbox" class="fc-disc-update" data-idx="' + idx + '" ' + updateDis + ' title="Update existing"></td>'
+                + '</tr>';
+        }).join('');
+        const commit = document.getElementById('fc-disc-commit');
+        if (commit) commit.disabled = false;
+    }
+
+    function escapeHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function applyDiscJob(job) {
+        if (!job) return;
+        const prog = document.getElementById('fc-disc-progress');
+        if (prog) {
+            prog.textContent = 'Scanned ' + (job.scanned || 0) + '/' + (job.total || 0)
+                + ' — Found ' + (job.found || 0)
+                + (job.timeouts ? (' — Timeouts ' + job.timeouts) : '')
+                + (job.status === 'done' ? ' — Done' : (job.status === 'error' ? (' — ' + (job.error || 'Error')) : '…'));
+        }
+        renderDiscResults(job.results || []);
+        if (job.status === 'done' || job.status === 'error') stopDiscPoll();
+    }
+
+    if (netDiscoverBtn && netDiscoverWrap) {
+        netDiscoverBtn.addEventListener('click', function () {
+            hideForm();
+            csvWrap.hidden = true;
+            netDiscoverWrap.hidden = !netDiscoverWrap.hidden;
+            if (!netDiscoverWrap.hidden) {
+                netDiscoverWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+
+        const discMethod = document.getElementById('fc-disc-method');
+        if (discMethod) {
+            discMethod.addEventListener('change', function () {
+                const wrap = document.getElementById('fc-disc-range-wrap');
+                if (wrap) wrap.hidden = discMethod.value === 'ws';
+            });
+        }
+
+        const discCancel = document.getElementById('fc-disc-cancel');
+        if (discCancel) {
+            discCancel.addEventListener('click', function () {
+                stopDiscPoll();
+                netDiscoverWrap.hidden = true;
+            });
+        }
+
+        const discStart = document.getElementById('fc-disc-start');
+        if (discStart) {
+            discStart.addEventListener('click', async function () {
+                const method = (document.getElementById('fc-disc-method') || {}).value || 'cidr';
+                const range = ((document.getElementById('fc-disc-range') || {}).value || '').trim();
+                const port = parseInt((document.getElementById('fc-disc-port') || {}).value, 10) || 80;
+                const user = ((document.getElementById('fc-disc-user') || {}).value || '').trim();
+                const password = (document.getElementById('fc-disc-pass') || {}).value || '';
+                if (method === 'cidr' && !range) {
+                    showToast('Enter a CIDR or IP range.', 'err');
+                    return;
+                }
+                discAuth = { user: user, password: password, port: port };
+                discStart.disabled = true;
+                stopDiscPoll();
+                const r = await api('POST', '/api/fixed-cams/discover/start', {
+                    method: method,
+                    range: range,
+                    port: port,
+                    username: user,
+                    password: password,
+                });
+                discStart.disabled = false;
+                if (!r.ok) {
+                    showToast(r.error || 'Scan failed to start.', 'err');
+                    return;
+                }
+                discJobId = (r.job && r.job.id) || '';
+                applyDiscJob(r.job);
+                discPollTimer = setInterval(async function () {
+                    if (!discJobId) return;
+                    const j = await api('GET', '/api/fixed-cams/discover/job/' + encodeURIComponent(discJobId));
+                    if (j.ok && j.job) applyDiscJob(j.job);
+                }, 1000);
+            });
+        }
+
+        const checkAll = document.getElementById('fc-disc-check-all');
+        if (checkAll) {
+            checkAll.addEventListener('change', function () {
+                document.querySelectorAll('.fc-disc-check:not(:disabled)').forEach(function (el) {
+                    el.checked = checkAll.checked;
+                });
+            });
+        }
+
+        const discCommit = document.getElementById('fc-disc-commit');
+        if (discCommit) {
+            discCommit.addEventListener('click', async function () {
+                const selected = [];
+                document.querySelectorAll('.fc-disc-check:checked').forEach(function (el) {
+                    const idx = parseInt(el.getAttribute('data-idx'), 10);
+                    const row = discResults[idx];
+                    if (!row) return;
+                    const updEl = document.querySelector('.fc-disc-update[data-idx="' + idx + '"]');
+                    selected.push({
+                        ip: row.ip,
+                        name: row.name,
+                        status: row.status,
+                        update: !!(updEl && updEl.checked),
+                        authOk: row.authOk,
+                    });
+                });
+                if (!selected.length) {
+                    showToast('Select at least one device.', 'err');
+                    return;
+                }
+                discCommit.disabled = true;
+                const r = await api('POST', '/api/fixed-cams/discover/commit', {
+                    selected: selected,
+                    auth: discAuth,
+                });
+                discCommit.disabled = false;
+                if (!r.ok) {
+                    showToast(r.error || 'Add to VMS failed.', 'err');
+                    return;
+                }
+                showToast('Created ' + (r.created || 0)
+                    + ', updated ' + (r.updated || 0)
+                    + ', skipped ' + (r.skipped || 0)
+                    + '. Profiles discovering in background.');
+                loadTable();
+                if (window.reloadFixedCameraMapPins) window.reloadFixedCameraMapPins();
+            });
+        }
+    }
 
 }());

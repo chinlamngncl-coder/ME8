@@ -29,11 +29,14 @@ import json
 import os
 import sys
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+_HERE = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__))
 DEFAULT_MODEL = os.path.join(_HERE, "models", "face_detection_yunet.onnx")
-SEETA_VENDOR = os.path.normpath(
-    os.path.join(_HERE, "..", "fr-sidecar-seeta", "vendor", "seetaFace6Python")
-)
+if getattr(sys, "frozen", False):
+    SEETA_VENDOR = os.path.join(_HERE, "vendor", "seetaFace6Python")
+else:
+    SEETA_VENDOR = os.path.normpath(
+        os.path.join(_HERE, "..", "fr-sidecar-seeta", "vendor", "seetaFace6Python")
+    )
 SEETA_MODEL_DIR = os.path.join(SEETA_VENDOR, "seetaface", "model")
 SEETA_DLL = os.path.join(SEETA_VENDOR, "seetaface", "lib", "win", "libFaceAPI.dll")
 SEETA_DETECTOR_MODEL = os.path.join(SEETA_MODEL_DIR, "face_detector.csta")

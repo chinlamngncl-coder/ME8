@@ -6,6 +6,8 @@
     var currentPanel = 'face';
     var weaponHealthTimer = null;
     var bound = false;
+    var aiScanGen = 0;
+    var aiPreviewUrl = null;
     var blById = {};
     var blDrawerId = null;
     var pendingEnrollFile = null;
@@ -134,8 +136,8 @@
             'anpr.plate_exists': ['analytics.anpr.lists.plateExists', 'That plate is already on a list.'],
             'anpr.list_full': ['analytics.anpr.lists.full', 'Plate list is full. Remove an entry before adding another.'],
             'anpr.no_plate': ['analytics.anpr.noPlate', 'No plate found in this photo. Crop tighter on the number plate and try again.'],
-            'anpr.format_reject': ['analytics.anpr.formatReject', 'No reliable plate read — the text did not match a valid plate format. Re-crop or try again.'],
-            'anpr.quality_low': ['analytics.anpr.qualityLow', 'No reliable plate read — confidence too low. Re-crop closer to the plate and try again.'],
+            'anpr.format_reject': ['analytics.anpr.formatReject', 'No reliable plate read - the text did not match a valid plate format. Re-crop or try again.'],
+            'anpr.quality_low': ['analytics.anpr.qualityLow', 'No reliable plate read - confidence too low. Re-crop closer to the plate and try again.'],
             'anpr.bad_file': ['analytics.anpr.badFile', 'Use a JPEG or PNG photo of the plate.'],
             'anpr.timeout': ['analytics.anpr.timeout', 'Plate reading took too long. Try again with a smaller crop.'],
             'anpr.busy': ['analytics.anpr.busy', 'Plate reading is busy. Wait a moment and try again.'],
@@ -170,8 +172,8 @@
         var isOfflineSub = currentPanel === 'face' && frLiveSub === 'offline';
         if (liveView) liveView.hidden = !(currentPanel === 'face' && frLiveSub === 'live');
         if (offlineView) offlineView.hidden = !isOfflineSub;
-        /* MASTER-CONSOLIDATION-PATCH-V1 — offline job status is shared toolbar chrome;
-           don't let "Done — N face crop(s)" from a finished offline scan bleed into Live Watch. */
+        /* MASTER-CONSOLIDATION-PATCH-V1 - offline job status is shared toolbar chrome;
+           don't let "Done - N face crop(s)" from a finished offline scan bleed into Live Watch. */
         var offlineStatusEl = document.getElementById('ax-fr-offline-status');
         if (offlineStatusEl) offlineStatusEl.hidden = !isOfflineSub || !offlineStatusEl.textContent;
         if (global.FrAlarm && typeof FrAlarm.syncLiveOfflineSurface === 'function') {
@@ -281,7 +283,7 @@
         return !!(runtime && runtime.ok && runtime.ready !== false && !runtime.warming);
     }
 
-    /** WEAPON-ENGINE-WARM-AUTO-V1: poll until ready while Weapon panel open — no page refresh. */
+    /** WEAPON-ENGINE-WARM-AUTO-V1: poll until ready while Weapon panel open - no page refresh. */
     function refreshWeaponStatus(opts) {
         opts = opts || {};
         var el = document.getElementById('ax-wd-engine-health');
@@ -353,7 +355,7 @@
     }
 
     function showAnprSub(sub) {
-        /* Live ingest removed — never surface Live panel; keep ids for cache-safe DOM. */
+        /* Live ingest removed - never surface Live panel; keep ids for cache-safe DOM. */
         if (sub === 'live') sub = 'snapshot';
         if (sub === 'lists') anprSubPanel = 'lists';
         else if (sub === 'offline') anprSubPanel = 'offline';
@@ -406,7 +408,7 @@
         if (anprSubPanel === 'history' && global.AnprHistory && AnprHistory.onShow) {
             AnprHistory.onShow();
         }
-        /* Offline (and non-Live): hide subnav "Active Watchlist Hits" — Live only */
+        /* Offline (and non-Live): hide subnav "Active Watchlist Hits" - Live only */
         if (global.AnprLiveWatch && typeof AnprLiveWatch.syncSubnavWatchBadge === 'function') {
             AnprLiveWatch.syncSubnavWatchBadge();
         }
@@ -468,7 +470,7 @@
                     return;
                 }
                 tbody.innerHTML = rows.map(function (e) {
-                    var when = e.enrolledAt ? String(e.enrolledAt).slice(0, 19).replace('T', ' ') : '\u2014';
+                    var when = e.enrolledAt ? (typeof fmtDateTime === 'function' ? fmtDateTime(e.enrolledAt) : String(e.enrolledAt).slice(0,16).replace('T',' ')) : '\u2014';
                     var st = e.enabled === false
                         ? tr('analytics.bl.statusOff', 'Off')
                         : tr('analytics.bl.statusOn', 'On');
@@ -598,7 +600,7 @@
             && (LicenseFeatures.isEnabled('analyticsAnpr') || LicenseFeatures.isEnabled('anpr')));
     }
 
-    /* ANPR-ENGINE-BADGE-STABLE-V1 — sticky OK; 3 consecutive fails → Off. */
+    /* ANPR-ENGINE-BADGE-STABLE-V1 - sticky OK; 3 consecutive fails -> Off. */
     var ANPR_HEALTH_FAIL_NEED = 3;
     var anprHealthFailStreak = 0;
     var anprHealthLastKind = '';
@@ -785,7 +787,7 @@
         setAnprActionMode('edit');
     }
 
-    /** Unassigned Evidence → ANPR auto-flow (sessionStorage.autoLoadAnprFile). */
+    /** Unassigned Evidence -> ANPR auto-flow (sessionStorage.autoLoadAnprFile). */
     function consumeAutoLoadAnprFile() {
         var raw = '';
         try {
@@ -827,7 +829,7 @@
                 anprSourceFile = file;
                 anprCropFile = null;
                 setAnprPreview(file);
-                /* Skip crop modal for auto-flow — run /read immediately on full image */
+                /* Skip crop modal for auto-flow - run /read immediately on full image */
                 runAnprRead();
             })
             .catch(function () {
@@ -1595,7 +1597,12 @@
         var reasonEl = document.getElementById('ax-bl-reason');
         var wrap = document.getElementById('ax-bl-reason-other-wrap');
         if (!wrap || !reasonEl) return;
-        wrap.hidden = String(reasonEl.value || '') !== 'other';
+        var isOther = String(reasonEl.value || '') === 'other';
+        wrap.style.display = isOther ? '' : 'none';
+        if (!isOther) {
+            var inp = document.getElementById('ax-bl-reason-other');
+            if (inp) inp.value = '';
+        }
     }
 
     function setPendingCrop(file) {
@@ -1661,7 +1668,7 @@
                 face.removeAttribute('src');
             }
         }
-        var when = e.enrolledAt ? String(e.enrolledAt).replace('T', ' ').slice(0, 19) : '\u2014';
+        var when = e.enrolledAt ? (typeof fmtDateTime === 'function' ? fmtDateTime(e.enrolledAt) : String(e.enrolledAt).slice(0,16).replace('T',' ')) : '\u2014';
         var rows = [
             [tr('analytics.bl.grade', 'Watch grade'), gradeBadgeHtml(e.listStatus)],
             [tr('analytics.bl.reason', 'Reason'), esc(reasonLabel(e.reasonCode, e.reasonOther))],
@@ -1859,7 +1866,7 @@
             if (!frSettings.canManage) {
                 meta.textContent = 'Locked';
             } else if (frSettings.updatedAt) {
-                meta.textContent = 'Saved ' + String(frSettings.updatedAt).replace('T', ' ').slice(11, 19);
+                meta.textContent = 'Saved ' + (typeof fmtDateTime === 'function' ? fmtDateTime(frSettings.updatedAt) : String(frSettings.updatedAt).slice(0,16).replace('T',' '));
             } else {
                 meta.textContent = 'Default';
             }
@@ -1946,14 +1953,7 @@
     }
 
     function shortTime(iso) {
-        if (!iso) return '\u2014';
-        try {
-            var d = new Date(iso);
-            if (isNaN(d.getTime())) return String(iso).slice(0, 19).replace('T', ' ');
-            return d.toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-        } catch (_) {
-            return String(iso).slice(0, 19).replace('T', ' ');
-        }
+        return (typeof fmtDateTime === 'function') ? fmtDateTime(iso) : String(iso || '\u2014').slice(0,16).replace('T',' ');
     }
 
     function deviceLabel(camId) {
@@ -2264,7 +2264,7 @@
         }
         if (!pendingEnrollFile && photoEl && photoEl.files && photoEl.files[0]) {
             openEnrollCropper(photoEl.files[0]);
-            showBlMsg(tr('analytics.bl.cropFirst', 'Crop & check the face first, then Add to watchlist.'), '');
+            showBlMsg(tr('analytics.bl.cropFirst', 'Crop and Check the face first, then Add to watchlist.'), '');
             return;
         }
         var reasonCode = reasonEl ? String(reasonEl.value || 'suspicious') : 'suspicious';
@@ -2453,9 +2453,682 @@
         }
     }
 
+    function consumePendingAnalysis() {
+        var id = '';
+        try { id = sessionStorage.getItem('pending_analysis_id') || ''; } catch (_) { id = ''; }
+        var card = document.getElementById('ax-ai-result-card');
+        if (!card) return;
+        if (!id) {
+            card.hidden = true;
+            var modalOff = document.getElementById('ai-analysis-modal');
+            if (modalOff) modalOff.hidden = true;
+            return;
+        }
+        card.hidden = false;
+        var modalOn = document.getElementById('ai-analysis-modal');
+        if (modalOn) modalOn.hidden = false;
+        card.setAttribute('data-file-id', id);
+        var match = document.getElementById('ax-ai-result-match');
+        if (match) match.textContent = 'Pending';
+        var conf = document.getElementById('ax-ai-result-confidence');
+        if (conf) conf.textContent = '-';
+        syncAiBriefingButton(false);
+        var target = document.getElementById('ax-ai-result-target');
+        if (target) target.textContent = id;
+        var ts = document.getElementById('ax-ai-result-time');
+        if (ts) ts.textContent = (typeof fmtDateTime === 'function') ? fmtDateTime(new Date().toISOString()) : new Date().toLocaleString();
+        var linkCase = document.getElementById('ax-ai-link-case');
+        if (linkCase) {
+            linkCase.disabled = false;
+            linkCase.removeAttribute('disabled');
+        }
+        showAiFilePreview(id);
+        refreshAiRecordLine(id);
+        maybeAutoScanFromSort(id);
+    }
+
+    function fireAutoScanForSort(id, st) {
+        var s = String(st || '').toLowerCase();
+        if (s === 'face' || s === 'human' || s === 'person' || s === 'body'
+            || s === 'pedestrian' || s.indexOf('full body') !== -1) {
+            runAiModalScan(id, 'fr');
+            return true;
+        }
+        if (s === 'car' || s === 'plate' || s === 'lpr' || s === 'anpr' || s === 'vehicle') {
+            runAiModalScan(id, 'anpr');
+            return true;
+        }
+        return false;
+    }
+
+    function maybeAutoScanFromSort(fileId) {
+        var id = String(fileId || '').trim();
+        if (!id) return;
+        var fromSession = '';
+        try { fromSession = sessionStorage.getItem('pending_analysis_sort') || ''; } catch (_) { /* ignore */ }
+        if (fireAutoScanForSort(id, fromSession)) return;
+        fetch('/api/evidence/detail/' + encodeURIComponent(id), { credentials: 'same-origin' })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (j) {
+                if (pendingAnalysisId() !== id) return;
+                var file = (j && j.detail && (j.detail.file || j.detail)) || {};
+                fireAutoScanForSort(id, file.sortType || file.sort_type);
+            })
+            .catch(function () { /* operator clicks Scan */ });
+    }
+
+    function anprLicensed() {
+        return !!(global.LicenseFeatures && LicenseFeatures.isEnabled
+            && (LicenseFeatures.isEnabled('analyticsAnpr') || LicenseFeatures.isEnabled('anpr')));
+    }
+
+    function pendingAnalysisCaseId() {
+        try { return sessionStorage.getItem('pending_analysis_case_id') || ''; } catch (_) { return ''; }
+    }
+
+    function setPendingAnalysisCaseId(caseId) {
+        var id = String(caseId || '').trim();
+        try {
+            if (id) sessionStorage.setItem('pending_analysis_case_id', id);
+            else sessionStorage.removeItem('pending_analysis_case_id');
+        } catch (_) { /* ignore */ }
+    }
+
+    function paintAiRecordLine(caseId) {
+        var line = document.getElementById('ax-ai-record-line');
+        var openBtn = document.getElementById('ax-ai-open-incident');
+        var linkBtn = document.getElementById('ax-ai-link-case');
+        var cid = String(caseId || '').trim();
+        if (line) {
+            if (cid) {
+                line.hidden = false;
+                line.textContent = 'Already on this incident (record).';
+            } else {
+                line.hidden = false;
+                line.textContent = 'Not on an incident yet. Link this file - and others - to one report.';
+            }
+        }
+        if (openBtn) openBtn.hidden = !cid;
+        if (linkBtn) linkBtn.hidden = !!cid;
+    }
+
+    function refreshAiRecordLine(fileId) {
+        var id = String(fileId || pendingAnalysisId() || '').trim();
+        var known = pendingAnalysisCaseId();
+        if (known) {
+            paintAiRecordLine(known);
+            return;
+        }
+        if (!id) {
+            paintAiRecordLine('');
+            return;
+        }
+        fetch('/api/case-files/by-evidence/' + encodeURIComponent(id), { credentials: 'same-origin' })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (j) {
+                var cid = (j && j.caseFile && j.caseFile.id)
+                    || (j && j.caseFileIds && j.caseFileIds[0])
+                    || '';
+                if (cid) setPendingAnalysisCaseId(cid);
+                paintAiRecordLine(cid);
+            })
+            .catch(function () { paintAiRecordLine(''); });
+    }
+
+    function openAiIncident() {
+        var id = pendingAnalysisId();
+        var caseId = pendingAnalysisCaseId();
+        if (!caseId) {
+            linkAiToCase();
+            return;
+        }
+        hideAiModalKeepFile();
+        var go = function () {
+            if (global.CaseFilesUi && typeof CaseFilesUi.openCase === 'function') {
+                CaseFilesUi.openCase({ caseId: caseId });
+            }
+        };
+        if (!id) {
+            go();
+            return;
+        }
+        fetch('/api/case-files/' + encodeURIComponent(caseId) + '/evidence', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ evidenceFileId: id }),
+        }).then(function () { clearAiSoftHitForFile(id); go(); }).catch(function () { go(); });
+    }
+
+    function showAiUpsell() {
+        var viewer = document.getElementById('ax-ai-result-viewer');
+        if (!viewer) return;
+        viewer.classList.remove('is-processing');
+        viewer.textContent = '';
+        var wrap = document.createElement('div');
+        wrap.className = 'ax-ai-upsell';
+        var p = document.createElement('p');
+        p.textContent = 'To unlock automated face and license plate scanning, please check with your administrator regarding role permissions or the Mobility Axiom Analytics Module.';
+        wrap.appendChild(p);
+        viewer.appendChild(wrap);
+    }
+
+    function evidencePreviewUrl(id) {
+        var raw = String(id || '');
+        if (raw.indexOf('/api/') === 0 || raw.indexOf('http') === 0) return raw;
+        return '/api/evidence/preview/' + encodeURIComponent(raw);
+    }
+
+    function showAiFilePreview(id) {
+        var gen = ++aiScanGen;
+        setAiViewerProcessing();
+        var fileUrl = evidencePreviewUrl(id);
+        fetch(fileUrl, { credentials: 'same-origin' })
+            .then(function (r) {
+                if (!r.ok) throw new Error('load_failed');
+                return r.blob();
+            })
+            .then(function (blob) {
+                if (gen !== aiScanGen) return;
+                try { aiPreviewUrl = URL.createObjectURL(blob); } catch (_) { aiPreviewUrl = fileUrl; }
+                var isVideo = String(blob.type || '').indexOf('video/') === 0;
+                setAiViewerMedia(aiPreviewUrl || fileUrl, isVideo ? 'video' : 'image');
+            })
+            .catch(function () {
+                if (gen !== aiScanGen) return;
+                var viewer = document.getElementById('ax-ai-result-viewer');
+                if (!viewer) return;
+                viewer.classList.remove('is-processing');
+                viewer.textContent = 'File preview unavailable';
+            });
+    }
+
+    function revokeAiPreviewUrl() {
+        if (!aiPreviewUrl) return;
+        try { URL.revokeObjectURL(aiPreviewUrl); } catch (_) { /* ignore */ }
+        aiPreviewUrl = null;
+    }
+
+    function setAiViewerProcessing() {
+        var viewer = document.getElementById('ax-ai-result-viewer');
+        if (!viewer) return;
+        revokeAiPreviewUrl();
+        viewer.classList.add('is-processing');
+        viewer.textContent = '';
+        var spin = document.createElement('span');
+        spin.className = 'ax-ai-result-spinner';
+        spin.setAttribute('aria-hidden', 'true');
+        viewer.appendChild(spin);
+        var label = document.createElement('span');
+        label.className = 'ax-ai-result-processing';
+        label.textContent = 'Processing\u2026';
+        viewer.appendChild(label);
+    }
+
+    function setAiViewerMedia(src, kind) {
+        var viewer = document.getElementById('ax-ai-result-viewer');
+        if (!viewer) return;
+        viewer.classList.remove('is-processing', 'is-compare');
+        viewer.textContent = '';
+        if (kind === 'video') {
+            var vid = document.createElement('video');
+            vid.src = src;
+            vid.controls = true;
+            vid.setAttribute('playsinline', '');
+            viewer.appendChild(vid);
+            return;
+        }
+        var img = document.createElement('img');
+        img.src = src;
+        img.alt = '';
+        viewer.appendChild(img);
+    }
+
+    function showAiSoftToast(msg, ms) {
+        var text = String(msg || '').trim();
+        if (!text) return;
+        var dur = Number(ms) > 0 ? Number(ms) : 5000;
+        if (global.AdminActionBus && typeof AdminActionBus.toast === 'function') {
+            try { AdminActionBus.toast(text, dur); return; } catch (_) { /* fallback */ }
+        }
+        var el = document.getElementById('ax-ai-soft-toast');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'ax-ai-soft-toast';
+            el.className = 'ax-ai-soft-toast';
+            el.setAttribute('role', 'status');
+            document.body.appendChild(el);
+        }
+        el.textContent = text;
+        el.classList.add('is-visible');
+        if (showAiSoftToast._timer) clearTimeout(showAiSoftToast._timer);
+        showAiSoftToast._timer = setTimeout(function () {
+            el.classList.remove('is-visible');
+        }, dur);
+    }
+
+    function setAiViewerCompare(probeSrc, targetSrc, captionProbe, captionTarget) {
+        var viewer = document.getElementById('ax-ai-result-viewer');
+        if (!viewer) return;
+        viewer.classList.remove('is-processing');
+        viewer.classList.add('is-compare');
+        viewer.textContent = '';
+        function col(src, cap) {
+            var wrap = document.createElement('div');
+            wrap.className = 'ax-ai-compare-col';
+            var img = document.createElement('img');
+            img.src = src;
+            img.alt = cap || '';
+            var lab = document.createElement('span');
+            lab.className = 'ax-ai-compare-label';
+            lab.textContent = cap || '';
+            wrap.appendChild(img);
+            wrap.appendChild(lab);
+            return wrap;
+        }
+        viewer.appendChild(col(probeSrc, captionProbe || 'Uploaded snapshot'));
+        viewer.appendChild(col(targetSrc, captionTarget || 'Watchlist match'));
+    }
+
+    function aiSoftHitsRead() {
+        try { return JSON.parse(sessionStorage.getItem('ax-ai-soft-hits') || '{}') || {}; } catch (_) { return {}; }
+    }
+
+    function aiSoftHitsWrite(map) {
+        try { sessionStorage.setItem('ax-ai-soft-hits', JSON.stringify(map || {})); } catch (_) { /* ignore */ }
+    }
+
+    function setAiSoftHitForFile(fileId, targetId) {
+        var fid = String(fileId || '').trim();
+        if (!fid) return;
+        var map = aiSoftHitsRead();
+        map[fid] = { at: Date.now(), targetId: targetId || null };
+        aiSoftHitsWrite(map);
+    }
+
+    function clearAiSoftHitForFile(fileId) {
+        var fid = String(fileId || '').trim();
+        if (!fid) return;
+        var map = aiSoftHitsRead();
+        if (map && map[fid]) delete map[fid];
+        aiSoftHitsWrite(map);
+    }
+
+    function syncAiBriefingButton(show) {
+        var linkCase = document.getElementById('ax-ai-link-case');
+        if (!linkCase) return;
+        var existing = document.getElementById('ax-ai-generate-briefing');
+        if (!show) {
+            if (existing) existing.hidden = true;
+            return;
+        }
+        if (!existing) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.id = 'ax-ai-generate-briefing';
+            btn.className = 'btn btn-ghost btn-sm';
+            btn.textContent = 'Generate AI Briefing';
+            btn.addEventListener('click', function () {
+                try { window.alert('TODO: Export PDF/Printable AI Briefing for Operational Meeting.'); } catch (_) {}
+                try { console.log('[ai-briefing] TODO export'); } catch (_) {}
+            });
+            if (linkCase.parentNode) linkCase.parentNode.insertBefore(btn, linkCase.nextSibling);
+        }
+        var btn2 = document.getElementById('ax-ai-generate-briefing');
+        if (btn2) btn2.hidden = !!linkCase.hidden;
+    }
+
+    function paintAiFrMatch(opts) {
+        opts = opts || {};
+        var targetId = opts.displayName || opts.blacklistId || '-';
+        paintAiHit('Match Found', formatAiConfidence({ score: opts.scorePct }) || '-', targetId);
+        var probeSrc = opts.probeSrc || aiPreviewUrl || '';
+        var bid = String(opts.blacklistId || '').trim();
+        if (probeSrc && bid) {
+            setAiViewerCompare(
+                probeSrc,
+                '/api/analytics/fr/blacklist/' + encodeURIComponent(bid) + '/photo',
+                'Uploaded snapshot',
+                targetId
+            );
+            showAiSoftToast(
+                opts.displayName
+                    ? ('Face Match Found: ' + String(opts.displayName).trim())
+                    : 'Face Match Found'
+            );
+            return;
+        }
+        var viewer = document.getElementById('ax-ai-result-viewer');
+        if (viewer) viewer.classList.remove('is-processing');
+        if (probeSrc) setAiViewerMedia(probeSrc, 'image');
+    }
+
+    function paintAiNoMatch() {
+        var match = document.getElementById('ax-ai-result-match');
+        var conf = document.getElementById('ax-ai-result-confidence');
+        if (match) match.textContent = 'No Match Found';
+        if (conf) conf.textContent = '-';
+        clearAiSoftHitForFile(pendingAnalysisId());
+        syncAiBriefingButton(false);
+        var viewer = document.getElementById('ax-ai-result-viewer');
+        if (viewer) {
+            viewer.classList.remove('is-processing', 'is-compare');
+            if (aiPreviewUrl) setAiViewerMedia(aiPreviewUrl, 'image');
+        }
+    }
+
+    function formatAiConfidence(j) {
+        var n = Number(j && (j.confidence != null ? j.confidence : j.score));
+        if (!Number.isFinite(n)) return '';
+        if (n <= 1) n = n * 100;
+        return Math.round(n) + '%';
+    }
+
+    function paintAiHit(label, pct, targetId) {
+        var match = document.getElementById('ax-ai-result-match');
+        var conf = document.getElementById('ax-ai-result-confidence');
+        var target = document.getElementById('ax-ai-result-target');
+        if (match) match.textContent = label || 'Match Found';
+        if (conf) conf.textContent = pct || '-';
+        if (target && targetId) target.textContent = String(targetId);
+        setAiSoftHitForFile(pendingAnalysisId(), targetId);
+        syncAiBriefingButton(true);
+    }
+
+    function paintAiError(msg) {
+        var match = document.getElementById('ax-ai-result-match');
+        if (match) match.textContent = 'Error';
+        var text = String(msg || 'Scan failed. Check the face or plate engine is running.');
+        clearAiSoftHitForFile(pendingAnalysisId());
+        syncAiBriefingButton(false);
+        try { window.alert(text); } catch (_) { /* ignore */ }
+    }
+
+    function runAiModalScan(id, engine) {
+        var licensed = engine === 'fr' ? frLicensed() : anprLicensed();
+        if (!licensed) {
+            showAiUpsell();
+            return;
+        }
+        var fileId = String(id || pendingAnalysisId() || '').trim();
+        if (!fileId) {
+            paintAiError('No file selected.');
+            return;
+        }
+        var matchEl = document.getElementById('ax-ai-result-match');
+        var confEl = document.getElementById('ax-ai-result-confidence');
+        if (matchEl) matchEl.textContent = 'Scanning...';
+        if (confEl) confEl.textContent = '-';
+        var gen = ++aiScanGen;
+        var url = evidencePreviewUrl(fileId);
+        fetch(url, { credentials: 'same-origin' })
+            .then(function (r) {
+                if (!r.ok) throw new Error('preview');
+                return r.blob();
+            })
+            .then(function (blob) {
+                if (gen !== aiScanGen) return null;
+                var name = 'scan.jpg';
+                try {
+                    var m = fileId.split(/[/\\]/).pop();
+                    if (m) name = m;
+                } catch (_) { /* ignore */ }
+                var type = blob.type || '';
+                var isVid = type.indexOf('video/') === 0 || /\.(mp4|mov|webm|mkv)$/i.test(name);
+                if (engine === 'fr' && isVid) {
+                    var fdV = new FormData();
+                    fdV.append('video', new File([blob], /\.(mp4|mov|webm|mkv)$/i.test(name) ? name : 'scan.mp4', { type: type || 'video/mp4' }));
+                    return fetch('/api/analytics/fr/offline-video', { method: 'POST', credentials: 'same-origin', body: fdV })
+                        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { http: r.status, j: j }; }); })
+                        .then(function (pack) {
+                            if (gen !== aiScanGen) return;
+                            if (!pack.j || pack.j.ok === false || pack.http >= 400) {
+                                paintAiError(pack.http === 403 ? 'Face matching is not licensed.' : 'Face engine did not start. Start Face matching, then try again.');
+                                return;
+                            }
+                            var jobId = pack.j.job && pack.j.job.jobId;
+                            pollFrOfflineJob(gen, jobId);
+                        });
+                }
+                var fd = new FormData();
+                var fname = name;
+                if (!/\.(jpe?g|png|webp|bmp)$/i.test(fname)) fname = 'scan.jpg';
+                fd.append('photo', new File([blob], fname, { type: type || 'image/jpeg' }));
+                if (fileId) fd.append('evidenceFileId', fileId);
+                var ep = engine === 'anpr' ? '/api/analytics/anpr/read' : '/api/analytics/fr/scan-photo';
+                return fetch(ep, { method: 'POST', credentials: 'same-origin', body: fd })
+                    .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { http: r.status, j: j }; }); })
+                    .then(function (pack) {
+                        if (gen !== aiScanGen) return;
+                        var j = pack.j || {};
+                        if (pack.http === 403) {
+                            paintAiError(engine === 'fr' ? 'Face matching is not licensed.' : 'Plate matching is not licensed.');
+                            return;
+                        }
+                        if (pack.http === 404) {
+                            paintAiError('Scan route missing. Restart Fleet from this ME8 folder, then hard-refresh.');
+                            return;
+                        }
+                        if (pack.http === 400) {
+                            paintAiError('That file was rejected for scanning. Use a JPEG or PNG photo.');
+                            return;
+                        }
+                        if (pack.http >= 500 || j.error === 'engine_down' || pack.http === 503) {
+                            paintAiError(engine === 'fr'
+                                ? 'Face engine is not running. Start Seeta (port 8767), then try again.'
+                                : 'Plate engine is not running. Start ANPR, then try again.');
+                            return;
+                        }
+                        if (engine === 'anpr') {
+                            var plate = j.plateCompact || j.plate || '';
+                            var listHit = j.listMatch && (j.listMatch.displayName || j.listMatch.plate || j.listMatch.id);
+                            if (j.ok && plate) {
+                                paintAiHit(listHit ? ('Match Found - ' + plate) : ('Plate - ' + plate), formatAiConfidence(j) || '-', listHit || plate);
+                            } else {
+                                paintAiNoMatch();
+                            }
+                            return;
+                        }
+                        if (j.ok && j.match) {
+                            paintAiFrMatch({
+                                scorePct: j.scorePct,
+                                displayName: j.displayName,
+                                blacklistId: j.blacklistId,
+                                probeSrc: aiPreviewUrl || evidencePreviewUrl(fileId),
+                            });
+                        } else if (j.ok) {
+                            paintAiNoMatch();
+                        } else {
+                            paintAiError('Scan failed. Start the matching engine, then try again.');
+                        }
+                    });
+            })
+            .catch(function () {
+                if (gen !== aiScanGen) return;
+                paintAiError('Could not load that file for scanning.');
+            });
+    }
+
+    function pollFrOfflineJob(gen, jobId) {
+        var tries = 0;
+        function tick() {
+            if (gen !== aiScanGen) return;
+            if (tries++ > 40) {
+                paintAiError('Face scan timed out. Start Face matching, then try again.');
+                return;
+            }
+            fetch('/api/analytics/fr/offline-video/status', { credentials: 'same-origin' })
+                .then(function (r) { return r.json().catch(function () { return {}; }); })
+                .then(function (j) {
+                    if (gen !== aiScanGen) return;
+                    var job = (j && j.job) || {};
+                    var st = String(job.status || '');
+                    if (st === 'running' || st === 'queued' || st === 'starting') {
+                        setTimeout(tick, 1000);
+                        return;
+                    }
+                    var hits = Array.isArray(job.matches) ? job.matches
+                        : (Array.isArray(job.hits) ? job.hits : []);
+                    var first = hits[0] || null;
+                    var match = document.getElementById('ax-ai-result-match');
+                    var conf = document.getElementById('ax-ai-result-confidence');
+                    if (first && (first.displayName || first.blacklistId || first.plate)) {
+                        paintAiHit('Match Found', formatAiConfidence(first.scorePct != null ? { score: first.scorePct } : first) || '-', first.displayName || first.blacklistId || first.plate);
+                        return;
+                    }
+                    if (Number(job.matches) > 0) {
+                        paintAiHit('Match Found', '-', pendingAnalysisId());
+                        return;
+                    }
+                    paintAiNoMatch();
+                })
+                .catch(function () {
+                    if (gen !== aiScanGen) return;
+                    paintAiNoMatch();
+                });
+        }
+        tick();
+    }
+
+    function clearPendingAnalysis() {
+        try { sessionStorage.removeItem('pending_analysis_id'); } catch (_) { /* ignore */ }
+        try { sessionStorage.removeItem('pending_analysis_sort'); } catch (_) { /* ignore */ }
+        try { sessionStorage.removeItem('pending_ai_report'); } catch (_) { /* ignore */ }
+        setPendingAnalysisCaseId('');
+        aiScanGen += 1;
+        revokeAiPreviewUrl();
+        var card = document.getElementById('ax-ai-result-card');
+        if (card) {
+            card.hidden = true;
+            card.removeAttribute('data-file-id');
+        }
+        var modal = document.getElementById('ai-analysis-modal');
+        if (modal) modal.hidden = true;
+        syncAiBriefingButton(false);
+    }
+
+    function pendingAnalysisId() {
+        var card = document.getElementById('ax-ai-result-card');
+        var id = (card && card.getAttribute('data-file-id')) || '';
+        if (id) return id;
+        try { return sessionStorage.getItem('pending_analysis_id') || ''; } catch (_) { return ''; }
+    }
+
+    function restoreAnalysis(fileId) {
+        var id = String(fileId || '').trim();
+        if (id) {
+            try { sessionStorage.setItem('pending_analysis_id', id); } catch (_) { /* ignore */ }
+            var card = document.getElementById('ax-ai-result-card');
+            if (card) {
+                card.hidden = false;
+                card.setAttribute('data-file-id', id);
+            }
+        }
+        var modal = document.getElementById('ai-analysis-modal');
+        if (modal) modal.hidden = false;
+    }
+
+    function hideAiModalKeepFile() {
+        var modal = document.getElementById('ai-analysis-modal');
+        if (modal) modal.hidden = true;
+    }
+
+    function linkAiToCase() {
+        var id = pendingAnalysisId();
+        if (!id) return;
+        if (pendingAnalysisCaseId()) {
+            openAiIncident();
+            return;
+        }
+        try { sessionStorage.setItem('pending_analysis_id', id); } catch (_) { /* ignore */ }
+        hideAiModalKeepFile();
+        if (global.CaseFilesUi && typeof CaseFilesUi.beginAnalysisPick === 'function') {
+            CaseFilesUi.beginAnalysisPick(id);
+            return;
+        }
+        if (global.EvidenceManager && typeof EvidenceManager.showTab === 'function') {
+            EvidenceManager.showTab('evidence');
+        }
+        if (global.EvidenceHub && EvidenceHub.showPanel) EvidenceHub.showPanel('case-files');
+    }
+
+    function buildAiReportText() {
+        var id = pendingAnalysisId();
+        var match = document.getElementById('ax-ai-result-match');
+        var conf = document.getElementById('ax-ai-result-confidence');
+        var target = document.getElementById('ax-ai-result-target');
+        var ts = document.getElementById('ax-ai-result-time');
+        return [
+            'AI analysis report',
+            'Detection match: ' + ((match && match.textContent) || '-'),
+            'Confidence score: ' + ((conf && conf.textContent) || '-'),
+            'Target ID: ' + ((target && target.textContent) || id || '-'),
+            'Timestamp: ' + ((ts && ts.textContent) || '-'),
+        ].join('\r\n');
+    }
+
+    function attachAiReportFail() {
+        var viewer = document.getElementById('ax-ai-result-viewer');
+        if (!viewer) return;
+        viewer.classList.remove('is-processing');
+        viewer.textContent = 'Could not attach the report to the incident.';
+    }
+
+    function attachAiReportToCase(caseId, text, fileId, thenOpen) {
+        var cid = String(caseId || '').trim();
+        if (!cid) return;
+        fetch('/api/case-files/' + encodeURIComponent(cid) + '/ai-report', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text, evidenceFileId: fileId || '' }),
+        }).then(function (r) {
+            return r.json().catch(function () { return {}; }).then(function (j) {
+                return { ok: !!(r.ok && j && j.ok) };
+            });
+        }).then(function (pack) {
+            if (!pack || !pack.ok) {
+                attachAiReportFail();
+                return;
+            }
+            setPendingAnalysisCaseId(cid);
+            paintAiRecordLine(cid);
+            try { sessionStorage.removeItem('pending_ai_report'); } catch (_) { /* ignore */ }
+            if (thenOpen && global.CaseFilesUi && typeof CaseFilesUi.openCase === 'function') {
+                hideAiModalKeepFile();
+                CaseFilesUi.openCase({ caseId: cid });
+            }
+        }).catch(function () { attachAiReportFail(); });
+    }
+
+    function exportAiReport() {
+        var text = buildAiReportText();
+        var fileId = pendingAnalysisId();
+        var caseId = pendingAnalysisCaseId();
+        if (caseId) {
+            attachAiReportToCase(caseId, text, fileId, true);
+            return;
+        }
+        try { sessionStorage.setItem('pending_ai_report', text); } catch (_) { /* ignore */ }
+        linkAiToCase();
+    }
+
+    function closeAiModal() {
+        clearPendingAnalysis();
+        if (global.EvidenceManager && typeof EvidenceManager.showTab === 'function') {
+            EvidenceManager.showTab('evidence');
+        }
+        if (global.EvidenceHub && EvidenceHub.showPanel) EvidenceHub.showPanel('ftp-inbox');
+    }
+
+    function dismissAiResult() {
+        closeAiModal();
+    }
+
     function onShow(opts) {
         opts = opts || {};
         setGate();
+        consumePendingAnalysis();
         if (frLicensed()) {
             showPanel(currentPanel || 'face');
         }
@@ -2476,6 +3149,31 @@
     function bindUi() {
         if (bound) return;
         bound = true;
+        var linkCase = document.getElementById('ax-ai-link-case');
+        if (linkCase) {
+            linkCase.disabled = false;
+            linkCase.addEventListener('click', linkAiToCase);
+        }
+        var openIncident = document.getElementById('ax-ai-open-incident');
+        if (openIncident) openIncident.addEventListener('click', openAiIncident);
+        var scanFr = document.getElementById('btn-scan-fr');
+        if (scanFr) {
+            scanFr.addEventListener('click', function () {
+                runAiModalScan(pendingAnalysisId(), 'fr');
+            });
+        }
+        var scanAnpr = document.getElementById('btn-scan-anpr');
+        if (scanAnpr) {
+            scanAnpr.addEventListener('click', function () {
+                runAiModalScan(pendingAnalysisId(), 'anpr');
+            });
+        }
+        var exportBtn = document.getElementById('ax-ai-export');
+        if (exportBtn) exportBtn.addEventListener('click', exportAiReport);
+        var dismissBtn = document.getElementById('ax-ai-dismiss');
+        if (dismissBtn) dismissBtn.addEventListener('click', dismissAiResult);
+        var modalClose = document.getElementById('ax-ai-modal-close');
+        if (modalClose) modalClose.addEventListener('click', closeAiModal);
         document.querySelectorAll('.ax-hub-nav-primary > .ax-hub-nav-btn[data-panel]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 if (btn.disabled) return;
@@ -2626,7 +3324,13 @@
         if (plReason) {
             plReason.addEventListener('change', function () {
                 var wrap = document.getElementById('ax-pl-reason-other-wrap');
-                if (wrap) wrap.hidden = String(plReason.value || '') !== 'other';
+                if (!wrap) return;
+                var isOther = String(plReason.value || '') === 'other';
+                wrap.style.display = isOther ? '' : 'none';
+                if (!isOther) {
+                    var inp = document.getElementById('ax-pl-reason-other');
+                    if (inp) inp.value = '';
+                }
             });
         }
         var plTbody = document.getElementById('ax-pl-tbody');
@@ -2764,5 +3468,10 @@
         reasonLabel: reasonLabel,
         messageForCode: messageForCode,
         consumeAutoLoadAnprFile: consumeAutoLoadAnprFile,
+        consumePendingAnalysis: consumePendingAnalysis,
+        restoreAnalysis: restoreAnalysis,
+        closeAiModal: closeAiModal,
     };
+    global.closeAiModal = closeAiModal;
 })(window);
+

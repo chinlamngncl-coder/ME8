@@ -38,12 +38,7 @@
     }
 
     function fmtTime(iso) {
-        if (!iso) return '\u2014';
-        try {
-            return new Date(iso).toLocaleString();
-        } catch (_) {
-            return iso;
-        }
+        return (typeof fmtDateTime === 'function') ? fmtDateTime(iso) : String(iso || '\u2014');
     }
 
     function applyPermissions(perms, role) {
@@ -340,6 +335,7 @@
         const audit = document.getElementById('app-view-audit-trail');
         const srv = document.getElementById('app-view-server');
         const cw = document.getElementById('app-view-command-wall');
+        const sc = document.getElementById('app-view-spatial-command');
         const cs = document.getElementById('app-view-centre-summary');
         const btnOps = document.getElementById('nav-tab-ops');
         const btnEv = document.getElementById('nav-tab-evidence');
@@ -350,6 +346,7 @@
         const btnAudit = document.getElementById('nav-tab-audit-trail');
         const btnSrv = document.getElementById('nav-tab-server');
         const btnCw = document.getElementById('nav-tab-command-wall');
+        const btnSc = document.getElementById('nav-spatial-command');
         const btnCs = document.getElementById('nav-tab-centre-summary');
         const navTools = document.getElementById('video-wall-nav-tools');
         if (navTools) navTools.hidden = tab !== 'ops';
@@ -366,7 +363,25 @@
         if (audit) audit.hidden = tab !== 'audit-trail';
         if (srv) srv.hidden = tab !== 'server';
         if (cw) cw.hidden = tab !== 'command-wall';
+        if (sc) sc.hidden = tab !== 'spatial-command';
         if (cs) cs.hidden = tab !== 'centre-summary';
+        try {
+            if (tab === 'spatial-command') {
+                if (window.VmsCommandShell && typeof window.VmsCommandShell.onShow === 'function') {
+                    window.VmsCommandShell.onShow();
+                }
+                if (window.VmsSpatialFloorplan && typeof window.VmsSpatialFloorplan.onShow === 'function') {
+                    window.VmsSpatialFloorplan.onShow();
+                }
+            } else {
+                if (window.VmsCommandShell && typeof window.VmsCommandShell.onHide === 'function') {
+                    window.VmsCommandShell.onHide();
+                }
+                if (window.VmsSpatialFloorplan && typeof window.VmsSpatialFloorplan.onHide === 'function') {
+                    window.VmsSpatialFloorplan.onHide();
+                }
+            }
+        } catch (_) { /* ignore */ }
         if (btnOps) btnOps.classList.toggle('active', tab === 'ops');
         if (btnEv) btnEv.classList.toggle('active', tab === 'evidence');
         if (btnAx) btnAx.classList.toggle('active', tab === 'analytics');
@@ -376,6 +391,7 @@
         if (btnAudit) btnAudit.classList.toggle('active', tab === 'audit-trail');
         if (btnSrv) btnSrv.classList.toggle('active', tab === 'server');
         if (btnCw) btnCw.classList.toggle('active', tab === 'command-wall');
+        if (btnSc) btnSc.classList.toggle('active', tab === 'spatial-command');
         if (btnCs) btnCs.classList.toggle('active', tab === 'centre-summary');
         if (tab === 'evidence') {
             if (loadData) {
@@ -467,6 +483,7 @@
         const btnTac = document.getElementById('nav-tab-tactical');
         const btnSrv = document.getElementById('nav-tab-server');
         const btnCw = document.getElementById('nav-tab-command-wall');
+        const btnSc = document.getElementById('nav-spatial-command');
         const btnCs = document.getElementById('nav-tab-centre-summary');
         const btnConf = document.getElementById('nav-tab-conference');
         const btnAudit = document.getElementById('nav-tab-audit-trail');
@@ -487,6 +504,7 @@
         if (btnAuditServer) btnAuditServer.addEventListener('click', function () { showTab('audit-trail'); });
         if (btnSrv) btnSrv.addEventListener('click', function () { showTab('server'); });
         if (btnCw) btnCw.addEventListener('click', function () { showTab('command-wall'); });
+        if (btnSc) btnSc.addEventListener('click', function () { showTab('spatial-command'); });
         if (btnCs) btnCs.addEventListener('click', function () { showTab('centre-summary'); });
         if (refresh) refresh.addEventListener('click', function () {
             if (global.TabLifecycle) TabLifecycle.invalidate('evidence');
@@ -536,6 +554,12 @@
             } else {
                 bootPopoutAnalytics();
             }
+        }
+        if (document.documentElement.classList.contains('spatial-popout-mode')) {
+            showTab('spatial-command', { force: true });
+        }
+        if (document.documentElement.classList.contains('tactical-popout-mode')) {
+            showTab('tactical', { force: true });
         }
     }
 

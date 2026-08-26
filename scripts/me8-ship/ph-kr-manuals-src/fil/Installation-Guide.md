@@ -1,4 +1,4 @@
-# Ubitron Mobility C2 — Gabay sa Pag-install
+# Mobility Axiom — Gabay sa Pag-install
 
 **Para sa:** IT installer, system administrator  
 **Basahin kasama:** Quick-Guide.md · Configuration-Manual.md · User-Manual.md · Migration-Guide.md  
@@ -236,4 +236,4 @@ Para sa firewall at ports, tingnan ang **Configuration-Manual.md**. Para sa araw
 
 ---
 
-*Ubitron Mobility C2 — Mobility Test 2 delivery pack. Suporta: kontakin ang inyong vendor.*
+*Mobility Axiom — Mobility Test 2 delivery pack. Suporta: kontakin ang inyong vendor.*

@@ -198,3 +198,9 @@ def root() -> dict[str, Any]:
         "hint": HOST_HINT,
         "endpoints": ["/health", "/read", "/image-scan"],
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    _port = int(os.environ.get("FM_ANPR_SIDECAR_PORT", "8768") or "8768")
+    uvicorn.run(app, host="127.0.0.1", port=_port, log_level="info")

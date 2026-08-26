@@ -1,13 +1,13 @@
 'use strict';
 
 /**
- * Cross-platform 1-Pack bundler (pkg).
- * Outputs:
- *   dist/windows-x64/me8-server.exe  (+ plugins/)
- *   dist/linux-x64/me8-server        (+ plugins/)
+ * Master 1-Pack: compiled me8-server + AI engine exes.
+ * Not a trial zip. License.lic / platform-license.json sit beside the exe.
  *
- * Native C++ / plugins: ship beside the binary in ./plugins (not packed into the exe).
- * Requires: npm i -D @yao-pkg/pkg   (or npx @yao-pkg/pkg)
+ *   dist/windows-x64/me8-server.exe
+ *   dist/windows-x64/bin/fr-engine.exe (etc)
+ *
+ * Usage: npm run build:1pack
  */
 
 const fs = require('fs');
@@ -25,12 +25,12 @@ function writeReadme(dir, platform) {
     const text = [
         'ME8 1-Pack (' + platform + ')',
         '',
-        '  ./me8-server            Full boot when license valid; else Setup UI',
-        '  ./me8-server --safe-mode',
-        '  ./me8-server --reset-license',
+        '  ./me8-server.exe        Compiled server. Place signed license.lic in ./storage/',
+        '  ./bin/fr-engine.exe     Face engine (always present; analytics routes still licensed)',
+        '  ./bin/anpr-engine.exe',
+        '  ./bin/weapon-engine.exe',
         '',
-        'Place 3rd-party C++ AI binaries in ./plugins/ (loaded externally — not inside the exe).',
-        'Keep .env beside the executable. SETUP_PORT default 3988 (localhost only).',
+        'Keep .env beside the executable. Do not ship server.js, run.js, lib/, or raw .py.',
         '',
     ].join('\n');
     fs.writeFileSync(path.join(dir, 'README-1PACK.txt'), text);
@@ -58,18 +58,17 @@ function buildTarget(nodeTarget, outDir, outName) {
     ensureDir(outDir);
     copyPluginsStub(outDir);
     writeReadme(outDir, path.basename(outDir));
-    const pkg = resolvePkgBin();
-    const entry = path.join(root, 'bin', 'me8-server.js');
+    const runJs = path.join(root, 'run.js');
+    if (!fs.existsSync(runJs)) {
+        throw new Error('run.js missing — build-ship-runtime must run first');
+    }
     const output = path.join(outDir, outName);
-    const args = pkg.argsPrefix.concat([
-        entry,
-        '--targets', nodeTarget,
-        '--output', output,
-        /* assets for setup UI + TLS helper scripts */
-        '--config', path.join(root, 'scripts', 'pkg-1pack.json'),
-    ]);
-    console.log('[build-1pack]', pkg.cmd, args.join(' '));
-    const r = spawnSync(pkg.cmd, args, { cwd: root, stdio: 'inherit', windowsHide: true, shell: process.platform === 'win32' });
+    const r = spawnSync(process.execPath, [
+        path.join(root, 'scripts', 'pkg-ship-run.js'),
+        runJs,
+        output,
+        nodeTarget,
+    ], { cwd: root, stdio: 'inherit', windowsHide: true, shell: false });
     if (r.status !== 0) {
         throw new Error('pkg failed for ' + nodeTarget + ' (status ' + r.status + '). Install: npm i -D @yao-pkg/pkg');
     }
@@ -77,18 +76,41 @@ function buildTarget(nodeTarget, outDir, outName) {
 
 function main() {
     ensureDir(distRoot);
+    console.log('[build-1pack] esbuild run.js (license code inside blob)…');
+    const bundle = spawnSync(process.execPath, [
+        path.join(root, 'scripts', 'build-ship-runtime.js'),
+        root,
+        path.join(root, 'run.js'),
+        '--minify',
+    ], { cwd: root, stdio: 'inherit', windowsHide: true, shell: false });
+    if (bundle.status !== 0) {
+        throw new Error('build-ship-runtime failed');
+    }
+
     const only = process.argv.includes('--linux')
         ? 'linux'
         : (process.argv.includes('--windows') ? 'windows' : 'all');
 
-    /* Prefer current Node LTS line for pkg targets */
     if (only === 'all' || only === 'windows') {
         buildTarget('node18-win-x64', path.join(distRoot, 'windows-x64'), 'me8-server.exe');
+        if (process.platform === 'win32') {
+            const engineBin = path.join(distRoot, 'windows-x64', 'bin');
+            console.log('[build-1pack] PyInstaller engines…');
+            const pyi = spawnSync('powershell', [
+                '-NoProfile', '-ExecutionPolicy', 'Bypass',
+                '-File', path.join(root, 'scripts', 'build-ship-pyengines.ps1'),
+                '-AppRoot', root,
+                '-OutBin', engineBin,
+            ], { cwd: root, stdio: 'inherit', windowsHide: true, shell: false });
+            if (pyi.status !== 0) {
+                throw new Error('PyInstaller failed — 1-pack cannot ship raw Python');
+            }
+        }
     }
     if (only === 'all' || only === 'linux') {
         buildTarget('node18-linux-x64', path.join(distRoot, 'linux-x64'), 'me8-server');
     }
-    console.log('[build-1pack] Done. Artifacts under dist/');
+    console.log('[build-1pack] Done. Customer runs dist/windows-x64/me8-server.exe with license.lic in storage/');
 }
 
 main();

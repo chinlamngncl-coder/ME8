@@ -24,14 +24,14 @@
             .replace(/"/g, '&quot;');
     }
 
-    function isSuperAdmin() {
-        return global.__fmDashboardRole === 'super_admin';
+    function canLifecycle() {
+        return global.__fmDashboardRole === 'super_admin' || !!global.__fmEvidenceLifecycle;
     }
 
     function retentionLabel(c) {
         if (!c) return '—';
         if (c.mode === 'until_manual') {
-            return tr('evidenceRetention.untilManual', 'Until manually deleted');
+            return tr('evidenceRetention.untilManual', 'Indefinite (Manual)');
         }
         return String(c.days || '—') + ' ' + tr('evidenceRetention.daysUnit', 'days');
     }
@@ -133,8 +133,8 @@
     }
 
     async function saveForm() {
-        if (!isSuperAdmin()) {
-            window.alert(tr('evidenceRetention.needAdmin', 'Super admin required to edit retention categories.'));
+        if (!canLifecycle()) {
+            window.alert(tr('evidenceRetention.needAdmin', 'Evidence Lifecycle or Super admin required to edit retention categories.'));
             return;
         }
         var idEl = document.getElementById('ev-retention-edit-id');
@@ -188,7 +188,7 @@
     function onShow() {
         bindUi();
         var form = document.getElementById('ev-retention-form');
-        if (form) form.hidden = !isSuperAdmin();
+        if (form) form.hidden = !canLifecycle();
         loadList();
     }
 

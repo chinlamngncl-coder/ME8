@@ -1,5 +1,5 @@
-@echo off
-title Ubitron C2 — start service
+﻿@echo off
+title Mobility Axiom â€” start service
 net start UbitronC2
 if errorlevel 1 (
   echo.
@@ -7,5 +7,5 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-echo  Ubitron C2 service started.
+echo  Mobility Axiom service started.
 pause

@@ -1,4 +1,4 @@
-# Stop processes listening on ME8 Mobility C2 ports (3988 lane)
+# Stop processes listening on ME8 Mobility Axiom ports (3988 lane)
 $ports = @(3988, 3989, 3990, 5060, 6000, 29201, 21)
 $pids = @{}
 foreach ($port in $ports) {

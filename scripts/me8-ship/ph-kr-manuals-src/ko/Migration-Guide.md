@@ -1,4 +1,4 @@
-# Ubitron Mobility C2 — 마이그레이션 가이드 (이전 체험판 → Mobility Test 2)
+# Mobility Axiom — 마이그레이션 가이드 (이전 체험판 → Mobility Test 2)
 
 **대상:** 이전 체험 팩을 이미 설치한 사이트의 IT 담당자  
 **함께 읽기:** Installation-Guide.md (마이그레이션 후) · Quick-Guide.md · Configuration-Manual.md  
@@ -154,4 +154,4 @@
 
 ---
 
-*Ubitron Mobility C2 — Mobility Test 2. 이전 체험판에서 이전. 지원: vendor에 문의.*
+*Mobility Axiom — Mobility Test 2. 이전 체험판에서 이전. 지원: vendor에 문의.*

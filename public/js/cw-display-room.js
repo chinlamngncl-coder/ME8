@@ -67,7 +67,7 @@
         }
     }
 
-    function openWindow(url, winName) {
+    function openWindow(url, winName, features) {
         let win = tracked[winName];
         if (win && !win.closed) {
             try {
@@ -78,14 +78,122 @@
                 tracked[winName] = null;
             }
         }
-        win = window.open(url, winName, POPOUT_FEATURES);
+        win = window.open(url, winName, features || POPOUT_FEATURES);
         if (win) tracked[winName] = win;
         // Do not set location.href after open \u2014 aborts first navigation and causes blink loop.
         try { if (win) win.focus(); } catch (_) { /* ignore */ }
         return win;
     }
 
+    function urlForTargetView(viewId) {
+        const v = String(viewId || '').trim();
+        if (v === 'command-wall' || v === 'video-wall') return '/command-wall.html?panel=live';
+        if (v === 'spatial-vms' || v === 'spatial-command') return '/?popout=spatial-command';
+        if (v === 'tactical') return '/?popout=tactical';
+        if (v === 'centre-summary' || v === 'status-board') return '/command-centre.html';
+        if (v === 'face-watch' || v === 'analytics') return '/?popout=analytics';
+        if (v === 'map') return '/?popout=map';
+        return '/?popout=' + encodeURIComponent(v || 'spatial-command');
+    }
 
+    function premiumLicensed(premiumKey) {
+        const key = String(premiumKey || '').trim().toLowerCase();
+        if (!key) return true;
+        const lf = global.LicenseFeatures;
+        if (!lf || typeof lf.isEnabled !== 'function') return false;
+        if (key === 'fr') {
+            return !!(lf.isEnabled('fr') || lf.isEnabled('analyticsFr'));
+        }
+        if (key === 'analytics') {
+            return !!(lf.isEnabled('analyticsFr') || lf.isEnabled('analyticsAnpr')
+                || lf.isEnabled('analyticsWeapon') || lf.isEnabled('fr') || lf.isEnabled('anpr'));
+        }
+        return !!lf.isEnabled(key);
+    }
+
+    function showPremiumSoftHint(card) {
+        if (!card) return;
+        const hint = card.querySelector('.premium-soft-hint');
+        if (!hint) return;
+        if (hint._fadeTimer) {
+            clearTimeout(hint._fadeTimer);
+            hint._fadeTimer = null;
+        }
+        hint.classList.remove('is-fading');
+        hint.hidden = false;
+        hint._fadeTimer = setTimeout(function () {
+            hint.classList.add('is-fading');
+            hint._fadeTimer = setTimeout(function () {
+                hint.hidden = true;
+                hint.classList.remove('is-fading');
+                hint._fadeTimer = null;
+            }, 300);
+        }, 4000);
+    }
+
+    async function launchFromScreenCard(btn) {
+        const card = btn.closest('.dispatcher-card');
+        const picker = card && card.querySelector('.module-picker');
+        if (!picker) return null;
+        const opt = picker.options[picker.selectedIndex];
+        const viewId = (opt && opt.value) || picker.value || '';
+        const premium = opt && opt.getAttribute('data-premium');
+        if (premium && !premiumLicensed(premium)) {
+            showPremiumSoftHint(card);
+            return null;
+        }
+        const screenIndex = parseInt(btn.getAttribute('data-screen-index'), 10);
+        const url = urlForTargetView(viewId);
+        const win = await openUrlOnScreenIndex(url, screenIndex);
+        if (!win) {
+            setStatus(tr('displayRoom.popupBlocked', { list: 'Screen ' + (screenIndex + 1) }), false);
+            scrollStatusIntoView();
+            return null;
+        }
+        if (url.indexOf('popout=map') >= 0 && global.MapPopoutSync) {
+            setTimeout(function () { MapPopoutSync.publishDebounced(); }, 600);
+            setTimeout(function () { MapPopoutSync.publish(); }, 1500);
+        }
+        setStatus(tr('displayRoom.popupOpenedPlaced', { monitor: 'Screen ' + (screenIndex + 1) }), true);
+        scrollStatusIntoView();
+        watchPopoutClosed(win);
+        return win;
+    }
+
+    function screenFeaturesFrom(s) {
+        if (!s) return POPOUT_FEATURES;
+        return 'left=' + s.availLeft +
+            ',top=' + s.availTop +
+            ',width=' + s.availWidth +
+            ',height=' + s.availHeight +
+            ',menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes';
+    }
+
+    /**
+     * Native multi-monitor jump via Window Management API.
+     * Dropdown value maps to screens[index] (value "1" => screens[1] = Screen 2).
+     */
+    async function openUrlOnScreenIndex(url, screenIndex, winName) {
+        const name = winName || ('mobility-launch-' + String(Date.now()));
+        let features = POPOUT_FEATURES;
+        if ('getScreenDetails' in window) {
+            try {
+                const details = await window.getScreenDetails();
+                const screens = (details && details.screens) || [];
+                const idx = Number(screenIndex);
+                if (Number.isFinite(idx) && idx >= 0 && screens[idx]) {
+                    features = screenFeaturesFrom(screens[idx]);
+                }
+            } catch (_) {
+                /* permission blocked — fall through to default open */
+            }
+        }
+        return openWindow(url, name, features);
+    }
+
+    async function launchFromDispatcherCard(btn) {
+        return launchFromScreenCard(btn);
+    }
 
     function pickLayoutForCount(n) {
 
@@ -587,20 +695,18 @@
 
 
     async function applySosRoomPreset() {
-        // Same as Monitor 2 + 3 + 4 \u2014 convenience open only. No autofill, no auto INVITE, no layout-1 shrink.
-        await fetchDisplayMonitor3Profile();
+        // Open wall + Face Watch + Status Board on screens 2/3/4 via Window Management API features.
         setStatus(tr('displayRoom.launching'), true);
         goOperationsTab();
 
         const blocked = [];
-        const m3Keys = monitor3I18nKeys(monitor3Profile);
-        const cw = openCommandWallPopout('/command-wall.html?panel=live', '_blank');
-        const map = openMonitor3Popout();
-        const centre = openCentreSummaryPopout();
+        const cw = await openUrlOnScreenIndex(urlForTargetView('command-wall'), 1, 'mobility-wall-' + String(Date.now()));
+        const face = await openUrlOnScreenIndex(urlForTargetView('analytics'), 2, 'mobility-analytics-' + String(Date.now()));
+        const centre = await openUrlOnScreenIndex(urlForTargetView('centre-summary'), 3, 'mobility-centre-' + String(Date.now()));
 
-        if (!cw) blocked.push(tr('displayRoom.monitor2Title'));
-        if (!map) blocked.push(tr(m3Keys.title));
-        if (!centre) blocked.push(tr('displayRoom.monitor4Title'));
+        if (!cw) blocked.push(tr('displayRoom.cardWallTitle'));
+        if (!face) blocked.push(tr('displayRoom.cardFaceTitle'));
+        if (!centre) blocked.push(tr('displayRoom.cardStatusTitle'));
 
         if (blocked.length) {
             setStatus(tr('displayRoom.popupBlocked', { list: blocked.join(', ') }), false);
@@ -608,35 +714,10 @@
             return;
         }
 
-        const place = await placeDisplayWindows(cw, map, centre);
-
-        if (place.attempted && !place.api) {
-            setStatus(tr('displayRoom.placeFailNoApiLaunch'), false);
-            scrollStatusIntoView();
-            watchPopoutClosed(cw);
-            watchPopoutClosed(map);
-            watchPopoutClosed(centre);
-            return;
-        }
-
-        if (place.attempted && place.placed === 0) {
-            setStatus(placeFailMessage(place.reason || 'move_failed', 'displayRoom.monitor2Title'), false);
-            scrollStatusIntoView();
-            watchPopoutClosed(cw);
-            watchPopoutClosed(map);
-            watchPopoutClosed(centre);
-            return;
-        }
-
-        if (place.placed > 0) {
-            setStatus(tr('displayRoom.launchOkPlaced', { n: String(place.placed) }), true);
-        } else {
-            setStatus(tr('displayRoom.launchOkManual'), true);
-        }
-
+        setStatus(tr('displayRoom.launchOkPlaced', { n: '3' }), true);
         scrollStatusIntoView();
         watchPopoutClosed(cw);
-        watchPopoutClosed(map);
+        watchPopoutClosed(face);
         watchPopoutClosed(centre);
     }
 
@@ -656,47 +737,28 @@
         }
 
         const applyBtn = el('dr-apply-sos');
-
         const opsBtn = el('dr-open-ops');
-
-        const m2Btn = el('dr-open-wall');
-
-        const m3Btn = el('dr-open-map');
-
-        const m4Btn = el('dr-open-centre');
-
-
+        const panel = document.getElementById('cw-panel-display');
 
         if (applyBtn) applyBtn.addEventListener('click', function () { applySosRoomPreset(); });
 
         if (opsBtn) opsBtn.addEventListener('click', function () {
-
             goOperationsTab();
-
             setStatus(tr('displayRoom.opsHint'), true);
-
             scrollStatusIntoView();
-
         });
 
-        if (m2Btn) m2Btn.addEventListener('click', function () {
-            // Empty wall only \u2014 no autofill. Same rule as Open all monitors.
-            openWithFeedback(function () {
-                return openCommandWallPopout('/command-wall.html?panel=live', '_blank');
-            }, 'displayRoom.popupOpenedWall', 'displayRoom.monitor2Title', 1);
-        });
-
-        if (m3Btn) m3Btn.addEventListener('click', function () {
-            const keys = monitor3I18nKeys(monitor3Profile);
-            openWithFeedback(openMonitor3Popout, keys.popupOk, keys.title, 2);
-        });
-
-        if (m4Btn) m4Btn.addEventListener('click', function () {
-
-            openWithFeedback(openCentreSummaryPopout, 'displayRoom.popupOpenedCentre', 'displayRoom.monitor4Title', 3);
-
-        });
-
+        if (panel && !panel.__dispatcherLaunchBound) {
+            panel.__dispatcherLaunchBound = true;
+            panel.addEventListener('click', function (e) {
+                const btn = e.target && e.target.closest
+                    ? (e.target.closest('.launch-screen-btn') || e.target.closest('.launch-popout-btn'))
+                    : null;
+                if (!btn || !panel.contains(btn)) return;
+                e.preventDefault();
+                launchFromScreenCard(btn);
+            });
+        }
     }
 
 

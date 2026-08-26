@@ -1,4 +1,4 @@
-# Resolve NSSM for Ubitron C2 Windows service (download once if missing).
+# Resolve NSSM for Mobility Axiom Windows service (download once if missing).
 param([string]$AppRoot = '')
 $ErrorActionPreference = 'Stop'
 

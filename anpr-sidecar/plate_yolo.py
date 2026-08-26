@@ -448,7 +448,7 @@ def get_stage2_plate_yolo():
     """
     Stage-2 crop-in-crop localizer — Ultralytics YOLO on
     ai_engine/weights/ph_id_plates_best.pt (inside vehicle macro only).
-    After require_stage2_ready() at boot, engine is always present.
+    After require_stage2_ready() at boot, engine is present when weights exist.
     """
     global _stage2_engine, _stage2_error, _stage2_kind, _stage2_load_attempted, _stage2_disabled
     if _stage2_engine is not None:
@@ -468,8 +468,7 @@ def stage2_yolo_required() -> bool:
 def require_stage2_ready() -> dict[str, Any]:
     """
     Boot gate for Ultralytics Stage-2.
-    Soft-skip when FM_ANPR_PLATE_DET is CCPD/baseline (ccpd_pose, etc.).
-    Hard-fail only when ph_id/yolo mode cannot load weights.
+    Missing weights or ultralytics must not kill ANPR — RapidOCR / FastALPR stay up.
     """
     global _stage2_engine, _stage2_error, _stage2_kind, _stage2_load_attempted, _stage2_disabled
     global _s2_crop_model_swapped
@@ -509,26 +508,23 @@ def require_stage2_ready() -> dict[str, Any]:
             kind_label = "ultralytics-crop-plate"
     if not path or not os.path.isfile(path):
         msg = (
-            "Stage2 HARD FAIL: no Stage-2 weights "
-            "(ph_id_plates_best.pt / crop-plate missing) while FM_ANPR_PLATE_DET requires YOLO."
+            "Stage-2 plate YOLO weights not installed — ANPR stays up on RapidOCR / FastALPR."
         )
         _stage2_error = msg
         _stage2_disabled = True
+        _stage2_load_attempted = True
         print("[anpr-stage2]", msg, flush=True)
-        raise RuntimeError(msg)
+        return {"ok": True, "kind": "skipped_no_weights", "weights": None, "detMode": det}
     try:
         import ultralytics  # noqa: F401
         from ultralytics import YOLO
     except Exception as exc:  # noqa: BLE001
-        msg = (
-            "Stage2 HARD FAIL: ultralytics not importable ("
-            + str(exc)[:160]
-            + "). pip install ultralytics into anpr-sidecar/.venv then restart."
-        )
+        msg = "Stage-2 ultralytics not available — ANPR stays up on RapidOCR / FastALPR."
         _stage2_error = msg
         _stage2_disabled = True
+        _stage2_load_attempted = True
         print("[anpr-stage2]", msg, flush=True)
-        raise RuntimeError(msg) from exc
+        return {"ok": True, "kind": "skipped_no_ultralytics", "weights": None, "detMode": det}
     _stage2_load_attempted = True
     try:
         _ = YOLO(path)
@@ -539,18 +535,18 @@ def require_stage2_ready() -> dict[str, Any]:
         if "crop-plate" in kind_label:
             _s2_crop_model_swapped = True
         print(
-            "[anpr-stage2] READY ultralytics YOLO weights=" + path + " kind=" + kind_label,
+            "[anpr-stage2] READY ultralytics YOLO kind=" + kind_label,
             flush=True,
         )
         return {"ok": True, "kind": _stage2_kind, "weights": path}
-    except Exception as exc:  # noqa: BLE001
-        msg = "Stage2 HARD FAIL: cannot load weights " + str(path) + ": " + str(exc)[:200]
+    except Exception:
+        msg = "Stage-2 weights would not load — ANPR stays up on RapidOCR / FastALPR."
         _stage2_error = msg
         _stage2_engine = None
         _stage2_kind = None
         _stage2_disabled = True
         print("[anpr-stage2]", msg, flush=True)
-        raise RuntimeError(msg) from exc
+        return {"ok": True, "kind": "skipped_load_fail", "weights": None, "detMode": det}
 
 
 def stage2_status_light() -> dict[str, Any]:

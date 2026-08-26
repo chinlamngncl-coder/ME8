@@ -25,14 +25,7 @@
     }
 
     function fmtWhen(iso) {
-        if (!iso) return '—';
-        try {
-            var d = new Date(iso);
-            if (isNaN(d.getTime())) return String(iso);
-            return d.toISOString().slice(0, 16).replace('T', ' ');
-        } catch (_) {
-            return String(iso);
-        }
+        return (typeof fmtDateTime === 'function') ? fmtDateTime(iso) : String(iso || '—');
     }
 
     function renderList(items, queueDays) {

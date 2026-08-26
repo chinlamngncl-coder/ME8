@@ -9,13 +9,14 @@
 (function (global) {
     var _features = {
         ptt: false,
-        redaction: false,
         analyticsFr: false,
         analyticsAnpr: false,
         analyticsWeapon: false,
         videoConference: false,
         tacticalOverwatch: false,
         cadIntegration: false,
+        edgeFace: false,
+        redaction: true,
         fr: false,
         anpr: false,
     };
@@ -32,6 +33,7 @@
 
     function isEnabled(name) {
         var key = resolveName(name);
+        if (key === 'redaction') return true;
         return _features[key] === true;
     }
 

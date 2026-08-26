@@ -1,23 +1,8 @@
 @echo off
 setlocal
 cd /d "%~dp0Ubitron-ME8"
-if not exist run.js (
-  echo ERROR: Ubitron-ME8 delivery folder not found.
-  pause
-  exit /b 1
-)
-
-set "NODE_EXE=%~dp0Ubitron-ME8\tools\node\node.exe"
-if not exist "%NODE_EXE%" (
-  echo ERROR: Bundled Node missing from pack.
-  pause
-  exit /b 1
-)
-
-if not exist node_modules\dotenv (
-  echo.
-  echo ERROR: Run Install-Ubitron.bat once first.
-  echo.
+if not exist me8-server.exe (
+  echo ERROR: Ubitron-ME8 delivery folder not found ^(me8-server.exe missing^).
   pause
   exit /b 1
 )

@@ -58,7 +58,7 @@
             '<span class="cd-entitlement-badge">' + esc(statusText) + '</span></div>' +
             '<p class="setup-hint" style="margin:6px 0">' +
             (lic.licenseId ? (tr('cloud.entitlement.reference') + ': <code>' + esc(lic.licenseId) + '</code>') : tr('cloud.entitlement.installNote')) +
-            (lic.expiresAt ? (' \u00B7 ' + tr('cloud.entitlement.validUntil') + ' ' + esc(String(lic.expiresAt).slice(0, 10))) : '') +
+            (lic.expiresAt ? (' \u00B7 ' + tr('cloud.entitlement.validUntil') + ' ' + esc((typeof fmtDate === 'function' ? fmtDate : function(s){return String(s||'').slice(0,10);})(lic.expiresAt))) : '') +
             '</p>' +
             '<div class="cd-meter"><span>' + tr('cloud.entitlement.cameras') + '</span>' +
             '<div class="cd-meter-bar"><span style="width:' + bwcPct + '%"></span></div>' +

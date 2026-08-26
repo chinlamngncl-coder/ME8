@@ -1,12 +1,12 @@
 /**
- * Overwatch — Right video is master ("Set on Right, Show on Left").
+ * Overwatch - Right video is master ("Set on Right, Show on Left").
  * Views (not "presets" in operator chrome) sync FOV/heading to the Leaflet map.
  *
  * Event bus (document CustomEvents):
- *   tactical-ow:view-config     — live Save View edits { name, azimuth, fov, cameraId, token }
- *   tactical-ow:view-locked     — Use this view succeeded
- *   tactical-ow:manual-override — PTZ pan broke View lock
- *   tactical-ow:view-cleared    — overlays cleared (close / cam change / idle)
+ *   tactical-ow:view-config     - live Save View edits { name, azimuth, fov, cameraId, token }
+ *   tactical-ow:view-locked     - Use this view succeeded
+ *   tactical-ow:manual-override - PTZ pan broke View lock
+ *   tactical-ow:view-cleared    - overlays cleared (close / cam change / idle)
  */
 (function (global) {
     'use strict';
@@ -123,7 +123,7 @@
         return next;
     }
 
-    /** @deprecated alias — Views, not presets */
+    /** @deprecated alias - Views, not presets */
     function getPresetSpatial(cameraId, token) {
         return getViewSpatial(cameraId, token);
     }
@@ -183,8 +183,8 @@
     }
 
     /**
-     * Left map FOV — primary API: drawCameraFov(azimuth, fov)
-     * Also accepts drawCameraFov({ azimuth, fov_width, cameraId, … })
+     * Left map FOV - primary API: drawCameraFov(azimuth, fov)
+     * Also accepts drawCameraFov({ azimuth, fov_width, cameraId, ... })
      */
     function drawCameraFov(azimuthOrConfig, fovMaybe) {
         let azimuth;
@@ -255,7 +255,7 @@
         const label = el('ax-tactical-ow-compass-az');
         const az = ((Number(azimuthDeg) % 360) + 360) % 360;
         if (needle) needle.style.transform = 'translate(-50%, -50%) rotate(' + (-az) + 'deg)';
-        if (label) label.textContent = Math.round(az) + '°';
+        if (label) label.textContent = Math.round(az) + ' deg';
         setCompassVisible(true);
     }
 
@@ -304,8 +304,8 @@
         if (nameEl && (spatial.name || nameHint)) nameEl.value = spatial.name || nameHint || '';
         if (azSlider) azSlider.value = String(az);
         if (fovSlider) fovSlider.value = String(fov);
-        if (azVal) azVal.textContent = az + '°';
-        if (fovVal) fovVal.textContent = fov + '°';
+        if (azVal) azVal.textContent = az + ' deg';
+        if (fovVal) fovVal.textContent = fov + ' deg';
         if (azNum) azNum.value = String(az);
         if (fovNum) fovNum.value = String(fov);
     }
@@ -344,7 +344,7 @@
     }
 
     /**
-     * Glass UV pins — % layout. When only pins passed, uses active View from TacticalAr.
+     * Glass UV pins - % layout. When only pins passed, uses active View from TacticalAr.
      */
     function renderOverwatchPins(pins, activeView) {
         let view = activeView;
@@ -357,7 +357,7 @@
         return 0;
     }
 
-    /** Right → Left: live Apply from Save View form */
+    /** Right -> Left: live Apply from Save View form */
     function publishViewConfig(source) {
         const form = readSaveViewForm();
         lastCamId = currentCameraId() || form.cameraId;
@@ -471,8 +471,8 @@
             const form = publishViewConfig('live');
             const azVal = el('ax-tactical-ow-azimuth-val');
             const fovVal = el('ax-tactical-ow-fov-val');
-            if (azVal) azVal.textContent = Math.round(form.azimuth) + '°';
-            if (fovVal) fovVal.textContent = Math.round(form.fov) + '°';
+            if (azVal) azVal.textContent = Math.round(form.azimuth) + ' deg';
+            if (fovVal) fovVal.textContent = Math.round(form.fov) + ' deg';
             if (azNum) azNum.value = String(Math.round(form.azimuth));
             if (fovNum) fovNum.value = String(Math.round(form.fov));
         }

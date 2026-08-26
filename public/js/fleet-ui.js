@@ -274,6 +274,10 @@
             (on ? '<button type="button" class="fleet-row-voice-btn" data-cam-id="' + esc(m.id) + '" aria-label="' +
             esc(tr('fleet.voiceTalk', { name: m.name })) + '">☎</button>' : '') +
             '</td>' +
+            '<td class="fleet-track-cell">' +
+            (on ? '<button type="button" class="fleet-row-track-btn' + (gpsTrack ? ' active' : '') + '" data-cam-id="' + esc(m.id) + '" aria-pressed="' + (gpsTrack ? 'true' : 'false') + '" aria-label="' +
+            esc(tr('fleet.gpsTrackToggle', { name: m.name })) + '" title="' + esc(tr('fleet.gpsTrackTitle')) + '">📍</button>' : '') +
+            '</td>' +
             '<td class="fleet-name-cell"><div class="fleet-name-with-pin">' +
             '<span class="fleet-pin-color" style="display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-right:5px;vertical-align:middle;border:1px solid rgba(255,255,255,0.55);background:' + esc(pinColor) + ';"' + (groupTitle ? ' title="' + groupTitle + '"' : '') + '></span>' +
             '<span class="fleet-name">' + esc(m.name) + '</span></div>' +
@@ -295,7 +299,7 @@
         const rows = filteredFleet();
         if (!rows.length) {
             var emptyMsg = fleetList.length === 0 ? tr('fleet.emptyNone') : tr('fleet.emptyNoMatch');
-            paintFleetTbodies('<tr><td colspan="5" class="fleet-empty">' + esc(emptyMsg) + '</td></tr>');
+            paintFleetTbodies('<tr><td colspan="6" class="fleet-empty">' + esc(emptyMsg) + '</td></tr>');
             updateSummary();
             scheduleFleetTableResize();
             return;
@@ -303,7 +307,7 @@
         let html = '';
         buildGroupedFleetRows(rows).forEach(function (entry) {
             if (entry.type === 'header') {
-                html += '<tr class="fleet-group-header"><td colspan="5">' +
+                html += '<tr class="fleet-group-header"><td colspan="6">' +
                     '<span class="fleet-group-dot" style="background:' + esc(entry.color) + '"></span>' +
                     '<span class="fleet-group-name">' + esc(entry.groupName) + '</span></td></tr>';
                 return;

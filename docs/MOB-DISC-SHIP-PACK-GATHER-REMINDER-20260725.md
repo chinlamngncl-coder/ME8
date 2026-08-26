@@ -33,15 +33,18 @@ Copy this block into the reply (plain English):
 ```
 PACK GATHER (Phase 3 + release) — do with me, then ship:
 
-1) Licensing (3.1 + 3.4)
-   - On CUSTOMER SERVER: npm run license:print-hwid
-   - Offline: sign license.lic (features + maxFixedCameras + maxBwcDevices)
+1) Licensing
+   - On the TARGET PC, Setup page already shows Hardware ID (no npm).
+   - Installer sends that HWID back to Ubitron (new site, temp, migration, or hardware change).
+   - Ubitron signs license.lic (HWID + expiry + modules + counts) — license-ui is internal only.
+   - Installer uploads the file on Setup, or engineer drops storage/license.lic.
    - Ship env: FM_AIRGAP_LICENSE_REQUIRED=1
-   - Drop storage/license.lic into pack
+   - Never put license-private.pem or tools/generate-license.js in the customer zip
+   - Never ship trial_wildcard as a paid commercial license
    - Entitlements: UI grey-out + API limits from .lic (3.4) — smoke if new customer SKU
 
 2) Source protection (3.2)
-   - npm run build:ship  → ship-build/protected/run.js (no lib/ / server.js)
+   - npm run build:ship / build:1pack → me8-server.exe + bin/*-engine.exe (no lib/ / server.js / run.js / raw sidecar .py)
    - Optional: FM_SHIP_OBFUSCATE=1
    - Never ship license-private.pem or tools with private key
 
@@ -57,6 +60,23 @@ PACK GATHER (Phase 3 + release) — do with me, then ship:
 
 Then: you PASS each smoke → we finish → zip / send.
 ```
+
+## Locked when you say pack / ship (2026-08-18)
+
+**What the customer gets = the release folder `ship-build/protected/`.**  
+That is the pack. We zip that. We do not zip live ME8 source.
+
+**Why live ME8 is mentioned:** the build *runs in* this lab tree so the release folder is rebuilt with what you just tested (latest `public/`, compiled `me8-server.exe`, `bin/` engines). Live ME8 is the kitchen. `ship-build/protected/` is the plate we send.
+
+| Do | Do not |
+|----|--------|
+| Agent runs `npm run build:ship` in ME8 after you say pack / ship | You do not run pack scripts |
+| Copy/zip **`ship-build/protected/`** only | Zip the ME8 source tree |
+| Leak inspect that folder: no `server.js`, `lib/`, `run.js`, raw `.py`, `license-private.pem` | Send `dist/windows-x64` as the customer pack — it does **not** copy `public/` onto disk |
+
+**Client 1-click (locked):** engines are already in `bin/` (`fr-engine`, `anpr`, `weapon`). Client does **not** drop Python sidecars. Paid modules stay license-gated (grey + API). Redaction stays free; FR engine may still boot for that. No lab IP hardcoded (172 WSL forbidden; dashboard uses real LAN / Setup).
+
+When packing, zip **`ship-build/protected/`** and put **Install + Start** on the zip root if they are not already in that folder — so the client is not left with a bare exe and a lab address.
 
 ---
 

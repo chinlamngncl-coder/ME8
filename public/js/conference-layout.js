@@ -1177,7 +1177,12 @@
         const labelEl = el && el.querySelector('.vc-tile-label');
         const label = labelEl ? String(labelEl.textContent || '').trim() : '';
         if (kind === 'bwc') badge.textContent = 'LIVE · ' + (label || 'BWC');
-        else if (isShareKind(kind)) badge.textContent = 'SHARING · ' + (label || kind);
+        else if (isShareKind(kind)) {
+            var kindLabel = (typeof UiFormatter !== 'undefined' && UiFormatter.formatEventTag)
+                ? UiFormatter.formatEventTag(kind)
+                : kind;
+            badge.textContent = 'SHARING · ' + (label || kindLabel);
+        }
         else badge.textContent = label || 'LIVE';
         badge.hidden = false;
     }

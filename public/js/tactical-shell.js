@@ -47,15 +47,30 @@
 
     function setStatus(key, fallback) {
         const status = document.getElementById('ax-tactical-status');
-        if (status) status.textContent = tr(key, fallback);
+        if (!status) return;
+        if (key === 'tactical.statusIdle') {
+            status.hidden = true;
+            status.textContent = '';
+            return;
+        }
+        status.hidden = false;
+        status.textContent = tr(key, fallback);
     }
 
     function syncModeBanner() {
         const banner = document.getElementById('ax-tactical-mode-banner');
         if (!banner) return;
         let key = 'tactical.bannerIdle';
-        let text = 'Idle — drag map to move';
+        let text = 'Map Ready — drag to pan';
         let mode = flowMode || 'idle';
+        if (mode === 'idle') {
+            banner.hidden = true;
+            banner.setAttribute('data-mode', 'idle');
+            banner.textContent = '';
+            banner.classList.remove('is-prepare', 'is-operate', 'is-zone');
+            return;
+        }
+        banner.hidden = false;
         if (mode === 'place') {
             key = 'tactical.bannerPlace';
             text = 'PREPARE — click map to place pin';
@@ -99,7 +114,7 @@
         clearActiveToolButtons();
         syncModeBanner();
         syncOpenInCircleEnabled();
-        if (!opts.silentStatus) setStatus('tactical.statusIdle', 'Idle — drag map to move');
+        if (!opts.silentStatus) setStatus('tactical.statusIdle', 'Map Ready — drag to pan');
     }
 
     function enterPlaceMode() {
@@ -238,7 +253,7 @@
             return;
         }
         if (!draftLayer && !zones.length) {
-            setStatus('tactical.statusIdle', 'Idle');
+            setStatus('tactical.statusIdle', 'Map Ready');
         } else if (draftLayer && !incidentId()) {
             setStatus('tactical.statusNeedIncident', 'Need incident');
         } else if (!draftLayer && incidentId()) {
@@ -411,7 +426,7 @@
         skipStatusOverwrite = true;
         syncSaveEnabled();
         if (ok) setStatus('tactical.statusDeleted', 'Deleted');
-        else setStatus('tactical.statusIdle', 'Idle');
+        else setStatus('tactical.statusIdle', 'Map Ready');
         skipStatusOverwrite = false;
     }
 
@@ -462,7 +477,7 @@
         if (!map || !global.L.Draw) return;
         if (finishActiveIf('polygon')) {
             goIdle({ keepPlace: true, silentStatus: true });
-            setStatus('tactical.statusIdle', 'Idle — drag map to move');
+            setStatus('tactical.statusIdle', 'Map Ready — drag to pan');
             return;
         }
         stopHandler();
@@ -485,7 +500,7 @@
         if (!map || !global.L.Draw) return;
         if (finishActiveIf('circle')) {
             goIdle({ keepPlace: true, silentStatus: true });
-            setStatus('tactical.statusIdle', 'Idle — drag map to move');
+            setStatus('tactical.statusIdle', 'Map Ready — drag to pan');
             return;
         }
         stopHandler();
@@ -679,6 +694,7 @@
                 try { console.error('[tactical] pin mount failed', err); } catch (_) { /* ignore */ }
                 const status = document.getElementById('ax-tactical-status');
                 if (status) {
+                    status.hidden = false;
                     status.textContent = tr('tactical.pinMountError', 'Pin mount error — see console');
                 }
             }
@@ -702,7 +718,7 @@
         flowMode = 'idle';
         clearActiveToolButtons();
         syncModeBanner();
-        setStatus('tactical.statusIdle', 'Idle — drag map to move');
+        setStatus('tactical.statusIdle', 'Map Ready — drag to pan');
     }
 
     global.TacticalShell = {

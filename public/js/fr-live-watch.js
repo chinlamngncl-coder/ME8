@@ -358,7 +358,7 @@
             case TILE_STATE.IDLE:
                 return tr('analytics.fr.tileIdleHint', 'Select officers/cameras and Start watch');
             case TILE_STATE.WAITING:
-                return tr('analytics.fr.tileWaiting', 'Waiting for slot');
+                return tr('analytics.fr.tileWaiting', 'Waiting…');
             case TILE_STATE.CONNECTING:
                 return tr('analytics.fr.tileConnecting', 'Connecting\u2026');
             case TILE_STATE.OFFLINE:
@@ -376,7 +376,7 @@
             case TILE_STATE.PLAYER_ERROR:
                 return tr('analytics.fr.tilePlayerError', 'Player unavailable');
             default:
-                return tr('analytics.fr.tileWaiting', 'Waiting for slot');
+                return tr('analytics.fr.tileWaiting', 'Waiting…');
         }
     }
 

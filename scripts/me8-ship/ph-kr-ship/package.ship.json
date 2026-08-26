@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "Ubitron Mobility C2 — customer delivery",
   "private": true,
-  "main": "run.js",
+  "main": "me8-server.exe",
   "scripts": {
-    "start": "node run.js"
+    "start": "me8-server.exe"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

@@ -238,6 +238,29 @@
         }
     }
 
+    function loadFromEvidence(fileId) {
+        var id = String(fileId || '').trim();
+        if (!id) return;
+        fetch('/api/evidence/preview/' + encodeURIComponent(id), { credentials: 'same-origin' })
+            .then(function (r) {
+                if (!r.ok) throw new Error('load_failed');
+                return r.blob().then(function (blob) {
+                    var name = 'triage-offline';
+                    try {
+                        var m = id.split(/[/\\]/).pop();
+                        if (m) name = m;
+                    } catch (_) { /* ignore */ }
+                    var type = blob.type || 'video/mp4';
+                    if (type.indexOf('image/') === 0 && !/\.(jpe?g|png|webp|bmp)$/i.test(name)) name += '.jpg';
+                    else if (type.indexOf('video/') === 0 && !/\.(mp4|mov|webm|mkv)$/i.test(name)) name += '.mp4';
+                    uploadFile(new File([blob], name, { type: type }));
+                });
+            })
+            .catch(function () {
+                setStatus(tr('analytics.fr.offlineFail', 'Offline video failed.'), 'is-err');
+            });
+    }
+
     function bindUi() {
         bindTransport();
         var btn = document.getElementById('ax-fr-load-video');
@@ -257,5 +280,7 @@
     global.FrOfflineVideo = {
         bindUi: bindUi,
         cancel: cancelJob,
+        uploadFile: uploadFile,
+        loadFromEvidence: loadFromEvidence,
     };
 })(window);

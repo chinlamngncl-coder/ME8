@@ -25,7 +25,7 @@ ENGINE_NAME = "seeta"
 MODEL_NAME = os.environ.get("FM_FR_SEETA_MODEL", "face_recognizer").strip() or "face_recognizer"
 PORT = int(os.environ.get("FM_FR_SIDECAR_SEETA_PORT", "8767") or "8767")
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__))
 VENDOR_SEETA = os.path.join(ROOT, "vendor", "seetaFace6Python")
 MODEL_DIR = os.path.join(VENDOR_SEETA, "seetaface", "model")
 
@@ -495,3 +495,8 @@ async def verify_json(body: VerifyJson) -> JSONResponse:
                 os.unlink(p)
             except OSError:
                 pass
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="info")

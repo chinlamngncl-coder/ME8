@@ -1,4 +1,4 @@
-# Ubitron Mobility C2 — Migration Guide (Old Trial → Mobility Test 2)
+# Mobility Axiom — Migration Guide (Old Trial → Mobility Test 2)
 
 **Audience:** IT installer at a site that already tried an earlier Mobility / trial pack  
 **Read with:** Installation-Guide.md (after migration) · Quick-Guide.md · Configuration-Manual.md  
@@ -182,4 +182,4 @@ For first-time install detail on a clean PC, use **Installation-Guide.md**.
 
 ---
 
-*Ubitron Mobility C2 — Mobility Test 2. Migration from older trial packs. Support: contact your vendor.*
+*Mobility Axiom — Mobility Test 2. Migration from older trial packs. Support: contact your vendor.*

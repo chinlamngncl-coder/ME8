@@ -28,6 +28,7 @@
         storageTable: 'cs-storage-table',
         servicesGrid: 'cs-services-grid',
         activityTable: 'cs-activity-table',
+        docksTable: 'cs-docks-table',
         btnExportCsv: 'cs-btn-export-csv',
         btnViewLocal: 'cs-btn-view-local',
         btnExportChart: 'cs-btn-export-chart',
@@ -48,6 +49,7 @@
         storageTable: 'storage-table',
         servicesGrid: 'services-grid',
         activityTable: 'activity-table',
+        docksTable: 'docks-table',
         btnExportCsv: 'btn-export-csv',
         btnViewLocal: 'btn-view-local',
         btnExportChart: 'btn-export-chart',
@@ -184,9 +186,20 @@
         const key = String(action || '').trim();
         if (!key) return '';
         if (ACTION_LABELS[key]) return ACTION_LABELS[key];
+        if (typeof UiFormatter !== 'undefined' && UiFormatter.formatEventTag) {
+            return UiFormatter.formatEventTag(key);
+        }
         return key.split(/[._]/).filter(Boolean).map(function (w) {
             return w.charAt(0).toUpperCase() + w.slice(1);
         }).join(' ');
+    }
+
+    function themeColor(name, fallback) {
+        try {
+            const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+            if (v) return v;
+        } catch (_) { /* ignore */ }
+        return fallback;
     }
 
     function renderRing(containerId, percent, color, label) {
@@ -211,9 +224,10 @@
         const f = data.fleet || {};
         const s = data.sos || {};
         const st = data.storage || {};
-        const capacity = f.capacity || 5000;
-        const onlinePct = f.onlinePct != null ? f.onlinePct : ceilPct(f.online, capacity);
-        const storagePct = st.usedPct != null ? st.usedPct : (st.totalBytes ? pct(st.totalBytes, (st.capacityGb || 500) * 1073741824) : 50);
+        const ai = data.aiHits || {};
+        const registered = f.total || ((f.online || 0) + (f.offline || 0));
+        const onlinePct = f.onlinePct != null ? f.onlinePct : ceilPct(f.online, registered);
+        const storagePct = st.usedPct != null ? st.usedPct : 0;
         const grid = el('statsGrid');
         if (!grid) return;
         // Inline Lucide (ISC) outline icons \u2014 no emoji, no CDN, theme-coloured.
@@ -233,7 +247,7 @@
             '<div class="cs-kpi-icon">' + csIcon('wifi') + '</div>' +
             '<div class="cs-kpi-body"><div class="cs-kpi-label">' + esc(tr('centre.kpi.online')) + '</div>' +
             '<div class="cs-kpi-value">' + (f.online || 0) + '</div>' +
-            '<div class="cs-kpi-hint">' + onlinePct + '% \u00B7 ' + (f.online || 0) + ' / ' + capacity + ' ' + esc(tr('centre.kpi.capacity')) + '</div></div></div>' +
+            '<div class="cs-kpi-hint">' + onlinePct + '% \u00B7 ' + (f.online || 0) + ' / ' + registered + '</div></div></div>' +
             '<div class="cs-kpi">' +
             '<div class="cs-kpi-icon">' + csIcon('wifi-off') + '</div>' +
             '<div class="cs-kpi-body"><div class="cs-kpi-label">' + esc(tr('centre.kpi.offline')) + '</div>' +
@@ -255,10 +269,16 @@
             '<div class="cs-kpi">' +
             '<div class="cs-kpi-icon">' + csIcon('clock') + '</div>' +
             '<div class="cs-kpi-body"><div class="cs-kpi-label">' + esc(tr('centre.kpi.uptime')) + '</div>' +
-            '<div class="cs-kpi-value cs-kpi-sm">' + fmtUptime(data.serverUptimeSec) + '</div></div></div>';
+            '<div class="cs-kpi-value cs-kpi-sm">' + fmtUptime(data.serverUptimeSec) + '</div></div></div>' +
+            '<div class="cs-kpi">' +
+            '<div class="cs-kpi-icon">' + csIcon('bars') + '</div>' +
+            '<div class="cs-kpi-body"><div class="cs-kpi-label">AI hits today</div>' +
+            '<div class="cs-kpi-value">' + ((ai.frToday || 0) + (ai.anprToday || 0)) + '</div>' +
+            '<div class="cs-kpi-hint">FR ' + (ai.frToday || 0) + ' \u00B7 ANPR ' + (ai.anprToday || 0) + '</div></div></div>';
 
-        renderRing('fleetRing', onlinePct, '#22c55e', tr('centre.ring.deviceOnline'));
-        renderRing('storageRing', storagePct, '#38bdf8', tr('centre.kpi.storage'));
+        const accent = themeColor('--accent-blue', '#2563eb');
+        renderRing('fleetRing', onlinePct, accent, tr('centre.ring.deviceOnline'));
+        renderRing('storageRing', storagePct, accent, tr('centre.kpi.storage'));
     }
 
     function getTrendBuckets(period) {
@@ -352,10 +372,28 @@
         if (!tbody) return;
         const rows = data.recentActivity || [];
         tbody.innerHTML = rows.length ? rows.map(function (a) {
-            return '<tr><td class="mono">' + esc(a.at ? new Date(a.at).toLocaleString() : '') + '</td>' +
+            return '<tr><td class="mono">' + esc(a.at ? (typeof fmtDateTime === 'function' ? fmtDateTime(a.at) : new Date(a.at).toLocaleString()) : '') + '</td>' +
                 '<td>' + esc(a.actionLabel || formatActionLabel(a.action)) + '</td><td>' + esc(a.target || '') + '</td>' +
                 '<td>' + esc(a.user || '') + '</td></tr>';
         }).join('') : '<tr><td colspan="4" class="hint">' + esc(tr('centre.activity.empty')) + '</td></tr>';
+    }
+
+    function renderDocks(data) {
+        const table = el('docksTable');
+        if (!table) return;
+        const tbody = table.querySelector ? table.querySelector('tbody') : table;
+        if (!tbody) return;
+        const rows = data.docks || [];
+        tbody.innerHTML = rows.length ? rows.map(function (d) {
+            const status = d.connected ? 'Connected' : 'Offline';
+            const disk = d.hddUsedPct != null ? (d.hddUsedPct + '%') : '\u2014';
+            const warn = d.warnHdd ? 'Disk nearly full' : '';
+            return '<tr' + (d.warnHdd ? ' class="cs-dock-warn"' : '') + '>' +
+                '<td>' + esc(d.name || d.id) + '</td>' +
+                '<td>' + esc(status) + '</td>' +
+                '<td class="mono">' + esc(disk) + '</td>' +
+                '<td>' + esc(warn) + '</td></tr>';
+        }).join('') : '<tr><td colspan="4" class="hint">No docking stations registered.</td></tr>';
     }
 
     function monthSelectLabel(ym) {
@@ -412,12 +450,19 @@
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#0f172a';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = themeColor('--border-color', '#334155');
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(48, 72);
+        ctx.lineTo(48, canvas.height - 48);
+        ctx.lineTo(canvas.width - 24, canvas.height - 48);
+        ctx.stroke();
         ctx.fillStyle = '#f8fafc';
         ctx.font = 'bold 16px Inter, system-ui, sans-serif';
         ctx.fillText(chartTitle, 24, 32);
         ctx.fillStyle = '#94a3b8';
         ctx.font = '12px Inter, system-ui, sans-serif';
-        ctx.fillText(new Date(summary.generatedAt).toLocaleString(), 24, 52);
+        ctx.fillText((typeof fmtDateTime === 'function' ? fmtDateTime(summary.generatedAt) : new Date(summary.generatedAt).toLocaleString()), 24, 52);
         const max = Math.max(1, ...buckets.map(function (b) { return b.count || 0; }));
         const padL = 48;
         const padB = 48;
@@ -429,9 +474,11 @@
             const bh = Math.max(4, Math.round(((b.count || 0) / max) * h));
             const x = padL + i * (barW + 6);
             const y = padT + (h - bh);
+            const accent = themeColor('--accent-blue', '#2563eb');
+            const accentHover = themeColor('--accent-blue-hover', '#1d4ed8');
             const grad = ctx.createLinearGradient(0, y, 0, y + bh);
-            grad.addColorStop(0, '#f87171');
-            grad.addColorStop(1, '#b91c1c');
+            grad.addColorStop(0, accent);
+            grad.addColorStop(1, accentHover);
             ctx.fillStyle = grad;
             ctx.fillRect(x, y, barW, bh);
             ctx.fillStyle = '#e2e8f0';
@@ -468,7 +515,7 @@
             return Promise.resolve();
         }
         beginCentreLoadUi();
-        return fetch('/api/command-centre/summary', { credentials: 'same-origin' })
+        return fetch('/api/dashboard/summary', { credentials: 'same-origin' })
             .then(function (r) {
                 return r.text().then(function (text) {
                     let data = null;
@@ -509,12 +556,13 @@
                 if (gen) {
                     const updated = tr('centre.updated');
                     gen.textContent = (updated && updated !== 'centre.updated' ? updated : 'Updated') +
-                        ' ' + new Date(data.generatedAt).toLocaleString();
+                        ' ' + (typeof fmtDateTime === 'function' ? fmtDateTime(data.generatedAt) : new Date(data.generatedAt).toLocaleString());
                 }
                 renderStats(data);
                 renderStorage(data);
                 renderServices(data);
                 renderActivity(data);
+                renderDocks(data);
                 if (data.trends && data.trends.yearly && data.trends.yearly.defaultMonth) {
                     if (!activeYearMonth) activeYearMonth = data.trends.yearly.defaultMonth;
                 }
@@ -549,7 +597,7 @@
         const csvBtn = el('btnExportCsv');
         if (csvBtn) {
             csvBtn.addEventListener('click', function () {
-                window.location.href = '/api/command-centre/export?period=' + encodeURIComponent(activePeriod) + '&format=csv';
+                window.location.href = '/api/dashboard/export?period=' + encodeURIComponent(activePeriod) + '&format=csv';
             });
         }
         const viewLocalBtn = el('btnViewLocal');
@@ -586,6 +634,7 @@
                 renderStorage(summary);
                 renderServices(summary);
                 renderActivity(summary);
+                renderDocks(summary);
             }
         });
     }

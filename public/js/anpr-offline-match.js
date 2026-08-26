@@ -158,29 +158,62 @@
         sampleOnce();
     }
 
+    function loadFile(file) {
+        if (!file) return;
+        if (!videoEl) videoEl = document.getElementById('ax-anpr-offline-video');
+        var zone = document.getElementById('ax-anpr-offline-dropzone');
+        var name = String(file.name || '').toLowerCase();
+        var isImg = /^image\//i.test(file.type || '') || /\.(jpe?g|png|webp|bmp)$/i.test(name);
+        if (isImg) {
+            if (global.AnprImageInvestigation && typeof AnprImageInvestigation.setMode === 'function') {
+                AnprImageInvestigation.setMode('image');
+            }
+            if (global.AnprImageInvestigation && typeof AnprImageInvestigation.loadFromFile === 'function') {
+                AnprImageInvestigation.loadFromFile(file);
+            }
+            return;
+        }
+        if (global.AnprImageInvestigation && typeof AnprImageInvestigation.setMode === 'function') {
+            AnprImageInvestigation.setMode('video');
+        }
+        if (!/\.(mp4|avi|webm|mov)$/.test(name) && !(file.type || '').startsWith('video/')) {
+            status(tr('analytics.anpr.offlineBadFile', 'Use .mp4 or .avi video'));
+            return;
+        }
+        if (!videoEl) return;
+        stopSample();
+        var url = URL.createObjectURL(file);
+        videoEl.src = url;
+        videoEl.hidden = false;
+        var empty = zone && zone.querySelector('.ax-anpr-offline-empty');
+        if (empty) empty.hidden = true;
+        status(tr('analytics.anpr.offlineReady', 'Video loaded — press play to analyze'));
+        try { videoEl.load(); } catch (_) { /* ignore */ }
+    }
+
+    function loadFromEvidence(fileId) {
+        var id = String(fileId || '').trim();
+        if (!id) return;
+        fetch('/api/evidence/preview/' + encodeURIComponent(id), { credentials: 'same-origin' })
+            .then(function (r) {
+                if (!r.ok) throw new Error('load_failed');
+                return r.blob().then(function (blob) {
+                    var name = id.split(/[/\\]/).pop() || 'triage-offline';
+                    var type = blob.type || 'application/octet-stream';
+                    loadFile(new File([blob], name, { type: type }));
+                });
+            })
+            .catch(function () {
+                status(tr('analytics.anpr.offlineBadFile', 'Use .mp4 or .avi video'));
+            });
+    }
+
     function bind() {
         var zone = document.getElementById('ax-anpr-offline-dropzone');
         var input = document.getElementById('ax-anpr-offline-file');
         videoEl = document.getElementById('ax-anpr-offline-video');
         if (!zone || !input || !videoEl || zone._anprOfflineBound) return;
         zone._anprOfflineBound = true;
-
-        function loadFile(file) {
-            if (!file) return;
-            var name = String(file.name || '').toLowerCase();
-            if (!/\.(mp4|avi|webm|mov)$/.test(name) && !(file.type || '').startsWith('video/')) {
-                status(tr('analytics.anpr.offlineBadFile', 'Use .mp4 or .avi video'));
-                return;
-            }
-            stopSample();
-            var url = URL.createObjectURL(file);
-            videoEl.src = url;
-            videoEl.hidden = false;
-            var empty = zone.querySelector('.ax-anpr-offline-empty');
-            if (empty) empty.hidden = true;
-            status(tr('analytics.anpr.offlineReady', 'Video loaded — press play to analyze'));
-            try { videoEl.load(); } catch (_) { /* ignore */ }
-        }
 
         input.addEventListener('change', function () {
             loadFile(input.files && input.files[0]);
@@ -220,5 +253,7 @@
     global.AnprOfflineMatch = {
         onShow: onShow,
         onHide: onHide,
+        loadFile: loadFile,
+        loadFromEvidence: loadFromEvidence,
     };
 })(typeof window !== 'undefined' ? window : this);

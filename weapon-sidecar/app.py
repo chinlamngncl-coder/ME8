@@ -326,3 +326,8 @@ def detect(body: DetectBody) -> dict[str, Any]:
         "hits": hits,
         "crop_jpeg_b64": crop_b64,
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=PORT_HINT, log_level="info")

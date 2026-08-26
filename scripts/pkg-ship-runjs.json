@@ -1,0 +1,15 @@
+{
+  "name": "me8-ship-exe",
+  "bin": "run.js",
+  "pkg": {
+    "assets": [
+      "public/**/*",
+      "keys/license-public.pem"
+    ],
+    "scripts": [
+      "run.js"
+    ],
+    "outputPath": "ship-build/compiled"
+  },
+  "comment": "pkg wraps esbuild run.js blob. Native .node addons stay beside the exe (node_modules)."
+}

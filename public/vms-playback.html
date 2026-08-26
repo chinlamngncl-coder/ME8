@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VMS Forensic Playback — Mobility Axiom</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg-base:     #020817;
+    --bg-surface:  #0f172a;
+    --bg-card:     #1e293b;
+    --border:      #334155;
+    --accent:      #2563eb;
+    --accent2:     #3b82f6;
+    --text:        #f1f5f9;
+    --muted:       #94a3b8;
+    --dim:         #475569;
+    --green:       #22c55e;
+    --orange:      #f97316;
+    --red:         #ef4444;
+    --r-md:        8px;
+    --r-sm:        5px;
+  }
+  html, body { height: 100%; background: var(--bg-base); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px; }
+
+  /* ── Header ── */
+  .vms-header { display: flex; align-items: center; gap: 14px; padding: 10px 20px; background: var(--bg-surface); border-bottom: 1px solid var(--border); }
+  .vms-header .wordmark { font-size: 15px; font-weight: 700; color: var(--text); }
+  .vms-header .wordmark span { color: var(--accent2); }
+  .vms-header .page-title { font-size: 11px; color: var(--muted); margin-left: auto; }
+  .back-btn { font-size: 12px; color: var(--muted); text-decoration: none; border: 1px solid var(--border); padding: 4px 10px; border-radius: var(--r-sm); }
+  .back-btn:hover { color: var(--text); border-color: var(--muted); }
+
+  /* ── Layout ── */
+  .vms-body { display: grid; grid-template-columns: 290px 1fr; height: calc(100vh - 46px); overflow: hidden; }
+  .vms-sidebar { background: var(--bg-surface); border-right: 1px solid var(--border); overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+  .vms-main { display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── Section headers ── */
+  .sec-title { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); margin-bottom: 7px; }
+
+  /* ── Form controls ── */
+  label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; font-weight: 500; }
+  select, input[type="datetime-local"], input[type="text"] {
+    width: 100%; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--r-sm); color: var(--text); padding: 6px 9px; font-size: 12px; outline: none; appearance: none;
+  }
+  select:focus, input:focus { border-color: var(--accent2); box-shadow: 0 0 0 2px rgba(59,130,246,.2); }
+  select option { background: var(--bg-card); }
+  .input-row { display: flex; gap: 6px; }
+  .input-row input { flex: 1; }
+  .input-row button { flex-shrink: 0; }
+
+  .btn { padding: 6px 12px; border: none; border-radius: var(--r-sm); font-size: 12px; font-weight: 600; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: #fff; width: 100%; padding: 8px; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-primary:disabled { opacity: .5; cursor: default; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .btn-ghost:hover { border-color: var(--muted); color: var(--text); }
+  .btn-cart { background: transparent; border: 1px solid var(--accent2); color: var(--accent2); width: 100%; margin-top: 6px; padding: 7px; border-radius: var(--r-sm); font-size: 12px; font-weight: 600; cursor: pointer; }
+  .btn-cart:hover { background: var(--accent); color: #fff; }
+  .btn-cart:disabled { opacity: .4; cursor: default; }
+  .btn-sm { padding: 4px 10px; font-size: 11px; }
+  .btn-refine { background: var(--bg-card); border: 1px solid var(--border); color: var(--muted); border-radius: var(--r-sm); padding: 3px 8px; font-size: 11px; cursor: pointer; white-space: nowrap; margin-left: 6px; }
+  .btn-refine:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* ── Status ── */
+  #vms-status { font-size: 11px; color: var(--muted); min-height: 14px; word-break: break-word; }
+
+  /* ── Range info ── */
+  #vms-range-info { font-size: 11px; color: var(--green); min-height: 14px; font-variant-numeric: tabular-nums; }
+
+  /* ── Legend ── */
+  .legend { display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--muted); }
+  .legend-row { display: flex; align-items: center; gap: 7px; }
+  .sw { width: 22px; height: 11px; border-radius: 2px; flex-shrink: 0; }
+  .sw-complete  { background: #2563eb; }
+  .sw-recording { background: repeating-linear-gradient(-45deg, #1e40af 0 4px, #3b82f6 4px 8px); }
+  .sw-alarm     { background: #ef4444; clip-path: polygon(50% 0%, 0% 100%, 100% 100%); border-radius: 0; }
+  .sw-start     { background: var(--green); width: 4px; height: 14px; border-radius: 1px; }
+  .sw-end       { background: var(--orange); width: 4px; height: 14px; border-radius: 1px; }
+
+  /* ── Case items ── */
+  #vms-case-items-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+  .vms-case-item { display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 6px 8px; font-size: 11px; color: var(--muted); }
+
+  /* ── Refine panel ── */
+  #vms-refine-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  #vms-refine-label { font-size: 11px; color: var(--muted); }
+  .refine-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #vms-refine-result { font-size: 11px; color: var(--green); line-height: 1.5; }
+  #vms-refine-result code { background: var(--bg-surface); padding: 1px 4px; border-radius: 3px; color: var(--accent2); }
+
+  /* ── Timeline strip ── */
+  .timeline-strip { background: var(--bg-surface); border-bottom: 1px solid var(--border); padding: 10px 16px 6px; user-select: none; }
+  .timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .timeline-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+  .timeline-hint  { font-size: 10px; color: var(--dim); }
+  #vms-time-display { font-size: 12px; color: var(--accent2); font-variant-numeric: tabular-nums; font-weight: 600; }
+  #vms-timeline-canvas { width: 100%; height: 80px; display: block; cursor: crosshair; border-radius: var(--r-sm); }
+
+  /* ── Video ── */
+  .video-area { flex: 1; display: flex; align-items: center; justify-content: center; background: #000; overflow: hidden; position: relative; }
+  #vms-video { max-width: 100%; max-height: 100%; width: 100%; height: 100%; object-fit: contain; }
+  .video-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--dim); pointer-events: none; }
+  .video-empty .icon { font-size: 40px; }
+  .video-empty p { font-size: 12px; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 700px) {
+    .vms-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .vms-sidebar { height: auto; overflow: visible; }
+  }
+</style>
+</head>
+<body>
+
+<header class="vms-header">
+  <div class="wordmark">Mobility <span>Axiom</span></div>
+  <div class="page-title">VMS — Forensic Playback</div>
+  <a class="back-btn" href="/index.html">&#8592; Dashboard</a>
+</header>
+
+<div class="vms-body">
+
+  <!-- ── Sidebar ── -->
+  <aside class="vms-sidebar">
+
+    <!-- Camera selector -->
+    <div>
+      <p class="sec-title">Camera</p>
+      <label for="vms-cam-select">Fixed Camera</label>
+      <select id="vms-cam-select"><option value="">Loading…</option></select>
+    </div>
+
+    <!-- Time window -->
+    <div>
+      <p class="sec-title">Time Window</p>
+      <div style="margin-bottom:8px">
+        <label for="vms-from">From</label>
+        <input type="datetime-local" id="vms-from">
+      </div>
+      <div>
+        <label for="vms-to">To</label>
+        <input type="datetime-local" id="vms-to">
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="vms-load-btn">Load Timeline</button>
+
+    <div id="vms-status"></div>
+
+    <!-- Legend -->
+    <div>
+      <p class="sec-title">Legend</p>
+      <div class="legend">
+        <div class="legend-row"><div class="sw sw-complete"></div><span>Complete — click to play</span></div>
+        <div class="legend-row"><div class="sw sw-recording"></div><span>Recording — use live stream</span></div>
+        <div class="legend-row"><div class="sw sw-alarm"></div><span>ONVIF alarm event</span></div>
+        <div class="legend-row"><div class="sw sw-start"></div><span>Left-click = Start marker</span></div>
+        <div class="legend-row"><div class="sw sw-end"></div><span>Right-click / Shift+click = End</span></div>
+        <span style="color:var(--dim);font-size:10px">ESC to clear markers</span>
+      </div>
+    </div>
+
+    <!-- Range info -->
+    <div>
+      <p class="sec-title">Selection Range</p>
+      <div id="vms-range-info" style="color:var(--dim)">Left-click = set Start. Right-click = set End.</div>
+    </div>
+
+    <!-- Incident Case -->
+    <div>
+      <p class="sec-title">Incident Case</p>
+      <label for="vms-case-id">Case ID (paste or create below)</label>
+      <input type="text" id="vms-case-id" placeholder="e.g. 3fa85f64-…" autocomplete="off">
+      <div style="margin-top:6px">
+        <label for="vms-case-title">New Case Title</label>
+        <div class="input-row">
+          <input type="text" id="vms-case-title" placeholder="VMS Incident">
+          <button class="btn btn-ghost btn-sm" id="vms-create-case">Create</button>
+        </div>
+      </div>
+      <button class="btn btn-cart" id="vms-add-to-case" disabled>&#xff0b; Add to Case</button>
+    </div>
+
+    <!-- Case Items (unified: fixed + BWC items) -->
+    <div>
+      <p class="sec-title">Case Cart</p>
+      <ul id="vms-case-items-list"><li style="color:var(--dim)">Load a case to see items.</li></ul>
+    </div>
+
+    <!-- Refine clip panel -->
+    <div id="vms-refine-panel" hidden>
+      <p class="sec-title">Refine Clip</p>
+      <div id="vms-refine-label" style="font-size:11px;color:var(--muted)"></div>
+      <p style="font-size:10px;color:var(--dim);margin-top:2px">Offset in seconds from segment start. Uses existing RBAC — Evidence Edit permission required.</p>
+      <div class="refine-grid">
+        <div>
+          <label for="vms-refine-start">Start (sec)</label>
+          <input type="number" id="vms-refine-start" min="0" step="0.1" value="0">
+        </div>
+        <div>
+          <label for="vms-refine-end">End (sec)</label>
+          <input type="number" id="vms-refine-end" min="0" step="0.1">
+        </div>
+      </div>
+      <button class="btn btn-primary" id="vms-refine-btn">Extract Clip</button>
+      <div id="vms-refine-result" hidden></div>
+    </div>
+
+  </aside>
+
+  <!-- ── Main panel ── -->
+  <main class="vms-main">
+
+    <div class="timeline-strip">
+      <div class="timeline-header">
+        <span class="timeline-label">Timeline</span>
+        <span class="timeline-hint">Left-click = play + mark start &nbsp;|&nbsp; Right-click = mark end &nbsp;|&nbsp; Shift+click = mark end</span>
+        <span id="vms-time-display">—</span>
+      </div>
+      <canvas id="vms-timeline-canvas"></canvas>
+    </div>
+
+    <div class="video-area">
+      <video id="vms-video" controls preload="none"></video>
+      <div class="video-empty" id="vms-empty-overlay">
+        <div class="icon">&#127909;</div>
+        <p>Click a blue segment on the timeline to play.</p>
+      </div>
+    </div>
+
+  </main>
+
+</div>
+
+<script src="/js/ui-formatter.js?v=20260821-tag-dict-v1"></script>
+<script src="/js/vms-playback-ui.js?v=20260825-operator-voice-v1"></script>
+</body>
+</html>

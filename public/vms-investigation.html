@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Investigation Window — Mobility Axiom</title>
+  <link rel="stylesheet" href="/css/global.css">
+</head>
+<body class="enterprise-scope">
+  <!-- VMS-SPATIAL-WALL2-LAYOUTS-REMOUNT-V1 — Command Wall chrome clone (same classes / ids) -->
+  <div id="app-view-command-wall">
+    <div class="cw-toolbar">
+      <div>
+        <div class="cw-toolbar-title-row">
+          <h2>Investigation Window</h2>
+        </div>
+        <div class="cw-meta" id="cw-wall-meta">Waiting for cameras…</div>
+        <div id="inv-ops-ack-banner" class="inv-ops-ack-banner" hidden role="status">Acknowledged on Operations.</div>
+      </div>
+    </div>
+    <div id="cw-panel-live" class="cw-hub-panel cw-layout">
+      <aside id="cw-roster">
+        <div class="cw-roster-head">
+          <h3>Waiting</h3>
+        </div>
+        <div class="cw-roster-body" id="cw-roster-body">
+          <div class="cw-roster-empty">No cameras waiting</div>
+        </div>
+      </aside>
+      <div id="cw-wall-wrap">
+        <div class="cw-wall-bar" id="cw-wall-bar" hidden></div>
+        <div id="cw-wall"></div>
+      </div>
+    </div>
+  </div>
+  <script src="/js/shared-flv-player.js?v=20260802-lab-chase-unify-v1"></script>
+  <script src="/js/vms-ptz-joystick.js?v=20260825-ptz-joystick-core-v1"></script>
+  <script src="/js/vms-investigation-ui.js?v=20260825-ptz-joystick-core-v1"></script>
+</body>
+</html>

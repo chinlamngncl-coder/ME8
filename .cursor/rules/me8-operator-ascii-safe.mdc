@@ -1,0 +1,24 @@
+# ME8 — Operator chrome = ASCII-safe (forever)
+
+**APPLY:** `OPERATOR-ASCII-SAFE-V1`  
+**Why:** Fancy UTF-8 (`—` `–` `…` `°` arrows) often re-saves as mojibake (`â€"`, `Â°`) and shows as garbage in the UI.
+
+## Forbidden in operator-visible strings
+
+Do **not** paste these into HTML / JS / locales that operators see:
+
+- Em/en dashes `—` `–` → use `-` or ` - `
+- Ellipsis `…` → use `...`
+- Degree `°` → use ` deg` or JS `'\u00B0'` only if charset is proven UTF-8 end-to-end
+- Fancy arrows `→` `←` → use `->` `<-`
+- Smart quotes → keep JSON-safe escapes `\"` or use straight `'` only; **never** bulk-replace quotes inside `locales/*.json`
+
+## Locale JSON
+
+Never run a blind “replace all fancy characters” on locale files without `JSON.parse` after.
+Broken `en.json` → i18n falls back to `humanizeKey` → operators see **Bp Title**, **Ar Camera**, **Poi Place** (disaster).
+
+## Acronyms (locked)
+
+**AR**, **POI**, **BWC**, **SOS**, **PTT**, **FOV**, **GPS**, **ID** — always shouted. Never `Ar` / `Poi` / `Bp` as operator chrome.
+`bp*` / `ar*` / `poi*` are **code keys only** — operator strings must say Floor Plan / Overwatch (AR) / POI.

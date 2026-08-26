@@ -1,4 +1,4 @@
-# Ubitron Mobility C2 — Installation Guide
+# Mobility Axiom — Installation Guide
 
 **Audience:** IT installer, system administrator  
 **Read with:** Quick-Guide.md · Configuration-Manual.md · User-Manual.md · Migration-Guide.md  
@@ -236,4 +236,4 @@ For configuration detail and firewall port list, see **Configuration-Manual.md**
 
 ---
 
-*Ubitron Mobility C2 — Mobility Test 2 delivery pack. Support: contact your vendor.*
+*Mobility Axiom — Mobility Test 2 delivery pack. Support: contact your vendor.*

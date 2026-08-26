@@ -359,6 +359,8 @@
         onHide: onHide,
         setMode: setMode,
         handleRunScan: handleRunScan,
+        setSelectedFromFile: setSelectedFromFile,
+        loadFromFile: setSelectedFromFile,
         getSelectedImage: function () { return selectedImage; },
         get isScanning() { return isScanning; },
     };

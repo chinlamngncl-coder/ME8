@@ -14,7 +14,7 @@
         'server.users.colClearMapPins': 'Clear map pins',
         'server.users.addNewAdminOperator': 'Add New Admin / Operator',
         'server.dashSub.addAccount': 'Add New Admin / Operator',
-        'server.dashSub.usersAuthority': 'Users & authority',
+        'server.dashSub.usersAuthority': 'Users and Authority',
         'server.dashSub.siteSecurity': 'Site security',
         'server.tab.dashboard': 'Dashboard Authentication',
         'server.users.loginUsername': 'Login username',
@@ -42,6 +42,13 @@
             : new Error(opMsg(data));
     }
 
+    function tryLicenseLimitUpsell(res, data) {
+        if (global.LicenseEntitlementsUi && typeof LicenseEntitlementsUi.tryHandleLimitResponse === 'function') {
+            return LicenseEntitlementsUi.tryHandleLimitResponse(res, data);
+        }
+        return false;
+    }
+
     function isUsernameExistsPayload(payload) {
         if (!payload) return false;
         if (payload.errorKey === 'errors.userExists') return true;
@@ -59,6 +66,8 @@
     let activeMainTab = 'infrastructure';
     let activeDashSubTab = 'add';
     let activeFleetSubTab = 'wireless';
+    let activeInfraSubTab = 'network';
+    let infraTabsReorganized = false;
     let layoutOverride = null;
     const TAB_LAYOUT = {
         infrastructure: 'wide',
@@ -76,7 +85,7 @@
     };
     const PILLAR_TABS = ['infrastructure', 'fleet', 'security', 'diagnostics'];
     const PILLAR_PANELS = {
-        infrastructure: ['server', 'cloud'],
+        infrastructure: ['server'],
         fleet: ['bwc'],
         security: ['dashboard'],
         diagnostics: ['diagnostics'],
@@ -358,6 +367,7 @@
         syncSidebarNav();
         applyDashboardAuthLayout();
         applyFleetSubTabLayout();
+        applyInfraSubTabLayout();
         var workspaceEl = document.getElementById('server-config-workspace');
         if (workspaceEl) workspaceEl.setAttribute('data-ss-pillar', next);
         if (visible.indexOf('dashboard') >= 0) {
@@ -607,6 +617,9 @@
         } else if (global.UsbMaintenance && UsbMaintenance.onTabHidden) {
             UsbMaintenance.onTabHidden();
         }
+        if (tab === 'docks' && global.EvidenceHub && EvidenceHub.refreshDocks) {
+            EvidenceHub.refreshDocks();
+        }
         if (tab === 'fixed') {
             if (global.FixedCamsUi && FixedCamsUi.showInPanel) FixedCamsUi.showInPanel();
         } else if (global.FixedCamsUi && FixedCamsUi.hideInPanel) {
@@ -649,6 +662,86 @@
         }
     }
 
+    const INFRA_TAB_SECTIONS = {
+        identity: ['ss-infra-site-identity', 'ss-section-deployment', 'ss-section-site-time', 'ss-infra-verification', 'cd-entitlements'],
+        network: ['ss-infra-public-access', 'ss-section-lan', 'ss-section-wan', 'ss-section-production', 'ss-section-ssl'],
+        routing: ['ss-section-bwc-register', 'ss-section-operator', 'ss-section-dock-link', 'ss-section-vms-volumes', 'ss-section-protocol'],
+        advanced: ['ss-section-command-displays', 'ss-phase-resiliency', 'ss-infra-firewall', 'ss-infra-notes'],
+    };
+
+    function infraPaneShell(tabId) {
+        const pane = document.getElementById('ss-infra-pane-' + tabId);
+        if (!pane) return null;
+        return pane.querySelector('.ss-infra-pane-shell') || pane;
+    }
+
+    function pinEntitlementsCardBottom() {
+        const shell = infraPaneShell('identity');
+        const ent = document.getElementById('cd-entitlements');
+        if (shell && ent && ent.parentNode === shell) shell.appendChild(ent);
+    }
+
+    function reorganizeInfraTabs() {
+        Object.keys(INFRA_TAB_SECTIONS).forEach(function (tabId) {
+            const shell = infraPaneShell(tabId);
+            if (!shell) return;
+            INFRA_TAB_SECTIONS[tabId].forEach(function (sectionId) {
+                const el = document.getElementById(sectionId);
+                if (el && el.parentNode !== shell) shell.appendChild(el);
+            });
+        });
+        infraTabsReorganized = true;
+        pinEntitlementsCardBottom();
+    }
+
+    function setInfraSubTab(tab) {
+        const allowed = { identity: 1, network: 1, routing: 1, advanced: 1 };
+        if (!allowed[tab]) tab = 'identity';
+        activeInfraSubTab = tab;
+        applyInfraSubTabLayout();
+        if (tab === 'identity' && global.CloudDeployment && CloudDeployment.onTabShown) {
+            CloudDeployment.onTabShown();
+        }
+    }
+
+    function applyInfraSubTabLayout() {
+        const onInfra = resolvePillar(activeMainTab) === 'infrastructure';
+        const serverPanel = document.getElementById('ss-panel-server');
+        const subtabs = document.getElementById('ss-infra-subtabs');
+        const tabbed = document.getElementById('ss-infra-tabbed');
+        const showInfra = onInfra && serverPanel && serverPanel.classList.contains('active');
+        if (subtabs) subtabs.hidden = !showInfra;
+        if (tabbed) tabbed.hidden = !showInfra;
+        if (showInfra) reorganizeInfraTabs();
+        ['identity', 'network', 'routing', 'advanced'].forEach(function (id) {
+            const pane = document.getElementById('ss-infra-pane-' + id);
+            if (pane) pane.hidden = !(showInfra && activeInfraSubTab === id);
+            const btn = document.getElementById('ss-infra-sub-' + id);
+            if (btn) btn.classList.toggle('active', showInfra && activeInfraSubTab === id);
+        });
+        const cloudPanel = document.getElementById('ss-panel-cloud');
+        if (serverPanel) serverPanel.hidden = false;
+        if (cloudPanel) {
+            cloudPanel.hidden = true;
+            cloudPanel.classList.remove('active');
+        }
+        if (showInfra) {
+            NETWORK_SECTION_IDS.forEach(function (pid) {
+                const ph = document.getElementById(pid);
+                if (ph) ph.hidden = true;
+            });
+            pinEntitlementsCardBottom();
+            if (activeInfraSubTab === 'identity' && global.CloudDeployment && CloudDeployment.onTabShown) {
+                CloudDeployment.onTabShown();
+            }
+        } else if (serverPanel) {
+            NETWORK_SECTION_IDS.forEach(function (pid) {
+                const ph = document.getElementById(pid);
+                if (ph) ph.hidden = false;
+            });
+        }
+    }
+
     function openFleetDocks() {
         setOpen(true);
         setMainTab('fleet');
@@ -666,6 +759,7 @@
         const voiceSection = document.getElementById('ss-voice-alerts-section');
         const smtpSection = document.getElementById('ss-smtp-section');
         const techPinSection = document.getElementById('ss-tech-pin-section');
+        const tonesSection = document.getElementById('ss-alert-tones-section');
         const siteTabBtn = document.getElementById('ss-dash-sub-site');
         const addTabBtn = document.getElementById('ss-dash-sub-add');
         const usersTabBtn = document.getElementById('ss-dash-sub-users');
@@ -704,6 +798,7 @@
         if (smtpSection) smtpSection.hidden = !onSite;
         if (techPinSection) techPinSection.hidden = !onSite;
         if (voiceSection) voiceSection.hidden = !onSite;
+        if (tonesSection) tonesSection.hidden = !onSite;
         if (onSite && global.PlatformSmtp && global.PlatformSmtp.load) {
             global.PlatformSmtp.load().catch(function () { /* ignore */ });
         }
@@ -759,6 +854,7 @@
             + '<dt>' + tr('server.users.colEvidence') + '</dt><dd>' + permYesNo(p.evidenceDownload) + '</dd>'
             + '<dt>' + tr('server.users.colEvidenceExport') + '</dt><dd>' + permYesNo(p.evidenceExport) + '</dd>'
             + '<dt>' + tr('server.users.colEvidenceEdit') + '</dt><dd>' + permYesNo(p.evidenceEdit) + '</dd>'
+            + '<dt>' + tr('server.users.colEvidenceLifecycle') + '</dt><dd>' + permYesNo(p.evidenceLifecycle) + '</dd>'
             + '<dt>' + tr('server.users.colDockAdmin') + '</dt><dd>' + permYesNo(p.dockAdmin) + '</dd>'
             + '<dt>' + tr('server.users.colConferenceView') + '</dt><dd>' + permYesNo(p.conferenceView || p.conferenceJoin) + '</dd>'
             + '<dt>' + tr('server.users.colConferenceJoin') + '</dt><dd>' + permYesNo(p.conferenceJoin) + '</dd>'
@@ -1819,13 +1915,15 @@
                 + permField(isSuper, 'ss-user-overlay-view', perms.overlayView || perms.overlayEdit, 'server.users.colOverlayView')
                 + permField(isSuper, 'ss-user-overlay-edit', perms.overlayEdit, 'server.users.colOverlayEdit'))
             + permAcc('Tactical',
-                permField(isSuper, 'ss-user-tactical-view', perms.tacticalView, 'server.users.colTacticalView')
+                permField(isSuper, 'ss-user-ai-alerts', perms.aiAlerts, 'server.users.colAiAlerts')
+                + permField(isSuper, 'ss-user-tactical-view', perms.tacticalView, 'server.users.colTacticalView')
                 + permField(isSuper, 'ss-user-blueprint-manage', perms.blueprintManage, 'server.users.colBlueprintManage'))
             + permAcc('Evidence',
                 permField(isSuper, 'ss-user-evidence-view', perms.evidenceView || perms.evidenceDownload, 'server.users.colEvidenceView')
                 + permField(isSuper, 'ss-user-evidence-dl', perms.evidenceDownload, 'server.users.colEvidence')
                 + permField(isSuper, 'ss-user-evidence-export', perms.evidenceExport, 'server.users.colEvidenceExport')
                 + permField(isSuper, 'ss-user-evidence-edit', perms.evidenceEdit, 'server.users.colEvidenceEdit')
+                + permField(isSuper, 'ss-user-evidence-lifecycle', perms.evidenceLifecycle, 'server.users.colEvidenceLifecycle')
                 + permField(isSuper, 'ss-user-dock-admin', perms.dockAdmin, 'server.users.colDockAdmin'))
             + permAcc('Video Conference',
                 permField(isSuper, 'ss-user-conference-view', perms.conferenceView || perms.conferenceJoin, 'server.users.colConferenceView')
@@ -1965,6 +2063,7 @@
         const evEl = row.querySelector('.ss-user-evidence-dl');
         const evExportEl = row.querySelector('.ss-user-evidence-export');
         const evEditEl = row.querySelector('.ss-user-evidence-edit');
+        const evLifeEl = row.querySelector('.ss-user-evidence-lifecycle');
         const dockAdminEl = row.querySelector('.ss-user-dock-admin');
         const vcViewEl = row.querySelector('.ss-user-conference-view');
         const vcJoinEl = row.querySelector('.ss-user-conference-join');
@@ -1986,11 +2085,17 @@
             overlayView: !!(row.querySelector('.ss-user-overlay-view') && row.querySelector('.ss-user-overlay-view').checked),
             overlayEdit: !!(row.querySelector('.ss-user-overlay-edit') && row.querySelector('.ss-user-overlay-edit').checked),
             tacticalView: !!(row.querySelector('.ss-user-tactical-view') && row.querySelector('.ss-user-tactical-view').checked),
+            aiAlerts: !!(row.querySelector('.ss-user-ai-alerts') && row.querySelector('.ss-user-ai-alerts').checked),
             blueprintManage: !!(row.querySelector('.ss-user-blueprint-manage') && row.querySelector('.ss-user-blueprint-manage').checked),
             evidenceView: !!(evViewEl && evViewEl.checked),
+            evidenceTriageAccess: (function () {
+                var prev = (lastUsersList || []).find(function (u) { return u && u.id === (row.getAttribute('data-user-id') || ''); });
+                return !!(prev && prev.permissions && prev.permissions.evidenceTriageAccess);
+            })(),
             evidenceDownload: !!(evEl && evEl.checked),
             evidenceExport: !!(evExportEl && evExportEl.checked),
             evidenceEdit: !!(evEditEl && evEditEl.checked),
+            evidenceLifecycle: !!(evLifeEl && evLifeEl.checked),
             dockAdmin: !!(dockAdminEl && dockAdminEl.checked),
             conferenceView: !!(vcViewEl && vcViewEl.checked),
             conferenceJoin: !!(vcJoinEl && vcJoinEl.checked),
@@ -2417,8 +2522,10 @@
         if (fleetDocks) fleetDocks.addEventListener('click', () => setFleetSubTab('docks'));
         if (fleetFw) fleetFw.addEventListener('click', () => setFleetSubTab('firmware'));
         if (fleetUsb) fleetUsb.addEventListener('click', () => setFleetSubTab('usb'));
-        const fleetDocksStorage = document.getElementById('ss-fleet-docks-storage');
-        if (fleetDocksStorage) fleetDocksStorage.addEventListener('click', openEvidenceStorage);
+        ['identity', 'network', 'routing', 'advanced'].forEach(function (id) {
+            const btn = document.getElementById('ss-infra-sub-' + id);
+            if (btn) btn.addEventListener('click', function () { setInfraSubTab(id); });
+        });
 
         const openEvidenceStorageBtn = document.getElementById('ss-open-evidence-storage');
         if (openEvidenceStorageBtn) openEvidenceStorageBtn.addEventListener('click', openEvidenceStorage);
@@ -2547,19 +2654,29 @@
             creatingUser = true;
             if (addBtn) addBtn.disabled = true;
             try {
+                var roleVal = (document.getElementById('ss-new-role') || {}).value || 'operator';
+                var createBody = {
+                    username: username,
+                    password: document.getElementById('ss-new-pass').value,
+                    adminPassword: document.getElementById('ss-new-admin-pass').value,
+                    role: roleVal === 'commander' ? 'operator' : roleVal,
+                    displayName: (document.getElementById('ss-new-display-name') || {}).value.trim(),
+                    contactNote: (document.getElementById('ss-new-contact-note') || {}).value.trim(),
+                };
+                if (roleVal === 'commander') {
+                    createBody.permissions = {
+                        evidenceTriageAccess: true,
+                        evidenceView: true,
+                        evidenceDownload: true,
+                    };
+                }
                 const res = await fetch('/api/users', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        username: username,
-                        password: document.getElementById('ss-new-pass').value,
-                        adminPassword: document.getElementById('ss-new-admin-pass').value,
-                        role: (document.getElementById('ss-new-role') || {}).value || 'operator',
-                        displayName: (document.getElementById('ss-new-display-name') || {}).value.trim(),
-                        contactNote: (document.getElementById('ss-new-contact-note') || {}).value.trim(),
-                    }),
+                    body: JSON.stringify(createBody),
                 });
                 const data = await res.json();
+                if (tryLicenseLimitUpsell(res, data)) return;
                 if (!res.ok || !data.ok) throwOpErr(data);
                 const createdName = (data.user && data.user.username) || username;
                 document.getElementById('ss-new-user').value = '';
@@ -2609,10 +2726,12 @@
                 || e.target.matches('.ss-user-geofence')
                 || e.target.matches('.ss-user-clear-map-pins')
                 || e.target.matches('.ss-user-overlay-view') || e.target.matches('.ss-user-overlay-edit')
+                || e.target.matches('.ss-user-ai-alerts')
                 || e.target.matches('.ss-user-tactical-view') || e.target.matches('.ss-user-blueprint-manage')
                 || e.target.matches('.ss-user-evidence-view')
                 || e.target.matches('.ss-user-evidence-dl') || e.target.matches('.ss-user-evidence-export')
-                || e.target.matches('.ss-user-evidence-edit')                 || e.target.matches('.ss-user-dock-admin')
+                || e.target.matches('.ss-user-evidence-edit') || e.target.matches('.ss-user-evidence-lifecycle')
+                || e.target.matches('.ss-user-dock-admin')
                 || e.target.matches('.ss-user-conference-view') || e.target.matches('.ss-user-conference-join')
                 || e.target.matches('.ss-user-conference-host') || e.target.matches('.ss-user-conference-record')
                 || e.target.matches('.ss-user-conference-bwc') || e.target.matches('.ss-user-conference-cross')
@@ -3302,3 +3421,308 @@
         canManageServer: function () { return canManageServer; },
     };
 })(window);
+
+/* ── VMS Storage Volume Manager ─────────────────────────────────────────────
+ * Self-contained module. Soft hints only — never raw SQL/tech strings in UI.
+ */
+(function () {
+    'use strict';
+
+    var state = { volumes: [], editingId: null, bound: false };
+    var EMPTY_HINT = 'No storage volumes configured yet. Click Add Volume to attach your first NAS.';
+
+    function qs(id) { return document.getElementById(id); }
+    function setStatus(msg, isErr) {
+        var el = qs('vms-vol-status');
+        if (!el) return;
+        el.textContent = msg || '';
+        el.style.color = isErr ? '#f87171' : '#94a3b8';
+    }
+    function setProbeResult(msg, ok) {
+        var el = qs('vms-vol-probe-result');
+        if (!el) return;
+        el.textContent = msg || '';
+        el.style.color = ok ? '#22c55e' : '#f87171';
+    }
+    function setModalErr(msg) {
+        var el = qs('vms-vol-modal-err');
+        if (!el) return;
+        el.textContent = msg || '';
+        el.hidden = !msg;
+    }
+    function softApiError(d) {
+        if (!d) return 'Something went wrong. Please try again.';
+        var e = d.error || d.notice || '';
+        if (!e || /relation|SQL|postgres|stack|ENOENT|ECONN/i.test(String(e))) {
+            return 'Storage is not ready yet. Please try again in a moment.';
+        }
+        return String(e);
+    }
+
+    async function loadVolumes() {
+        setStatus('Checking your storage arrays…', false);
+        try {
+            var r = await fetch('/api/vms/volumes', { credentials: 'same-origin' });
+            var d = await r.json().catch(function () { return { ok: true, volumes: [] }; });
+            state.volumes = Array.isArray(d.volumes) ? d.volumes : [];
+            renderTable();
+            if (!d.ok && !state.volumes.length) {
+                setStatus(softApiError(d), true);
+            } else if (!state.volumes.length) {
+                setStatus('Ready when you are — add your first array above.', false);
+            } else {
+                setStatus(state.volumes.length + (state.volumes.length === 1 ? ' array connected' : ' arrays connected'), false);
+            }
+        } catch (_e) {
+            state.volumes = [];
+            renderTable();
+            setStatus('Could not reach storage settings. Please refresh and try again.', true);
+        }
+    }
+
+    function renderTable() {
+        var tbody = qs('vms-vol-tbody');
+        if (!tbody) return;
+        if (!state.volumes.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="setup-hint" style="padding:14px 0">' + EMPTY_HINT + '</td></tr>';
+            return;
+        }
+        tbody.innerHTML = '';
+        state.volumes.forEach(function (v) {
+            var tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td>' + esc(v.name) + '</td>' +
+                '<td><code>' + esc(v.role) + '</code></td>' +
+                '<td style="color:#94a3b8;font-size:11px">Server mount</td>' +
+                '<td>' + (v.threshold_pct != null ? v.threshold_pct + '%' : '85%') + '</td>' +
+                '<td>' + (v.retention_days != null ? v.retention_days + ' days' : 'No limit') + '</td>' +
+                '<td style="white-space:nowrap">' +
+                    '<button type="button" class="btn btn-ghost btn-sm" data-vms-edit="' + esc(v.id) + '">Edit</button> ' +
+                    '<button type="button" class="btn btn-ghost btn-sm" style="color:#f87171" data-vms-del="' + esc(v.id) + '">Remove</button>' +
+                '</td>';
+            tbody.appendChild(tr);
+        });
+    }
+
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function clearFormFields() {
+        if (qs('vms-vol-name')) qs('vms-vol-name').value = '';
+        if (qs('vms-vol-role')) qs('vms-vol-role').value = 'fixed-archive';
+        if (qs('vms-vol-threshold')) qs('vms-vol-threshold').value = '85';
+        if (qs('vms-vol-path')) qs('vms-vol-path').value = '';
+        if (qs('vms-vol-retention')) qs('vms-vol-retention').value = '';
+        setModalErr('');
+        setProbeResult('', true);
+    }
+
+    function openModal(editId) {
+        state.editingId = editId || null;
+        var modal = qs('vms-vol-modal');
+        if (!modal) return;
+        setModalErr('');
+        setProbeResult('', true);
+        var title = qs('vms-vol-modal-title');
+        if (title) title.textContent = editId ? 'Edit Storage Array' : 'Add Storage Array';
+
+        if (editId) {
+            var v = state.volumes.find(function (x) { return x.id === editId; });
+            if (v) {
+                if (qs('vms-vol-name')) qs('vms-vol-name').value = v.name || '';
+                if (qs('vms-vol-role')) qs('vms-vol-role').value = v.role || 'fixed-archive';
+                if (qs('vms-vol-threshold')) qs('vms-vol-threshold').value = v.threshold_pct != null ? v.threshold_pct : 85;
+                if (qs('vms-vol-path')) qs('vms-vol-path').value = '';
+                if (qs('vms-vol-retention')) qs('vms-vol-retention').value = v.retention_days != null ? v.retention_days : '';
+            } else {
+                clearFormFields();
+            }
+        } else {
+            clearFormFields();
+        }
+
+        modal.hidden = false;
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+        if (qs('vms-vol-name')) qs('vms-vol-name').focus();
+        try { modal.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_e) { /* ignore */ }
+    }
+
+    function closeModal() {
+        var modal = qs('vms-vol-modal');
+        if (modal) {
+            modal.classList.remove('is-open');
+            modal.hidden = true;
+            modal.setAttribute('aria-hidden', 'true');
+            modal.style.display = '';
+        }
+        state.editingId = null;
+        setModalErr('');
+        setProbeResult('', true);
+        var saveBtn = qs('vms-vol-save-btn');
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Volume'; }
+        var probeBtn = qs('vms-vol-probe-btn');
+        if (probeBtn) probeBtn.disabled = false;
+        clearFormFields();
+    }
+
+    async function probeMount() {
+        var mountPath = qs('vms-vol-path') ? qs('vms-vol-path').value.trim() : '';
+        if (!mountPath) { setProbeResult('Enter a path first, then test the connection.', false); return; }
+        setProbeResult('Testing connection…', true);
+        var btn = qs('vms-vol-probe-btn');
+        if (btn) btn.disabled = true;
+        try {
+            var r = await fetch('/api/vms/volumes/probe', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mount_path: mountPath }),
+            });
+            var d = await r.json();
+            if (d.ok) {
+                var info = d.probe || d;
+                var msg = 'Path looks good';
+                if (info.freeGb != null) msg += ' — about ' + Number(info.freeGb).toFixed(1) + ' GB free';
+                setProbeResult(msg, true);
+            } else {
+                setProbeResult(softApiError(d) || 'That path could not be reached.', false);
+            }
+        } catch (_e) {
+            setProbeResult('Could not test this path right now.', false);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    async function saveVolume() {
+        var name = qs('vms-vol-name') ? qs('vms-vol-name').value.trim() : '';
+        var role = qs('vms-vol-role') ? qs('vms-vol-role').value : 'fixed-archive';
+        var mountPath = qs('vms-vol-path') ? qs('vms-vol-path').value.trim() : '';
+        var threshold = qs('vms-vol-threshold') ? Number(qs('vms-vol-threshold').value) : 85;
+        var retDays = qs('vms-vol-retention') ? qs('vms-vol-retention').value.trim() : '';
+
+        if (!name) { setModalErr('Please give this array a name.'); return; }
+        if (!mountPath && !state.editingId) { setModalErr('Please enter the server mount path.'); return; }
+        if (isNaN(threshold) || threshold < 50 || threshold > 99) {
+            setModalErr('Disk pressure threshold should be between 50 and 99.'); return;
+        }
+
+        var payload = {
+            name: name,
+            role: role,
+            threshold_pct: threshold,
+            retention_days: retDays ? Number(retDays) : null,
+        };
+        if (mountPath) payload.mount_path = mountPath;
+
+        var saveBtn = qs('vms-vol-save-btn');
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+        setModalErr('');
+        try {
+            var url = state.editingId
+                ? '/api/vms/volumes/' + encodeURIComponent(state.editingId)
+                : '/api/vms/volumes';
+            var method = state.editingId ? 'PUT' : 'POST';
+            var r = await fetch(url, {
+                method: method, credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            var d = await r.json();
+            if (!d.ok) throw new Error(softApiError(d));
+            closeModal();
+            await loadVolumes();
+        } catch (e) {
+            setModalErr(e.message || 'Could not save. Check the path and try again.');
+        } finally {
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Volume'; }
+        }
+    }
+
+    async function deleteVolume(id) {
+        if (!id || !window.confirm('Remove this storage array from Axiom? Files on the NAS are not deleted.')) return;
+        try {
+            var r = await fetch('/api/vms/volumes/' + encodeURIComponent(id), {
+                method: 'DELETE', credentials: 'same-origin',
+            });
+            var d = await r.json();
+            if (!d.ok) throw new Error(softApiError(d));
+            await loadVolumes();
+        } catch (_e) {
+            setStatus('Could not remove that array. Please try again.', true);
+        }
+    }
+
+    function bindOnce() {
+        if (state.bound) return;
+        state.bound = true;
+
+        /* Event delegation — survives tab reorganize / late DOM */
+        document.addEventListener('click', function (e) {
+            var t = e.target;
+            if (!t || !t.closest) return;
+            if (t.closest('#vms-vol-add-btn')) {
+                e.preventDefault();
+                openModal(null);
+                return;
+            }
+            if (t.closest('#vms-vol-cancel-btn')) {
+                e.preventDefault();
+                closeModal();
+                return;
+            }
+            if (t.closest('#vms-vol-save-btn')) {
+                e.preventDefault();
+                saveVolume();
+                return;
+            }
+            if (t.closest('#vms-vol-probe-btn')) {
+                e.preventDefault();
+                probeMount();
+                return;
+            }
+            var edit = t.closest('[data-vms-edit]');
+            if (edit) {
+                e.preventDefault();
+                openModal(edit.getAttribute('data-vms-edit'));
+                return;
+            }
+            var del = t.closest('[data-vms-del]');
+            if (del) {
+                e.preventDefault();
+                deleteVolume(del.getAttribute('data-vms-del'));
+                return;
+            }
+            var modal = qs('vms-vol-modal');
+            if (modal && t === modal && modal.classList.contains('is-open')) {
+                /* inline form — ignore backdrop-style clicks */
+                return;
+            }
+        });
+
+        document.addEventListener('keydown', function (e) {
+            var modal = qs('vms-vol-modal');
+            if (e.key === 'Escape' && modal && modal.classList.contains('is-open')) {
+                e.preventDefault();
+                closeModal();
+            }
+        });
+    }
+
+    function init() {
+        bindOnce();
+        var modal = qs('vms-vol-modal');
+        if (modal) modal.setAttribute('aria-hidden', 'true');
+        loadVolumes();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+
+    window.VmsVolumeUi = { reload: loadVolumes, openAdd: function () { openModal(null); } };
+})();

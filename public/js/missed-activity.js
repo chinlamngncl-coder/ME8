@@ -86,14 +86,7 @@
     }
 
     function formatWhen(iso) {
-        if (!iso) return '\u2014';
-        var d = new Date(iso);
-        if (isNaN(d.getTime())) return String(iso);
-        try {
-            return d.toLocaleString();
-        } catch (e) {
-            return d.toISOString();
-        }
+        return (typeof fmtDateTime === 'function') ? fmtDateTime(iso) : String(iso || '\u2014');
     }
 
     function escText(s) {
@@ -130,12 +123,89 @@
                 blurb: tr('missedActivity.fallDetail', 'Fall alert recorded while you were away.'),
             };
         }
+        if (kind === 'wall_nudge') {
+            return {
+                title: tr('missedActivity.wallNudge', 'Operator Escalation'),
+                tag: tr('missedActivity.wallNudgeTag', 'ESCALATE'),
+                tagClass: 'is-wall-nudge',
+                blurb: tr('missedActivity.wallNudgeDetail', 'Command Wall asked an admin to review this camera.'),
+            };
+        }
         return {
             title: tr('missedActivity.sos', 'SOS alert'),
             tag: tr('missedActivity.sosTag', 'SOS'),
             tagClass: 'is-sos',
             blurb: tr('missedActivity.sosDetail', 'SOS recorded while you were away.'),
         };
+    }
+
+    function isWallViewActive() {
+        try {
+            var cw = document.getElementById('app-view-command-wall');
+            if (!cw || cw.hidden) return false;
+            if (cw.getAttribute('aria-hidden') === 'true') return false;
+            var st = window.getComputedStyle(cw);
+            if (st && (st.display === 'none' || st.visibility === 'hidden')) return false;
+            return true;
+        } catch (e) { return false; }
+    }
+
+    function wallNudgeMatchLabel(it) {
+        var src = String((it && it.source) || '').toLowerCase();
+        if (src === 'anpr_list' || src.indexOf('anpr') === 0) {
+            return tr('missedActivity.wallNudgeAnpr', 'ANPR Match');
+        }
+        if (src === 'fr_blacklist' || src.indexOf('fr') === 0) {
+            return tr('missedActivity.wallNudgeWatchlist', 'Watchlist Match');
+        }
+        if (src === 'bwc_sos' || src.indexOf('sos') >= 0) {
+            return tr('missedActivity.wallNudgeSos', 'SOS');
+        }
+        if (src.indexOf('vms') === 0) {
+            return tr('missedActivity.wallNudgeVms', 'Camera Alarm');
+        }
+        return tr('missedActivity.wallNudgeGeneric', 'Wall Alert');
+    }
+
+    function wallNudgeSubtext(it) {
+        var op = (it && it.nudgedBy) ? String(it.nudgedBy) : tr('missedActivity.wallOperator', 'Operator');
+        return op + ' \u00b7 ' + wallNudgeMatchLabel(it) + ' \u00b7 ' + timeAgo(it && it.at);
+    }
+
+    function markItemRead() {
+        setLastRead(Date.now());
+        renderBadge(unreadCount(lastItems), lastItems.some(function (row) { return row.urgent === true; }));
+    }
+
+    function onWallNudgeClick(it) {
+        var camId = it && it.camId ? String(it.camId) : '';
+        markItemRead();
+        closeDrawer();
+        if (!camId) return;
+        if (isWallViewActive() && window.CommandWall && typeof window.CommandWall.focusNudgeCam === 'function') {
+            try { window.CommandWall.focusNudgeCam(camId); } catch (e) { /* ignore */ }
+            return;
+        }
+        gotoOpsWithCamLive(camId);
+    }
+
+    function focusWallNudgeCam(camId) {
+        onWallNudgeClick({ camId: camId });
+    }
+
+    function gotoOpsWithCamLive(camId) {
+        var opsTab = document.getElementById('nav-tab-ops');
+        if (opsTab) {
+            try { opsTab.click(); } catch (e) { /* ignore */ }
+        }
+        if (!camId) return;
+        setTimeout(function () {
+            try {
+                if (typeof window.selectFleetDevice === 'function') {
+                    window.selectFleetDevice(camId, { pttCommPin: false });
+                }
+            } catch (e) { /* ignore */ }
+        }, 200);
     }
 
     function engagePtt(camId) {
@@ -210,7 +280,9 @@
         els.detail.innerHTML =
             '<button type="button" class="ma-detail-back" id="ma-detail-back">← ' +
                 escText(tr('missedActivity.back', 'Back to list')) + '</button>' +
-            '<span class="ma-detail-tag ' + escText(meta.tagClass) + '">' + escText(meta.tag) + '</span>' +
+            '<span class="ma-detail-tag ' + escText(meta.tagClass) + '">' +
+                escText((typeof UiFormatter !== 'undefined' && UiFormatter.formatEventTag)
+                    ? UiFormatter.formatEventTag(meta.tag) : meta.tag) + '</span>' +
             '<h4 class="ma-detail-title">' + escText(meta.title) + '</h4>' +
             '<p class="ma-item-sub" style="margin:0">' + escText(meta.blurb) + '</p>' +
             '<dl class="ma-detail-dl">' +
@@ -228,7 +300,9 @@
             '</dl>' +
             '<div class="ma-detail-actions">' +
                 '<button type="button" class="btn btn-action" id="ma-detail-ops">' +
-                    escText(tr('missedActivity.openOps', 'Open on Operations')) +
+                    escText(kind === 'wall_nudge'
+                        ? tr('missedActivity.openFocus', 'Open Camera')
+                        : tr('missedActivity.openOps', 'Open on Operations')) +
                 '</button>' +
                 '<button type="button" class="btn btn-ghost" id="ma-detail-close-detail">' +
                     escText(tr('missedActivity.closeDetail', 'Close detail')) +
@@ -242,7 +316,8 @@
             renderList(lastItems);
         });
         if (ops) ops.addEventListener('click', function () {
-            gotoOpsWithCam(camId);
+            if (kind === 'wall_nudge') focusWallNudgeCam(camId);
+            else gotoOpsWithCam(camId);
         });
         if (closeDet) closeDet.addEventListener('click', function () {
             showListView();
@@ -275,19 +350,27 @@
         items.forEach(function (it) {
             var kind = it.kind || 'sos';
             var row = document.createElement('div');
-            var cls = kind === 'fall' ? 'ma-fall' : (kind === 'ptt' ? 'ma-ptt' : 'ma-sos');
+            var cls = kind === 'fall' ? 'ma-fall'
+                : (kind === 'ptt' ? 'ma-ptt'
+                : (kind === 'wall_nudge' ? 'ma-wall-nudge' : 'ma-sos'));
             row.className = 'ma-item ' + cls;
             var meta = kindMeta(kind);
             var cam = it.camId ? escText(deviceLabel(it.camId)) : escText(tr('missedActivity.unknownCam', 'Unknown device'));
-            var sub = cam + ' \u00b7 ' + escText(timeAgo(it.at));
+            var sub = kind === 'wall_nudge'
+                ? escText(wallNudgeSubtext(it))
+                : (cam + ' \u00b7 ' + escText(timeAgo(it.at)));
             row.innerHTML =
-                '<span class="ma-item-tag">' + escText(meta.tag) + '</span>' +
+                '<span class="ma-item-tag">' + escText((typeof UiFormatter !== 'undefined' && UiFormatter.formatEventTag)
+                    ? UiFormatter.formatEventTag(meta.tag) : meta.tag) + '</span>' +
                 '<div class="ma-item-body">' +
                     '<div class="ma-item-title">' + escText(meta.title) + '</div>' +
                     '<div class="ma-item-sub">' + sub + '</div>' +
                     (it.note ? '<div class="ma-item-sub">' + escText(it.note) + '</div>' : '') +
                 '</div>';
-            row.addEventListener('click', function () { openDetail(it); });
+            row.addEventListener('click', function () {
+                if (kind === 'wall_nudge') onWallNudgeClick(it);
+                else openDetail(it);
+            });
             els.list.appendChild(row);
         });
     }

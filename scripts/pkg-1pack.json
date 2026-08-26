@@ -1,18 +1,15 @@
 {
   "name": "me8-1pack",
-  "bin": "bin/me8-server.js",
+  "bin": "run.js",
   "pkg": {
     "assets": [
-      "public/setup-boot.html",
-      "scripts/ensure-lab-dashboard-tls-certs.js",
-      "lib/**/*.js",
+      "public/**/*",
       "keys/license-public.pem"
     ],
     "scripts": [
-      "bin/me8-server.js",
-      "lib/**/*.js"
+      "run.js"
     ],
     "outputPath": "dist"
   },
-  "comment": "Native C++ plugins stay in dist/*/plugins — not packed. node-llama-cpp and similar must run from plugins or a full Node ship pack."
+  "comment": "1-Pack compiles esbuild run.js (license code inside blob). Do not pack lib/*.js. Native .node addons stay beside the exe."
 }

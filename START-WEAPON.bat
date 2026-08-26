@@ -2,6 +2,12 @@
 title Ubitron — Start Weapon (RF-DETR)
 cd /d "%~dp0"
 
+if exist "%~dp0bin\weapon-engine.exe" (
+  echo Starting compiled Weapon engine...
+  "%~dp0bin\weapon-engine.exe"
+  goto :eof
+)
+
 echo.
 echo  Mobility Axiom — Weapon sidecar (RF-DETR Threat, Apache-2.0)
 echo  Folder: %~dp0weapon-sidecar

@@ -1,0 +1,8 @@
+node_modules/
+storage/
+logs/
+bin/
+.git/
+*.mp4
+*.zip
+*.exe

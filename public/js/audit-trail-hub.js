@@ -64,12 +64,7 @@
     }
 
     function fmtTime(iso) {
-        if (!iso) return '\u2014';
-        try {
-            return new Date(iso).toLocaleString();
-        } catch (_) {
-            return iso;
-        }
+        return (typeof fmtDateTime === 'function') ? fmtDateTime(iso) : String(iso || '\u2014');
     }
 
     function queryString(extra) {

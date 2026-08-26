@@ -4,6 +4,45 @@
 (function (global) {
     'use strict';
 
+    var MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    /** Format an ISO date string (YYYY-MM-DD or full ISO) → "01 Jan 2026". Falls back to raw string. */
+    function fmtDate(iso) {
+        if (!iso) return '—';
+        var s = String(iso).slice(0, 10);
+        var parts = s.split('-');
+        if (parts.length !== 3) return s;
+        var y = parts[0], m = parseInt(parts[1], 10) - 1, d = parts[2];
+        var mon = MONTHS_SHORT[m];
+        if (!mon) return s;
+        return d + ' ' + mon + ' ' + y;
+    }
+    /**
+     * Format an ISO datetime string → "01 Jan 2026, 14:35"
+     * Works with full ISO (2026-08-19T14:35:00Z), space-separated, or date-only.
+     */
+    function fmtDateTime(iso) {
+        if (!iso) return '—';
+        try {
+            var d = new Date(iso);
+            if (isNaN(d.getTime())) {
+                // fallback: try replacing space with T
+                d = new Date(String(iso).replace(' ', 'T'));
+            }
+            if (isNaN(d.getTime())) return String(iso).slice(0, 19).replace('T', ' ');
+            var day   = ('0' + d.getDate()).slice(-2);
+            var mon   = MONTHS_SHORT[d.getMonth()];
+            var year  = d.getFullYear();
+            var hh    = ('0' + d.getHours()).slice(-2);
+            var mm    = ('0' + d.getMinutes()).slice(-2);
+            return day + ' ' + mon + ' ' + year + ', ' + hh + ':' + mm;
+        } catch (_) {
+            return String(iso).slice(0, 16).replace('T', ' ');
+        }
+    }
+    /* Expose so other modules can reuse */
+    global.fmtDate     = fmtDate;
+    global.fmtDateTime = fmtDateTime;
+
     var session = {
         canManageServer: false,
         auditView: false,
@@ -127,7 +166,7 @@
 
             if (snapshot.licenseValid === true) {
                 var expLabel = snapshot.licenseExpiry
-                    ? tr('settingsHub.strip.licenseOk') + ' \u00B7 exp ' + snapshot.licenseExpiry
+                    ? tr('settingsHub.strip.licenseOk') + ' \u00B7 exp ' + fmtDate(snapshot.licenseExpiry)
                     : tr('settingsHub.strip.licenseOk');
                 setText('settings-val-license', expLabel);
                 setChipState('settings-chip-license', 'ok');

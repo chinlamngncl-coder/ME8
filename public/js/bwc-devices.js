@@ -52,7 +52,13 @@
             body: JSON.stringify({ devices: next }),
         });
         const data = await res.json();
-        if (!data.ok) throw new Error(data.error || 'Save failed');
+        if (global.LicenseEntitlementsUi && typeof LicenseEntitlementsUi.tryHandleLimitResponse === 'function') {
+            if (LicenseEntitlementsUi.tryHandleLimitResponse(res, data)) return data;
+        }
+        if (!data.ok) {
+            if (data.error === 'limit_reached') return data;
+            throw new Error(data.error || 'Save failed');
+        }
         devices = Array.isArray(data.devices) ? data.devices.slice() : next;
         if (global.VideoConfig && VideoConfig.applyLabelsToWall) VideoConfig.applyLabelsToWall();
         if (global.refreshAllDeviceMarkerStyles) global.refreshAllDeviceMarkerStyles();
@@ -450,9 +456,11 @@
                 try {
                     const next = readFormFromDom();
                     if (!next.length) throw new Error(tr('bwc.error.needDeviceId'));
-                    await saveDevices(next);
+                    const saved = await saveDevices(next);
+                    if (saved && saved.error === 'limit_reached') return;
                     setPanelVisible(false);
                 } catch (err) {
+                    if (err && err.message === 'limit_reached') return;
                     alert(tr('bwc.error.saveFailed', { msg: err.message }));
                 }
             });

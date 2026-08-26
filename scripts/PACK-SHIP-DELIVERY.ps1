@@ -13,7 +13,7 @@ function Write-Step($msg) { Write-Host $msg -ForegroundColor Cyan }
 function Copy-Tree($src, $dst) {
     if (-not (Test-Path $src)) { return }
     New-Item -ItemType Directory -Force -Path $dst | Out-Null
-    robocopy $src $dst /E /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+    robocopy $src $dst /E /NFL /NDL /NJH /NJS /nc /ns /np /XD .venv __pycache__ .git node_modules | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy failed $src -> $dst ($LASTEXITCODE)" }
 }
 
@@ -107,6 +107,21 @@ if ($Variant -eq 'Cn') {
 Write-Step 'Stage docker + vendor helpers...'
 Copy-Tree (Join-Path $AppRoot 'docker') (Join-Path $appDir 'docker')
 Copy-Tree (Join-Path $AppRoot 'db\migrations') (Join-Path $appDir 'db\migrations')
+foreach ($side in @(
+    'fr-sidecar',
+    'fr-sidecar-seeta',
+    'fr-sidecar-fast',
+    'anpr-sidecar',
+    'weapon-sidecar',
+    'redaction-track'
+)) {
+    Copy-Tree (Join-Path $AppRoot $side) (Join-Path $appDir $side)
+}
+$sorterSrc = Join-Path $AppRoot 'bin\Ubitron_Sorter.exe'
+if (Test-Path $sorterSrc) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $appDir 'bin') | Out-Null
+    Copy-Item $sorterSrc (Join-Path $appDir 'bin\Ubitron_Sorter.exe') -Force
+}
 New-Item -ItemType Directory -Force -Path (Join-Path $appDir 'scripts') | Out-Null
 Copy-Item (Join-Path $AppRoot 'scripts\START-LIVEKIT.ps1') (Join-Path $appDir 'scripts\START-LIVEKIT.ps1') -Force
 Copy-Item (Join-Path $AppRoot 'scripts\trial-ship\verify-install-ship.js') (Join-Path $appDir 'scripts\verify-install.js') -Force

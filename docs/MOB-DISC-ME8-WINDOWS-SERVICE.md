@@ -18,7 +18,7 @@
 | `RESTART-FLEET.bat` | Labelled **lab console mode** only |
 | `pack/me8-fresh/README.txt` | Enterprise install path |
 
-**Service name:** `UbitronC2` · **Display:** Ubitron Mobility C2 · **Auto-start:** yes  
+**Service name:** `UbitronC2` · **Display:** Mobility Axiom · **Auto-start:** yes  
 **Logs:** `storage/service-stdout.log`, `storage/service-stderr.log`
 
 **Not in this MOB:** FR sidecar auto-start (MOB #2 `mob-runtime-fr-child-process`).

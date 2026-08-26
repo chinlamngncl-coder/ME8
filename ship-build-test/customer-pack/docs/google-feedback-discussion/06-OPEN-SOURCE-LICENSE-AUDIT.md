@@ -1,7 +1,7 @@
 # 06 — Open source & license audit (MOB DISC)
 
 **Date:** 2026-06-27  
-**Scope:** Mobility C2 ship stack + planned enterprise pack (Redis/Postgres)  
+**Scope:** Mobility Axiom ship stack + planned enterprise pack (Redis/Postgres)  
 **Baseline:** trial-gold-1.9  
 
 > **Not legal advice.** This is an engineering audit for discussion with Google / your counsel. Confirm commercial terms before customer contracts.

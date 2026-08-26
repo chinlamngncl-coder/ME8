@@ -1,6 +1,13 @@
 @echo off
+REM LAB USE ONLY. In production, server.js automatically spawns these AI engines invisibly.
 title Ubitron — Start ANPR (RapidOCR)
 cd /d "%~dp0"
+
+if exist "%~dp0bin\anpr-engine.exe" (
+  echo Starting compiled ANPR engine...
+  "%~dp0bin\anpr-engine.exe"
+  goto :eof
+)
 
 echo.
 echo  Mobility Axiom — ANPR sidecar (RapidOCR ONNX + YOLO plate bbox)

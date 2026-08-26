@@ -12,7 +12,7 @@ function Write-Step($msg) { Write-Host $msg -ForegroundColor Cyan }
 function Copy-Tree($src, $dst) {
     if (-not (Test-Path $src)) { return }
     New-Item -ItemType Directory -Force -Path $dst | Out-Null
-    robocopy $src $dst /E /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+    robocopy $src $dst /E /NFL /NDL /NJH /NJS /nc /ns /np /XD .venv __pycache__ .git node_modules | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy failed $src -> $dst ($LASTEXITCODE)" }
 }
 
@@ -45,7 +45,7 @@ $IssueScript = Join-Path $IssuerRoot 'issue-license.js'
 $PublicKeySrc = Join-Path $IssuerRoot 'keys\license-public.pem'
 
 $ForbiddenNames = @(
-    'server.js', 'BASELINE-TRIAL-GOLD.md', 'BASELINE-ME8-POC-DEMO.md', 'CS.md', 'CLAUDE.md',
+    'server.js', 'run.js', 'BASELINE-TRIAL-GOLD.md', 'BASELINE-ME8-POC-DEMO.md', 'CS.md', 'CLAUDE.md',
     'RESTORE-TRIAL-GOLD.ps1', 'VERIFY-TRIAL-GOLD.ps1', 'test-zlm.html', 'test-wvp-tile.html', 'license-private.pem'
 )
 $ForbiddenDirs = @(
@@ -153,7 +153,7 @@ if (Test-Path $labWvp) { Remove-Item $labWvp -Force }
 $labWvpJs = Join-Path $appDir 'public\js\wvp-lab-tile.js'
 if (Test-Path $labWvpJs) { Remove-Item $labWvpJs -Force }
 
-Write-Step 'Stage docker, vendor, FR sidecar...'
+Write-Step 'Stage docker, vendor, all AI sidecars (one pack — license does not exclude folders)...'
 Copy-Tree (Join-Path $AppRoot 'docker') (Join-Path $appDir 'docker')
 Copy-Tree (Join-Path $AppRoot 'db\migrations') (Join-Path $appDir 'db\migrations')
 # Lab-only docker trees - not for customer handoff
@@ -187,10 +187,15 @@ if (Test-Path $zlmSrcExe) {
     Write-Host "  skip ZLM pack binary (vendor\zlmediakit\MediaServer.exe missing - run INSTALL-ZLM-PACK.ps1)"
 }
 
-$frDst = Join-Path $appDir 'fr-sidecar'
-New-Item -ItemType Directory -Force -Path $frDst | Out-Null
-foreach ($f in @('app.py', 'requirements.txt', 'INSTALL.ps1')) {
-    Copy-Item (Join-Path $AppRoot "fr-sidecar\$f") (Join-Path $frDst $f) -Force
+foreach ($side in @(
+    'redaction-track'
+)) {
+    Copy-Tree (Join-Path $AppRoot $side) (Join-Path $appDir $side)
+}
+$sorterSrc = Join-Path $AppRoot 'bin\Ubitron_Sorter.exe'
+if (Test-Path $sorterSrc) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $appDir 'bin') | Out-Null
+    Copy-Item $sorterSrc (Join-Path $appDir 'bin\Ubitron_Sorter.exe') -Force
 }
 
 New-Item -ItemType Directory -Force -Path (Join-Path $appDir 'scripts') | Out-Null
@@ -198,7 +203,7 @@ Copy-Item (Join-Path $AppRoot 'scripts\START-LIVEKIT.ps1') (Join-Path $appDir 's
 Copy-Item (Join-Path $AppRoot 'scripts\trial-ship\verify-install-ship.js') (Join-Path $appDir 'scripts\verify-install.js') -Force
 Copy-Item (Join-Path $AppRoot 'scripts\startup-preflight.js') (Join-Path $appDir 'scripts\startup-preflight.js') -Force
 Copy-Item (Join-Path $ShipDir 'package.ship.json') (Join-Path $appDir 'package.json') -Force
-foreach ($f in @('kill-fleet-ports.ps1', 'VIEW-LOG.bat', 'START-FR.bat', 'START-FACE-MATCHING.bat')) {
+foreach ($f in @('kill-fleet-ports.ps1', 'VIEW-LOG.bat', 'START-FR.bat', 'START-FACE-MATCHING.bat', 'START-ANPR.bat', 'START-WEAPON.bat')) {
     $s = Join-Path $AppRoot $f
     if (Test-Path $s) { Copy-Item $s (Join-Path $appDir $f) -Force }
 }
@@ -207,10 +212,28 @@ Copy-Item (Join-Path $ShipDir 'RESTART-FLEET.bat') (Join-Path $appDir 'RESTART-F
 New-Item -ItemType Directory -Force -Path (Join-Path $appDir 'keys') | Out-Null
 Copy-Item $PublicKeySrc (Join-Path $appDir 'keys\license-public.pem') -Force
 
-Write-Step 'Bundle server runtime (run.js) - no lib/ shipped...'
+Write-Step 'Compile Node server (pkg me8-server.exe) — no run.js in zip...'
 Set-Location $AppRoot
-node (Join-Path $AppRoot 'scripts\build-ship-runtime.js') $AppRoot (Join-Path $appDir 'run.js')
+$compiledDir = Join-Path $AppRoot 'ship-build\compiled'
+New-Item -ItemType Directory -Force -Path $compiledDir | Out-Null
+$runTmp = Join-Path $compiledDir 'run.js'
+node (Join-Path $AppRoot 'scripts\build-ship-runtime.js') $AppRoot $runTmp
 if ($LASTEXITCODE -ne 0) { throw 'build-ship-runtime failed' }
+$exeOut = Join-Path $appDir 'me8-server.exe'
+node (Join-Path $AppRoot 'scripts\pkg-ship-run.js') $runTmp $exeOut
+if ($LASTEXITCODE -ne 0) { throw 'pkg me8-server.exe failed' }
+if (Test-Path (Join-Path $appDir 'run.js')) { Remove-Item (Join-Path $appDir 'run.js') -Force }
+
+Write-Step 'Compile Python sidecars (PyInstaller onefile engines)...'
+$engineBin = Join-Path $compiledDir 'bin'
+powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $AppRoot 'scripts\build-ship-pyengines.ps1') -AppRoot $AppRoot -OutBin $engineBin
+if ($LASTEXITCODE -ne 0) { throw 'PyInstaller sidecar compile failed' }
+New-Item -ItemType Directory -Force -Path (Join-Path $appDir 'bin') | Out-Null
+foreach ($eng in @('fr-engine.exe', 'anpr-engine.exe', 'weapon-engine.exe')) {
+    $src = Join-Path $engineBin $eng
+    if (-not (Test-Path $src)) { throw "compiled engine missing: $eng" }
+    Copy-Item $src (Join-Path $appDir "bin\$eng") -Force
+}
 
 Write-Step 'Bundle LLM...'
 $vendorLlm = Join-Path $appDir 'vendor\llm'
@@ -261,13 +284,18 @@ node (Join-Path $AppRoot 'scripts\bundle-ship-node.js') $AppRoot $appDir
 if ($LASTEXITCODE -ne 0) { throw 'bundle-ship-node failed' }
 
 Write-Step 'VERIFY delivery pack...'
+if (-not (Test-Path (Join-Path $appDir 'me8-server.exe'))) { throw 'MISSING me8-server.exe' }
+foreach ($eng in @('fr-engine.exe', 'anpr-engine.exe', 'weapon-engine.exe')) {
+    if (-not (Test-Path (Join-Path $appDir "bin\$eng"))) { throw "MISSING bin\$eng" }
+}
+if (Test-Path (Join-Path $appDir 'run.js')) { throw 'FORBIDDEN: run.js' }
 foreach ($mod in @('multer', 'nodemailer', 'qrcode', 'express', 'dotenv')) {
     $p = Join-Path $appDir "node_modules\$mod"
     if (-not (Test-Path $p)) { throw "MISSING node_modules/$mod after bundle - ship package.json out of sync" }
 }
 foreach ($name in $ForbiddenNames) {
-    if ($name -eq 'server.js') {
-        if (Test-Path (Join-Path $appDir 'server.js')) { throw 'FORBIDDEN: server.js' }
+    if ($name -eq 'server.js' -or $name -eq 'run.js') {
+        if (Test-Path (Join-Path $appDir $name)) { throw "FORBIDDEN: $name" }
         continue
     }
     $hits = Get-ChildItem $appDir -Recurse -File -Filter $name -ErrorAction SilentlyContinue
@@ -293,8 +321,8 @@ if (Test-Path $scriptsDir) {
         if ($allowed -notcontains $_.Name) { throw "Unexpected script: scripts/$($_.Name)" }
     }
 }
-if (-not (Test-Path (Join-Path $appDir 'run.js'))) { throw 'run.js missing' }
-if (-not (Test-Path (Join-Path $appDir 'tools\node\node.exe'))) { throw 'tools/node/node.exe missing' }
+if (-not (Test-Path (Join-Path $appDir 'me8-server.exe'))) { throw 'me8-server.exe missing' }
+if (Test-Path (Join-Path $appDir 'run.js')) { throw 'run.js must not ship' }
 if (-not (Test-Path (Join-Path $appDir 'node_modules\dotenv'))) { throw 'node_modules/dotenv missing' }
 if (Test-Path (Join-Path $appDir 'lib')) { throw 'lib/ must not ship' }
 if (Test-Path (Join-Path $appDir 'keys\license-private.pem')) { throw 'license-private.pem must not ship' }
@@ -309,14 +337,14 @@ Copy-Item (Join-Path $AppRoot 'scripts\trial-ship\THIRD-PARTY-NOTICES.ship.md') 
 Copy-Item (Join-Path $ShipDir 'START-FACE-MATCHING.bat') (Join-Path $OutRoot 'START-FACE-MATCHING.bat') -Force
 
 $readme = @"
-Ubitron Mobility C2 - Mobility Test 2
+Mobility Axiom - Mobility Test 2
 Languages: English, Filipino, Korean.
 
 WHAT YOU NEED ON THE PC
   - Windows 10/11 (64-bit)
   - Docker Desktop (Video Conference): https://www.docker.com/products/docker-desktop/
-  - Python 3.11+ (Face Analytics) - see Installation-Guide
-  - Node.js is INCLUDED - do NOT install Node separately.
+  - Server and AI engines are compiled executables (me8-server.exe, bin\*-engine.exe).
+  - Python and Node are not required on the customer PC.
 
 INSTALL (once, in order) - brand-new PC
   1. Unzip this folder to e.g. C:\Mobility-Test-2\

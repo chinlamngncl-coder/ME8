@@ -2,13 +2,17 @@
  * Case Files \u2014 field report workspace + linked evidence (phase 1).
  */
 (function (global) {
-    var perms = { view: false, edit: false, superAdmin: false };
+    var perms = { view: false, edit: false, export: false, superAdmin: false };
     var currentId = null;
     var listCache = [];
     var pendingLinkEvidenceId = null;
+    var pendingLinkEvidenceIds = [];
     var deleteModalResolver = null;
     var deleteModalBound = false;
     var sosModalBound = false;
+    var detailNarrativeOriginal = '';
+    var libraryReturnCaseId = null;
+    var analysisReturnFileId = null;
 
     function tr(key, params) {
         if (global.I18n && I18n.t) return I18n.t(key, params);
@@ -35,8 +39,7 @@
     }
 
     function fmtTime(iso) {
-        if (!iso) return '\u2014';
-        try { return new Date(iso).toLocaleString(); } catch (_) { return iso; }
+        return (typeof fmtDateTime === 'function') ? fmtDateTime(iso) : String(iso || '\u2014');
     }
 
     function panelRoot() {
@@ -123,23 +126,82 @@
         loadDetail(id);
     }
 
-    async function fetchSosOptions(selected) {
+    async function fetchSosEntries() {
         try {
             const res = await fetch('/api/evidence/sos-incidents?days=365&limit=200', { credentials: 'same-origin' });
             const data = await res.json();
-            if (!res.ok || !data.ok) return '<option value="">' + esc(tr('caseFiles.noSosLink')) + '</option>';
-            const entries = (data.incidents && data.incidents.entries) ? data.incidents.entries : [];
-            let html = '<option value="">' + esc(tr('caseFiles.noSosLink')) + '</option>';
-            entries.forEach(function (e) {
-                const id = e.id || e.incidentId;
-                if (!id) return;
-                const label = (e.operatorName || e.cameraId || '\u2014') + ' \u00B7 ' + (e.at ? e.at.slice(0, 16).replace('T', ' ') : id);
-                html += '<option value="' + esc(id) + '"' + (selected === id ? ' selected' : '') + '>' + esc(label) + '</option>';
-            });
-            return html;
+            if (!res.ok || !data.ok) return [];
+            return (data.incidents && data.incidents.entries) ? data.incidents.entries : [];
         } catch (_) {
-            return '<option value="">' + esc(tr('caseFiles.noSosLink')) + '</option>';
+            return [];
         }
+    }
+
+    function sosOptionsHtml(entries, selected) {
+        let html = '<option value="">' + esc(tr('caseFiles.noSosLink')) + '</option>';
+        (entries || []).forEach(function (e) {
+            const id = e.id || e.incidentId;
+            if (!id) return;
+            const label = (e.operatorName || e.cameraId || '\u2014') + ' \u00B7 ' + (e.at ? fmtSosTime(e.at) : id);
+            html += '<option value="' + esc(id) + '"' + (selected === id ? ' selected' : '') + '>' + esc(label) + '</option>';
+        });
+        return html;
+    }
+
+    function openedFromLabel(opsCaseId, sosIncidentId) {
+        const k = String(opsCaseId || '');
+        if (/^SO:/i.test(k) || sosIncidentId) return tr('caseFiles.openedFromSos');
+        if (/^WD:/i.test(k)) return tr('caseFiles.openedFromWeapon');
+        if (/^FR:/i.test(k)) return tr('caseFiles.openedFromFace');
+        if (/^AN:/i.test(k)) return tr('caseFiles.openedFromPlate');
+        return '';
+    }
+
+    function looksMashedNarrative(s) {
+        const t = String(s || '');
+        if (!t) return false;
+        return t.length > 160 && t.indexOf('\n') < 0;
+    }
+
+    function fmtSosTime(iso) {
+        if (!iso) return '';
+        return (typeof fmtDateTime === 'function') ? fmtDateTime(iso) : String(iso).slice(0, 16).replace('T', ' ');
+    }
+
+    function factRow(label, valueHtml) {
+        if (!valueHtml) return '';
+        return '<li><span class="k">' + esc(label) + '</span><span class="v">' + valueHtml + '</span></li>';
+    }
+
+    function renderSosFacts(hit) {
+        if (!hit) return '';
+        const alarm = hit.alarmKind === 'fall' ? tr('caseFiles.sosFall') : tr('caseFiles.sosAlarm');
+        const status = hit.acknowledged ? tr('caseFiles.sosAcked') : tr('caseFiles.statusOpen');
+        let locHtml = '';
+        if (hit.lat != null && hit.lon != null && hit.lat !== '' && hit.lon !== '') {
+            const q = encodeURIComponent(String(hit.lat) + ',' + String(hit.lon));
+            locHtml = esc(String(hit.lat) + ', ' + String(hit.lon))
+                + ' <a href="https://maps.google.com/?q=' + q + '" target="_blank" rel="noopener">'
+                + esc(tr('caseFiles.openMap')) + '</a>';
+        }
+        function openHref(url) {
+            if (!url) return '';
+            return '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(tr('caseFiles.openLink')) + '</a>';
+        }
+        const rows = [
+            factRow(tr('caseFiles.sosFactAlarm'), esc(alarm)),
+            factRow(tr('caseFiles.sosFactStatus'), esc(status)),
+            factRow(tr('caseFiles.sosFactOfficer'), hit.operatorName ? esc(hit.operatorName) : ''),
+            factRow(tr('caseFiles.sosFactBwc'), (hit.cameraId || hit.deviceId) ? esc(hit.cameraId || hit.deviceId) : ''),
+            factRow(tr('caseFiles.sosFactTime'), esc(fmtSosTime(hit.alarmTime || hit.at))),
+            factRow(tr('caseFiles.sosFactLocation'), locHtml),
+            factRow(tr('caseFiles.sosFactAck'), hit.note ? esc(String(hit.note)) : ''),
+            factRow(tr('caseFiles.sosFactSnapshot'), openHref(hit.snapshot)),
+            factRow(tr('caseFiles.sosFactHqRec'), openHref(hit.serverRecordingPreviewUrl)),
+            factRow(tr('caseFiles.sosFactDockRec'), openHref(hit.deviceRecordingPreviewUrl)),
+        ].filter(Boolean).join('');
+        if (!rows) return '';
+        return '<ul class="cf-sos-facts">' + rows + '</ul>';
     }
 
     async function reconstructScene(opts) {
@@ -272,22 +334,89 @@
         return /\.(mp4|mov|m4v|mkv|avi|webm|ts)$/i.test(String(name || ''));
     }
 
-    function renderMediaGallery(evidence) {
-        var videos = (evidence || []).filter(function (ev) {
-            return ev && !ev.missing && isVideoEvidenceName(ev.fileName);
+    function isImageEvidenceName(name) {
+        return /\.(jpe?g|png|gif|webp|bmp)$/i.test(String(name || ''));
+    }
+
+    function renderReportMedia(evidence, sosHit) {
+        var tiles = [];
+        if (sosHit) {
+            if (sosHit.snapshot) {
+                tiles.push({ kind: 'img', src: sosHit.snapshot, cap: tr('caseFiles.sosFactSnapshot') });
+            }
+            if (sosHit.serverRecordingPreviewUrl) {
+                tiles.push({ kind: 'video', src: sosHit.serverRecordingPreviewUrl, cap: tr('caseFiles.sosFactHqRec') });
+            }
+            if (sosHit.deviceRecordingPreviewUrl) {
+                tiles.push({ kind: 'video', src: sosHit.deviceRecordingPreviewUrl, cap: tr('caseFiles.sosFactDockRec') });
+            }
+        }
+        (evidence || []).forEach(function (ev) {
+            if (!ev || ev.missing || !ev.evidenceFileId) return;
+            var src = '/api/evidence/preview/' + ev.evidenceFileId;
+            if (isVideoEvidenceName(ev.fileName)) {
+                tiles.push({ kind: 'video', src: src, cap: ev.fileName || tr('caseFiles.linkedEvidence') });
+            } else if (isImageEvidenceName(ev.fileName)) {
+                tiles.push({ kind: 'img', src: src, cap: ev.fileName || tr('caseFiles.linkedEvidence') });
+            }
         });
-        if (!videos.length) return '';
+        if (!tiles.length) return '';
         return '<div class="cf-media-gallery">'
-            + '<h4>Video Evidence</h4>'
             + '<div class="cf-media-grid">'
-            + videos.map(function (ev) {
-                return '<div class="cf-media-tile">'
-                    + '<video controls playsinline src="/api/evidence/preview/'
-                    + esc(ev.evidenceFileId) + '"></video>'
-                    + '<p class="hint">' + esc(ev.fileName) + '</p>'
-                    + '</div>';
+            + tiles.map(function (t) {
+                var body = t.kind === 'img'
+                    ? '<img src="' + esc(t.src) + '" alt="">'
+                    : '<video controls playsinline src="' + esc(t.src) + '"></video>';
+                return '<div class="cf-media-tile">' + body
+                    + '<p class="hint">' + esc(t.cap) + '</p></div>';
             }).join('')
             + '</div></div>';
+    }
+
+    function exhibitTypeLabel(type) {
+        if (type === 'ai_report') return tr('caseFiles.exhibitAi', 'AI report');
+        if (type === 'fr_hit') return tr('caseFiles.exhibitFr', 'FR hit');
+        if (type === 'anpr_hit') return tr('caseFiles.exhibitAnpr', 'ANPR hit');
+        return tr('caseFiles.exhibitMedia', 'Media');
+    }
+
+    function displayExhibitContent(content) {
+        var t = String(content || '');
+        if (t.indexOf('hit:') === 0) {
+            var i = t.indexOf('\n');
+            return i >= 0 ? t.slice(i + 1) : '';
+        }
+        return t;
+    }
+
+    function renderExhibitTimeline(exhibits) {
+        var rows = exhibits || [];
+        var items = rows.length ? rows.map(function (ex) {
+            var src = String(ex.fileUrl || '');
+            var media = '';
+            if (src.indexOf('/api/') === 0) {
+                media = /\.(mp4|webm|mov)(\?|$)/i.test(src)
+                    ? '<video controls playsinline src="' + esc(src) + '"></video>'
+                    : '<img src="' + esc(src) + '" alt="">';
+            }
+            var body = displayExhibitContent(ex.content);
+            return '<li class="cf-timeline-item">'
+                + '<div class="cf-timeline-meta">'
+                + '<span class="cf-exhibit-num">E' + esc(String(ex.exhibitNumber || '')) + '</span>'
+                + '<span class="cf-exhibit-badge">' + esc(exhibitTypeLabel(ex.exhibitType)) + '</span>'
+                + '<span class="cf-exhibit-time mono">' + esc(fmtTime(ex.createdAt)) + '</span>'
+                + '</div>'
+                + '<div class="cf-exhibit-title">' + esc(ex.title || '') + '</div>'
+                + (body ? '<p class="cf-exhibit-body">' + esc(body) + '</p>' : '')
+                + (media ? '<div class="cf-exhibit-media">' + media + '</div>' : '')
+                + '</li>';
+        }).join('') : '';
+        return '<div class="cf-timeline">'
+            + '<h4>' + esc(tr('caseFiles.timelineTitle', 'Chronological timeline and exhibits')) + '</h4>'
+            + (items
+                ? ('<ol class="cf-timeline-list">' + items + '</ol>')
+                : ('<p class="hint">' + esc(tr('caseFiles.timelineEmpty', 'No exhibits yet.')) + '</p>'))
+            + '</div>';
     }
 
     async function loadDetail(id) {
@@ -300,11 +429,31 @@
             if (!res.ok || !data.ok) throwOp(data);
             const cf = data.detail.caseFile;
             const evidence = data.detail.evidence || [];
-            const sosOpts = await fetchSosOptions(cf.sosIncidentId);
+            const exhibits = data.detail.exhibits || [];
+            detailNarrativeOriginal = cf.narrative || '';
+            const sosEntries = await fetchSosEntries();
+            const sosOpts = sosOptionsHtml(sosEntries, cf.sosIncidentId);
+            const sosHit = cf.sosIncidentId
+                ? (sosEntries.find(function (e) {
+                    return (e.id || e.incidentId) === cf.sosIncidentId;
+                }) || null)
+                : null;
+            const sosFactsHtml = renderSosFacts(sosHit);
+            const mashed = !!(cf.sosIncidentId && looksMashedNarrative(cf.narrative));
+            const officerText = mashed ? '' : (cf.narrative || '');
+            const opened = openedFromLabel(cf.opsCaseId, cf.sosIncidentId);
             const statusOpen = cf.status !== 'closed';
-            const opsLinkHtml = cf.opsCaseId
-                ? ('<p class="hint cf-ops-case-link">Source: <code>' + esc(cf.opsCaseId) + '</code></p>')
+            let opsLinkHtml = opened
+                ? ('<p class="hint cf-ops-case-link"><button type="button" class="cf-opened-from-btn" id="cf-opened-from">'
+                    + esc(opened) + '</button></p>')
                 : '';
+            if (perms.superAdmin && cf.opsCaseId) {
+                opsLinkHtml += '<p class="hint cf-incident-id">' + esc(tr('caseFiles.incidentId'))
+                    + ': <code>' + esc(cf.opsCaseId) + '</code></p>';
+            }
+            const narrativeLabel = tr('caseFiles.whatHappened');
+            const reportMediaHtml = renderReportMedia(evidence, sosHit);
+            const timelineHtml = renderExhibitTimeline(exhibits);
             wrap.innerHTML =
                 '<div class="cf-detail-back-bar">'
                 + '<button type="button" class="cf-detail-back-btn" id="cf-back">'
@@ -328,6 +477,10 @@
                 })()) + '"'
                 + ' data-case-id="' + esc(cf.id) + '"'
                 + ' data-sos="' + esc(cf.sosIncidentId || '') + '">Reconstruct Scene</button>'
+                + ((perms.export || perms.superAdmin)
+                    ? '<button type="button" class="btn btn-primary btn-sm" id="cf-export-package">'
+                        + esc(tr('caseFiles.exportPackage', 'Export Case Package')) + '</button>'
+                    : '')
                 + (perms.edit ? '<button type="button" class="btn btn-action btn-sm" id="cf-save">' + tr('caseFiles.save') + '</button>' : '')
                 + (perms.superAdmin
                     ? '<button type="button" class="btn btn-ghost btn-sm cf-delete-btn" id="cf-detail-delete">' + tr('caseFiles.deleteCase') + '</button>'
@@ -354,8 +507,11 @@
                     + '</div>'
                     + '<label class="cf-form-field cf-form-field-full"><span class="cf-form-label">' + tr('caseFiles.sosLink') + '</span>'
                     + '<select id="cf-sos">' + sosOpts + '</select></label>'
-                    + '<label class="cf-form-field cf-form-field-full cf-narrative-wrap"><span class="cf-form-label">' + tr('caseFiles.narrative') + '</span>'
-                    + '<textarea id="cf-narrative" rows="6">' + esc(cf.narrative || '') + '</textarea></label>'
+                    + sosFactsHtml
+                    + reportMediaHtml
+                    + timelineHtml
+                    + '<label class="cf-form-field cf-form-field-full cf-narrative-wrap"><span class="cf-form-label">' + narrativeLabel + '</span>'
+                    + '<textarea id="cf-narrative" rows="6">' + esc(officerText) + '</textarea></label>'
                     + '</div>'
                 ) : (
                     '<div class="cf-form-stack cf-form-readonly">'
@@ -365,10 +521,16 @@
                     + '<div class="cf-form-field"><span class="cf-form-label">' + tr('caseFiles.device') + '</span>'
                     + '<div class="cf-readonly-val">' + esc(cf.deviceId || '\u2014') + '</div></div>'
                     + '<div class="cf-form-field"><span class="cf-form-label">' + tr('caseFiles.sosLink') + '</span>'
-                    + '<div class="cf-readonly-val">' + esc(cf.sosIncidentId || '\u2014') + '</div></div>'
+                    + '<div class="cf-readonly-val">' + esc(opened || '\u2014') + '</div></div>'
                     + '</div>'
-                    + '<div class="cf-form-field cf-form-field-full"><span class="cf-form-label">' + tr('caseFiles.narrative') + '</span>'
-                    + '<div class="cf-narrative-read">' + esc(cf.narrative || '\u2014') + '</div></div>'
+                    + sosFactsHtml
+                    + reportMediaHtml
+                    + timelineHtml
+                    + (officerText
+                        ? ('<div class="cf-form-field cf-form-field-full"><span class="cf-form-label">' + narrativeLabel + '</span>'
+                            + '<div class="cf-narrative-read">' + esc(officerText) + '</div></div>')
+                        : (sosFactsHtml ? '' : '<div class="cf-form-field cf-form-field-full"><span class="cf-form-label">' + narrativeLabel + '</span>'
+                            + '<div class="cf-narrative-read">\u2014</div></div>'))
                     + '</div>'
                 ))
                 + '<p class="hint cf-meta">' + tr('caseFiles.updated') + ': ' + esc(fmtTime(cf.updatedAt))
@@ -378,12 +540,15 @@
                 + '<h4>' + tr('caseFiles.linkedEvidence') + '</h4>'
                 + (perms.edit ? (
                     '<div class="cf-link-bar">'
-                    + '<input type="text" id="cf-link-evidence-id" placeholder="' + esc(tr('caseFiles.evidenceIdPlaceholder')) + '">'
-                    + '<button type="button" class="btn btn-action btn-sm" id="cf-link-btn">' + tr('caseFiles.linkEvidence') + '</button>'
+                    + '<button type="button" class="btn btn-action btn-sm" id="cf-choose-library">' + tr('caseFiles.chooseFromLibrary') + '</button>'
+                    + '<button type="button" class="btn btn-ghost btn-sm" id="cf-choose-triage">' + tr('caseFiles.addFromTriage', 'Add from Triage') + '</button>'
+                    + (perms.superAdmin
+                        ? ('<input type="text" id="cf-link-evidence-id" placeholder="' + esc(tr('caseFiles.evidenceIdPlaceholder')) + '">'
+                            + '<button type="button" class="btn btn-ghost btn-sm" id="cf-link-btn">' + tr('caseFiles.linkEvidence') + '</button>')
+                        : '<input type="hidden" id="cf-link-evidence-id" value="">')
                     + '</div>'
                 ) : '')
                 + '<div id="cf-evidence-table" class="cf-ev-scroll">' + renderEvidenceTable(evidence) + '</div>'
-                + renderMediaGallery(evidence)
                 + '</section>'
                 + '</div>';
             if (pendingLinkEvidenceId && perms.edit) {
@@ -418,6 +583,38 @@
                 sosIncidentId: recon.getAttribute('data-sos') || '',
             }).catch(function () { /* ignore */ });
         });
+        const openedBtn = document.getElementById('cf-opened-from');
+        if (openedBtn && recon) {
+            openedBtn.addEventListener('click', function () { recon.click(); });
+        }
+        const exportBtn = document.getElementById('cf-export-package');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', function () {
+                fetch('/api/case-files/' + encodeURIComponent(id) + '/export', { credentials: 'same-origin' })
+                    .then(function (res) {
+                        if (!res.ok) {
+                            return res.json().then(function (data) { throwOp(data); }).catch(function (err) {
+                                if (err && err.opPayload) throw err;
+                                throwOp({ errorKey: 'errors.generic' });
+                            });
+                        }
+                        return res.blob();
+                    })
+                    .then(function (blob) {
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(blob);
+                        a.download = 'court-package-' + String(id).replace(/[^a-zA-Z0-9._-]+/g, '_') + '.zip';
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                    })
+                    .catch(function (err) { alert(msg(err.opPayload, err)); });
+            });
+        }
+        const chooseLib = document.getElementById('cf-choose-library');
+        if (chooseLib) chooseLib.addEventListener('click', function () { beginLibraryPick(id); });
+        const chooseTriage = document.getElementById('cf-choose-triage');
+        if (chooseTriage) chooseTriage.addEventListener('click', function () { beginTriagePick(id); });
         const linkBtn = document.getElementById('cf-link-btn');
         if (linkBtn) linkBtn.addEventListener('click', function () {
             const inp = document.getElementById('cf-link-evidence-id');
@@ -451,19 +648,27 @@
         /* CASE-FILES-SAVE-JUMP-LIST-V1 — require narrative; on success jump to list */
         const msgEl = document.getElementById('cf-save-msg');
         const narrativeEl = document.getElementById('cf-narrative');
-        const narrative = narrativeEl ? String(narrativeEl.value || '').trim() : '';
-        if (!narrative) {
-            if (msgEl) msgEl.textContent = tr('caseFiles.needNarrative');
-            if (narrativeEl && typeof narrativeEl.focus === 'function') narrativeEl.focus();
-            return;
+        const typed = narrativeEl ? String(narrativeEl.value || '') : '';
+        const sosVal = document.getElementById('cf-sos') ? document.getElementById('cf-sos').value : '';
+        let narrative = typed;
+        if (!typed.trim()) {
+            if (looksMashedNarrative(detailNarrativeOriginal)) {
+                narrative = detailNarrativeOriginal;
+            } else if (sosVal) {
+                narrative = detailNarrativeOriginal || '';
+            } else {
+                if (msgEl) msgEl.textContent = tr('caseFiles.needNarrative');
+                if (narrativeEl && typeof narrativeEl.focus === 'function') narrativeEl.focus();
+                return;
+            }
         }
         const body = {
             title: document.getElementById('cf-title').value,
             officerName: document.getElementById('cf-officer').value,
             deviceId: document.getElementById('cf-device').value,
-            sosIncidentId: document.getElementById('cf-sos').value || null,
+            sosIncidentId: sosVal || null,
             status: document.getElementById('cf-status').value,
-            narrative: narrativeEl ? narrativeEl.value : '',
+            narrative: narrative,
         };
         const res = await fetch('/api/case-files/' + encodeURIComponent(id), {
             method: 'PATCH',
@@ -488,7 +693,7 @@
         }
     }
 
-    async function linkEvidence(caseId, evidenceFileId) {
+    async function linkEvidence(caseId, evidenceFileId, opts) {
         const res = await fetch('/api/case-files/' + encodeURIComponent(caseId) + '/evidence', {
             method: 'POST',
             credentials: 'same-origin',
@@ -497,8 +702,22 @@
         });
         const data = await res.json();
         if (!res.ok || !data.ok) throwOp(data);
-        loadDetail(caseId);
-        loadList();
+        if (!(opts && opts.skipReload)) {
+            loadDetail(caseId);
+            loadList();
+        }
+    }
+
+    async function linkEvidenceMany(caseId, ids) {
+        var list = (ids || []).map(function (x) { return String(x || '').trim(); }).filter(Boolean);
+        var i;
+        for (i = 0; i < list.length; i++) {
+            await linkEvidence(caseId, list[i], { skipReload: true });
+        }
+        if (list.length) {
+            loadDetail(caseId);
+            loadList();
+        }
     }
 
     async function unlinkEvidence(caseId, evidenceFileId) {
@@ -842,11 +1061,6 @@
         if (tbody && !tbody._cfBound) {
             tbody._cfBound = true;
             tbody.addEventListener('click', function (e) {
-                const open = e.target.closest('.cf-open');
-                if (open) {
-                    showDetail(open.getAttribute('data-case-id'));
-                    return;
-                }
                 const del = e.target.closest('.cf-delete');
                 if (del) {
                     confirmDeleteCase(
@@ -854,7 +1068,17 @@
                         del.getAttribute('data-case-title'),
                         parseInt(del.getAttribute('data-evidence-count'), 10) || 0
                     );
+                    return;
                 }
+                const row = e.target.closest('tr[data-case-id]');
+                const caseId = row ? row.getAttribute('data-case-id') : null;
+                if (!caseId) return;
+                if (pendingLinkEvidenceIds.length) {
+                    pickIncidentForAnalysis(caseId).catch(function (err) { alert(msg(err.opPayload, err)); });
+                    return;
+                }
+                const open = e.target.closest('.cf-open');
+                if (open) showDetail(open.getAttribute('data-case-id'));
             });
         }
         const search = document.getElementById('cf-search');
@@ -882,6 +1106,7 @@
         p = p || {};
         perms.view = !!(p.evidenceView || p.evidenceDownload);
         perms.edit = !!p.evidenceEdit;
+        perms.export = !!p.evidenceExport;
         perms.superAdmin = role === 'super_admin';
         updateToolbar();
     }
@@ -890,6 +1115,16 @@
         opts = opts || {};
         bindUi();
         updateToolbar();
+        try {
+            var bulkRaw = sessionStorage.getItem('pendingBulkCaseEvidence');
+            if (bulkRaw) {
+                sessionStorage.removeItem('pendingBulkCaseEvidence');
+                var bulkIds = JSON.parse(bulkRaw);
+                if (Array.isArray(bulkIds) && bulkIds.length) {
+                    beginIncidentAttach(bulkIds);
+                }
+            }
+        } catch (_) { /* ignore */ }
         if (currentId) {
             setCaseListEmptyState(false);
             const evPanel = document.getElementById('evidence-panel');
@@ -906,6 +1141,131 @@
                 loadList();
             }
         }
+    }
+
+    function beginLibraryPick(caseId) {
+        libraryReturnCaseId = caseId || null;
+        if (global.EvidenceHub && EvidenceHub.showPanel) {
+            EvidenceHub.showPanel('catalog', { force: true });
+        }
+        if (global.EvidenceHub && EvidenceHub.paintLibraryReturn) EvidenceHub.paintLibraryReturn();
+    }
+
+    function beginTriagePick(caseId) {
+        libraryReturnCaseId = caseId || null;
+        if (global.EvidenceHub && EvidenceHub.showPanel) {
+            EvidenceHub.showPanel('ftp-inbox', { force: true });
+        }
+        if (global.EvidenceHub && EvidenceHub.paintLibraryReturn) EvidenceHub.paintLibraryReturn();
+    }
+
+    function endLibraryPick() {
+        libraryReturnCaseId = null;
+        if (global.EvidenceHub && EvidenceHub.paintLibraryReturn) EvidenceHub.paintLibraryReturn();
+    }
+
+    function goBackFromLibrary() {
+        var caseId = libraryReturnCaseId;
+        endLibraryPick();
+        if (global.EvidenceHub && EvidenceHub.showPanel) {
+            EvidenceHub.showPanel('case-files', { force: true });
+        }
+        if (caseId) showDetail(caseId);
+    }
+
+    async function completeLibraryPick(fileId) {
+        return completeLibraryPicks(fileId ? [fileId] : []);
+    }
+
+    async function completeLibraryPicks(ids) {
+        var caseId = libraryReturnCaseId;
+        var list = (ids || []).map(function (x) { return String(x || '').trim(); }).filter(Boolean);
+        if (!caseId || !list.length) return;
+        await linkEvidenceMany(caseId, list);
+        endLibraryPick();
+        if (global.EvidenceHub && EvidenceHub.showPanel) {
+            EvidenceHub.showPanel('case-files', { force: true });
+        }
+        showDetail(caseId);
+    }
+
+    function setPendingLinkIds(ids) {
+        pendingLinkEvidenceIds = (Array.isArray(ids) ? ids : [ids])
+            .map(function (x) { return String(x || '').trim(); })
+            .filter(Boolean);
+        pendingLinkEvidenceId = pendingLinkEvidenceIds[0] || null;
+    }
+
+    function beginIncidentAttach(ids) {
+        setPendingLinkIds(ids);
+        analysisReturnFileId = null;
+        if (global.EvidenceManager && typeof EvidenceManager.showTab === 'function') {
+            EvidenceManager.showTab('evidence');
+        }
+        if (global.EvidenceHub && EvidenceHub.showPanel) {
+            EvidenceHub.showPanel('case-files', { force: true });
+        }
+        showList();
+        loadList();
+        if (global.EvidenceHub && EvidenceHub.paintLibraryReturn) EvidenceHub.paintLibraryReturn();
+    }
+
+    function beginAnalysisPick(fileId) {
+        setPendingLinkIds(fileId);
+        analysisReturnFileId = pendingLinkEvidenceId;
+        if (global.EvidenceManager && typeof EvidenceManager.showTab === 'function') {
+            EvidenceManager.showTab('evidence');
+        }
+        if (global.EvidenceHub && EvidenceHub.showPanel) {
+            EvidenceHub.showPanel('case-files', { force: true });
+        }
+        showList();
+        loadList();
+        if (global.EvidenceHub && EvidenceHub.paintLibraryReturn) EvidenceHub.paintLibraryReturn();
+    }
+
+    function endAnalysisPick() {
+        pendingLinkEvidenceId = null;
+        pendingLinkEvidenceIds = [];
+        analysisReturnFileId = null;
+        if (global.EvidenceHub && EvidenceHub.paintLibraryReturn) EvidenceHub.paintLibraryReturn();
+    }
+
+    function goBackToAnalysis() {
+        var fileId = analysisReturnFileId;
+        endAnalysisPick();
+        if (global.EvidenceManager && typeof EvidenceManager.showTab === 'function') {
+            EvidenceManager.showTab('analytics');
+        }
+        if (global.AnalyticsHub && typeof AnalyticsHub.restoreAnalysis === 'function') {
+            AnalyticsHub.restoreAnalysis(fileId);
+        }
+    }
+
+    async function pickIncidentForAnalysis(caseId) {
+        var ids = pendingLinkEvidenceIds.length ? pendingLinkEvidenceIds.slice() : (pendingLinkEvidenceId ? [pendingLinkEvidenceId] : []);
+        if (!caseId || !ids.length) return;
+        await linkEvidenceMany(caseId, ids);
+        var report = '';
+        try {
+            report = sessionStorage.getItem('pending_ai_report') || '';
+            if (report) sessionStorage.removeItem('pending_ai_report');
+        } catch (_) { report = ''; }
+        if (report) {
+            try {
+                await fetch('/api/case-files/' + encodeURIComponent(caseId) + '/ai-report', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: report, evidenceFileId: ids[0] || '' }),
+                });
+            } catch (_) { /* ignore */ }
+        }
+        try { sessionStorage.setItem('pending_analysis_case_id', caseId); } catch (_) { /* ignore */ }
+        pendingLinkEvidenceId = null;
+        pendingLinkEvidenceIds = [];
+        showDetail(caseId);
+        if (global.EvidenceHub && EvidenceHub.paintLibraryReturn) EvidenceHub.paintLibraryReturn();
     }
 
     function openWithEvidenceLink(evidenceFileId) {
@@ -978,6 +1338,14 @@
         onShow: onShow,
         openWithEvidenceLink: openWithEvidenceLink,
         promptAddToCase: promptAddToCase,
+        beginAnalysisPick: beginAnalysisPick,
+        beginIncidentAttach: beginIncidentAttach,
+        goBackToAnalysis: goBackToAnalysis,
+        analysisReturnFileId: function () { return analysisReturnFileId; },
+        libraryReturnCaseId: function () { return libraryReturnCaseId; },
+        completeLibraryPick: completeLibraryPick,
+        completeLibraryPicks: completeLibraryPicks,
+        goBackFromLibrary: goBackFromLibrary,
         refreshList: loadList,
         openDetail: showDetail,
         openCase: openCase,

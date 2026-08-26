@@ -36,7 +36,7 @@ If a sentence only helps Ubitron staff or the Cursor agent — **it does not bel
 
 | Say | Never say in customer manuals |
 |-----|-------------------------------|
-| **Ubitron Mobility Axiom** or **Mobility Axiom** | Mobility C2, Ubitron C2, ME8 (except hidden Document Control if needed) |
+| **Ubitron Mobility Axiom** or **Mobility Axiom** | Mobility Axiom, Mobility Axiom, ME8 (except hidden Document Control if needed) |
 | Company: **Ubitron** | OEM / banned vendor names |
 
 Service display name in the guide: **Mobility Axiom** (or “Mobility Axiom server service”).  

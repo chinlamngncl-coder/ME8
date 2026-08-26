@@ -4,6 +4,10 @@
  */
 (function (global) {
     let techAuthenticated = false;
+    const TIER3_IDLE_MS = 15 * 60 * 1000;
+    let tier3IdleTimer = null;
+    let bootRelockStarted = false;
+    let _tier3PatchFile = null;
 
     function tr(key, params) {
         if (global.I18n && I18n.t) return I18n.t(key, params);
@@ -39,9 +43,6 @@
             const res = await fetch('/api/tech/session', { credentials: 'same-origin' });
             const data = await res.json();
             techAuthenticated = !!(data.ok && data.authenticated);
-            const link = document.getElementById('ss-tech-unlock');
-            if (link) link.hidden = !data.configured;
-            if (!data.configured) hideUnlockLink();
         } catch (_) {
             techAuthenticated = false;
         }
@@ -49,45 +50,120 @@
         return techAuthenticated;
     }
 
-    function hideUnlockLink() {
-        const link = document.getElementById('ss-tech-unlock');
-        if (link) link.hidden = true;
-    }
-
     function updateTabVisibility() {
         if (global.ServerSetup && ServerSetup.syncAdvancedNav) ServerSetup.syncAdvancedNav();
+        const authBtn = document.getElementById('btn-telemetry-auth');
+        const tier3Panel = document.getElementById('tier3-panel');
+        if (authBtn) {
+            authBtn.hidden = techAuthenticated;
+            authBtn.style.display = techAuthenticated ? 'none' : '';
+        }
+        if (tier3Panel) {
+            tier3Panel.hidden = !techAuthenticated;
+            tier3Panel.style.display = techAuthenticated ? '' : 'none';
+        }
     }
 
-    let techEscHandler = null;
+    let _telemetryOnSuccess = null;
 
-    function setTechGateA11y(show) {
-        const backdrop = document.getElementById('ss-tech-gate-backdrop');
-        if (!backdrop) return;
-        if ('inert' in backdrop) backdrop.inert = !show;
-        backdrop.setAttribute('aria-hidden', show ? 'false' : 'true');
-        const pinEl = document.getElementById('ss-tech-gate-pin');
-        if (pinEl) {
-            pinEl.tabIndex = show ? 0 : -1;
-            pinEl.disabled = !show;
-        }
+    function clearTier3Data() {
+        ['ss-tech-health', 'ss-tech-live-viewers', 'ss-tech-runbook-list', 'ss-tech-runbook-detail'].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = '';
+        });
+    }
+
+    function scheduleTier3IdleLock() {
+        if (tier3IdleTimer) clearTimeout(tier3IdleTimer);
+        tier3IdleTimer = null;
+        if (!techAuthenticated) return;
+        tier3IdleTimer = setTimeout(function () {
+            lockTier3Access();
+        }, TIER3_IDLE_MS);
+    }
+
+    async function lockTier3Access() {
+        techAuthenticated = false;
+        _tier3PatchFile = null;
+        if (tier3IdleTimer) clearTimeout(tier3IdleTimer);
+        tier3IdleTimer = null;
+        closeTelemetryModal();
+        clearTier3Data();
+        const nameEl = document.getElementById('tier3-patch-name');
+        if (nameEl) nameEl.textContent = '';
+        setPatchResult(false, '');
+        updateTabVisibility();
+        try {
+            await fetch('/api/tech/logout', {
+                method: 'POST',
+                credentials: 'same-origin',
+            });
+        } catch (_) { /* local UI remains locked */ }
+    }
+
+    function closeTelemetryModal() {
+        const modal = document.getElementById('telemetry-auth-modal');
+        if (!modal) return;
+        if (typeof modal.close === 'function' && modal.open) modal.close();
+        else modal.removeAttribute('open');
     }
 
     function dismissTechGate(opts) {
         opts = opts || {};
+        closeTelemetryModal();
         const backdrop = document.getElementById('ss-tech-gate-backdrop');
-        const pinEl = document.getElementById('ss-tech-gate-pin');
         if (backdrop) backdrop.hidden = true;
-        setTechGateA11y(false);
-        if (pinEl) pinEl.onkeydown = null;
-        if (techEscHandler) {
-            document.removeEventListener('keydown', techEscHandler);
-            techEscHandler = null;
-        }
-        if (backdrop) {
-            backdrop._techGateSubmit = null;
-            backdrop._techGateCancel = null;
-        }
         if (opts.onCancel) opts.onCancel();
+    }
+
+    async function fetchDiagnosticsChallenge() {
+        const nonceEl = document.getElementById('telemetry-auth-nonce');
+        const errEl = document.getElementById('telemetry-auth-error');
+        try {
+            const res = await fetch('/api/diagnostics/challenge', {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' },
+            });
+            const data = await res.json().catch(function () { return {}; });
+            const nonce = (data && (data.nonce || (data.challenge && data.challenge.nonce))) || '';
+            if (!res.ok || !nonce) {
+                if (errEl) {
+                    errEl.textContent = techUserMessage(data, res.status, 'errors.generic');
+                    errEl.hidden = false;
+                }
+                if (nonceEl) nonceEl.value = '';
+                return null;
+            }
+            if (nonceEl) nonceEl.value = nonce;
+            if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+            return data.challenge || { nonce: nonce };
+        } catch (_) {
+            if (errEl) {
+                errEl.textContent = tr('errors.generic');
+                errEl.hidden = false;
+            }
+            if (nonceEl) nonceEl.value = '';
+            return null;
+        }
+    }
+
+    async function openTelemetryAuthModal(onSuccess) {
+        const modal = document.getElementById('telemetry-auth-modal');
+        const tokenEl = document.getElementById('telemetry-auth-token');
+        const errEl = document.getElementById('telemetry-auth-error');
+        const nonceEl = document.getElementById('telemetry-auth-nonce');
+        if (!modal) return;
+        _telemetryOnSuccess = onSuccess || null;
+        if (tokenEl) tokenEl.value = '';
+        if (nonceEl) nonceEl.value = '';
+        const uploadBtn = document.getElementById('telemetry-auth-upload');
+        if (uploadBtn) uploadBtn.textContent = 'Choose File';
+        if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+        if (typeof modal.showModal === 'function') modal.showModal();
+        else modal.setAttribute('open', '');
+        await fetchDiagnosticsChallenge();
+        if (tokenEl) setTimeout(function () { tokenEl.focus(); }, 40);
     }
 
     function requireTech(onSuccess, opts) {
@@ -95,99 +171,188 @@
             if (onSuccess) onSuccess();
             return Promise.resolve(true);
         }
-        showTechGate(onSuccess, opts);
+        openTelemetryAuthModal(onSuccess);
         return Promise.resolve(false);
     }
 
-    function showTechGate(onSuccess, opts) {
-        opts = opts || {};
-        const backdrop = document.getElementById('ss-tech-gate-backdrop');
-        const pinEl = document.getElementById('ss-tech-gate-pin');
-        const errEl = document.getElementById('ss-tech-gate-error');
-        if (!backdrop || !pinEl) {
-            if (onSuccess) onSuccess();
-            return;
-        }
-        if (!backdrop.hidden) {
-            pinEl.focus();
-            return;
-        }
-        pinEl.value = '';
-        if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
-        backdrop.hidden = false;
-        setTechGateA11y(true);
+    function showTechGate(onSuccess) {
+        openTelemetryAuthModal(onSuccess);
+    }
 
-        const cancel = function () {
-            if (backdrop._techGateBusy && backdrop._techGateBusy.isBusy()) return;
-            dismissTechGate({ onCancel: opts.onCancel });
-        };
-        backdrop._techGateCancel = cancel;
-
-        const gateSubmitBtn = document.getElementById('ss-tech-gate-submit');
-        const gateCancelBtn = document.getElementById('ss-tech-gate-cancel');
-        const busyCtrl = global.AuthFormBusy ? AuthFormBusy.create({
-            fields: [pinEl],
-            submitBtn: gateSubmitBtn,
-            cancelBtns: [gateCancelBtn],
-            busyLabel: tr('tech.verifying'),
-        }) : null;
-        backdrop._techGateBusy = busyCtrl;
-
-        const submit = async function () {
-            if (busyCtrl && busyCtrl.isBusy()) return;
-            const pin = pinEl.value;
-            if (!pin) {
-                if (errEl) { errEl.textContent = tr('tech.pinRequired'); errEl.hidden = false; }
-                return;
+    async function loadTelemetryTokenFile(file) {
+        const tokenEl = document.getElementById('telemetry-auth-token');
+        const errEl = document.getElementById('telemetry-auth-error');
+        if (!file || !tokenEl) return;
+        if (file.size > 64 * 1024) {
+            if (errEl) {
+                errEl.textContent = 'Unlock Token file is too large.';
+                errEl.hidden = false;
             }
-            if (busyCtrl) busyCtrl.setBusy(true);
-            try {
-                const res = await fetch('/api/tech/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'same-origin',
-                    body: JSON.stringify({ pin: pin }),
-                });
-                const data = await res.json();
-                if (!res.ok || !data.ok) {
-                    if (errEl) {
-                        errEl.textContent = techUserMessage(data, res.status, 'tech.authFailed');
-                        errEl.hidden = false;
-                    }
-                    if (busyCtrl) busyCtrl.setBusy(false);
-                    pinEl.focus();
-                    return;
-                }
-                techAuthenticated = true;
-                if (busyCtrl) busyCtrl.setBusy(false);
-                dismissTechGate({});
-                updateTabVisibility();
-                if (onSuccess) onSuccess();
-            } catch (_) {
+            return;
+        }
+        try {
+            const text = String(await file.text()).trim();
+            const envelope = JSON.parse(text);
+            if (!envelope || !envelope.payload || !envelope.signature) {
+                throw new Error('Invalid token envelope');
+            }
+            tokenEl.value = text;
+            if (errEl) { errEl.textContent = ''; errEl.hidden = true; }
+            const uploadBtn = document.getElementById('telemetry-auth-upload');
+            if (uploadBtn) uploadBtn.textContent = 'File Loaded';
+        } catch (_) {
+            tokenEl.value = '';
+            if (errEl) {
+                errEl.textContent = 'Select the signed Ubitron Unlock Token file.';
+                errEl.hidden = false;
+            }
+        }
+    }
+
+    async function submitTelemetryUnlock() {
+        const tokenEl = document.getElementById('telemetry-auth-token');
+        const errEl = document.getElementById('telemetry-auth-error');
+        const submitBtn = document.getElementById('telemetry-auth-submit');
+        const grant = tokenEl ? String(tokenEl.value || '').trim() : '';
+        if (!grant) {
+            if (errEl) {
+                errEl.textContent = 'Paste the Ubitron Unlock Token from License CRM.';
+                errEl.hidden = false;
+            }
+            return;
+        }
+        if (submitBtn) submitBtn.disabled = true;
+        try {
+            const res = await fetch('/api/diagnostics/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ grant: grant }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) {
                 if (errEl) {
-                    errEl.textContent = tr('errors.generic');
+                    errEl.textContent = techUserMessage(data, res.status, 'tech.authFailed');
                     errEl.hidden = false;
                 }
-                if (busyCtrl) busyCtrl.setBusy(false);
-                pinEl.focus();
+                if (submitBtn) submitBtn.disabled = false;
+                return;
             }
-        };
-        backdrop._techGateSubmit = submit;
-        pinEl.onkeydown = function (e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                submit();
+            techAuthenticated = true;
+            closeTelemetryModal();
+            updateTabVisibility();
+            scheduleTier3IdleLock();
+            const cb = _telemetryOnSuccess;
+            _telemetryOnSuccess = null;
+            if (cb) cb();
+            else {
+                if (global.ServerSetup && ServerSetup.setMainTab) ServerSetup.setMainTab('diagnostics');
+                refreshAll();
             }
-        };
-        techEscHandler = function (e) {
-            if (e.key === 'Escape') {
-                if (backdrop._techGateBusy && backdrop._techGateBusy.isBusy()) return;
-                e.preventDefault();
-                cancel();
+        } catch (_) {
+            if (errEl) {
+                errEl.textContent = tr('errors.generic');
+                errEl.hidden = false;
             }
-        };
-        document.addEventListener('keydown', techEscHandler);
-        setTimeout(function () { pinEl.focus(); }, 50);
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
+        }
+    }
+
+    async function exportTelemetryBundle() {
+        const btn = document.getElementById('btn-export-telemetry');
+        const statusEl = document.getElementById('tier3-export-status');
+        if (btn) btn.disabled = true;
+        if (statusEl) { statusEl.hidden = true; statusEl.textContent = ''; }
+        try {
+            const res = await fetch('/api/diagnostics/export', {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' },
+            });
+            if (!res.ok) {
+                if (res.status === 401) {
+                    techAuthenticated = false;
+                    updateTabVisibility();
+                }
+                throw new Error('Export failed');
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'ubitron-telemetry-bundle.json';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+            if (statusEl) {
+                statusEl.textContent = 'Diagnostic bundle downloaded.';
+                statusEl.hidden = false;
+            }
+        } catch (_) {
+            if (statusEl) {
+                statusEl.textContent = 'Could not export the diagnostic bundle.';
+                statusEl.hidden = false;
+            }
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    function setPatchResult(pass, text) {
+        const el = document.getElementById('tier3-patch-result');
+        if (!el) return;
+        el.hidden = !text;
+        el.textContent = text || '';
+        el.classList.toggle('is-pass', !!pass);
+        el.classList.toggle('is-fail', !pass && !!text);
+    }
+
+    async function checkTier3PatchPackage() {
+        const checkBtn = document.getElementById('btn-tier3-patch-check');
+        if (!_tier3PatchFile) {
+            setPatchResult(false, 'Choose a patch ZIP first.');
+            return;
+        }
+        if (checkBtn) checkBtn.disabled = true;
+        setPatchResult(false, 'Checking…');
+        try {
+            const body = new FormData();
+            body.append('package', _tier3PatchFile, _tier3PatchFile.name || 'patch.zip');
+            const res = await fetch('/api/diagnostics/verify-patch', {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: body,
+            });
+            const data = await res.json().catch(function () { return {}; });
+            if (res.status === 401) {
+                techAuthenticated = false;
+                updateTabVisibility();
+                setPatchResult(false, 'Tier-3 session expired. Unlock again.');
+                return;
+            }
+            if (!res.ok || !data.ok) {
+                const errs = (data.errors && data.errors.length)
+                    ? data.errors.join(' · ')
+                    : (data.error ? String(data.error) : 'Check failed (server rejected upload).');
+                setPatchResult(false, 'FAIL — ' + errs);
+                return;
+            }
+            if (data.pass) {
+                const tip = data.ticketId ? ('Ticket ' + data.ticketId + '. ') : '';
+                const warn = (data.warnings && data.warnings.length)
+                    ? (' · ' + data.warnings.join(' · '))
+                    : '';
+                setPatchResult(true, 'PASS — ' + tip + 'Safe to overwrite listed files manually, then restart.' + warn);
+            } else {
+                setPatchResult(false, 'FAIL — ' + ((data.errors && data.errors.join(' · ')) || 'Package rejected'));
+            }
+        } catch (_) {
+            setPatchResult(false, 'FAIL — Could not reach patch check.');
+        } finally {
+            if (checkBtn) checkBtn.disabled = false;
+        }
     }
 
     function healthStatusLabel(ok) {
@@ -339,6 +504,7 @@
     }
 
     function onTabShown() {
+        if (!techAuthenticated) return;
         loadHealth();
         loadLiveViewers();
     }
@@ -348,49 +514,171 @@
     }
 
     function bindUi() {
-        checkSession();
-        const unlock = document.getElementById('ss-tech-unlock');
-        if (unlock) {
-            unlock.addEventListener('click', function () {
-                if (techAuthenticated) {
-                    if (global.ServerSetup && ServerSetup.setMainTab) ServerSetup.setMainTab('diagnostics');
-                    return;
-                }
-                const openDiag = function () {
-                    if (global.ServerSetup && ServerSetup.setMainTab) ServerSetup.setMainTab('diagnostics');
-                    refreshAll();
-                };
-                if (global.ServerSetup && ServerSetup.runWithTechAccess) {
-                    ServerSetup.runWithTechAccess(openDiag);
-                    return;
-                }
-                showTechGate(openDiag);
-            });
+        if (!bootRelockStarted) {
+            bootRelockStarted = true;
+            lockTier3Access();
         }
-        const gateCancel = document.getElementById('ss-tech-gate-cancel');
-        const gateSubmit = document.getElementById('ss-tech-gate-submit');
-        const gateBackdrop = document.getElementById('ss-tech-gate-backdrop');
-        if (gateCancel && gateBackdrop) {
-            gateCancel.addEventListener('click', function () {
-                if (typeof gateBackdrop._techGateCancel === 'function') {
-                    gateBackdrop._techGateCancel();
-                } else {
-                    gateBackdrop.hidden = true;
-                    setTechGateA11y(false);
+        const diagnosticsPanel = document.getElementById('ss-panel-diagnostics');
+        if (diagnosticsPanel && !diagnosticsPanel._tier3RelockObserver) {
+            diagnosticsPanel._tier3RelockObserver = new MutationObserver(function () {
+                if (techAuthenticated && !diagnosticsPanel.classList.contains('active')) {
+                    lockTier3Access();
                 }
             });
-        }
-        if (gateSubmit && gateBackdrop) {
-            gateSubmit.addEventListener('click', function () {
-                if (typeof gateBackdrop._techGateSubmit === 'function') gateBackdrop._techGateSubmit();
+            diagnosticsPanel._tier3RelockObserver.observe(diagnosticsPanel, {
+                attributes: true,
+                attributeFilter: ['class'],
             });
         }
         const traceToggle = document.getElementById('ss-tech-trace-toggle');
-        if (traceToggle) traceToggle.addEventListener('click', toggleTrace);
+        if (traceToggle && !traceToggle._tdBound) {
+            traceToggle._tdBound = true;
+            traceToggle.addEventListener('click', toggleTrace);
+        }
         const healthRefresh = document.getElementById('ss-tech-health-refresh');
-        if (healthRefresh) healthRefresh.addEventListener('click', loadHealth);
+        if (healthRefresh && !healthRefresh._tdBound) {
+            healthRefresh._tdBound = true;
+            healthRefresh.addEventListener('click', loadHealth);
+        }
         const lvRefresh = document.getElementById('ss-tech-live-viewers-refresh');
-        if (lvRefresh) lvRefresh.addEventListener('click', loadLiveViewers);
+        if (lvRefresh && !lvRefresh._tdBound) {
+            lvRefresh._tdBound = true;
+            lvRefresh.addEventListener('click', loadLiveViewers);
+        }
+    }
+
+    // Document-level wiring — always works even if bindUi runs late / panel was hidden
+    if (!global.__telemetryAuthDelegated) {
+        global.__telemetryAuthDelegated = true;
+        document.addEventListener('click', function (e) {
+            const t = e.target;
+            if (!t || !t.closest) return;
+            if (t.closest('#btn-telemetry-auth')) {
+                e.preventDefault();
+                if (techAuthenticated) {
+                    if (global.ServerSetup && ServerSetup.setMainTab) ServerSetup.setMainTab('diagnostics');
+                    refreshAll();
+                    return;
+                }
+                openTelemetryAuthModal(function () {
+                    if (global.ServerSetup && ServerSetup.setMainTab) ServerSetup.setMainTab('diagnostics');
+                    refreshAll();
+                });
+                return;
+            }
+            if (t.closest('#telemetry-auth-cancel')) {
+                e.preventDefault();
+                closeTelemetryModal();
+                return;
+            }
+            if (t.closest('#telemetry-auth-submit')) {
+                e.preventDefault();
+                submitTelemetryUnlock();
+                return;
+            }
+            if (t.closest('#telemetry-auth-upload')) {
+                e.preventDefault();
+                const input = document.getElementById('telemetry-auth-file');
+                if (input) input.click();
+                return;
+            }
+            if (t.closest('#telemetry-auth-copy')) {
+                e.preventDefault();
+                const nonceEl = document.getElementById('telemetry-auth-nonce');
+                const copyBtn = document.getElementById('telemetry-auth-copy');
+                const val = nonceEl ? String(nonceEl.value || '').trim() : '';
+                if (!val) return;
+                const done = function () {
+                    if (!copyBtn) return;
+                    const prev = copyBtn.textContent;
+                    copyBtn.textContent = 'Copied!';
+                    setTimeout(function () { copyBtn.textContent = prev || 'Copy Nonce'; }, 1200);
+                };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(val).then(done).catch(function () {
+                        try {
+                            nonceEl.select();
+                            document.execCommand('copy');
+                            done();
+                        } catch (_) { /* ignore */ }
+                    });
+                } else {
+                    try {
+                        nonceEl.select();
+                        document.execCommand('copy');
+                        done();
+                    } catch (_) { /* ignore */ }
+                }
+                return;
+            }
+            if (t.closest('#telemetry-auth-refresh')) {
+                e.preventDefault();
+                fetchDiagnosticsChallenge();
+                return;
+            }
+            if (t.closest('#btn-export-telemetry')) {
+                e.preventDefault();
+                exportTelemetryBundle();
+                return;
+            }
+            if (t.closest('#btn-lock-tier3')) {
+                e.preventDefault();
+                lockTier3Access();
+                return;
+            }
+            if (t.closest('#btn-tier3-patch-choose')) {
+                e.preventDefault();
+                const input = document.getElementById('tier3-patch-file');
+                if (input) input.click();
+                return;
+            }
+            if (t.closest('#btn-tier3-patch-check')) {
+                e.preventDefault();
+                checkTier3PatchPackage();
+            }
+        });
+        ['pointerdown', 'keydown'].forEach(function (eventName) {
+            document.addEventListener(eventName, function () {
+                if (techAuthenticated) scheduleTier3IdleLock();
+            });
+        });
+        document.addEventListener('change', function (e) {
+            if (!e.target) return;
+            if (e.target.id === 'telemetry-auth-file') {
+                loadTelemetryTokenFile(e.target.files && e.target.files[0]);
+                e.target.value = '';
+                return;
+            }
+            if (e.target.id === 'tier3-patch-file') {
+                _tier3PatchFile = (e.target.files && e.target.files[0]) || null;
+                const nameEl = document.getElementById('tier3-patch-name');
+                if (nameEl) nameEl.textContent = _tier3PatchFile ? _tier3PatchFile.name : '';
+                setPatchResult(false, '');
+                e.target.value = '';
+            }
+        });
+        document.addEventListener('dragover', function (e) {
+            const drop = e.target && e.target.closest ? e.target.closest('#telemetry-auth-drop') : null;
+            if (!drop) return;
+            e.preventDefault();
+            drop.classList.add('is-dragging');
+        });
+        document.addEventListener('dragleave', function (e) {
+            const drop = e.target && e.target.closest ? e.target.closest('#telemetry-auth-drop') : null;
+            if (drop) drop.classList.remove('is-dragging');
+        });
+        document.addEventListener('drop', function (e) {
+            const drop = e.target && e.target.closest ? e.target.closest('#telemetry-auth-drop') : null;
+            if (!drop) return;
+            e.preventDefault();
+            drop.classList.remove('is-dragging');
+            loadTelemetryTokenFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape') return;
+            const modal = document.getElementById('telemetry-auth-modal');
+            if (modal && (modal.open || modal.hasAttribute('open'))) closeTelemetryModal();
+        });
     }
 
     global.TechDiagnostics = {
@@ -401,5 +689,7 @@
         requireTech: requireTech,
         dismissTechGate: dismissTechGate,
         isAuthenticated: isAuthenticated,
+        openTelemetryAuthModal: openTelemetryAuthModal,
+        lockTier3Access: lockTier3Access,
     };
 })(window);

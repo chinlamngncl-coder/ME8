@@ -1,22 +1,157 @@
-﻿<!DOCTYPE html>
-<html lang="en" class="enterprise-auth">
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="dark">
     <meta name="fm-locales" content="en,fil,id,th,ko,zh">
     <meta name="fm-default-lang" content="en">
-    <title>Sign in &mdash; Mobility Axiom</title>
-    <link rel="stylesheet" href="/css/global.css?v=20260731-anpr-live-rail-4x4-equal-v1">
+    <title>Sign in — Mobility Axiom</title>
+    <!-- LOGIN-GOLD-INLINE-RESTORE-V1: self-contained card (no global.css dependency) -->
+    <style>
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; min-height: 100%;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(160deg, #0f172a 0%, #1e293b 45%, #0f172a 100%);
+            color: #e2e8f0;
+            color-scheme: dark;
+            display: flex; align-items: center; justify-content: center;
+            padding: 24px;
+        }
+        .login-card {
+            width: 100%; max-width: 380px;
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid #475569;
+            border-radius: 12px;
+            padding: 28px 24px 24px;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+        }
+        .login-lang {
+            display: flex; justify-content: flex-end; align-items: center;
+            margin-bottom: 12px; gap: 6px; font-size: 11px; color: #94a3b8;
+        }
+        .login-lang select {
+            background: #0f172a; color: #e2e8f0; border: 1px solid #475569;
+            border-radius: 6px; padding: 4px 8px; font-size: 11px;
+        }
+        .login-brand {
+            display: flex; align-items: center; gap: 14px; margin-bottom: 24px; min-width: 0;
+        }
+        .ubitron-logo {
+            height: 20px; width: auto; max-width: 140px;
+            display: block; flex-shrink: 0; object-fit: contain;
+            filter: contrast(1.18) brightness(0.97);
+        }
+        .login-brand-divider {
+            flex-shrink: 0; width: 1px; height: 30px;
+            background: linear-gradient(180deg, transparent, rgba(100, 116, 139, 0.35) 18%, rgba(226, 232, 240, 0.55) 50%, rgba(100, 116, 139, 0.35) 82%, transparent);
+        }
+        .login-brand-text { min-width: 0; }
+        .app-wordmark {
+            margin: 0; display: flex; align-items: baseline; gap: 0.38em; line-height: 1.1;
+            -webkit-font-smoothing: antialiased;
+        }
+        .app-wordmark-primary {
+            font-size: 18px; font-weight: 700; letter-spacing: 0.02em;
+            color: #fafafa;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+        }
+        .app-wordmark-accent {
+            font-size: 18px; font-weight: 700; letter-spacing: 0.1em;
+            background: linear-gradient(180deg, #cbd5e1 0%, #94a3b8 55%, #64748b 100%);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        .login-brand-text h1.app-wordmark { margin: 0; padding: 0; font-size: inherit; font-weight: inherit; }
+        label { display: block; font-size: 11px; color: #94a3b8; margin-bottom: 14px; }
+        .login-input, input:not([type="checkbox"]):not([type="radio"]) {
+            width: 100%; margin-top: 6px; padding: 11px 12px;
+            border-radius: 8px; border: 1px solid #475569;
+            background: #0f172a; color: #f8fafc; font-size: 14px;
+            font-family: inherit;
+        }
+        .login-input:focus, input:focus { outline: none; border-color: #3b82f6; }
+        .login-pass-row {
+            display: flex; align-items: stretch; gap: 6px; margin-top: 6px;
+        }
+        .login-pass-row .login-input { flex: 1; min-width: 0; margin-top: 0; }
+        .login-pass-toggle {
+            flex-shrink: 0; padding: 0 12px;
+            border-radius: 8px; border: 1px solid #475569;
+            background: #1e293b; color: #cbd5e1; font-size: 11px; cursor: pointer;
+        }
+        .login-pass-toggle:hover { background: #334155; }
+        button[type="submit"], .btn-primary.btn-block {
+            width: 100%; margin-top: 8px; padding: 12px;
+            border: none; border-radius: 8px;
+            background: #2563eb; color: #fff;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+        }
+        button[type="submit"]:hover, .btn-primary.btn-block:hover { background: #1d4ed8; }
+        button[type="submit"]:disabled, .btn-primary.btn-block:disabled { opacity: 0.6; cursor: wait; }
+        .btn-secondary.btn-block, #login-oidc, #login-totp-back {
+            width: 100%; margin-top: 10px; padding: 12px;
+            border: 1px solid #475569; border-radius: 8px;
+            background: #1e293b; color: #e2e8f0;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+        }
+        .btn-secondary.btn-block:hover, #login-oidc:hover, #login-totp-back:hover { background: #334155; }
+        #login-oidc[hidden], #login-form[hidden], #login-totp-step[hidden],
+        #login-divider[hidden], #login-password-hint[hidden] { display: none !important; }
+        .login-divider { margin: 16px 0; text-align: center; font-size: 11px; color: #64748b; }
+        .setup-hint { margin: 0 0 12px; font-size: 12px; color: #94a3b8; line-height: 1.4; }
+        #login-error {
+            display: none; margin: 0 0 12px; padding: 10px 12px;
+            border-radius: 8px; background: rgba(220, 38, 38, 0.15);
+            border: 1px solid #b91c1c; color: #fca5a5; font-size: 12px;
+        }
+        #login-totp-step { margin-top: 4px; }
+        #login-totp { letter-spacing: 0.2em; font-size: 16px; }
+
+        /* ── Stealth Vendor Recovery ─────────────────────────────── */
+        #vr-trigger {
+            display: block; text-align: center; margin-top: 18px;
+            font-size: 10px; color: #1e293b; cursor: default;
+            user-select: none; letter-spacing: 0.03em;
+        }
+        #vr-panel {
+            display: none; margin-top: 16px;
+            border-top: 1px solid #334155; padding-top: 16px;
+        }
+        #vr-panel h3 {
+            margin: 0 0 4px; font-size: 12px; font-weight: 600;
+            color: #94a3b8; text-transform: uppercase; letter-spacing: .08em;
+        }
+        #vr-panel .vr-hint {
+            font-size: 11px; color: #64748b; margin: 0 0 12px; line-height: 1.45;
+        }
+        .vr-btn {
+            width: 100%; padding: 9px; font-size: 12px; font-weight: 600;
+            border-radius: 7px; border: 1px solid #475569; cursor: pointer;
+            background: #1e293b; color: #cbd5e1; margin-bottom: 8px;
+        }
+        .vr-btn:hover { background: #334155; }
+        .vr-btn.vr-primary { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+        .vr-btn.vr-primary:hover { background: #1e40af; }
+        #vr-drop {
+            border: 2px dashed #334155; border-radius: 8px;
+            padding: 16px; text-align: center; font-size: 11px; color: #475569;
+            cursor: pointer; transition: border-color .15s;
+        }
+        #vr-drop.drag { border-color: #3b82f6; color: #93c5fd; }
+        #vr-msg { font-size: 11px; margin: 8px 0 0; min-height: 16px; color: #94a3b8; }
+        #vr-msg.ok  { color: #86efac; }
+        #vr-msg.err { color: #fca5a5; }
+    </style>
 </head>
-    <body class="enterprise-auth">
-    <div class="login-card enterprise-card">
+<body>
+    <div class="login-card">
         <div class="login-lang">
             <label for="login-lang" data-i18n="lang.label">Language</label>
             <select id="login-lang" data-i18n-aria="lang.label" aria-label="Language"></select>
         </div>
         <div class="login-brand">
-            <img src="/assets/ubitron-logo.png" alt="UBITRON" class="ubitron-logo">
+            <img src="/assets/ubitron-logo.png" alt="UBITRON" class="ubitron-logo" width="140" height="20">
             <span class="login-brand-divider" aria-hidden="true"></span>
             <div class="login-brand-text">
                 <h1 class="app-wordmark" data-i18n-aria="login.title">
@@ -29,13 +164,13 @@
         <p class="setup-hint" id="login-password-hint" hidden data-i18n="login.hintPassword">First install uses global123. After you change it, use your new password only.</p>
         <button type="button" id="login-oidc" class="btn-secondary btn-block" hidden>Sign in with organization account</button>
         <p id="login-divider" class="login-divider" hidden>or use local account</p>
-        <form id="login-form" autocomplete="on">
+        <form id="login-form" autocomplete="off">
             <label><span data-i18n="login.user">User</span>
-                <input type="text" id="login-user" name="username" class="login-input" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required autofocus>
+                <input type="text" id="login-user" name="username" class="login-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" required autofocus>
             </label>
             <label><span data-i18n="login.password">Password</span>
                 <div class="login-pass-row">
-                    <input type="password" oncopy="return false" onpaste="return false" oncut="return false" id="login-pass" name="password" class="login-input" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" required>
+                    <input type="password" oncopy="return false" onpaste="return false" oncut="return false" id="login-pass" name="password" class="login-input" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" required>
                     <button type="button" id="login-pass-toggle" class="login-pass-toggle" aria-pressed="false">Show</button>
                 </div>
             </label>
@@ -52,6 +187,19 @@
                 <button type="button" id="login-totp-back" class="btn-secondary btn-block" data-i18n="login.totpBack">Back</button>
             </form>
         </div>
+        <!-- Stealth Vendor Recovery — Shift+click the footer text to reveal -->
+        <span id="vr-trigger" title="">Mobility Axiom</span>
+
+        <div id="vr-panel">
+            <h3>Vendor Recovery</h3>
+            <p class="vr-hint">Step 1 — Download the hardware-bound challenge file and send it to your Ubitron support engineer.</p>
+            <button type="button" class="vr-btn vr-primary" id="vr-download-btn">Download Challenge File</button>
+
+            <p class="vr-hint" style="margin-top:12px">Step 2 — Upload the signed recovery grant issued by Ubitron to reset access.</p>
+            <div id="vr-drop">Drop <strong>ubitron-recovery-grant.lic</strong> here, or click to select</div>
+            <input type="file" id="vr-file-input" accept=".lic,.json" hidden>
+            <p id="vr-msg"></p>
+        </div>
     </div>
     <script src="/js/ax-select-wrap.js?v=20260731-select-caret-unify-all-ui-v1"></script>
     <script src="/js/i18n.js"></script>
@@ -60,5 +208,81 @@
     <script src="/js/password-policy-ui.js?v=20260708-pwd12"></script>
     <script src="/js/auth-form-busy.js?v=20260701-auth-busy-unified"></script>
     <script src="/js/login.js?v=20260817-auth-clip-block-v1"></script>
+    <script>
+    // ── Stealth Vendor Recovery logic ────────────────────────────────────────────
+    (function () {
+        const trigger   = document.getElementById('vr-trigger');
+        const panel     = document.getElementById('vr-panel');
+        const dlBtn     = document.getElementById('vr-download-btn');
+        const drop      = document.getElementById('vr-drop');
+        const fileInput = document.getElementById('vr-file-input');
+        const msg       = document.getElementById('vr-msg');
+
+        // Reveal panel on Shift+click only
+        trigger.addEventListener('click', function (e) {
+            if (!e.shiftKey) return;
+            panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+        });
+
+        // Step 1 — Download challenge
+        dlBtn.addEventListener('click', async function () {
+            dlBtn.disabled = true;
+            dlBtn.textContent = 'Generating…';
+            try {
+                const r = await fetch('/api/auth/generate-recovery-challenge', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                if (!r.ok) throw new Error('Server error');
+                const blob = await r.blob();
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement('a');
+                a.href = url; a.download = 'ubitron-recovery-req.dat'; a.click();
+                URL.revokeObjectURL(url);
+                setMsg('Challenge file downloaded. Send it to your Ubitron support engineer.', 'ok');
+            } catch (_) {
+                setMsg('Failed to generate challenge. Check server connection.', 'err');
+            } finally {
+                dlBtn.disabled = false;
+                dlBtn.textContent = 'Download Challenge File';
+            }
+        });
+
+        // Step 2 — Drop or pick .lic file
+        drop.addEventListener('click', function () { fileInput.click(); });
+        drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('drag'); });
+        drop.addEventListener('dragleave', function () { drop.classList.remove('drag'); });
+        drop.addEventListener('drop', function (e) {
+            e.preventDefault(); drop.classList.remove('drag');
+            const file = e.dataTransfer && e.dataTransfer.files[0];
+            if (file) submitGrant(file);
+        });
+        fileInput.addEventListener('change', function () {
+            if (fileInput.files[0]) submitGrant(fileInput.files[0]);
+        });
+
+        async function submitGrant(file) {
+            setMsg('Verifying grant…', '');
+            const text = await file.text();
+            try {
+                const r = await fetch('/api/auth/verify-recovery-grant', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ grant: text }),
+                });
+                const data = await r.json();
+                if (data.ok) {
+                    setMsg('Recovery successful! Sign in now with the temporary password, then change it immediately.', 'ok');
+                } else {
+                    setMsg('Grant rejected: ' + (data.message || 'Unknown error'), 'err');
+                }
+            } catch (_) {
+                setMsg('Network error during verification.', 'err');
+            }
+        }
+
+        function setMsg(text, type) {
+            msg.textContent = text;
+            msg.className   = type;
+        }
+    })();
+    </script>
 </body>
 </html>

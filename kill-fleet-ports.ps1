@@ -1,4 +1,4 @@
-# Stop ME8 Mobility C2 console processes on fleet ports (3988 lane).
+# Stop ME8 Mobility Axiom console processes on fleet ports (3988 lane).
 # mob-start-safe: after kill, FAIL (exit 1) if ports still busy or UbitronC2 service still running
 # so RESTART-FLEET does not start a half-dead server.
 $ErrorActionPreference = 'Continue'

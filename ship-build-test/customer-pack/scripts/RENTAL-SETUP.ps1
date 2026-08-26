@@ -1,8 +1,8 @@
-# Mobility C2 — first-time rental / on-prem setup
+# Mobility Axiom — first-time rental / on-prem setup
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot\..
 
-Write-Host "Mobility C2 — npm install (includes ffmpeg-static download)..." -ForegroundColor Cyan
+Write-Host "Mobility Axiom — npm install (includes ffmpeg-static download)..." -ForegroundColor Cyan
 npm install
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

@@ -1766,6 +1766,16 @@
         flushLivePcmSync();
     }
 
+    /** FR-BLACKLIST-AUTO-UNMUTE-V1 — live blacklist only; score >= 80. Not SOS. Offline never. */
+    var FR_BLACKLIST_AUTO_UNMUTE_MIN = 80;
+    function unmuteAudioForFrBlacklistLive(camId, scorePct) {
+        if (!camId) return;
+        var score = Number(scorePct);
+        if (!Number.isFinite(score) || score < FR_BLACKLIST_AUTO_UNMUTE_MIN) return;
+        setCamAudioMuted(camId, false);
+        flushLivePcmSync();
+    }
+
     function muteLiveAudioForCam(camId) {
         if (!camId) return;
         setCamAudioMuted(camId, true);
@@ -5714,6 +5724,10 @@ function handoffPlayerAttaching(player) {
         if (pick.slot == null || pick.slot < 0) {
             return { ok: false, reason: 'no_slot' };
         }
+        /* Set before assign so defaultAudioMutedForNewStream keeps unmuted */
+        if (opts.autoUnmute) {
+            setCamAudioMuted(id, false);
+        }
         ensureBankVisibleForSlot(pick.slot);
         pendingWallSlots[pick.slot] = id;
         const slotEl = getSlots()[pick.slot];
@@ -5724,6 +5738,7 @@ function handoffPlayerAttaching(player) {
         }
         if (pick.reused && wallHasPlayerForCam(id)) {
             openFrBlacklistMapPin(id, pick.slot);
+            if (opts.autoUnmute) unmuteAudioForFrBlacklistLive(id, opts.scorePct != null ? opts.scorePct : 80);
             return { ok: true, reused: true, slot: pick.slot };
         }
         assignCamToSlot(id, pick.slot, {
@@ -5734,6 +5749,7 @@ function handoffPlayerAttaching(player) {
         });
         if (slotEl) slotEl.classList.add('fr-blacklist-hit');
         openFrBlacklistMapPin(id, pick.slot);
+        if (opts.autoUnmute) unmuteAudioForFrBlacklistLive(id, opts.scorePct != null ? opts.scorePct : 80);
         if (pick.pinnedBlock && opts.onPinnedSteal) {
             try { opts.onPinnedSteal(pick.victim); } catch (_) { /* ignore */ }
         }
@@ -5787,6 +5803,7 @@ function handoffPlayerAttaching(player) {
         clearAlarmStates,
         muteLiveAudioForCam,
         unmuteAudioForSosCam,
+        unmuteAudioForFrBlacklistLive,
         stopAllVideo,
         syncMapPopupPlayer,
         syncMapPinAlarmStreaming,

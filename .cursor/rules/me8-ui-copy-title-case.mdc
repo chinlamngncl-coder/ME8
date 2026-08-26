@@ -1,0 +1,36 @@
+---
+description: Operator chrome title case — headings, tabs, labels. Copy-only; never touch layout or ids.
+alwaysApply: true
+---
+
+# ME8 — UI chrome title case (whole product)
+
+**Disc:** `docs/MOB-DISC-UI-COPY-SENTENCE-CASE-V1.md`  
+**APPLY done:** `UI-COPY-SENTENCE-CASE-V1`
+
+## Locked voice (new pages, new tabs, new labels)
+
+| Kind | Rule | Example |
+|---|---|---|
+| Heading / tab / **field label** | **Each principal word** capital — not first-word-only | `New Username` · `Account Type` · `Operator Portal URL` |
+| Small joiners | Stay lower | `Evidence and Docking` · `Route and GPS` · `Help and About` |
+| Acronyms | Stay shouted | IP, URL, FTP, GPS, SSO, BWC, SOS, IPv4, HTTPS, LAN, USB, OIDC |
+| After a leading acronym | Next word capital | `IP Assignment` · `FTP Host (for docks)` |
+| Ampersand **`&`** | **Do not use** in tabs/headings | `Route and GPS` not `Route & GPS` |
+| Lazy **Config** | Ban in chrome — use **Configuration** or Settings | `Server Configuration` not `Server Config` |
+
+**Not chrome:** officer-typed data, case IDs, logs, toast sentence bodies, manuals. Those stay normal sentences.
+
+## Agent rules for new UI
+
+1. **Copy only** — edit `public/locales/en.json` + matching HTML `data-i18n` fallbacks. No JS logic, no `id`/`name`/handler changes.
+2. **No layout MOBs bundled** — do not change boxes, grids, padding, or CSS width unless a separate named APPLY says so.
+3. **CSS** — chrome titles/labels use `text-transform: none` (see `settings-theme-unify.css`). Never add `uppercase` on h3/h4/field labels — that shouts over title-case strings.
+4. **If a string change makes text overflow or clip a box** — stop; leave copy as-is and tell the operator which label/page visually broke.
+5. **Whole-UI grep** only when user names a MOB or asks for a sweep. Default: fix the keys you touch on that page.
+
+## Where strings live
+
+- Primary: `public/locales/en.json`
+- Fallback: same text on `data-i18n="…"` nodes in HTML
+- Settings titles: `#server-setup-panel h4` already `text-transform: none` in unify CSS

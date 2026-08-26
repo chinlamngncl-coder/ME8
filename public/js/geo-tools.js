@@ -1,6 +1,6 @@
 /**
- * GEO-TOOLS-V1 + MIX-10-V1 — Ops map Geo Tools palette.
- * Select area → open mix BWC+fixed totalling 10 (BWC preferred on 1–8, leftover for fixed).
+ * GEO-TOOLS-V1 + MIX-10-V1 - Ops map Geo Tools palette.
+ * Select area -> open mix BWC+fixed totalling 10 (BWC preferred on 1-8, leftover for fixed).
  * Measure. PTZ remote (fixed API). Reuses FleetUi + VideoWall playSlot.
  */
 (function (global) {
@@ -17,6 +17,8 @@
     var mapDragWasEnabled = true;
     var statusTimer = null;
     var dragState = null;
+    var geoPtzJoystick = null;
+    var mapPinBridgeBound = false;
 
     function el(id) {
         return document.getElementById(id);
@@ -151,8 +153,8 @@
 
         var skipped = (bwcAll.length + fixedAll.length) - openedPlan;
         var msg = 'Opened ' + openedPlan + ' of ' + (bwcAll.length + fixedAll.length) +
-            ' (BWC ' + bwc.length + ' · fixed ' + fixed.length + ')';
-        if (skipped > 0) msg += ' — cap ' + TOTAL_OPEN_CAP;
+            ' (BWC ' + bwc.length + ' · Fixed ' + fixed.length + ')';
+        if (skipped > 0) msg += ' - cap ' + TOTAL_OPEN_CAP;
         toast(msg, 6000);
 
         var ptzFixed = fixed.filter(function (sid) {
@@ -341,7 +343,7 @@
         if (tool === 'ptz') {
             if (ptzPad) ptzPad.hidden = false;
             loadPtzCameras();
-            setStatus('Pick a PTZ camera, then use the pad', 0);
+            setStatus('Choose a camera, then use the pad', 0);
             return;
         }
         if (ptzPad) ptzPad.hidden = true;
@@ -365,47 +367,93 @@
         if (!open) clearActiveToolKeepPalette();
     }
 
-    function sendPtz(action) {
+    /* VMS-PTZ-JOYSTICK-GEO-TOOLS-V1 - one funnel for select + map pins */
+    function ensureGeoPtzJoystick() {
+        if (geoPtzJoystick) return geoPtzJoystick;
+        var host = el('geo-tools-ptz-joystick-host');
+        if (!host || !global.VmsPtzJoystick || typeof global.VmsPtzJoystick.create !== 'function') return null;
+        geoPtzJoystick = global.VmsPtzJoystick.create(host, {
+            showNumpad: false,
+            isFloating: false,
+            classPrefix: 'cw-',
+        });
+        return geoPtzJoystick;
+    }
+
+    function friendlyFixedName(rawId) {
+        var m = fixedMapGet(rawId);
+        var cam = m && m._fixedCamera;
+        if (cam && cam.name) return String(cam.name);
         var sel = el('geo-tools-ptz-cam');
-        var cameraId = sel && sel.value;
-        if (!cameraId) {
-            toast('Select a PTZ camera first', 3500);
+        if (sel) {
+            for (var i = 0; i < sel.options.length; i += 1) {
+                if (sel.options[i].value === rawId) {
+                    return String(sel.options[i].textContent || 'Camera');
+                }
+            }
+        }
+        return 'Camera';
+    }
+
+    function resolvePtzSource(sourceId) {
+        var s = String(sourceId == null ? '' : sourceId).trim();
+        if (!s) return { kind: 'empty' };
+        if (/^bwc:/i.test(s)) return { kind: 'bwc' };
+        if (/^fixed:/i.test(s)) {
+            return { kind: 'fixed', raw: s.replace(/^fixed:/i, '').trim() };
+        }
+        try {
+            if (global.deviceMarkers && global.deviceMarkers[s]) return { kind: 'bwc' };
+        } catch (_) { /* ignore */ }
+        return { kind: 'fixed', raw: s };
+    }
+
+    function applyGeoPtzTarget(sourceId, announce) {
+        ensureGeoPtzJoystick();
+        var sel = el('geo-tools-ptz-cam');
+        var resolved = resolvePtzSource(sourceId);
+        if (resolved.kind !== 'fixed' || !resolved.raw) {
+            if (sel) sel.value = '';
+            if (geoPtzJoystick) {
+                geoPtzJoystick.setTarget(null, { hasPtz: false, label: 'Empty' });
+            }
             return;
         }
-        var body = { action: action };
-        if (action === 'stop') body = { action: 'stop' };
-        fetch('/api/fixed-cams/' + encodeURIComponent(cameraId) + '/ptz', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-        }).then(function (r) {
-            return r.json().then(function (data) {
-                if (!r.ok || (data && data.ok === false)) {
-                    throw new Error((data && data.error) || ('HTTP ' + r.status));
+        var raw = resolved.raw;
+        var m = fixedMapGet(raw);
+        var cam = m && m._fixedCamera;
+        var inList = false;
+        if (sel) {
+            for (var i = 0; i < sel.options.length; i += 1) {
+                if (sel.options[i].value === raw) {
+                    inList = true;
+                    break;
                 }
-            });
-        }).catch(function (err) {
-            toast((err && err.message) || 'PTZ failed', 4000);
-        });
+            }
+            if (inList) sel.value = raw;
+        }
+        var hasPtz = inList || !!(cam && cam.ptzEnabled && cam.streamSource === 'onvif');
+        var label = (cam && cam.name) ? String(cam.name) : friendlyFixedName(raw);
+        if (geoPtzJoystick) {
+            geoPtzJoystick.setTarget(raw, { hasPtz: !!hasPtz, label: label });
+        }
+        if (announce && hasPtz) toast('Ready - ' + label, 4500);
     }
 
     function setPtzCamera(cameraId, announce) {
+        var raw = String(cameraId || '').replace(/^fixed:/i, '').trim();
+        if (!raw) return;
         var sel = el('geo-tools-ptz-cam');
-        if (!sel || !cameraId) return;
-        var found = false;
-        for (var i = 0; i < sel.options.length; i += 1) {
-            if (sel.options[i].value === cameraId) {
-                found = true;
-                break;
+        if (sel) {
+            var found = false;
+            for (var i = 0; i < sel.options.length; i += 1) {
+                if (sel.options[i].value === raw) {
+                    found = true;
+                    break;
+                }
             }
+            if (!found) return;
         }
-        if (!found) return;
-        sel.value = cameraId;
-        var name = sel.options[sel.selectedIndex]
-            ? sel.options[sel.selectedIndex].textContent
-            : cameraId;
-        if (announce) toast('PTZ ready — ' + name, 4500);
         var ptzPad = el('geo-tools-ptz-pad');
         var palette = el('geo-tools-palette');
         if (palette && palette.getAttribute('data-expanded') !== '1') setExpanded(true);
@@ -416,6 +464,12 @@
                 btn.classList.toggle('is-active', btn.getAttribute('data-geo-tool') === 'ptz');
             });
         }
+        applyGeoPtzTarget(raw, announce);
+    }
+
+    function notifyMapPin(sourceId) {
+        if (activeTool !== 'ptz') return;
+        applyGeoPtzTarget(sourceId, true);
     }
 
     function loadPtzCameras() {
@@ -433,23 +487,46 @@
                 if (!ptzCams.length) {
                     var opt = document.createElement('option');
                     opt.value = '';
-                    opt.textContent = 'No PTZ cameras';
+                    opt.textContent = 'No cameras with pan-tilt';
                     sel.appendChild(opt);
+                    applyGeoPtzTarget(null, false);
                     return;
                 }
                 ptzCams.forEach(function (c) {
                     var o = document.createElement('option');
                     o.value = c.id;
-                    o.textContent = c.name || c.id;
+                    o.textContent = c.name || 'Camera';
                     sel.appendChild(o);
                 });
                 if (prev && ptzCams.some(function (c) { return c.id === prev; })) {
                     sel.value = prev;
+                } else {
+                    sel.value = ptzCams[0].id;
                 }
+                applyGeoPtzTarget(sel.value, false);
             })
             .catch(function () {
-                sel.innerHTML = '<option value="">PTZ list failed</option>';
+                sel.innerHTML = '<option value="">Camera list unavailable</option>';
+                applyGeoPtzTarget(null, false);
             });
+    }
+
+    function bindMapPinBridge() {
+        if (mapPinBridgeBound) return;
+        var map = getMap();
+        if (!map || typeof map.on !== 'function') return;
+        mapPinBridgeBound = true;
+        map.on('popupopen', function (e) {
+            if (activeTool !== 'ptz') return;
+            var src = e && e.popup && e.popup._source;
+            if (!src) return;
+            if (src._fixedCamera && src._fixedCamera.id) {
+                applyGeoPtzTarget('fixed:' + src._fixedCamera.id, true);
+                return;
+            }
+            /* BWC / other pin - pad Empty, never POST */
+            applyGeoPtzTarget('bwc:', false);
+        });
     }
 
     function bindPaletteDrag() {
@@ -505,25 +582,12 @@
                 setTool(btn.getAttribute('data-geo-tool'));
             });
         });
-        var ptzPad = el('geo-tools-ptz-pad');
-        if (ptzPad) {
-            ptzPad.querySelectorAll('[data-geo-ptz]').forEach(function (btn) {
-                var action = btn.getAttribute('data-geo-ptz');
-                btn.addEventListener('mousedown', function (e) {
-                    e.preventDefault();
-                    if (action === 'stop') return;
-                    sendPtz(action);
-                });
-                btn.addEventListener('mouseup', function () {
-                    if (action !== 'stop') sendPtz('stop');
-                });
-                btn.addEventListener('mouseleave', function () {
-                    if (action !== 'stop') sendPtz('stop');
-                });
-                btn.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    if (action === 'stop') sendPtz('stop');
-                });
+        ensureGeoPtzJoystick();
+        var sel = el('geo-tools-ptz-cam');
+        if (sel && sel.getAttribute('data-geo-ptz-bound') !== '1') {
+            sel.setAttribute('data-geo-ptz-bound', '1');
+            sel.addEventListener('change', function () {
+                applyGeoPtzTarget(sel.value || null, false);
             });
         }
         document.addEventListener('keydown', function (e) {
@@ -540,9 +604,10 @@
         var tries = 0;
         function bindWhenChipReady() {
             bindToggle('geo-tools-map-chip');
-            if (chipBound) return;
+            bindMapPinBridge();
+            if (chipBound && mapPinBridgeBound) return;
             tries += 1;
-            if (tries < 20) setTimeout(bindWhenChipReady, 100);
+            if (tries < 40) setTimeout(bindWhenChipReady, 100);
         }
         bindWhenChipReady();
     }
@@ -557,5 +622,6 @@
         init: init,
         setExpanded: setExpanded,
         setPtzCamera: setPtzCamera,
+        notifyMapPin: notifyMapPin,
     };
 })(window);

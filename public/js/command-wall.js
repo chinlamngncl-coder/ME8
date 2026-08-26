@@ -92,8 +92,9 @@
     let fleetById = Object.create(null);
     let fixedCameraById = Object.create(null);
     let selectedPtzSlot = -1;
+    let cwPtzJoystick = null;
     const fixedCameraOwner = 'command-wall:' + (function () {
-        /* SEC-NONSIP-ID-CRYPTO-RANDOM-V1 — browser crypto, not Math.random */
+        /* SEC-NONSIP-ID-CRYPTO-RANDOM-V1 - browser crypto, not Math.random */
         try {
             var bytes = new Uint8Array(8);
             (globalThis.crypto || window.crypto).getRandomValues(bytes);
@@ -173,6 +174,29 @@
         'btn-clear': 'cw-btn-clear',
         'btn-popout': 'cw-btn-popout',
         'wall-meta': 'cw-wall-meta',
+        'alarm-rail': 'cw-alarm-rail',
+        'alarm-rail-body': 'cw-alarm-rail-body',
+        'alarm-rail-toggle': 'cw-alarm-rail-toggle',
+        'alarm-rail-close': 'cw-alarm-rail-close',
+        'alarm-toast': 'cw-alarm-toast',
+        'alarm-toast-text': 'cw-alarm-toast-text',
+        'alarm-toast-open': 'cw-alarm-toast-open',
+        'alarm-toast-dismiss': 'cw-alarm-toast-dismiss',
+        'fr-hud': 'cw-fr-hud',
+        'fr-hud-tab': 'cw-fr-hud-tab',
+        'fr-hud-dismiss': 'cw-fr-hud-dismiss',
+        'fr-hud-nudge': 'cw-fr-hud-nudge',
+        'fr-hud-menu': 'cw-fr-hud-menu',
+        'anpr-hud': 'cw-anpr-hud',
+        'anpr-hud-tab': 'cw-anpr-hud-tab',
+        'anpr-hud-dismiss': 'cw-anpr-hud-dismiss',
+        'anpr-hud-nudge': 'cw-anpr-hud-nudge',
+        'anpr-hud-menu': 'cw-anpr-hud-menu',
+        'toolbar-analytics': 'cw-toolbar-analytics',
+        'fr-pip': 'cw-fr-pip',
+        'fr-pip-stage': 'cw-fr-pip-stage',
+        'fr-pip-title': 'cw-fr-pip-title',
+        'fr-pip-close': 'cw-fr-pip-close',
     } : {
         wall: 'wall',
         'wall-bar': 'wall-bar',
@@ -180,6 +204,29 @@
         'roster-search': 'roster-search',
         'btn-clear': 'btn-clear',
         'wall-meta': 'wall-meta',
+        'alarm-rail': 'alarm-rail',
+        'alarm-rail-body': 'alarm-rail-body',
+        'alarm-rail-toggle': 'alarm-rail-toggle',
+        'alarm-rail-close': 'alarm-rail-close',
+        'alarm-toast': 'alarm-toast',
+        'alarm-toast-text': 'alarm-toast-text',
+        'alarm-toast-open': 'alarm-toast-open',
+        'alarm-toast-dismiss': 'alarm-toast-dismiss',
+        'fr-hud': 'fr-hud',
+        'fr-hud-tab': 'fr-hud-tab',
+        'fr-hud-dismiss': 'fr-hud-dismiss',
+        'fr-hud-nudge': 'fr-hud-nudge',
+        'fr-hud-menu': 'fr-hud-menu',
+        'anpr-hud': 'anpr-hud',
+        'anpr-hud-tab': 'anpr-hud-tab',
+        'anpr-hud-dismiss': 'anpr-hud-dismiss',
+        'anpr-hud-nudge': 'anpr-hud-nudge',
+        'anpr-hud-menu': 'anpr-hud-menu',
+        'toolbar-analytics': 'toolbar-analytics',
+        'fr-pip': 'fr-pip',
+        'fr-pip-stage': 'fr-pip-stage',
+        'fr-pip-title': 'fr-pip-title',
+        'fr-pip-close': 'fr-pip-close',
     };
 
     function el(key) { return document.getElementById(EL_IDS[key] || key); }
@@ -768,6 +815,8 @@
         const pool = rosterPoolForPoll();
         const pollSlots = [];
         for (let i = 0; i < count; i += 1) {
+            if (isAlarmBandLocked(i)) continue;
+            if (i === BAND_OVERFLOW_SLOT && alarmOverflow.length) continue;
             if (!isSlotPinned(i)) pollSlots.push(i);
         }
         if (!pollSlots.length) return;
@@ -841,6 +890,7 @@
                 '<span class="' + c('cell-empty') + '" hidden>' + tr('video.stoppedShort') + '</span>' +
                 '<div class="' + c('cell-streaming-label') + '" hidden>Connecting\u2026</div>' +
                 '<div class="' + c('cell-offline-overlay') + '" hidden>OFFLINE</div>' +
+                '<div class="' + c('alarm-badge') + '" hidden></div>' +
                 '</div>';
             wall.appendChild(cell);
             bindCellDrop(cell, i);
@@ -925,61 +975,40 @@
 
     function ensurePtzPanel() {
         let panel = document.getElementById(c('ptz-panel'));
-        if (panel) return panel;
-        if (!document.getElementById('cw-ptz-runtime-style')) {
-            const style = document.createElement('style');
-            style.id = 'cw-ptz-runtime-style';
-            style.textContent =
-                '.' + c('ptz-panel') + '{flex-shrink:0;padding:10px;border-top:1px solid #334155;background:#0f172a}' +
-                '.' + c('ptz-title') + '{color:#93c5fd;font-size:10px;font-weight:800;letter-spacing:.08em}' +
-                '.' + c('ptz-camera') + '{min-height:30px;margin:5px 0 8px;color:#e2e8f0;font-size:11px;line-height:1.35}' +
-                '.' + c('ptz-pad') + '{display:grid;grid-template-columns:repeat(3,34px);grid-template-areas:". up ." "left home right" ". down .";justify-content:center;gap:4px}' +
-                '.' + c('ptz-pad') + ' [data-ptz=up]{grid-area:up}.' + c('ptz-pad') + ' [data-ptz=left]{grid-area:left}' +
-                '.' + c('ptz-pad') + ' [data-ptz=home]{grid-area:home}.' + c('ptz-pad') + ' [data-ptz=right]{grid-area:right}' +
-                '.' + c('ptz-pad') + ' [data-ptz=down]{grid-area:down}' +
-                '.' + c('ptz-pad') + ' button,.' + c('ptz-zoom') + ' button{border:1px solid #475569;border-radius:5px;background:#1e293b;color:#e2e8f0;cursor:pointer;touch-action:none}' +
-                '.' + c('ptz-pad') + ' button{width:34px;height:30px}.' + c('ptz-zoom') + '{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px}' +
-                '.' + c('ptz-zoom') + ' button{height:28px;font-size:10px}.' + c('ptz-panel') + ' button:disabled{opacity:.35;cursor:not-allowed}' +
-                '.' + c('ptz-status') + '{margin-top:7px;min-height:26px;color:#64748b;font-size:9px;line-height:1.35}' +
-                '.' + c('cell') + '.' + c('ptz-selected') + '{border-color:#38bdf8;box-shadow:inset 0 0 0 1px #38bdf8}';
-            document.head.appendChild(style);
-        }
-        const rosterBody = el('roster-body');
-        if (!rosterBody || !rosterBody.parentElement) return null;
-        panel = document.createElement('section');
-        panel.id = c('ptz-panel');
-        panel.className = c('ptz-panel');
-        panel.innerHTML =
-            '<div class="' + c('ptz-title') + '">ONVIF PTZ</div>' +
-            '<div class="' + c('ptz-camera') + '">Select a fixed camera panel</div>' +
-            '<div class="' + c('ptz-pad') + '">' +
-            '<button type="button" data-ptz="up" aria-label="Tilt up">▲</button>' +
-            '<button type="button" data-ptz="left" aria-label="Pan left">\u25C0</button>' +
-            '<button type="button" data-ptz="home" aria-label="Home">●</button>' +
-            '<button type="button" data-ptz="right" aria-label="Pan right">▶</button>' +
-            '<button type="button" data-ptz="down" aria-label="Tilt down">▼</button>' +
-            '</div>' +
-            '<div class="' + c('ptz-zoom') + '">' +
-            '<button type="button" data-ptz="zoom-out">\u2212 Zoom</button>' +
-            '<button type="button" data-ptz="zoom-in">+ Zoom</button>' +
-            '</div>' +
-            '<div class="' + c('ptz-status') + '">PTZ is available for registered ONVIF PTZ cameras.</div>';
-        rosterBody.parentElement.appendChild(panel);
-        panel.querySelectorAll('[data-ptz]').forEach(function (button) {
-            const action = button.getAttribute('data-ptz');
-            if (action === 'home') {
-                button.addEventListener('click', function () { sendPtzCommand('home'); });
-                return;
+        if (!panel) {
+            if (!document.getElementById('cw-ptz-runtime-style')) {
+                const style = document.createElement('style');
+                style.id = 'cw-ptz-runtime-style';
+                style.textContent =
+                    '.' + c('ptz-panel') + '{flex-shrink:0;padding:10px;border-top:1px solid #334155;background:#0f172a}' +
+                    '.' + c('ptz-title') + '{color:#93c5fd;font-size:10px;font-weight:800;letter-spacing:.08em}' +
+                    '.' + c('ptz-camera') + '{min-height:30px;margin:5px 0 8px;color:#e2e8f0;font-size:11px;line-height:1.35}' +
+                    '.' + c('ptz-pad') + '{display:grid;grid-template-columns:repeat(3,34px);grid-template-areas:". up ." "left home right" ". down .";justify-content:center;gap:4px}' +
+                    '.' + c('ptz-pad') + ' [data-ptz=up]{grid-area:up}.' + c('ptz-pad') + ' [data-ptz=left]{grid-area:left}' +
+                    '.' + c('ptz-pad') + ' [data-ptz=home]{grid-area:home}.' + c('ptz-pad') + ' [data-ptz=right]{grid-area:right}' +
+                    '.' + c('ptz-pad') + ' [data-ptz=down]{grid-area:down}' +
+                    '.' + c('ptz-pad') + ' button,.' + c('ptz-zoom') + ' button{border:1px solid #475569;border-radius:5px;background:#1e293b;color:#e2e8f0;cursor:pointer;touch-action:none}' +
+                    '.' + c('ptz-pad') + ' button{width:34px;height:30px}.' + c('ptz-zoom') + '{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px}' +
+                    '.' + c('ptz-zoom') + ' button{height:28px;font-size:10px}.' + c('ptz-panel') + ' button:disabled{opacity:.35;cursor:not-allowed}' +
+                    '.' + c('ptz-status') + '{margin-top:7px;min-height:26px;color:#64748b;font-size:9px;line-height:1.35}' +
+                    '.' + c('cell') + '.' + c('ptz-selected') + '{border-color:#38bdf8;box-shadow:inset 0 0 0 1px #38bdf8}';
+                document.head.appendChild(style);
             }
-            button.addEventListener('pointerdown', function (event) {
-                event.preventDefault();
-                try { button.setPointerCapture(event.pointerId); } catch (_) { /* ignore */ }
-                sendPtzCommand(action);
+            const rosterBody = el('roster-body');
+            if (!rosterBody || !rosterBody.parentElement) return null;
+            panel = document.createElement('section');
+            panel.id = c('ptz-panel');
+            panel.className = c('ptz-panel');
+            rosterBody.parentElement.appendChild(panel);
+        }
+        /* VMS-PTZ-JOYSTICK-COMMAND-WALL-V1 - shared pad; selection model unchanged */
+        if (!cwPtzJoystick && global.VmsPtzJoystick && typeof global.VmsPtzJoystick.create === 'function') {
+            cwPtzJoystick = global.VmsPtzJoystick.create(panel, {
+                showNumpad: false,
+                isFloating: false,
+                classPrefix: EMBEDDED ? 'cw-' : '',
             });
-            ['pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave'].forEach(function (eventName) {
-                button.addEventListener(eventName, function () { sendPtzCommand('stop'); });
-            });
-        });
+        }
         return panel;
     }
 
@@ -989,38 +1018,27 @@
     }
 
     function syncPtzPanel() {
-        const panel = ensurePtzPanel();
-        if (!panel) return;
-        const camera = selectedPtzCamera();
-        const enabled = !!(camera && camera.ptzEnabled && camera.streamSource === 'onvif');
-        const name = panel.querySelector('.' + c('ptz-camera'));
-        if (name) {
-            name.textContent = camera
-                ? ((camera.name || camera.id) + (enabled ? '' : ' \u2014 PTZ unavailable'))
-                : 'Select a fixed camera panel';
+        ensurePtzPanel();
+        if (!cwPtzJoystick) return;
+        const camId = selectedPtzSlot >= 0 ? slotCamId(selectedPtzSlot) : null;
+        if (!camId) {
+            cwPtzJoystick.setTarget(null, { hasPtz: false, label: 'Empty' });
+            return;
         }
-        panel.querySelectorAll('[data-ptz]').forEach(function (button) {
-            button.disabled = !enabled;
-        });
-    }
-
-    function sendPtzCommand(action) {
-        const camera = selectedPtzCamera();
-        const panel = ensurePtzPanel();
-        const status = panel && panel.querySelector('.' + c('ptz-status'));
-        if (!camera || !camera.ptzEnabled || camera.streamSource !== 'onvif') return;
-        fetch('/api/fixed-cams/' + encodeURIComponent(camera.id) + '/ptz', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: action }),
-        }).then(function (response) {
-            if (!response.ok) return response.json().then(function (data) {
-                throw new Error((data && data.error) || ('HTTP ' + response.status));
-            });
-            if (status) status.textContent = action === 'stop' ? 'PTZ stopped' : ('PTZ: ' + action);
-        }).catch(function (error) {
-            if (status && action !== 'stop') status.textContent = 'PTZ failed: ' + error.message;
+        const camera = isFixedCameraId(camId) ? fixedCameraById[fixedCameraId(camId)] : null;
+        const hasPtz = !!(camera && camera.ptzEnabled && camera.streamSource === 'onvif');
+        let label = 'Camera';
+        if (camera && camera.name) label = String(camera.name);
+        else if (global.FleetDisplay && typeof global.FleetDisplay.friendlyDeviceName === 'function') {
+            label = global.FleetDisplay.friendlyDeviceName(camId);
+        } else {
+            label = deviceName(camId);
+        }
+        const apiId = isFixedCameraId(camId) ? fixedCameraId(camId) : null;
+        /* Only fixed cams are PTZ API targets; BWC/other -> dead pad */
+        cwPtzJoystick.setTarget(apiId, {
+            hasPtz: !!(apiId && hasPtz),
+            label: label,
         });
     }
 
@@ -1222,7 +1240,7 @@
         const handle = global.Me8LivePlayerFactory.attachFlvPrimary(stage, flvUrl, {
             proveMs: 300,
             timeoutMs: 10000,
-            /* Dense mosaic → AxiomFlvManager prefers ZLM sub-stream when grid >16 */
+            /* Dense mosaic -> AxiomFlvManager prefers ZLM sub-stream when grid >16 */
             gridCount: (function () {
                 try {
                     var wallEl = document.getElementById('cw-wall') || document.querySelector('.cw-wall');
@@ -1518,22 +1536,949 @@
         syncCwPttCommAll();
     }
 
+    /* ── WALL-ALARM-GRID-HOPPER-V1 (Band A + Panel 4 hopper) ─────────────── */
+    const ALARM_ACTIVE_WINDOW_MS = 5 * 60 * 1000;
+    const BAND_A_SLOTS = [0, 1, 2];
+    const BAND_OVERFLOW_SLOT = 3;
+    const BAND_C_START = 4;
+    /** @type {Array<{rowKey:string,source:string,camId:string,alarmType:string,eventId:string,count:number,firstAt:number,lastAt:number,ended:boolean,acked:boolean,label:string}>} */
+    let alarmStripRows = [];
+    /** WALL-ALARM-NUDGE-SA-V1 - eventKey -> notified */
+    const wallNudgeNotified = new Set();
+    let alarmCoolTimer = null;
+    /** Band A slot -> { camId, source } */
+    const alarmBandOwners = new Map();
+    /** Displaced cams waiting restore: { fromSlot, camId, name, pinned, homeSlot, parkedSlot } */
+    let alarmSnapshots = [];
+    /** Panel 4 hopper - SOS first, then VMS */
+    let alarmOverflow = [];
+    let hopperBusy = false;
+
+    function alarmTypeLabel(type) {
+        const t = String(type || 'other').toLowerCase();
+        if (t === 'sos' || t === 'bwc_sos') return 'SOS';
+        if (t === 'motion') return 'MOTION';
+        if (t === 'tamper') return 'TAMPER';
+        if (t === 'line_crossing') return 'LINE';
+        if (t === 'analytics') return 'ANALYTICS';
+        if (t === 'anpr') return 'ANPR';
+        return String(type || 'ALARM').toUpperCase();
+    }
+
+    function isSosAlarmSource(source) {
+        return String(source || '').toLowerCase() === 'bwc_sos';
+    }
+
+    function bandOwnerCamId(slot) {
+        const o = alarmBandOwners.get(slot);
+        if (!o) return '';
+        return typeof o === 'string' ? normalizeCamId(o) : normalizeCamId(o.camId);
+    }
+
+    function bandOwnerSource(slot) {
+        const o = alarmBandOwners.get(slot);
+        if (!o) return '';
+        return typeof o === 'string' ? '' : String(o.source || '');
+    }
+
+    function setBandOwner(slot, camId, source) {
+        alarmBandOwners.set(slot, { camId: normalizeCamId(camId), source: String(source || '') });
+    }
+
+    function formatAlarmClock(ms) {
+        try {
+            return new Date(ms).toLocaleTimeString(undefined, {
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+            });
+        } catch (_) {
+            return '--:--:--';
+        }
+    }
+
+    function formatAlarmDuration(firstAt, lastAt) {
+        const sec = Math.max(0, Math.round((lastAt - firstAt) / 1000));
+        if (sec < 60) return sec + 's';
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        return m + 'm ' + s + 's';
+    }
+
+    function camDisplayName(camId) {
+        const id = normalizeCamId(camId);
+        for (let i = 0; i < slots.length; i++) {
+            if (slots[i] && normalizeCamId(slots[i].camId) === id) {
+                return slots[i].name || id;
+            }
+        }
+        return id;
+    }
+
+    function isBandASlot(slot) {
+        return BAND_A_SLOTS.indexOf(slot) >= 0;
+    }
+
+    function isAlarmBandLocked(slot) {
+        return alarmBandOwners.has(slot);
+    }
+
+    function ensureLayoutHasBandC() {
+        if (activeSlotCount() > BAND_C_START) return;
+        if (LAYOUT_SCHEMES['9']) setLayoutScheme('9');
+    }
+
+    function findFreeBandCSlot() {
+        ensureLayoutHasBandC();
+        const n = activeSlotCount();
+        for (let i = BAND_C_START; i < n; i += 1) {
+            if (!slots[i] && !alarmBandOwners.has(i)) return i;
+        }
+        for (let i = BAND_C_START; i < n; i += 1) {
+            if (!alarmBandOwners.has(i) && !(slots[i] && slots[i].pinned)) return i;
+        }
+        return -1;
+    }
+
+    function findFreeBandASlot() {
+        for (let i = 0; i < BAND_A_SLOTS.length; i += 1) {
+            const s = BAND_A_SLOTS[i];
+            if (!alarmBandOwners.has(s)) return s;
+        }
+        return -1;
+    }
+
+    /** First Band A slot owned by VMS (not SOS) - for SOS-beats-VMS. */
+    function findVmsBandAVictimSlot() {
+        for (let i = 0; i < BAND_A_SLOTS.length; i += 1) {
+            const s = BAND_A_SLOTS[i];
+            if (!alarmBandOwners.has(s)) continue;
+            if (!isSosAlarmSource(bandOwnerSource(s))) return s;
+        }
+        return -1;
+    }
+
+    function hopperRank(entry) {
+        return isSosAlarmSource(entry && entry.source) ? 0 : 1;
+    }
+
+    function sortHopper() {
+        alarmOverflow.sort(function (a, b) {
+            const d = hopperRank(a) - hopperRank(b);
+            if (d !== 0) return d;
+            return (a.lastAt || a.firstAt || 0) - (b.lastAt || b.firstAt || 0);
+        });
+    }
+
+    function pushHopper(meta) {
+        if (!meta || !meta.camId) return;
+        const id = normalizeCamId(meta.camId);
+        alarmOverflow = alarmOverflow.filter(function (o) { return normalizeCamId(o.camId) !== id; });
+        alarmOverflow.push({
+            camId: id,
+            label: meta.label || camDisplayName(id),
+            rowKey: meta.rowKey || '',
+            source: meta.source || '',
+            alarmType: meta.alarmType || 'alarm',
+            lastAt: meta.lastAt || Date.now(),
+            firstAt: meta.firstAt || Date.now(),
+        });
+        sortHopper();
+    }
+
+    /** Move assignment + FLV DOM nodes between slots - no destroy/reconnect. */
+    function moveSlotPreserveFlv(fromSlot, toSlot) {
+        if (fromSlot === toSlot || fromSlot < 0 || toSlot < 0) return false;
+        const fromCell = getCell(fromSlot);
+        const toCell = getCell(toSlot);
+        if (!fromCell || !toCell) return false;
+        const fromStage = cellQuery(fromCell, 'cell-stage');
+        const toStage = cellQuery(toCell, 'cell-stage');
+        if (!fromStage || !toStage) return false;
+
+        if (slots[toSlot]) return false;
+
+        const entry = slots[fromSlot];
+        slots[toSlot] = entry;
+        slots[fromSlot] = null;
+
+        if (players.has(fromSlot)) {
+            players.set(toSlot, players.get(fromSlot));
+            players.delete(fromSlot);
+        }
+        if (connectingSlots.has(fromSlot)) {
+            connectingSlots.delete(fromSlot);
+            connectingSlots.add(toSlot);
+        }
+        if (wvpHandoffSlotInflight.has(fromSlot)) {
+            wvpHandoffSlotInflight.set(toSlot, wvpHandoffSlotInflight.get(fromSlot));
+            wvpHandoffSlotInflight.delete(fromSlot);
+        }
+        if (slotMuted.has(fromSlot)) {
+            slotMuted.set(toSlot, slotMuted.get(fromSlot));
+            slotMuted.delete(fromSlot);
+        }
+        if (audioFocusSlot === fromSlot) audioFocusSlot = toSlot;
+        if (selectedPtzSlot === fromSlot) selectedPtzSlot = toSlot;
+
+        fromStage.querySelectorAll('canvas, video.me8-zlm-primary').forEach(function (node) {
+            toStage.appendChild(node);
+        });
+
+        if (fromCell.classList.contains(c('cell-has-live'))) {
+            toCell.classList.add(c('cell-has-live'));
+            fromCell.classList.remove(c('cell-has-live'));
+        }
+        ['alarm', 'alarm-sos', 'alarm-vms'].forEach(function (cls) {
+            if (fromCell.classList.contains(cls)) {
+                toCell.classList.add(cls);
+                fromCell.classList.remove(cls);
+            }
+        });
+
+        setCellName(toSlot, entry ? entry.name : ('Panel ' + (toSlot + 1)));
+        setCellName(fromSlot, 'Panel ' + (fromSlot + 1));
+        const fromSt = cellQuery(fromCell, 'cell-status');
+        const toSt = cellQuery(toCell, 'cell-status');
+        if (fromSt && toSt) {
+            toSt.textContent = fromSt.textContent;
+            toSt.className = fromSt.className;
+            fromSt.textContent = '\u2014';
+            fromSt.className = c('cell-status');
+        }
+        showStageHint(fromSlot, true);
+        showStageHint(toSlot, false);
+        showConnecting(fromSlot, false);
+        updateCellControls(fromSlot);
+        updateCellControls(toSlot);
+        syncCwAlarmUiForSlot(fromSlot);
+        syncCwAlarmUiForSlot(toSlot);
+        return true;
+    }
+
+    /** Force displace slot occupant to Band C (works even when Band A alarm-owned). */
+    function snapshotAndDisplaceToBandC(bandSlot, forceAlarm) {
+        const entry = slots[bandSlot];
+        if (!entry || !entry.camId) return true;
+        if (!forceAlarm && bandOwnerCamId(bandSlot) === normalizeCamId(entry.camId)) return true;
+        const parked = findFreeBandCSlot();
+        if (parked < 0) {
+            parkCamOnDeck({
+                camId: entry.camId,
+                name: entry.name,
+                pinned: entry.pinned,
+                homeSlot: entry.homeSlot != null ? entry.homeSlot : bandSlot,
+                fromSlot: bandSlot,
+            });
+            alarmSnapshots.push({
+                fromSlot: bandSlot,
+                camId: normalizeCamId(entry.camId),
+                name: entry.name,
+                pinned: !!entry.pinned,
+                homeSlot: entry.homeSlot != null ? entry.homeSlot : bandSlot,
+                parkedSlot: -1,
+            });
+            clearSlotAssignment(bandSlot, false);
+            return true;
+        }
+        alarmSnapshots.push({
+            fromSlot: bandSlot,
+            camId: normalizeCamId(entry.camId),
+            name: entry.name,
+            pinned: !!entry.pinned,
+            homeSlot: entry.homeSlot != null ? entry.homeSlot : bandSlot,
+            parkedSlot: parked,
+        });
+        return moveSlotPreserveFlv(bandSlot, parked);
+    }
+
+    function renderOverflowPanel() {
+        const cell = getCell(BAND_OVERFLOW_SLOT);
+        if (!cell) return;
+        let box = cellQuery(cell, 'alarm-overflow');
+        if (!box) {
+            const stage = cellQuery(cell, 'cell-stage');
+            if (!stage) return;
+            box = document.createElement('div');
+            box.className = c('alarm-overflow');
+            stage.appendChild(box);
+        }
+        sortHopper();
+        if (!alarmOverflow.length) {
+            box.hidden = true;
+            box.innerHTML = '';
+            cell.classList.remove('alarm-overflow-active');
+            return;
+        }
+        cell.classList.add('alarm-overflow-active');
+        box.hidden = false;
+        box.innerHTML = '<div class="' + c('alarm-overflow-title') + '">'
+            + escHtml(tr('commandWall.alarmsOverflowTitle')) + ' (' + alarmOverflow.length + ')</div>'
+            + alarmOverflow.map(function (o) {
+                return '<div class="' + c('alarm-overflow-row') + '">'
+                    + '<span class="' + c('alarm-overflow-badge') + '">['
+                    + escHtml(alarmTypeLabel(o.alarmType || (isSosAlarmSource(o.source) ? 'sos' : 'motion'))) + ']</span> '
+                    + escHtml(o.label || o.camId)
+                    + '</div>';
+            }).join('');
+    }
+
+    function refreshPopoutAlarmFlash() {
+        if (EMBEDDED) return;
+        const wall = el('wall');
+        if (!wall) return;
+        let flash = document.getElementById('alarm-popout-flash');
+        if (!flash) {
+            flash = document.createElement('div');
+            flash.id = 'alarm-popout-flash';
+            flash.className = 'alarm-popout-flash';
+            flash.hidden = true;
+            wall.style.position = wall.style.position || 'relative';
+            wall.appendChild(flash);
+        }
+        const live = liveAlarmRows();
+        if (!live.length) {
+            flash.hidden = true;
+            flash.textContent = '';
+            flash.classList.remove('is-sos');
+            return;
+        }
+        const top = live[0];
+        const isSos = top.source === 'bwc_sos';
+        flash.classList.toggle('is-sos', isSos);
+        flash.textContent = isSos
+            ? ('SOS · ' + (top.label || top.camId))
+            : (alarmTypeLabel(top.alarmType) + ' · ' + (top.label || top.camId));
+        flash.hidden = false;
+    }
+
+    function syncBandALockUi() {
+        BAND_A_SLOTS.forEach(function (slot) {
+            const cell = getCell(slot);
+            if (!cell) return;
+            cell.classList.toggle('alarm-band-locked', isAlarmBandLocked(slot));
+        });
+        renderOverflowPanel();
+        refreshPopoutAlarmFlash();
+    }
+
+    /**
+     * Demote a VMS Band A occupant to hopper + Band C (SOS-beats-VMS).
+     * Returns freed slot index or -1.
+     */
+    function demoteVmsBandAToHopper(slot) {
+        if (slot < 0 || !alarmBandOwners.has(slot)) return -1;
+        if (isSosAlarmSource(bandOwnerSource(slot))) return -1;
+        const vmsCam = bandOwnerCamId(slot);
+        const src = bandOwnerSource(slot);
+        pushHopper({
+            camId: vmsCam,
+            label: camDisplayName(vmsCam),
+            source: src || 'vms_motion',
+            alarmType: 'motion',
+        });
+        alarmBandOwners.delete(slot);
+        snapshotAndDisplaceToBandC(slot, true);
+        return slot;
+    }
+
+    /**
+     * Embedded Wall: place alarm into Band A. SOS may displace VMS.
+     * Full -> Panel 4 hopper (sorted). Popout = flash only.
+     */
+    function promoteAlarmCamToBandA(camId, meta) {
+        const id = normalizeCamId(camId);
+        if (!id) return false;
+        meta = meta || {};
+        refreshPopoutAlarmFlash();
+        if (!EMBEDDED) return false;
+
+        for (let i = 0; i < BAND_A_SLOTS.length; i += 1) {
+            if (bandOwnerCamId(BAND_A_SLOTS[i]) === id) {
+                syncBandALockUi();
+                return true;
+            }
+        }
+
+        alarmOverflow = alarmOverflow.filter(function (o) { return normalizeCamId(o.camId) !== id; });
+
+        let target = findFreeBandASlot();
+        if (target < 0 && isSosAlarmSource(meta.source)) {
+            const victim = findVmsBandAVictimSlot();
+            if (victim >= 0) target = demoteVmsBandAToHopper(victim);
+        }
+        if (target < 0) {
+            pushHopper(meta);
+            syncBandALockUi();
+            return false;
+        }
+
+        if (slots[target] && normalizeCamId(slots[target].camId) !== id) {
+            if (!snapshotAndDisplaceToBandC(target, !!alarmBandOwners.has(target))) {
+                pushHopper(meta);
+                syncBandALockUi();
+                return false;
+            }
+        }
+
+        const existing = findSlotByCamId(id);
+        if (existing >= 0 && existing !== target) {
+            if (slots[target]) snapshotAndDisplaceToBandC(target, true);
+            if (!slots[target]) {
+                moveSlotPreserveFlv(existing, target);
+            }
+        } else if (existing < 0) {
+            assignCamToSlot(target, id, meta.label || deviceName(id), true, {
+                pinned: true,
+                alarmPromote: true,
+            });
+        }
+
+        setBandOwner(target, id, meta.source || '');
+        syncBandALockUi();
+        syncAllCwAlarmUi();
+        return true;
+    }
+
+    function restoreSnapshotForSlot(fromSlot) {
+        const idx = alarmSnapshots.findIndex(function (s) { return s.fromSlot === fromSlot; });
+        if (idx < 0) return;
+        const snap = alarmSnapshots[idx];
+        alarmSnapshots.splice(idx, 1);
+        if (!snap.camId) return;
+        if (slots[fromSlot] && normalizeCamId(slots[fromSlot].camId) === snap.camId) return;
+
+        if (slots[fromSlot]) {
+            clearSlotAssignment(fromSlot, true);
+        }
+
+        const parked = snap.parkedSlot;
+        if (parked >= 0 && slots[parked] && normalizeCamId(slots[parked].camId) === snap.camId) {
+            moveSlotPreserveFlv(parked, fromSlot);
+            return;
+        }
+        const elsewhere = findSlotByCamId(snap.camId);
+        if (elsewhere >= 0) {
+            moveSlotPreserveFlv(elsewhere, fromSlot);
+            return;
+        }
+        assignCamToSlot(fromSlot, snap.camId, snap.name, true, {
+            pinned: snap.pinned,
+            homeSlot: snap.homeSlot,
+            alarmPromote: true,
+        });
+    }
+
+    /**
+     * Serializer: fill empty Band A from hopper (SOS first).
+     * Re-entrancy guarded - no parallel promotes.
+     */
+    function promoteFromHopper() {
+        if (hopperBusy || !EMBEDDED) return;
+        hopperBusy = true;
+        try {
+            sortHopper();
+            let guard = 0;
+            while (alarmOverflow.length && guard < 8) {
+                guard += 1;
+                let target = findFreeBandASlot();
+                if (target < 0) {
+                    const top = alarmOverflow[0];
+                    if (top && isSosAlarmSource(top.source)) {
+                        const victim = findVmsBandAVictimSlot();
+                        if (victim >= 0) target = demoteVmsBandAToHopper(victim);
+                    }
+                }
+                if (target < 0) break;
+                /* Slot empty of alarm owner - if restore filled a watch cam, displace for hopper feed */
+                if (slots[target] && !alarmBandOwners.has(target)) {
+                    snapshotAndDisplaceToBandC(target, true);
+                }
+                if (alarmBandOwners.has(target)) break;
+                const next = alarmOverflow.shift();
+                if (!next) break;
+                const ok = promoteAlarmCamToBandA(next.camId, next);
+                if (!ok && !alarmOverflow.some(function (o) { return normalizeCamId(o.camId) === normalizeCamId(next.camId); })) {
+                    pushHopper(next);
+                    break;
+                }
+            }
+        } finally {
+            hopperBusy = false;
+            syncBandALockUi();
+        }
+    }
+
+    /**
+     * Release -> Restore snapshot -> THEN hopper into empty Band A.
+     */
+    function releaseAlarmCamFromBand(camId) {
+        const id = normalizeCamId(camId);
+        if (!id) return;
+        alarmOverflow = alarmOverflow.filter(function (o) { return normalizeCamId(o.camId) !== id; });
+
+        let freedSlot = -1;
+        alarmBandOwners.forEach(function (owner, slot) {
+            const ownerId = typeof owner === 'string' ? normalizeCamId(owner) : normalizeCamId(owner.camId);
+            if (ownerId === id) freedSlot = slot;
+        });
+        if (freedSlot >= 0) {
+            alarmBandOwners.delete(freedSlot);
+            if (slots[freedSlot] && normalizeCamId(slots[freedSlot].camId) === id) {
+                clearSlotAssignment(freedSlot, true);
+            }
+            /* Release -> Restore -> hopper (serializer) */
+            if (!alarmOverflow.length) {
+                restoreSnapshotForSlot(freedSlot);
+            } else {
+                /* Hopper waiting: keep slot empty for feed; snapshot kept until hopper drains */
+                restoreSnapshotForSlot(freedSlot);
+            }
+        }
+        promoteFromHopper();
+        syncBandALockUi();
+        syncAllCwAlarmUi();
+    }
+
+    function findAlarmRow(source, camId, alarmType) {
+        const id = normalizeCamId(camId);
+        const src = String(source || '');
+        const typ = String(alarmType || '');
+        for (let i = 0; i < alarmStripRows.length; i++) {
+            const r = alarmStripRows[i];
+            if (r.acked || r.ended) continue;
+            if (normalizeCamId(r.camId) !== id) continue;
+            if (src === 'bwc_sos') {
+                if (r.source === 'bwc_sos') return r;
+                continue;
+            }
+            if (r.source === src && r.alarmType === typ) return r;
+        }
+        return null;
+    }
+
+    function liveAlarmRows() {
+        return alarmStripRows.filter(function (r) { return !r.acked; });
+    }
+
+    function updateAlarmToggleLabel() {
+        const tog = el('alarm-rail-toggle');
+        if (!tog) return;
+        const n = liveAlarmRows().length;
+        const base = tr('commandWall.alarmsToggle');
+        tog.textContent = n ? (base + ' (' + n + ')') : base;
+    }
+
+    function refreshAlarmToast() {
+        const toast = el('alarm-toast');
+        const textEl = el('alarm-toast-text');
+        if (!toast || !textEl) {
+            refreshPopoutAlarmFlash();
+            updateAlarmToggleLabel();
+            return;
+        }
+        const live = liveAlarmRows();
+        if (!live.length) {
+            toast.hidden = true;
+            toast.classList.remove('is-sos');
+            textEl.textContent = '';
+            updateAlarmToggleLabel();
+            refreshPopoutAlarmFlash();
+            return;
+        }
+        const top = live[0];
+        const isSos = top.source === 'bwc_sos';
+        const cam = top.label || camDisplayName(top.camId);
+        const key = isSos ? 'commandWall.alarmsToastSos' : 'commandWall.alarmsToastVms';
+        let msg = tr(key);
+        if (!msg || msg === key) {
+            msg = isSos
+                ? ('SOS on ' + cam + '. Close it from Operations.')
+                : ('Alarm on ' + cam + '. Open Alarms for details.');
+        } else {
+            msg = String(msg).replace(/\{cam\}/g, cam);
+        }
+        if (live.length > 1) msg += ' · ' + live.length + ' active';
+        textEl.textContent = msg;
+        toast.classList.toggle('is-sos', isSos);
+        toast.hidden = false;
+        updateAlarmToggleLabel();
+        refreshPopoutAlarmFlash();
+    }
+
+    function openAlarmRail() {
+        const rail = el('alarm-rail');
+        if (!rail) return;
+        rail.hidden = false;
+        const tog = el('alarm-rail-toggle');
+        if (tog) tog.setAttribute('aria-expanded', 'true');
+        document.body.classList.add('cw-alarm-rail-open');
+    }
+
+    function closeAlarmRail() {
+        const rail = el('alarm-rail');
+        if (!rail) return;
+        rail.hidden = true;
+        const tog = el('alarm-rail-toggle');
+        if (tog) tog.setAttribute('aria-expanded', 'false');
+        document.body.classList.remove('cw-alarm-rail-open');
+    }
+
+    function toggleAlarmRail() {
+        const rail = el('alarm-rail');
+        if (!rail) return;
+        if (rail.hidden) openAlarmRail();
+        else closeAlarmRail();
+    }
+
+    function wallNudgeEventKeyForRow(r) {
+        if (!r) return '';
+        return String(r.source || '') + '|' + String(r.camId || '') + '|' + String(r.rowKey || r.camId || '');
+    }
+
+    function wallNudgeEventKeyForFr(hit) {
+        const h = hit || (frHudHits.length === 1 ? frHudHits[0] : null);
+        if (!h) return '';
+        const id = String(h.hitId || h.blacklistId || h.camId || '');
+        return 'fr_blacklist|' + String(h.camId || '') + '|' + id;
+    }
+
+    function isWallNudgeNotified(eventKey) {
+        return !!(eventKey && wallNudgeNotified.has(eventKey));
+    }
+
+    function postWallNudgeSa(payload) {
+        return fetch('/api/wall-alarms/nudge-sa', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(payload || {}),
+        }).then(function (r) { return r.json().catch(function () { return null; }); });
+    }
+
+    function postWallNudgeClear(payload) {
+        return fetch('/api/wall-alarms/nudge-clear', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(payload || {}),
+        }).catch(function () { /* ignore */ });
+    }
+
+    function applyWallNudgeState(data) {
+        if (!data || !data.eventKey) return;
+        const key = String(data.eventKey);
+        if (data.cleared || data.notified === false) {
+            wallNudgeNotified.delete(key);
+        } else if (data.notified) {
+            wallNudgeNotified.add(key);
+        }
+        renderAlarmStrip();
+        renderFrCornerHud();
+        renderAnprCornerHud();
+    }
+
+    function loadWallNudgeLocks() {
+        fetch('/api/wall-alarms/nudge-locks', {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' },
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (!data || !data.ok || !Array.isArray(data.locks)) return;
+            data.locks.forEach(function (lock) {
+                if (lock && lock.eventKey) wallNudgeNotified.add(String(lock.eventKey));
+            });
+            renderAlarmStrip();
+            renderFrCornerHud();
+            renderAnprCornerHud();
+        }).catch(function () { /* ignore */ });
+    }
+
+    function nudgeSaFromAlarmRow(rowKey) {
+        const row = alarmStripRows.find(function (r) { return r.rowKey === rowKey && !r.acked; });
+        if (!row) return;
+        const eventKey = wallNudgeEventKeyForRow(row);
+        if (isWallNudgeNotified(eventKey)) return;
+        postWallNudgeSa({
+            source: row.source,
+            camId: row.camId,
+            eventKey: eventKey,
+            rowKey: row.rowKey,
+            alarmType: row.alarmType,
+            label: row.label || camDisplayName(row.camId),
+        }).then(function (data) {
+            if (data && data.ok && data.eventKey) {
+                wallNudgeNotified.add(String(data.eventKey));
+                renderAlarmStrip();
+            }
+        });
+    }
+
+    function nudgeSaFromFrHud(hit) {
+        const h = hit || (frHudHits.length === 1 ? frHudHits[0] : null);
+        if (!h || !h.camId) return;
+        const eventKey = wallNudgeEventKeyForFr(h);
+        if (isWallNudgeNotified(eventKey)) return;
+        postWallNudgeSa({
+            source: 'fr_blacklist',
+            camId: h.camId,
+            eventKey: eventKey,
+            hitId: h.hitId || '',
+            alarmType: 'blacklist',
+            label: h.label || camDisplayName(h.camId),
+        }).then(function (data) {
+            if (data && data.ok && data.eventKey) {
+                wallNudgeNotified.add(String(data.eventKey));
+                renderFrCornerHud();
+            }
+        });
+    }
+
+    function focusNudgeCam(camId) {
+        const id = normalizeCamId(camId);
+        if (!id) return false;
+        const slot = findSlotByCamId(id);
+        if (slot >= 0) {
+            destroyFrPip();
+            pulseFrHudGridCell(slot);
+            return true;
+        }
+        openFrPipForCam(id);
+        return true;
+    }
+
+    function renderAlarmStrip() {
+        const body = el('alarm-rail-body');
+        if (!body) return;
+        const live = liveAlarmRows();
+        if (!live.length) {
+            body.innerHTML = '<div class="' + c('alarm-rail-empty') + '">' +
+                escHtml(tr('commandWall.alarmsEmpty')) + '</div>';
+            syncAllCwAlarmUi();
+            refreshAlarmToast();
+            return;
+        }
+        body.innerHTML = live.map(function (r) {
+            const isSos = r.source === 'bwc_sos';
+            const badge = isSos
+                ? '[SOS]'
+                : ('[' + alarmTypeLabel(r.alarmType) + ' x' + r.count + ']');
+            const span = formatAlarmClock(r.firstAt) + ' \u2014 ' + formatAlarmClock(r.lastAt)
+                + ' (' + formatAlarmDuration(r.firstAt, r.lastAt) + ')';
+            const endedCls = r.ended ? ' is-ended' : '';
+            const sosCls = isSos ? ' is-sos' : ' is-vms';
+            const ek = wallNudgeEventKeyForRow(r);
+            const notified = isWallNudgeNotified(ek);
+            const nudgeBtn = notified
+                ? ('<span class="' + c('alarm-nudge-lock') + '">' + escHtml(tr('commandWall.alarmsSaNotified')) + '</span>')
+                : ('<button type="button" class="btn btn-ghost btn-sm ' + c('alarm-nudge-btn') + '" data-nudge-key="'
+                    + escHtml(r.rowKey) + '">' + escHtml(tr('commandWall.alarmsNudgeSa')) + '</button>');
+            return '<div class="' + c('alarm-row') + endedCls + sosCls + '" data-row-key="' + escHtml(r.rowKey) + '">'
+                + '<div class="' + c('alarm-row-main') + '">'
+                + '<span class="' + c('alarm-row-badge') + '">' + escHtml(badge) + '</span> '
+                + '<span class="' + c('alarm-row-name') + '">' + escHtml(r.label || camDisplayName(r.camId)) + '</span>'
+                + '</div>'
+                + '<div class="' + c('alarm-row-time') + '">' + escHtml(span) + '</div>'
+                + (r.ended ? '<div class="' + c('alarm-row-ended') + '">' + escHtml(tr('commandWall.alarmsEnded')) + '</div>' : '')
+                + '<div class="' + c('alarm-row-actions') + '">'
+                + nudgeBtn
+                + '<button type="button" class="btn btn-ghost btn-sm ' + c('alarm-dismiss-btn') + '" data-dismiss-key="'
+                + escHtml(r.rowKey) + '">' + escHtml(tr('commandWall.alarmsDismiss')) + '</button>'
+                + '</div>'
+                + '</div>';
+        }).join('');
+        body.querySelectorAll('.' + c('alarm-dismiss-btn')).forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                dismissAlarmRowLocal(btn.getAttribute('data-dismiss-key'));
+            });
+        });
+        body.querySelectorAll('.' + c('alarm-nudge-btn')).forEach(function (btn) {
+            btn.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                nudgeSaFromAlarmRow(btn.getAttribute('data-nudge-key'));
+            });
+        });
+        syncAllCwAlarmUi();
+        refreshAlarmToast();
+    }
+
+    function escHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function ensureAlarmCoolTimer() {
+        if (alarmCoolTimer) return;
+        alarmCoolTimer = setInterval(function () {
+            const now = Date.now();
+            let changed = false;
+            alarmStripRows.forEach(function (r) {
+                if (r.acked || r.ended) return;
+                /* SOS never auto-demotes */
+                if (isSosAlarmSource(r.source)) return;
+                if (now - r.lastAt >= ALARM_ACTIVE_WINDOW_MS) {
+                    r.ended = true;
+                    r.acked = true;
+                    releaseAlarmCamFromBand(r.camId);
+                    /* WALL-ALARM-NUDGE-SA-V1 - VMS cool clears nudge */
+                    postWallNudgeClear({
+                        source: r.source,
+                        camId: r.camId,
+                        eventKey: wallNudgeEventKeyForRow(r),
+                    });
+                    changed = true;
+                }
+            });
+            if (changed) renderAlarmStrip();
+        }, 5000);
+    }
+
+    function ingestVmsWallAlarm(data) {
+        if (!data || !data.camId) return;
+        const camId = normalizeCamId(data.camId);
+        const alarmType = String(data.alarmType || 'motion').toLowerCase();
+        const source = String(data.source || ('vms_' + alarmType)).toLowerCase();
+        const at = Date.parse(data.occurredAt) || Date.now();
+        let row = findAlarmRow(source, camId, alarmType);
+        if (row && !row.ended && (at - row.lastAt) < ALARM_ACTIVE_WINDOW_MS) {
+            row.count += 1;
+            row.lastAt = Math.max(row.lastAt, at);
+            row.eventId = data.eventId || row.eventId;
+        } else {
+            row = {
+                rowKey: source + '|' + camId + '|' + at + '|' + Math.random().toString(36).slice(2, 7),
+                source: source,
+                camId: camId,
+                alarmType: alarmType,
+                eventId: data.eventId || '',
+                count: 1,
+                firstAt: at,
+                lastAt: at,
+                ended: false,
+                acked: false,
+                label: camDisplayName(camId),
+            };
+            alarmStripRows.unshift(row);
+        }
+        ensureAlarmCoolTimer();
+        promoteAlarmCamToBandA(camId, row);
+        renderAlarmStrip();
+    }
+
+    function ingestSosStripAlarm(camId) {
+        const id = normalizeCamId(camId);
+        if (!id) return;
+        let row = findAlarmRow('bwc_sos', id, 'sos');
+        const at = Date.now();
+        if (row) {
+            row.lastAt = at;
+            row.ended = false;
+            row.label = camDisplayName(id);
+        } else {
+            row = {
+                rowKey: 'bwc_sos|' + id + '|' + at,
+                source: 'bwc_sos',
+                camId: id,
+                alarmType: 'sos',
+                eventId: '',
+                count: 1,
+                firstAt: at,
+                lastAt: at,
+                ended: false,
+                acked: false,
+                label: camDisplayName(id),
+            };
+            alarmStripRows.unshift(row);
+        }
+        promoteAlarmCamToBandA(id, row);
+        renderAlarmStrip();
+    }
+
+    function removeStripRowsForCamSource(camId, source) {
+        const id = normalizeCamId(camId);
+        alarmStripRows.forEach(function (r) {
+            if (normalizeCamId(r.camId) === id && r.source === source) r.acked = true;
+        });
+        releaseAlarmCamFromBand(id);
+        renderAlarmStrip();
+    }
+
+    /** Local Wall dismiss only - does not ACK site SOS / Ops. Restores Band A snapshot. */
+    function dismissAlarmRowLocal(rowKey) {
+        const row = alarmStripRows.find(function (r) { return r.rowKey === rowKey && !r.acked; });
+        if (!row) return;
+        row.acked = true;
+        if (row.source === 'bwc_sos') {
+            sosAlarmCams.delete(normalizeCamId(row.camId));
+            /* SOS nudge stays until site ACK - do not clear */
+        } else {
+            postWallNudgeClear({
+                source: row.source,
+                camId: row.camId,
+                eventKey: wallNudgeEventKeyForRow(row),
+            });
+        }
+        releaseAlarmCamFromBand(row.camId);
+        syncAllCwAlarmUi();
+        renderAlarmStrip();
+    }
+
+    function dismissTopAlarmLocal() {
+        const live = liveAlarmRows();
+        if (!live.length) return;
+        dismissAlarmRowLocal(live[0].rowKey);
+    }
+
+    function activeAlarmForCam(camId) {
+        const id = normalizeCamId(camId);
+        if (!id) return null;
+        for (let i = 0; i < alarmStripRows.length; i++) {
+            const r = alarmStripRows[i];
+            if (r.acked) continue;
+            if (normalizeCamId(r.camId) !== id) continue;
+            if (r.ended && r.source !== 'bwc_sos') continue;
+            return r;
+        }
+        return null;
+    }
+
     function syncCwAlarmUiForSlot(slot) {
         const cell = getCell(slot);
         if (!cell) return;
         const camId = slotCamId(slot);
-        const alarm = !!(camId && sosAlarmCams.has(normalizeCamId(camId)));
+        const sos = !!(camId && sosAlarmCams.has(normalizeCamId(camId)));
+        const row = camId ? activeAlarmForCam(camId) : null;
+        const alarm = sos || !!(row && !row.ended);
         cell.classList.toggle('alarm', alarm);
+        cell.classList.toggle('alarm-sos', sos || (row && row.source === 'bwc_sos'));
+        cell.classList.toggle('alarm-vms', !!(row && row.source !== 'bwc_sos' && !row.ended));
+        const badge = cellQuery(cell, 'alarm-badge');
+        if (badge) {
+            if (sos || (row && row.source === 'bwc_sos')) {
+                badge.hidden = false;
+                badge.textContent = '[SOS]';
+            } else if (row && !row.ended) {
+                badge.hidden = false;
+                badge.textContent = '[' + alarmTypeLabel(row.alarmType) + ' x' + row.count + '] '
+                    + formatAlarmClock(row.lastAt);
+            } else {
+                badge.hidden = true;
+                badge.textContent = '';
+            }
+        }
+        if (isBandASlot(slot)) {
+            cell.classList.toggle('alarm-band-locked', isAlarmBandLocked(slot));
+        }
     }
 
     function syncAllCwAlarmUi() {
         for (let i = 0; i < MAX_SLOTS; i += 1) syncCwAlarmUiForSlot(i);
+        syncBandALockUi();
     }
 
     function applyCwSosAlarm(camId) {
         const id = normalizeCamId(camId);
         if (!id) return;
         sosAlarmCams.add(id);
+        ingestSosStripAlarm(id);
         syncAllCwAlarmUi();
     }
 
@@ -1541,6 +2486,7 @@
         const id = normalizeCamId(camId);
         if (!id) return;
         sosAlarmCams.delete(id);
+        removeStripRowsForCamSource(id, 'bwc_sos');
         syncAllCwAlarmUi();
     }
 
@@ -1552,6 +2498,892 @@
     function onCwSosAcknowledged(data) {
         if (!data || !data.cameraId) return;
         clearCwSosAlarm(data.cameraId);
+    }
+
+    function onWallAlarm(data) {
+        ingestVmsWallAlarm(data);
+    }
+
+    function onWallAlarmAck(data) {
+        if (!data || !data.camId) return;
+        const src = String(data.source || '').toLowerCase();
+        removeStripRowsForCamSource(data.camId, src);
+        if (src === 'bwc_sos') clearCwSosAlarm(data.camId);
+        else syncAllCwAlarmUi();
+    }
+
+    function bindAlarmRailUi() {
+        const tog = el('alarm-rail-toggle');
+        if (tog && !tog._cwAlarmBound) {
+            tog._cwAlarmBound = true;
+            tog.addEventListener('click', toggleAlarmRail);
+        }
+        const closeBtn = el('alarm-rail-close');
+        if (closeBtn && !closeBtn._cwAlarmBound) {
+            closeBtn._cwAlarmBound = true;
+            closeBtn.addEventListener('click', closeAlarmRail);
+        }
+        const toastOpen = el('alarm-toast-open');
+        if (toastOpen && !toastOpen._cwAlarmBound) {
+            toastOpen._cwAlarmBound = true;
+            toastOpen.addEventListener('click', openAlarmRail);
+        }
+        const toastDismiss = el('alarm-toast-dismiss');
+        if (toastDismiss && !toastDismiss._cwAlarmBound) {
+            toastDismiss._cwAlarmBound = true;
+            toastDismiss.addEventListener('click', dismissTopAlarmLocal);
+        }
+        bindFrCornerHudUi();
+    }
+
+    /* ── WALL-ALARM-FR-HUD-DOCK-TOOLBAR-V1 ───────────────────────────────── */
+    const FR_HUD_COOL_MS = 2 * 60 * 1000;
+    const FR_HUD_SCORE_MIN = 75;
+    const FR_HUD_MAX_HITS = 8;
+    /** @type {Array<{key:string,camId:string,label:string,hitId:string,blacklistId:string,scorePct:number,lastAt:number}>} */
+    let frHudHits = [];
+    /** @type {Map<string, ReturnType<typeof setTimeout>>} */
+    const frHudCoolTimers = new Map();
+    let frHudMenuOpen = false;
+    let anprHudMenuOpen = false;
+    let frPipHandle = null;
+    let frPipCamId = null;
+    let frPipHitKey = null;
+    /** Shared PIP context: 'fr' | 'anpr' */
+    let frPipKind = 'fr';
+
+    function isFrHudOfflineHit(hit) {
+        if (!hit) return true;
+        if (hit.isLive === false) return true;
+        if (hit.isLive === true) return false;
+        if (hit.isOffline) return true;
+        const s = String(hit.source || '').trim().toLowerCase();
+        return s === 'offline-video' || s === 'offline' || s.indexOf('offline') >= 0;
+    }
+
+    function frHudTierHigh(hit) {
+        if (hit && hit.alertTier) return String(hit.alertTier).toLowerCase() === 'high';
+        const status = String((hit && hit.listStatus) || 'blacklist').trim().toLowerCase();
+        if (status === 'poi' || status === 'monitoring' || status === 'suspect') return false;
+        return true;
+    }
+
+    function frHudEligible(hit) {
+        if (!hit || hit._labPreview) return false;
+        if (hit.kind === 'anpr' || hit.anpr) return false;
+        if (isFrHudOfflineHit(hit)) return false;
+        if (!hit.camId) return false;
+        if (!frHudTierHigh(hit)) return false;
+        const score = Number(hit.scorePct);
+        if (!Number.isFinite(score) || score < FR_HUD_SCORE_MIN) return false;
+        return true;
+    }
+
+    function frHudSubjectKey(hit) {
+        const bl = String((hit && hit.blacklistId) || '').trim();
+        if (bl) return 'bl:' + bl;
+        return 'cam:' + normalizeCamId(hit && hit.camId) + '|' + String((hit && (hit.label || hit.displayName)) || '');
+    }
+
+    function sameFrHudSubject(a, b) {
+        if (!a || !b) return false;
+        return frHudSubjectKey(a) === frHudSubjectKey(b);
+    }
+
+    function findFrHudHit(keyOrHit) {
+        if (!keyOrHit) return null;
+        if (typeof keyOrHit === 'string') {
+            for (let i = 0; i < frHudHits.length; i++) {
+                if (frHudHits[i].key === keyOrHit) return frHudHits[i];
+            }
+            return null;
+        }
+        const key = frHudSubjectKey(keyOrHit);
+        for (let i = 0; i < frHudHits.length; i++) {
+            if (frHudHits[i].key === key) return frHudHits[i];
+        }
+        return null;
+    }
+
+    function clearFrHudCoolTimer(key) {
+        if (!key) return;
+        const t = frHudCoolTimers.get(key);
+        if (t) {
+            clearTimeout(t);
+            frHudCoolTimers.delete(key);
+        }
+    }
+
+    function scheduleFrHudHitCool(key) {
+        clearFrHudCoolTimer(key);
+        if (!key) return;
+        frHudCoolTimers.set(key, setTimeout(function () {
+            dismissFrHudHit(key, { fromCool: true });
+        }, FR_HUD_COOL_MS));
+    }
+
+    function closeFrHudMenu() {
+        frHudMenuOpen = false;
+        const menu = el('fr-hud-menu');
+        if (menu) {
+            menu.hidden = true;
+            menu.innerHTML = '';
+        }
+        const tab = el('fr-hud-tab');
+        if (tab) tab.setAttribute('aria-expanded', 'false');
+    }
+
+    function closeAnprHudMenu() {
+        anprHudMenuOpen = false;
+        const menu = el('anpr-hud-menu');
+        if (menu) {
+            menu.hidden = true;
+            menu.innerHTML = '';
+        }
+        const tab = el('anpr-hud-tab');
+        if (tab) tab.setAttribute('aria-expanded', 'false');
+    }
+
+    function closeAllAnalyticsMenus() {
+        closeFrHudMenu();
+        closeAnprHudMenu();
+    }
+
+    function positionFrHudMenu() {
+        const menu = el('fr-hud-menu');
+        const tab = el('fr-hud-tab');
+        if (!menu || !tab || menu.hidden) return;
+        const rect = tab.getBoundingClientRect();
+        const pad = 4;
+        let left = rect.left;
+        let top = rect.bottom + pad;
+        const mw = Math.max(menu.offsetWidth || 260, 260);
+        const mh = menu.offsetHeight || 120;
+        if (left + mw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - mw - 8);
+        if (top + mh > window.innerHeight - 8) top = Math.max(8, rect.top - mh - pad);
+        menu.style.left = Math.round(left) + 'px';
+        menu.style.top = Math.round(top) + 'px';
+    }
+
+    function destroyFrPip() {
+        if (frPipHandle) {
+            try {
+                if (typeof frPipHandle.destroy === 'function') frPipHandle.destroy();
+            } catch (_) { /* ignore */ }
+            frPipHandle = null;
+        }
+        frPipCamId = null;
+        frPipHitKey = null;
+        const stage = el('fr-pip-stage');
+        if (stage) {
+            stage.querySelectorAll('canvas, video.me8-zlm-primary').forEach(function (n) {
+                try { n.remove(); } catch (_) { /* ignore */ }
+            });
+        }
+        const pip = el('fr-pip');
+        if (pip) pip.hidden = true;
+    }
+
+    function dismissFrHudHit(key, opts) {
+        opts = opts || {};
+        const hit = findFrHudHit(key);
+        if (!hit) return;
+        clearFrHudCoolTimer(hit.key);
+        postWallNudgeClear({
+            source: 'fr_blacklist',
+            camId: hit.camId,
+            eventKey: wallNudgeEventKeyForFr(hit),
+            hitId: hit.hitId || '',
+        });
+        frHudHits = frHudHits.filter(function (h) { return h.key !== hit.key; });
+        if (frPipHitKey === hit.key || normalizeCamId(frPipCamId) === normalizeCamId(hit.camId)) {
+            destroyFrPip();
+        }
+        if (frHudHits.length <= 1) closeFrHudMenu();
+        renderFrCornerHud();
+    }
+
+    /** Parent dismiss - only when n=1 (no mass dismiss). */
+    function dismissFrCornerHud() {
+        if (frHudHits.length !== 1) return;
+        dismissFrHudHit(frHudHits[0].key);
+    }
+
+    function syncFrHudSingleActions() {
+        const nudgeEl = el('fr-hud-nudge');
+        const dismissEl = el('fr-hud-dismiss');
+        const single = frHudHits.length === 1;
+        if (nudgeEl) {
+            nudgeEl.hidden = !single;
+            if (single) {
+                const ek = wallNudgeEventKeyForFr(frHudHits[0]);
+                if (isWallNudgeNotified(ek)) {
+                    nudgeEl.disabled = true;
+                    nudgeEl.textContent = tr('commandWall.alarmsSaNotified');
+                } else {
+                    nudgeEl.disabled = false;
+                    nudgeEl.textContent = tr('commandWall.alarmsNudgeSa');
+                }
+            }
+        }
+        if (dismissEl) dismissEl.hidden = !single;
+    }
+
+    function renderFrHudMenu() {
+        const menu = el('fr-hud-menu');
+        if (!menu) return;
+        if (!frHudMenuOpen || frHudHits.length < 2) {
+            closeFrHudMenu();
+            return;
+        }
+        menu.innerHTML = frHudHits.map(function (h) {
+            const score = Number.isFinite(h.scorePct) ? (Math.round(h.scorePct) + '%') : '';
+            const ek = wallNudgeEventKeyForFr(h);
+            const notified = isWallNudgeNotified(ek);
+            const nudgeLabel = notified ? tr('commandWall.alarmsSaNotified') : tr('commandWall.alarmsNudgeSa');
+            return '<div class="' + c('fr-hud-menu-item') + '" data-fr-key="' + escHtml(h.key) + '" role="option">'
+                + '<div class="' + c('fr-hud-menu-main') + '">'
+                + '<div>' + escHtml(h.label || h.camId) + (score ? (' · ' + escHtml(score)) : '') + '</div>'
+                + '<div class="' + c('fr-hud-menu-sub') + '">' + escHtml(camDisplayName(h.camId) || h.camId) + '</div>'
+                + '</div>'
+                + '<button type="button" class="btn btn-ghost btn-sm ' + c('fr-hud-menu-nudge') + '" data-fr-nudge="'
+                + escHtml(h.key) + '"' + (notified ? ' disabled' : '') + '>' + escHtml(nudgeLabel) + '</button>'
+                + '<button type="button" class="btn btn-ghost btn-sm ' + c('fr-hud-menu-dismiss') + '" data-fr-dismiss="'
+                + escHtml(h.key) + '">' + escHtml(tr('commandWall.alarmsDismiss')) + '</button>'
+                + '</div>';
+        }).join('');
+        menu.hidden = false;
+        const tab = el('fr-hud-tab');
+        if (tab) tab.setAttribute('aria-expanded', 'true');
+        menu.querySelectorAll('.' + c('fr-hud-menu-item')).forEach(function (row) {
+            row.addEventListener('click', function (ev) {
+                if (ev.target.closest('.' + c('fr-hud-menu-nudge'))
+                    || ev.target.closest('.' + c('fr-hud-menu-dismiss'))) return;
+                const key = row.getAttribute('data-fr-key');
+                closeFrHudMenu();
+                focusFrHudHit(findFrHudHit(key));
+            });
+        });
+        menu.querySelectorAll('.' + c('fr-hud-menu-nudge')).forEach(function (btn) {
+            btn.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                nudgeSaFromFrHud(findFrHudHit(btn.getAttribute('data-fr-nudge')));
+            });
+        });
+        menu.querySelectorAll('.' + c('fr-hud-menu-dismiss')).forEach(function (btn) {
+            btn.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                dismissFrHudHit(btn.getAttribute('data-fr-dismiss'));
+            });
+        });
+        positionFrHudMenu();
+    }
+
+    function renderFrCornerHud() {
+        const hud = el('fr-hud');
+        const tab = el('fr-hud-tab');
+        if (!hud || !tab) return;
+        if (!frHudHits.length) {
+            hud.hidden = true;
+            tab.textContent = '';
+            closeFrHudMenu();
+            syncFrHudSingleActions();
+            return;
+        }
+        hud.hidden = false;
+        if (frHudHits.length === 1) {
+            const h = frHudHits[0];
+            const score = Number.isFinite(h.scorePct) ? (' · ' + Math.round(h.scorePct) + '%') : '';
+            const single = tr('commandWall.frHudSingle', { name: h.label || h.camId });
+            tab.textContent = ((single && single !== 'commandWall.frHudSingle')
+                ? single
+                : ('Watchlist · ' + (h.label || h.camId))) + score;
+            closeFrHudMenu();
+        } else {
+            const coalesced = tr('commandWall.frHudCoalesce', { n: frHudHits.length });
+            tab.textContent = (coalesced && coalesced !== 'commandWall.frHudCoalesce')
+                ? coalesced
+                : ('Watchlist (' + frHudHits.length + ')');
+            if (frHudMenuOpen) renderFrHudMenu();
+            else closeFrHudMenu();
+        }
+        syncFrHudSingleActions();
+    }
+
+    function pulseFrHudGridCell(slot) {
+        const cell = getCell(slot);
+        if (!cell) return;
+        cell.classList.remove('fr-hud-pulse');
+        void cell.offsetWidth;
+        cell.classList.add('fr-hud-pulse');
+        setTimeout(function () {
+            try { cell.classList.remove('fr-hud-pulse'); } catch (_) { /* ignore */ }
+        }, 3000);
+    }
+
+    function frPipHeaderLabel(hit, camId) {
+        const name = (hit && hit.label) || camDisplayName(camId) || camId || '';
+        const labeled = tr('commandWall.frHudPipTitle', { name: name });
+        if (labeled && labeled !== 'commandWall.frHudPipTitle') return labeled;
+        return 'Watchlist · ' + name;
+    }
+
+    function anprPipHeaderLabel(hit, camId) {
+        const plate = (hit && (hit.plate || hit.label)) || camDisplayName(camId) || camId || '';
+        const labeled = tr('commandWall.anprHudPipTitle', { plate: plate });
+        if (labeled && labeled !== 'commandWall.anprHudPipTitle') return labeled;
+        return 'Plate · ' + plate;
+    }
+
+    function applySharedPipChrome(kind, titleText) {
+        frPipKind = kind === 'anpr' ? 'anpr' : 'fr';
+        const pip = el('fr-pip');
+        const title = el('fr-pip-title');
+        if (title && titleText) title.textContent = titleText;
+        if (pip) {
+            pip.classList.toggle('is-anpr', frPipKind === 'anpr');
+            pip.classList.toggle('is-fr', frPipKind === 'fr');
+        }
+    }
+
+    function attachFrPipFlv(camId, flvUrl, hit, kind) {
+        if (!global.Me8LivePlayerFactory
+            || typeof global.Me8LivePlayerFactory.attachFlvPrimary !== 'function') {
+            return false;
+        }
+        const stage = el('fr-pip-stage');
+        const pip = el('fr-pip');
+        if (!stage || !pip) return false;
+        destroyFrPip();
+        frPipCamId = normalizeCamId(camId);
+        frPipHitKey = hit && hit.key ? hit.key : null;
+        const pipKind = kind === 'anpr' ? 'anpr' : 'fr';
+        pip.hidden = false;
+        applySharedPipChrome(
+            pipKind,
+            pipKind === 'anpr' ? anprPipHeaderLabel(hit, camId) : frPipHeaderLabel(hit, camId)
+        );
+        frPipHandle = global.Me8LivePlayerFactory.attachFlvPrimary(stage, flvUrl, {
+            proveMs: 300,
+            timeoutMs: 10000,
+            gridCount: 1,
+            onProven: function () { /* live */ },
+            onFail: function () { /* keep shell */ },
+        });
+        return !!frPipHandle;
+    }
+
+    function openFrPipForCam(camId, hit, kind) {
+        const id = normalizeCamId(camId);
+        if (!id) return;
+        /* Single PIP slot - always replace; fixed safe corner (no drag / no toolbar anchor) */
+        destroyFrPip();
+        frPipCamId = id;
+        frPipHitKey = hit && hit.key ? hit.key : null;
+        const pipKind = kind === 'anpr' ? 'anpr' : 'fr';
+        applySharedPipChrome(
+            pipKind,
+            pipKind === 'anpr' ? anprPipHeaderLabel(hit, id) : frPipHeaderLabel(hit, id)
+        );
+        const existing = getWvpHandoffFlvUrl(id);
+        if (existing) {
+            attachFrPipFlv(id, existing, hit, pipKind);
+            return;
+        }
+        if (isFixedCameraId(id)) {
+            const cameraId = fixedCameraId(id);
+            fetch('/api/fixed-cams/' + encodeURIComponent(cameraId) + '/zlm/start', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ owner: fixedCameraOwner, viewMode: 'focus' }),
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                if (!data || !data.ok || !data.flvUrl) return;
+                if (normalizeCamId(frPipCamId) !== id) return;
+                wvpHandoffFlvByCam.set(id, data.flvUrl);
+                attachFrPipFlv(id, data.flvUrl, hit, pipKind);
+            }).catch(function () { /* ignore */ });
+            const pip = el('fr-pip');
+            if (pip) pip.hidden = false;
+            return;
+        }
+        const pip = el('fr-pip');
+        if (pip) pip.hidden = false;
+        if (socket && !streaming.has(id)) {
+            socket.emit('start-video', { camId: id, mode: 'video', surface: CW_VIEWER_SURFACE });
+        } else if (getWvpHandoffFlvUrl(id)) {
+            attachFrPipFlv(id, getWvpHandoffFlvUrl(id), hit, pipKind);
+        }
+    }
+
+    function focusFrHudHit(hit) {
+        if (!hit || !hit.camId) return;
+        const id = normalizeCamId(hit.camId);
+        const slot = findSlotByCamId(id);
+        if (slot >= 0) {
+            destroyFrPip();
+            pulseFrHudGridCell(slot);
+            return;
+        }
+        openFrPipForCam(id, hit, 'fr');
+    }
+
+    function onFrHudTabClick() {
+        if (!frHudHits.length) return;
+        if (frHudHits.length === 1) {
+            focusFrHudHit(frHudHits[0]);
+            return;
+        }
+        closeAnprHudMenu();
+        frHudMenuOpen = !frHudMenuOpen;
+        if (frHudMenuOpen) renderFrHudMenu();
+        else closeFrHudMenu();
+    }
+
+    function ingestFrCornerHudHit(hit) {
+        if (!frHudEligible(hit)) return;
+        const id = normalizeCamId(hit.camId);
+        const label = hit.displayName || hit.deviceLabel || camDisplayName(id) || id;
+        const draft = {
+            camId: id,
+            label: label,
+            hitId: String(hit.hitId || ''),
+            blacklistId: String(hit.blacklistId || ''),
+            scorePct: Number(hit.scorePct),
+            lastAt: Date.now(),
+        };
+        draft.key = frHudSubjectKey(draft);
+        const existing = findFrHudHit(draft.key);
+        if (existing) {
+            existing.lastAt = draft.lastAt;
+            existing.scorePct = draft.scorePct;
+            existing.hitId = draft.hitId || existing.hitId;
+            existing.camId = id;
+            existing.label = label;
+            existing.blacklistId = draft.blacklistId || existing.blacklistId;
+            scheduleFrHudHitCool(existing.key);
+            renderFrCornerHud();
+            return;
+        }
+        frHudHits.unshift(draft);
+        while (frHudHits.length > FR_HUD_MAX_HITS) {
+            const drop = frHudHits.pop();
+            if (drop) {
+                clearFrHudCoolTimer(drop.key);
+                if (frPipHitKey === drop.key) destroyFrPip();
+            }
+        }
+        scheduleFrHudHitCool(draft.key);
+        renderFrCornerHud();
+    }
+
+    function onFrBlacklistHitWall(hit) {
+        ingestFrCornerHudHit(hit);
+    }
+
+    function onFrAlarmClearedWall(data) {
+        if (!data || !frHudHits.length) return;
+        const hitId = String(data.hitId || '');
+        const camId = normalizeCamId(data.camId);
+        const match = frHudHits.find(function (h) {
+            if (hitId && h.hitId && hitId === h.hitId) return true;
+            return !!(camId && camId === normalizeCamId(h.camId));
+        });
+        if (match) dismissFrHudHit(match.key);
+    }
+
+    function onFrPipStreamReady(data) {
+        if (!data || !frPipCamId) return;
+        const camId = normalizeCamId(data.camId || data.cameraId);
+        if (camId !== frPipCamId) return;
+        if (data.flvUrl) wvpHandoffFlvByCam.set(camId, String(data.flvUrl));
+        const flv = data.flvUrl || getWvpHandoffFlvUrl(camId);
+        let hit = null;
+        if (frPipKind === 'anpr') {
+            hit = frPipHitKey ? findAnprHudHit(frPipHitKey) : null;
+        } else {
+            hit = frPipHitKey ? findFrHudHit(frPipHitKey) : null;
+        }
+        if (flv) attachFrPipFlv(camId, flv, hit, frPipKind);
+    }
+
+    function bindFrCornerHudUi() {
+        const tab = el('fr-hud-tab');
+        if (tab && !tab._cwFrHudBound) {
+            tab._cwFrHudBound = true;
+            tab.addEventListener('click', onFrHudTabClick);
+        }
+        const dismiss = el('fr-hud-dismiss');
+        if (dismiss && !dismiss._cwFrHudBound) {
+            dismiss._cwFrHudBound = true;
+            dismiss.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                dismissFrCornerHud();
+            });
+        }
+        const nudge = el('fr-hud-nudge');
+        if (nudge && !nudge._cwFrHudBound) {
+            nudge._cwFrHudBound = true;
+            nudge.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                nudgeSaFromFrHud();
+            });
+        }
+        const closePip = el('fr-pip-close');
+        if (closePip && !closePip._cwFrHudBound) {
+            closePip._cwFrHudBound = true;
+            closePip.addEventListener('click', destroyFrPip);
+        }
+        bindAnprCornerHudUi();
+        if (!window._cwFrHudPortalBound) {
+            window._cwFrHudPortalBound = true;
+            document.addEventListener('click', function (ev) {
+                if (!frHudMenuOpen && !anprHudMenuOpen) return;
+                const frMenu = el('fr-hud-menu');
+                const frHud = el('fr-hud');
+                const anprMenu = el('anpr-hud-menu');
+                const anprHud = el('anpr-hud');
+                if (frMenu && frMenu.contains(ev.target)) return;
+                if (frHud && frHud.contains(ev.target)) return;
+                if (anprMenu && anprMenu.contains(ev.target)) return;
+                if (anprHud && anprHud.contains(ev.target)) return;
+                closeAllAnalyticsMenus();
+            }, true);
+            window.addEventListener('resize', function () {
+                if (frHudMenuOpen) positionFrHudMenu();
+                if (anprHudMenuOpen) positionAnprHudMenu();
+            });
+            document.addEventListener('keydown', function (ev) {
+                if (ev.key === 'Escape') closeAllAnalyticsMenus();
+            });
+        }
+    }
+
+    /* ── WALL-ALARM-ANPR-CORNER-HUD-V1 ───────────────────────────────────── */
+    const ANPR_HUD_COOL_MS = 2 * 60 * 1000;
+    const ANPR_HUD_MAX_HITS = 8;
+    /** @type {Array<{key:string,camId:string,label:string,plate:string,hitId:string,listId:string,scorePct:number,lastAt:number}>} */
+    let anprHudHits = [];
+    /** @type {Map<string, ReturnType<typeof setTimeout>>} */
+    const anprHudCoolTimers = new Map();
+
+    function isAnprHudOfflineHit(hit) {
+        if (!hit) return true;
+        if (hit.isLive === false) return true;
+        if (hit.isOffline) return true;
+        const s = String(hit.source || '').trim().toLowerCase();
+        return s === 'offline-video' || s === 'offline' || s.indexOf('offline') >= 0;
+    }
+
+    function anprHudEligible(hit) {
+        if (!hit || hit._labPreview) return false;
+        if (!(hit.kind === 'anpr' || hit.anpr === true)) return false;
+        if (isAnprHudOfflineHit(hit)) return false;
+        if (!hit.camId) return false;
+        const plate = String(hit.plate || hit.displayName || hit.label || '').trim();
+        if (!plate) return false;
+        return true;
+    }
+
+    function anprHudSubjectKey(hit) {
+        const plate = String((hit && (hit.plate || hit.label || hit.displayName)) || '').trim().toUpperCase();
+        const listId = String((hit && (hit.listId || hit.blacklistId)) || '').trim();
+        if (listId && plate) return 'anpr:' + listId + '|' + plate;
+        return 'anpr:' + normalizeCamId(hit && hit.camId) + '|' + plate;
+    }
+
+    function findAnprHudHit(keyOrHit) {
+        if (!keyOrHit) return null;
+        if (typeof keyOrHit === 'string') {
+            for (let i = 0; i < anprHudHits.length; i++) {
+                if (anprHudHits[i].key === keyOrHit) return anprHudHits[i];
+            }
+            return null;
+        }
+        const key = anprHudSubjectKey(keyOrHit);
+        for (let i = 0; i < anprHudHits.length; i++) {
+            if (anprHudHits[i].key === key) return anprHudHits[i];
+        }
+        return null;
+    }
+
+    function wallNudgeEventKeyForAnpr(hit) {
+        const h = hit || (anprHudHits.length === 1 ? anprHudHits[0] : null);
+        if (!h) return '';
+        const id = String(h.hitId || h.plate || h.camId || '');
+        return 'anpr_list|' + String(h.camId || '') + '|' + id;
+    }
+
+    function clearAnprHudCoolTimer(key) {
+        if (!key) return;
+        const t = anprHudCoolTimers.get(key);
+        if (t) {
+            clearTimeout(t);
+            anprHudCoolTimers.delete(key);
+        }
+    }
+
+    function scheduleAnprHudHitCool(key) {
+        clearAnprHudCoolTimer(key);
+        if (!key) return;
+        anprHudCoolTimers.set(key, setTimeout(function () {
+            dismissAnprHudHit(key);
+        }, ANPR_HUD_COOL_MS));
+    }
+
+    function positionAnprHudMenu() {
+        const menu = el('anpr-hud-menu');
+        const tab = el('anpr-hud-tab');
+        if (!menu || !tab || menu.hidden) return;
+        const rect = tab.getBoundingClientRect();
+        const pad = 4;
+        let left = rect.left;
+        let top = rect.bottom + pad;
+        const mw = Math.max(menu.offsetWidth || 260, 260);
+        const mh = menu.offsetHeight || 120;
+        if (left + mw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - mw - 8);
+        if (top + mh > window.innerHeight - 8) top = Math.max(8, rect.top - mh - pad);
+        menu.style.left = Math.round(left) + 'px';
+        menu.style.top = Math.round(top) + 'px';
+    }
+
+    function dismissAnprHudHit(key) {
+        const hit = findAnprHudHit(key);
+        if (!hit) return;
+        clearAnprHudCoolTimer(hit.key);
+        postWallNudgeClear({
+            source: 'anpr_list',
+            camId: hit.camId,
+            eventKey: wallNudgeEventKeyForAnpr(hit),
+            hitId: hit.hitId || '',
+        });
+        anprHudHits = anprHudHits.filter(function (h) { return h.key !== hit.key; });
+        if (frPipKind === 'anpr'
+            && (frPipHitKey === hit.key || normalizeCamId(frPipCamId) === normalizeCamId(hit.camId))) {
+            destroyFrPip();
+        }
+        if (anprHudHits.length <= 1) closeAnprHudMenu();
+        renderAnprCornerHud();
+    }
+
+    function dismissAnprCornerHud() {
+        if (anprHudHits.length !== 1) return;
+        dismissAnprHudHit(anprHudHits[0].key);
+    }
+
+    function nudgeSaFromAnprHud(hit) {
+        const h = hit || (anprHudHits.length === 1 ? anprHudHits[0] : null);
+        if (!h || !h.camId) return;
+        const eventKey = wallNudgeEventKeyForAnpr(h);
+        if (isWallNudgeNotified(eventKey)) return;
+        postWallNudgeSa({
+            source: 'anpr_list',
+            camId: h.camId,
+            eventKey: eventKey,
+            hitId: h.hitId || '',
+            alarmType: 'plate',
+            label: h.plate || h.label || camDisplayName(h.camId),
+        }).then(function (data) {
+            if (data && data.ok && data.eventKey) {
+                wallNudgeNotified.add(String(data.eventKey));
+                renderAnprCornerHud();
+            }
+        });
+    }
+
+    function syncAnprHudSingleActions() {
+        const nudgeEl = el('anpr-hud-nudge');
+        const dismissEl = el('anpr-hud-dismiss');
+        const single = anprHudHits.length === 1;
+        if (nudgeEl) {
+            nudgeEl.hidden = !single;
+            if (single) {
+                const ek = wallNudgeEventKeyForAnpr(anprHudHits[0]);
+                if (isWallNudgeNotified(ek)) {
+                    nudgeEl.disabled = true;
+                    nudgeEl.textContent = tr('commandWall.alarmsSaNotified');
+                } else {
+                    nudgeEl.disabled = false;
+                    nudgeEl.textContent = tr('commandWall.alarmsNudgeSa');
+                }
+            }
+        }
+        if (dismissEl) dismissEl.hidden = !single;
+    }
+
+    function renderAnprHudMenu() {
+        const menu = el('anpr-hud-menu');
+        if (!menu) return;
+        if (!anprHudMenuOpen || anprHudHits.length < 2) {
+            closeAnprHudMenu();
+            return;
+        }
+        menu.innerHTML = anprHudHits.map(function (h) {
+            const score = Number.isFinite(h.scorePct) ? (Math.round(h.scorePct) + '%') : '';
+            const ek = wallNudgeEventKeyForAnpr(h);
+            const notified = isWallNudgeNotified(ek);
+            const nudgeLabel = notified ? tr('commandWall.alarmsSaNotified') : tr('commandWall.alarmsNudgeSa');
+            return '<div class="' + c('anpr-hud-menu-item') + '" data-anpr-key="' + escHtml(h.key) + '" role="option">'
+                + '<div class="' + c('anpr-hud-menu-main') + '">'
+                + '<div>' + escHtml(h.plate || h.label || h.camId) + (score ? (' · ' + escHtml(score)) : '') + '</div>'
+                + '<div class="' + c('anpr-hud-menu-sub') + '">' + escHtml(camDisplayName(h.camId) || h.camId) + '</div>'
+                + '</div>'
+                + '<button type="button" class="btn btn-ghost btn-sm ' + c('anpr-hud-menu-nudge') + '" data-anpr-nudge="'
+                + escHtml(h.key) + '"' + (notified ? ' disabled' : '') + '>' + escHtml(nudgeLabel) + '</button>'
+                + '<button type="button" class="btn btn-ghost btn-sm ' + c('anpr-hud-menu-dismiss') + '" data-anpr-dismiss="'
+                + escHtml(h.key) + '">' + escHtml(tr('commandWall.alarmsDismiss')) + '</button>'
+                + '</div>';
+        }).join('');
+        menu.hidden = false;
+        const tab = el('anpr-hud-tab');
+        if (tab) tab.setAttribute('aria-expanded', 'true');
+        menu.querySelectorAll('.' + c('anpr-hud-menu-item')).forEach(function (row) {
+            row.addEventListener('click', function (ev) {
+                if (ev.target.closest('.' + c('anpr-hud-menu-nudge'))
+                    || ev.target.closest('.' + c('anpr-hud-menu-dismiss'))) return;
+                const key = row.getAttribute('data-anpr-key');
+                closeAnprHudMenu();
+                focusAnprHudHit(findAnprHudHit(key));
+            });
+        });
+        menu.querySelectorAll('.' + c('anpr-hud-menu-nudge')).forEach(function (btn) {
+            btn.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                nudgeSaFromAnprHud(findAnprHudHit(btn.getAttribute('data-anpr-nudge')));
+            });
+        });
+        menu.querySelectorAll('.' + c('anpr-hud-menu-dismiss')).forEach(function (btn) {
+            btn.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                dismissAnprHudHit(btn.getAttribute('data-anpr-dismiss'));
+            });
+        });
+        positionAnprHudMenu();
+    }
+
+    function renderAnprCornerHud() {
+        const hud = el('anpr-hud');
+        const tab = el('anpr-hud-tab');
+        if (!hud || !tab) return;
+        if (!anprHudHits.length) {
+            hud.hidden = true;
+            tab.textContent = '';
+            closeAnprHudMenu();
+            syncAnprHudSingleActions();
+            return;
+        }
+        hud.hidden = false;
+        if (anprHudHits.length === 1) {
+            const h = anprHudHits[0];
+            const single = tr('commandWall.anprHudSingle', { plate: h.plate || h.label || h.camId });
+            tab.textContent = (single && single !== 'commandWall.anprHudSingle')
+                ? single
+                : ('ANPR · ' + (h.plate || h.label || h.camId));
+            closeAnprHudMenu();
+        } else {
+            const coalesced = tr('commandWall.anprHudCoalesce', { n: anprHudHits.length });
+            tab.textContent = (coalesced && coalesced !== 'commandWall.anprHudCoalesce')
+                ? coalesced
+                : ('ANPR (' + anprHudHits.length + ')');
+            if (anprHudMenuOpen) renderAnprHudMenu();
+            else closeAnprHudMenu();
+        }
+        syncAnprHudSingleActions();
+    }
+
+    function focusAnprHudHit(hit) {
+        if (!hit || !hit.camId) return;
+        const id = normalizeCamId(hit.camId);
+        const slot = findSlotByCamId(id);
+        if (slot >= 0) {
+            destroyFrPip();
+            pulseFrHudGridCell(slot);
+            return;
+        }
+        openFrPipForCam(id, hit, 'anpr');
+    }
+
+    function onAnprHudTabClick() {
+        if (!anprHudHits.length) return;
+        if (anprHudHits.length === 1) {
+            focusAnprHudHit(anprHudHits[0]);
+            return;
+        }
+        closeFrHudMenu();
+        anprHudMenuOpen = !anprHudMenuOpen;
+        if (anprHudMenuOpen) renderAnprHudMenu();
+        else closeAnprHudMenu();
+    }
+
+    function ingestAnprCornerHudHit(hit) {
+        if (!anprHudEligible(hit)) return;
+        const id = normalizeCamId(hit.camId);
+        const plate = String(hit.plate || hit.displayName || hit.label || '').trim();
+        const draft = {
+            camId: id,
+            label: plate,
+            plate: plate,
+            hitId: String(hit.hitId || ''),
+            listId: String(hit.listId || hit.blacklistId || ''),
+            scorePct: Number(hit.scorePct),
+            lastAt: Date.now(),
+        };
+        draft.key = anprHudSubjectKey(draft);
+        const existing = findAnprHudHit(draft.key);
+        if (existing) {
+            existing.lastAt = draft.lastAt;
+            existing.scorePct = draft.scorePct;
+            existing.hitId = draft.hitId || existing.hitId;
+            existing.camId = id;
+            existing.plate = plate;
+            existing.label = plate;
+            scheduleAnprHudHitCool(existing.key);
+            renderAnprCornerHud();
+            return;
+        }
+        anprHudHits.unshift(draft);
+        while (anprHudHits.length > ANPR_HUD_MAX_HITS) {
+            const drop = anprHudHits.pop();
+            if (drop) {
+                clearAnprHudCoolTimer(drop.key);
+                if (frPipKind === 'anpr' && frPipHitKey === drop.key) destroyFrPip();
+            }
+        }
+        scheduleAnprHudHitCool(draft.key);
+        renderAnprCornerHud();
+    }
+
+    function onAnprListHitWall(hit) {
+        ingestAnprCornerHudHit(Object.assign({}, hit || {}, {
+            kind: 'anpr',
+            anpr: true,
+            isLive: hit && hit.isLive !== false,
+            source: (hit && hit.source) || 'live',
+        }));
+    }
+
+    function bindAnprCornerHudUi() {
+        const tab = el('anpr-hud-tab');
+        if (tab && !tab._cwAnprHudBound) {
+            tab._cwAnprHudBound = true;
+            tab.addEventListener('click', onAnprHudTabClick);
+        }
+        const dismiss = el('anpr-hud-dismiss');
+        if (dismiss && !dismiss._cwAnprHudBound) {
+            dismiss._cwAnprHudBound = true;
+            dismiss.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                dismissAnprCornerHud();
+            });
+        }
+        const nudge = el('anpr-hud-nudge');
+        if (nudge && !nudge._cwAnprHudBound) {
+            nudge._cwAnprHudBound = true;
+            nudge.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                nudgeSaFromAnprHud();
+            });
+        }
     }
 
     function clearSlotAssignment(slot, stopStream) {
@@ -1577,6 +3409,8 @@
     function assignCamToSlot(slot, camId, name, autoStart, opts) {
         opts = opts || {};
         if (!camId || !isSlotVisible(slot)) return;
+        if (isAlarmBandLocked(slot) && !opts.alarmPromote) return;
+        if (slot === BAND_OVERFLOW_SLOT && alarmOverflow.length && !opts.alarmPromote) return;
         removeFromDeck(camId);
         const prevSlot = findSlotByCamId(camId);
         if (prevSlot >= 0 && prevSlot !== slot) {
@@ -1856,6 +3690,10 @@
 
     function bindCellDrop(cell, slot) {
         cell.addEventListener('dragover', function (e) {
+            if (isAlarmBandLocked(slot) || (slot === BAND_OVERFLOW_SLOT && alarmOverflow.length)) {
+                e.dataTransfer.dropEffect = 'none';
+                return;
+            }
             e.preventDefault();
             e.dataTransfer.dropEffect = 'copy';
             cell.classList.add('drop-target');
@@ -1866,6 +3704,7 @@
         cell.addEventListener('drop', function (e) {
             e.preventDefault();
             cell.classList.remove('drop-target');
+            if (isAlarmBandLocked(slot) || (slot === BAND_OVERFLOW_SLOT && alarmOverflow.length)) return;
             let camId = e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData('text/plain');
             camId = String(camId || '').trim();
             if (!camId) return;
@@ -2221,7 +4060,7 @@
         refreshAllOnlineState();
     }
 
-    /** GlobalDevicePresence bridge — same SSOT as Ops / ANPR (additive). */
+    /** GlobalDevicePresence bridge - same SSOT as Ops / ANPR (additive). */
     function ingestPresenceList(list) {
         if (!Array.isArray(list)) return;
         var changed = false;
@@ -2279,7 +4118,15 @@
         socket.on('bwc-call-state', onBwcCallState);
         socket.on('sos-alarm', onCwSosAlarm);
         socket.on('sos-acknowledged', onCwSosAcknowledged);
+        socket.on('wall-alarm', onWallAlarm);
+        socket.on('wall-alarm-ack', onWallAlarmAck);
+        socket.on('wall-nudge-state', applyWallNudgeState);
+        socket.on('fr-blacklist-hit', onFrBlacklistHitWall);
+        socket.on('anpr-list-hit', onAnprListHitWall);
+        socket.on('fr-alarm-acked', onFrAlarmClearedWall);
+        socket.on('fr-alarm-dismissed', onFrAlarmClearedWall);
         socket.on('video-stream-ready', function (data) {
+            onFrPipStreamReady(data);
             if (!data || !data.camId) return;
             if (data.surface && data.surface !== CW_VIEWER_SURFACE) return;
             const camId = normalizeCamId(data.camId);
@@ -2341,6 +4188,8 @@
             window.addEventListener('fm-i18n-changed', syncWallToolbarI18n);
         }
         buildGrid();
+        bindAlarmRailUi();
+        loadWallNudgeLocks();
         // Pop-out: re-apply after paint so grid columns win (avoids one-column row list).
         try {
             requestAnimationFrame(function () { applyWallLayout(); });
@@ -2409,6 +4258,185 @@
         });
     }
 
+    function occupiedVisibleCount() {
+        let n = 0;
+        const limit = activeSlotCount();
+        for (let i = 0; i < limit; i += 1) {
+            if (slotCamId(i)) n += 1;
+        }
+        return n;
+    }
+
+    function listFreeVisibleSlots() {
+        const free = [];
+        const limit = activeSlotCount();
+        for (let i = 0; i < limit; i += 1) {
+            if (!slotCamId(i)) free.push(i);
+        }
+        return free;
+    }
+
+    function wallHasCamAssigned(camId) {
+        const id = normalizeCamId(camId);
+        if (!id) return false;
+        if (findSlotByCamId(id) >= 0) return true;
+        if (typeof findDeckIndex === 'function' && findDeckIndex(id) >= 0) return true;
+        return commandWallHasLiveForCam(id);
+    }
+
+    function listAssignedCamIds() {
+        const out = [];
+        const seen = Object.create(null);
+        for (let i = 0; i < MAX_SLOTS; i += 1) {
+            const id = normalizeCamId(slotCamId(i));
+            if (!id || seen[id]) continue;
+            seen[id] = true;
+            out.push(id);
+        }
+        (deckEntries || []).forEach(function (e) {
+            const id = normalizeCamId(e && e.camId);
+            if (!id || seen[id]) return;
+            seen[id] = true;
+            out.push(id);
+        });
+        return out;
+    }
+
+    function nextLayoutForNeed(need) {
+        const order = ['1', '4', '9', '16', '32'];
+        let start = order.indexOf(currentLayout);
+        if (start < 0) start = 0;
+        for (let i = start; i < order.length; i += 1) {
+            if (LAYOUT_SCHEMES[order[i]].count >= need) return order[i];
+        }
+        for (let i = 0; i < order.length; i += 1) {
+            if (LAYOUT_SCHEMES[order[i]].count >= need) return order[i];
+        }
+        return null;
+    }
+
+    function layoutToastLabel(id) {
+        const map = { '1': '1-up', '4': '2\u00d72', '9': '3\u00d73', '16': '4\u00d74', '32': '8\u00d74' };
+        return map[id] || id;
+    }
+
+    /**
+     * VMS-TARGETING-CART-V1 - place net-new fixed cams from Spatial Targeting Queue.
+     * items: [{ id, name }] raw fixed-cam UUIDs (no fixed: prefix).
+     */
+    function acceptTargetingQueue(items) {
+        const list = Array.isArray(items) ? items : [];
+        if (spotlightActive) exitSpotlight();
+
+        const skipped = [];
+        const netNew = [];
+        const seenQ = Object.create(null);
+        list.forEach(function (item) {
+            if (!item || !item.id) return;
+            const rawId = String(item.id).trim();
+            if (!rawId || seenQ[rawId]) return;
+            seenQ[rawId] = true;
+            const wallCamId = 'fixed:' + rawId;
+            if (wallHasCamAssigned(wallCamId)) {
+                skipped.push({ id: rawId, name: item.name || rawId });
+                return;
+            }
+            netNew.push({ id: rawId, name: item.name || rawId, wallCamId: wallCamId });
+        });
+
+        if (!netNew.length) {
+            return {
+                ok: true,
+                placed: 0,
+                skipped: skipped.length,
+                expanded: null,
+                failed: [],
+                message: skipped.length
+                    ? 'All queued cameras are already on the wall.'
+                    : 'Nothing to push.',
+            };
+        }
+
+        let free = listFreeVisibleSlots();
+        let expanded = null;
+        if (free.length < netNew.length) {
+            const need = occupiedVisibleCount() + netNew.length;
+            if (need > MAX_SLOTS) {
+                return {
+                    ok: false,
+                    placed: 0,
+                    skipped: skipped.length,
+                    expanded: null,
+                    failed: netNew.slice(),
+                    message: 'Wall is full (32). Cannot push ' + netNew.length + ' more camera(s).',
+                };
+            }
+            const next = nextLayoutForNeed(need);
+            if (!next || LAYOUT_SCHEMES[next].count < need) {
+                return {
+                    ok: false,
+                    placed: 0,
+                    skipped: skipped.length,
+                    expanded: null,
+                    failed: netNew.slice(),
+                    message: 'Wall is full. Cannot push ' + netNew.length + ' more camera(s).',
+                };
+            }
+            if (next !== currentLayout) {
+                setLayoutScheme(next);
+                expanded = next;
+            }
+            free = listFreeVisibleSlots();
+        }
+
+        if (free.length < netNew.length) {
+            return {
+                ok: false,
+                placed: 0,
+                skipped: skipped.length,
+                expanded: expanded,
+                failed: netNew.slice(),
+                message: 'Not enough free wall slots after layout change.',
+            };
+        }
+
+        const placed = [];
+        for (let i = 0; i < netNew.length; i += 1) {
+            const row = netNew[i];
+            const slot = free[i];
+            if (!fleetById[row.wallCamId]) {
+                fleetById[row.wallCamId] = {
+                    id: row.wallCamId,
+                    name: row.name,
+                    online: true,
+                    mapGroup: 'Fixed cameras',
+                    fixedCamera: true,
+                };
+            }
+            if (!fixedCameraById[row.id]) {
+                fixedCameraById[row.id] = { id: row.id, name: row.name, playable: true };
+            } else if (!fixedCameraById[row.id].name) {
+                fixedCameraById[row.id].name = row.name;
+            }
+            assignCamToSlot(slot, row.wallCamId, row.name, true, { pinned: true });
+            placed.push(row);
+        }
+
+        let message = 'Pushed ' + placed.length + ' camera(s) to the wall.';
+        if (expanded) message += ' Layout expanded to ' + layoutToastLabel(expanded) + '.';
+        if (skipped.length) message += ' Skipped ' + skipped.length + ' already on wall.';
+
+        return {
+            ok: true,
+            placed: placed.length,
+            skipped: skipped.length,
+            expanded: expanded,
+            expandedLabel: expanded ? layoutToastLabel(expanded) : null,
+            failed: [],
+            message: message,
+        };
+    }
+
     const commandWallApi = {
         init: function (sharedSocket) {
             if (window._commandWallStarted) return;
@@ -2420,7 +4448,13 @@
         hasLiveForCam: commandWallHasLiveForCam,
         hasActiveLivePlayerForCam: commandWallHasActiveLivePlayerForCam,
         getLiveSlotSummary: getLiveSlotSummary,
+        listAssignedCamIds: listAssignedCamIds,
+        wallHasCamAssigned: wallHasCamAssigned,
+        exitSpotlight: exitSpotlight,
+        acceptTargetingQueue: acceptTargetingQueue,
         openPttCommForCam: openPttCommForCam,
+        focusNudgeCam: focusNudgeCam,
+        ingestAnprCornerHudHit: ingestAnprCornerHudHit,
         onPttRxState: onCwPttRxState,
         onPttRxLinger: onCwPttRxLinger,
         clearPttComm: clearCwPttComm,
