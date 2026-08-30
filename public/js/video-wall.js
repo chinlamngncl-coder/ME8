@@ -646,7 +646,7 @@
         const live = players.has(slotIndex);
         btn.disabled = !live;
         btn.textContent = muted ? '\uD83D\uDD07' : '\uD83D\uDD0A';
-        btn.title = !live ? 'Audio (starts muted when live)' : (muted ? 'Listen to this panel' : 'Mute this panel');
+        btn.title = !live ? 'Audio (starts muted when live)' : (muted ? 'Listen to This Panel' : 'Mute This Panel');
         btn.setAttribute('aria-pressed', muted ? 'true' : 'false');
         btn.classList.toggle('listening', live && !muted);
     }
@@ -1707,7 +1707,7 @@
             if (!live || !muteBtn) return;
             const muted = isCamAudioMuted(id);
             muteBtn.textContent = muted ? '\uD83D\uDD07' : '\uD83D\uDD0A';
-            muteBtn.title = muted ? 'Listen to live audio' : 'Mute live audio';
+            muteBtn.title = muted ? 'Listen to Live Audio' : 'Mute Live Audio';
             muteBtn.classList.toggle('listening', !muted);
             muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
         }
@@ -3217,7 +3217,7 @@ function handoffPlayerAttaching(player) {
             '<span class="map-pin-ptt-rx-badge" hidden>' + tr('ptt.fieldBadge') + '</span>' +
             '<div class="media-box vid-box map-pin-video" data-cam-id="' + camId + '">' +
             '<div class="map-pin-video-placeholder">' + tr('map.pin.livePlaceholder') + '</div>' +
-            '<button type="button" class="map-pin-audio-mute" title="Listen to live audio" hidden>\uD83D\uDD07</button>' +
+            '<button type="button" class="map-pin-audio-mute" title="Listen to Live Audio" hidden>\uD83D\uDD07</button>' +
             '</div>' +
             '<div class="map-pin-video-bar">' +
             '<button type="button" class="map-pin-play" data-cam-id="' + camId + '" title="' + tr('call.liveVideo') + '">' + tr('call.liveVideo') + '</button>' +

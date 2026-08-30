@@ -52,7 +52,7 @@
             '<div class="ax-anpr-hist-thumb">' +
             (e.vehicleUrl
                 ? '<img class="ax-anpr-hist-macro" src="' + esc(e.vehicleUrl) + '" alt="' +
-                    esc(tr('analytics.anpr.histMacroAlt', 'Vehicle macro crop')) + '">'
+                    esc(tr('analytics.anpr.histMacroAlt', 'Vehicle Macro Crop')) + '">'
                 : '<div class="ax-anpr-hist-macro-empty hint">—</div>') +
             (e.cropUrl
                 ? '<img class="ax-anpr-hist-micro" src="' + esc(e.cropUrl) + '" alt="">'

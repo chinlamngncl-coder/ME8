@@ -78,7 +78,7 @@
             '<div class="fr-red-toast-inner">' +
             '<div class="fr-red-toast-head">' +
             '<span class="fr-red-toast-title" id="fr-red-toast-title">' +
-            esc(tr('analytics.fr.redToastTitle', 'Face match')) + '</span>' +
+            esc(tr('analytics.fr.redToastTitle', 'Face Match')) + '</span>' +
             '<span class="fr-red-toast-queue" id="fr-red-toast-queue" hidden></span>' +
             '<button type="button" class="fr-red-toast-minimize" id="fr-red-toast-minimize" ' +
             'title="' + esc(tr('analytics.fr.redToastMinimize', 'Minimize to bar')) + '" aria-label="' +
@@ -1036,7 +1036,7 @@
             } else if (grade === 'suspect') {
                 title.textContent = tr('analytics.fr.redToastTitleSuspect', 'Suspect match');
             } else {
-                title.textContent = tr('analytics.fr.redToastTitle', 'Face match');
+                title.textContent = tr('analytics.fr.redToastTitle', 'Face Match');
             }
         }
     }
@@ -1730,13 +1730,13 @@
             '<p class="fr-snap-meta-line fr-snap-meta-score"></p>' +
             '<div class="fr-snap-lightbox-actions">' +
             '<button type="button" class="btn btn-sm fr-snap-copy-loc">' +
-            esc(tr('analytics.fr.snapCopyLoc', 'Copy location')) + '</button>' +
+            esc(tr('analytics.fr.snapCopyLoc', 'Copy Location')) + '</button>' +
             '<button type="button" class="btn btn-sm fr-snap-show-map">' +
-            esc(tr('analytics.fr.snapShowMap', 'Show on map')) + '</button>' +
+            esc(tr('analytics.fr.snapShowMap', 'Show on Map')) + '</button>' +
             '<button type="button" class="btn btn-sm fr-snap-play" hidden>' +
             esc(tr('analytics.fr.snapPlayFromHere', 'Play from here')) + '</button>' +
             '<button type="button" class="btn btn-sm fr-snap-keep">' +
-            esc(tr('analytics.fr.snapKeep', 'Keep')) + '</button>' +
+            esc(tr('analytics.fr.snapKeep', 'Keep for Investigation')) + '</button>' +
             '<button type="button" class="btn btn-sm btn-primary fr-snap-download">' +
             esc(tr('analytics.fr.snapDownloadEvidence', 'Download Evidence')) + '</button>' +
             '</div></div></div></div>'
@@ -2112,7 +2112,7 @@
         return (
             '<div class="fr-alert-drawer-header">' +
             '<h3 class="fr-alert-drawer-title" id="fr-alert-drawer-title">' +
-            esc(tr('analytics.fr.alertDrawerTitle', 'Face match alert')) + '</h3>' +
+            esc(tr('analytics.fr.alertDrawerTitle', 'Face Match Alert')) + '</h3>' +
             '<span class="fr-alert-drawer-score-pill" id="fr-alert-drawer-score-pill">\u2014</span>' +
             '<button type="button" class="fr-alert-drawer-expand" id="fr-alert-drawer-expand" ' +
             'aria-pressed="false" aria-label="' + esc(tr('analytics.fr.alertDrawerExpand', 'Expand')) + '">⤢</button>' +
@@ -2158,7 +2158,7 @@
             '<button type="button" class="btn btn-action btn-sm sos-ptt-btn" id="fr-alert-drawer-standby-ptt">' +
             esc(tr('analytics.fr.standbyPttTeam', 'Alert PTT Group')) + '</button>' +
             '<button type="button" class="btn btn-ghost btn-sm" id="fr-alert-drawer-map">' +
-            esc(tr('analytics.fr.alertDrawerGoMap', 'Go to map')) + '</button>' +
+            esc(tr('analytics.fr.alertDrawerGoMap', 'Go to Map')) + '</button>' +
             '<button type="button" class="btn btn-ghost btn-sm" id="fr-alert-drawer-dismiss">' +
             esc(tr('analytics.fr.alarmDismiss', 'Dismiss')) + '</button>' +
             '</div>' +
@@ -2168,7 +2168,7 @@
             'aria-expanded="false" aria-controls="fr-alert-drawer-video">' +
             '<span class="fr-alert-drawer-video-toggle-icon" aria-hidden="true">▶</span>' +
             '<span class="fr-alert-drawer-video-toggle-label">' +
-            esc(tr('analytics.fr.alertDrawerVideoToggle', 'Live preview')) + '</span>' +
+            esc(tr('analytics.fr.alertDrawerVideoToggle', 'Live Preview')) + '</span>' +
             '<span class="fr-alert-drawer-video-source" id="fr-alert-drawer-video-source">BWC</span>' +
             '<span class="fr-alert-drawer-video-chevron" aria-hidden="true">▼</span>' +
             '</button>' +
@@ -2462,7 +2462,7 @@
         if (titleEl) {
             titleEl.textContent = (hit.kind === 'anpr' || hit.anpr)
                 ? tr('analytics.anpr.alarmTitle', 'Plate match')
-                : tr('analytics.fr.alarmTitle', 'Face match');
+                : tr('analytics.fr.alarmTitle', 'Face Match');
         }
         var nameEl = document.getElementById('fr-alarm-name');
         var camEl = document.getElementById('fr-alarm-cam');

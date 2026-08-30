@@ -187,6 +187,7 @@ When a BWC triggers SOS:
 2. Map typically **zooms** to SOS location.
 3. Pin shows **SOS** status chip.
 4. Voice alert may play (unless muted).
+5. **Server live capture** starts by default when live video is pulled (Evidence settings: live capture + auto on SOS are **ON** by default; turn off only if the site does not want HQ SOS video). Files use the site’s configured live-capture / storage paths.
 
 **Dispatcher actions:**
 

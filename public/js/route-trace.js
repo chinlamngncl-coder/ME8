@@ -509,6 +509,22 @@
             }
             return;
         }
+        if (global.EvidenceHub && EvidenceHub.openMediaTools) {
+            var current = (vid && typeof vid.currentTime === 'number') ? vid.currentTime : 0;
+            var duration = (vid && Number.isFinite(vid.duration)) ? vid.duration : NaN;
+            var caseInp = document.getElementById('rt-attach-case-id');
+            EvidenceHub.openMediaTools({
+                fileId: file.id,
+                tool: 'trim',
+                trimOpts: {
+                    fileName: file.fileName,
+                    currentTime: current,
+                    duration: duration,
+                    caseId: (caseInp && caseInp.value) || activeCaseFileId || '',
+                },
+            });
+            return;
+        }
         if (!global.EvidenceTrimUi || !EvidenceTrimUi.open) return;
         var current = (vid && typeof vid.currentTime === 'number') ? vid.currentTime : 0;
         var duration = (vid && Number.isFinite(vid.duration)) ? vid.duration : NaN;

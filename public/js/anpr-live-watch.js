@@ -509,7 +509,7 @@
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'ax-anpr-live-pip-toggle';
-        btn.title = tr('analytics.anpr.pipToggle', 'Show / hide PIP');
+        btn.title = tr('analytics.anpr.pipToggle', 'Show / Hide PIP');
         btn.textContent = pipMinimized[slot] ? '\u25A1' : '\u2013';
         btn.addEventListener('click', function (ev) {
             ev.preventDefault();
@@ -2885,7 +2885,7 @@
             && (LicenseFeatures.isEnabled('analyticsAnpr') || LicenseFeatures.isEnabled('anpr')));
         if (!licensed) {
             healthFailStreak = 0;
-            paintLiveHealthBadge('warn', tr('analytics.anpr.engineNotLicensed', 'ANPR Engine \u2014 Not licensed'));
+            paintLiveHealthBadge('warn', tr('analytics.anpr.engineNotLicensed', 'ANPR Engine - Not Licensed'));
             return;
         }
         fetch('/api/analytics/anpr/health', { credentials: 'same-origin' })
@@ -2893,7 +2893,7 @@
             .then(function (data) {
                 if (!data || !data.featureEnabled) {
                     healthFailStreak = 0;
-                    paintLiveHealthBadge('warn', tr('analytics.anpr.engineNotLicensed', 'ANPR Engine \u2014 Not licensed'));
+                    paintLiveHealthBadge('warn', tr('analytics.anpr.engineNotLicensed', 'ANPR Engine - Not Licensed'));
                     return;
                 }
                 if (data.runtime && (

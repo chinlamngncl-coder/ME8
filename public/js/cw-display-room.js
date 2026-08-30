@@ -92,6 +92,7 @@
         if (v === 'tactical') return '/?popout=tactical';
         if (v === 'centre-summary' || v === 'status-board') return '/command-centre.html';
         if (v === 'face-watch' || v === 'analytics') return '/?popout=analytics';
+        if (v === 'investigation' || v === 'vms-investigation') return '/vms-investigation.html';
         if (v === 'map') return '/?popout=map';
         return '/?popout=' + encodeURIComponent(v || 'spatial-command');
     }

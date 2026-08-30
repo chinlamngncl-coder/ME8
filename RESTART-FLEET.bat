@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 title Mobility Axiom Server â€” restart
 REM mob-lab-restart-fleet-prefer-service:
 REM   If Windows service UbitronC2 is installed â†’ restart that service (UAC once if needed).
@@ -26,10 +26,21 @@ if "%RF_RC%"=="0" (
     exit /b 0
 )
 
+if "%RF_RC%"=="3" (
+    echo.
+    echo  START CANCELLED - service is PAUSED ^(application crash on startup^).
+    echo  NOT ports / HTTPS / localhost. NOT a UAC click loop.
+    echo  Read the BLOCKED lines above + storage\service-stderr.log
+    echo  Fix the crash, then Run as administrator once to clear Paused.
+    echo.
+    pause
+    exit /b 3
+)
+
 if "%RF_RC%"=="1" (
     echo.
-    echo  START CANCELLED â€” service restart failed.
-    echo  Click Yes on UAC, or Run as administrator, then try again.
+    echo  START CANCELLED - Windows blocked service restart ^(UAC / admin^).
+    echo  Click Yes on UAC, or right-click RESTART-FLEET.bat - Run as administrator.
     echo.
     pause
     exit /b 1

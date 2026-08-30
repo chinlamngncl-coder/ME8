@@ -337,6 +337,8 @@
         const cw = document.getElementById('app-view-command-wall');
         const sc = document.getElementById('app-view-spatial-command');
         const cs = document.getElementById('app-view-centre-summary');
+        const inv = document.getElementById('app-view-investigation');
+        const btnPlayback = document.getElementById('nav-tab-playback');
         const btnOps = document.getElementById('nav-tab-ops');
         const btnEv = document.getElementById('nav-tab-evidence');
         const btnAx = document.getElementById('nav-tab-analytics');
@@ -365,6 +367,10 @@
         if (cw) cw.hidden = tab !== 'command-wall';
         if (sc) sc.hidden = tab !== 'spatial-command';
         if (cs) cs.hidden = tab !== 'centre-summary';
+        if (inv) inv.hidden = tab !== 'playback' && tab !== 'investigation';
+        if ((tab === 'playback' || tab === 'investigation') && inv) {
+            try { inv.removeAttribute('hidden'); } catch (_) { inv.hidden = false; }
+        }
         try {
             if (tab === 'spatial-command') {
                 if (window.VmsCommandShell && typeof window.VmsCommandShell.onShow === 'function') {
@@ -384,6 +390,7 @@
         } catch (_) { /* ignore */ }
         if (btnOps) btnOps.classList.toggle('active', tab === 'ops');
         if (btnEv) btnEv.classList.toggle('active', tab === 'evidence');
+        if (btnPlayback) btnPlayback.classList.toggle('active', tab === 'playback' || tab === 'investigation');
         if (btnAx) btnAx.classList.toggle('active', tab === 'analytics');
         if (btnCad) btnCad.classList.toggle('active', tab === 'cad');
         if (btnTac) btnTac.classList.toggle('active', tab === 'tactical');
@@ -460,6 +467,11 @@
                 I18n.scheduleApply(cs);
             }
         }
+        if (tab === 'playback' || tab === 'investigation') {
+            if (global.VmsInvestigationTimeline && global.VmsInvestigationTimeline.onShow) {
+                global.VmsInvestigationTimeline.onShow({ force: loadData });
+            }
+        }
         if (tab === 'server' && global.SettingsHub && SettingsHub.onShow) {
             SettingsHub.onShow({ force: loadData });
         }
@@ -494,6 +506,23 @@
         const tbody = document.getElementById('evidence-tbody');
         if (btnOps) btnOps.addEventListener('click', function () { showTab('ops'); });
         if (btnEv) btnEv.addEventListener('click', function () { showTab('evidence'); });
+        const btnPlaybackNav = document.getElementById('nav-tab-playback');
+        if (btnPlaybackNav) {
+            btnPlaybackNav.addEventListener('click', function (ev) {
+                try { if (ev && ev.preventDefault) ev.preventDefault(); } catch (_) { /* ignore */ }
+                showTab('playback');
+            });
+        }
+        /* Nav delegation backup — survives late DOM/i18n quirks for Investigation */
+        var topNav = document.getElementById('app-top-nav');
+        if (topNav && !topNav._emPlaybackDelegate) {
+            topNav._emPlaybackDelegate = true;
+            topNav.addEventListener('click', function (e) {
+                var t = e.target && e.target.closest ? e.target.closest('#nav-tab-playback') : null;
+                if (!t || !topNav.contains(t)) return;
+                showTab('playback');
+            });
+        }
         if (btnAx) btnAx.addEventListener('click', function () { showTab('analytics'); });
         if (btnCad) btnCad.addEventListener('click', function () { showTab('cad'); });
         if (btnTac) btnTac.addEventListener('click', function () { showTab('tactical'); });

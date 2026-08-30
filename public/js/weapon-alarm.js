@@ -286,7 +286,7 @@
                 '<div class="wd-weapon-toast-inner">' +
                 '<div class="wd-weapon-toast-head">' +
                 '<span class="wd-weapon-toast-title">' +
-                esc(tr('analytics.weapon.toastTitle', 'Weapon detection')) + '</span>' +
+                esc(tr('analytics.weapon.toastTitle', 'Weapon Detection')) + '</span>' +
                 '<span class="wd-weapon-toast-queue" id="wd-weapon-toast-queue" hidden></span>' +
                 '<button type="button" class="wd-weapon-toast-close" id="wd-weapon-toast-close" aria-label="' +
                 esc(tr('common.close', 'Close')) + '">\u00D7</button>' +

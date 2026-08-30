@@ -1,0 +1,20 @@
+{
+  "groups.dashUserOptional": "Dashboard User",
+  "server.users.contactNote": "Contact Note",
+  "server.users.displayName": "Display Name",
+  "server.tenantName": "Tenant / Customer Name",
+  "smtp.user": "Username",
+  "conference.settingsEdge": "Offline Edge URL",
+  "conference.settingsProxyNote": "Proxy / NAT Notes",
+  "conference.settingsTurn": "TURN Relay URL",
+  "evidenceHub.holdsClearNote": "Note",
+  "evidenceHub.secureReasonPrompt": "Reason for This Export:",
+  "evidenceHub.denyReasonPrompt": "Reason for Denial:",
+  "map.killSwitch.incidentToggle": "+ Add Ticket Reference",
+  "analytics.bl.idNumber": "ID / Case Ref",
+  "analytics.bl.lastSeen": "Last Seen",
+  "analytics.bl.lastIncident": "Last Incident",
+  "analytics.bl.notes": "Notes",
+  "analytics.anpr.lists.label": "Label",
+  "lab.audit.token": "Audit Export Token"
+}

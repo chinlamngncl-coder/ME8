@@ -2,12 +2,15 @@
 (function () {
     'use strict';
 
-    /** Global fleet heartbeat — 3s (zombie SPA guard when Node is down). */
-    var POLL_MS = 3000;
+    window.__AXIOM_SERVER_HB = true;
+
+    /** Global fleet heartbeat — 5s (zombie SPA guard when Node is down). */
+    var POLL_MS = 5000;
     var el = null;
     var banner = null;
     var timer = null;
     var isServerOnline = true;
+    var lockedOffline = false;
     var inFlight = false;
 
     function tr(key, fallback, params) {
@@ -36,6 +39,17 @@
         return map[code] || String(code || '');
     }
 
+    function serverLostText() {
+        return tr('healthPlain.serverLost', 'Server Connection Lost. Reconnecting…');
+    }
+
+    function paintBannerText() {
+        ensureBanner();
+        if (!banner) return;
+        var textEl = banner.querySelector('.ax-global-server-banner-text');
+        if (textEl) textEl.textContent = serverLostText();
+    }
+
     function ensureBanner() {
         banner = document.getElementById('ax-global-server-banner');
         if (banner) return banner;
@@ -51,11 +65,8 @@
             '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" ' +
             'd="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>' +
             '</svg></span>' +
-            '<span class="ax-global-server-banner-text">' +
-            tr(
-                'healthPlain.serverLost',
-                'CRITICAL SYSTEM ALERT: MAIN SERVER CONNECTION LOST. RECONNECTING...'
-            ) +
+            '<span class="ax-global-server-banner-text" data-i18n="healthPlain.serverLost">' +
+            serverLostText() +
             '</span>';
         if (document.body) {
             document.body.insertBefore(banner, document.body.firstChild);
@@ -64,10 +75,24 @@
     }
 
     function setServerOnline(online) {
+        /* Once dead, stay locked until hard refresh — no silent zombie resume. */
+        if (lockedOffline) {
+            online = false;
+        } else if (!online) {
+            lockedOffline = true;
+        }
         isServerOnline = !!online;
         ensureBanner();
-        if (banner) banner.hidden = isServerOnline;
+        if (!isServerOnline) paintBannerText();
+        if (banner) {
+            banner.hidden = isServerOnline;
+            banner.style.pointerEvents = 'auto';
+        }
         document.documentElement.classList.toggle('ax-server-offline', !isServerOnline);
+        try {
+            document.documentElement.style.pointerEvents = isServerOnline ? '' : 'none';
+            if (banner) banner.style.pointerEvents = 'auto';
+        } catch (e) { /* ignore */ }
     }
 
     function paint(data) {
@@ -91,6 +116,7 @@
 
     function refresh() {
         if (inFlight) return;
+        if (lockedOffline) return;
         inFlight = true;
         var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
         var abortTimer = null;
@@ -106,14 +132,24 @@
             cache: 'no-store',
         })
             .then(function (r) {
-                /* Any HTTP answer = Node is alive (200 OK or 503 degraded still means server up). */
                 if (!r || typeof r.status !== 'number') {
+                    setServerOnline(false);
+                    paint({ ok: false, degraded: true, reasons: ['http'] });
+                    return null;
+                }
+                /* Dead gateway / no Node. Note: ME8 /api/health uses 503 for degraded-but-alive. */
+                if (r.status === 502 || r.status === 504) {
                     setServerOnline(false);
                     paint({ ok: false, degraded: true, reasons: ['http'] });
                     return null;
                 }
                 setServerOnline(true);
                 return r.json().catch(function () {
+                    /* Non-JSON 503 from a proxy ≈ dead upstream */
+                    if (r.status === 503) {
+                        setServerOnline(false);
+                        return null;
+                    }
                     return { ok: r.ok, degraded: !r.ok, reasons: r.ok ? [] : ['http'] };
                 });
             })
@@ -121,6 +157,7 @@
                 if (data) paint(data);
             })
             .catch(function () {
+                /* TypeError Failed to fetch / abort / network down */
                 setServerOnline(false);
                 paint({ ok: false, degraded: true, reasons: ['http'] });
             })

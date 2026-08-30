@@ -124,7 +124,7 @@
         'evidence.catalogErrorGeneric': 'The evidence index could not be accessed. Contact your IT administrator.',
         'login.errorInvalid': 'Invalid sign-in. Try again.',
         'login.errorServer': 'Could not reach server.',
-        'login.totpError': 'Authenticator code not accepted. Try again.',
+        'login.totpError': 'Invalid authenticator code. Try again.',
         'mustChangePassword.error': 'Could not update your sign-in. Check the fields and try again.',
         'mustChangePassword.errorServer': 'Could not reach server.',
         'totpEnroll.error': 'Could not complete authenticator setup. Try again.',

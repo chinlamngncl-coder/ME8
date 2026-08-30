@@ -497,7 +497,7 @@
         var name = String(hit.deviceName || hit.camId || '');
         var when = formatHitTime(hit.at);
         if (title) {
-            title.textContent = tr('analytics.weapon.lbTitle', 'Weapon detection') +
+            title.textContent = tr('analytics.weapon.lbTitle', 'Weapon Detection') +
                 ' \u2014 ' + cls;
         }
         if (img) {
@@ -936,13 +936,13 @@
             '<div class="ax-fr-roster-actions">' +
             '<button type="button" class="ax-hub-nav-btn ax-hub-nav-sub-btn active" id="ax-wd-watch-start"' +
             (watching || selected.length === 0 ? ' disabled' : '') + '>' +
-            esc(tr('analytics.fr.watchStart', 'Start watch')) + '</button>' +
+            esc(tr('analytics.fr.watchStart', 'Start Watch')) + '</button>' +
             '<button type="button" class="ax-hub-nav-btn ax-hub-nav-sub-btn" id="ax-wd-watch-stop"' +
             (watching ? '' : ' disabled') + '>' +
-            esc(tr('analytics.fr.stopVideo', 'Stop video')) + '</button>' +
+            esc(tr('analytics.fr.stopVideo', 'Stop Video')) + '</button>' +
             '<button type="button" class="ax-hub-nav-btn ax-hub-nav-sub-btn" id="ax-wd-watch-stop-all"' +
             (!watching && selected.length === 0 ? ' disabled' : '') + '>' +
-            esc(tr('analytics.fr.stopAll', 'Stop all')) + '</button>' +
+            esc(tr('analytics.fr.stopAll', 'Stop All')) + '</button>' +
             '<button type="button" class="ax-hub-nav-btn ax-hub-nav-sub-btn" id="ax-wd-roster-clear"' +
             (selected.length === 0 ? ' disabled' : '') + '>' +
             esc(tr('analytics.fr.clearWatch', 'Clear')) + '</button>' +

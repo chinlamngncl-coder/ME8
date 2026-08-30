@@ -186,22 +186,30 @@ if (-not $ok) {
     $failedState = Get-ServiceOrNull
     Write-Host ""
     if ($failedState -and $failedState.Status -eq 'Paused') {
-        Write-Host "  BLOCKED: service $serviceName is PAUSED after repeated application startup failures."
-        Write-Host "  This is not fixed by repeatedly clicking UAC Yes."
-        $serviceLog = Join-Path $PSScriptRoot 'storage\service-stdout.log'
-        if (Test-Path $serviceLog) {
-            $lastStartupError = Get-Content -Path $serviceLog -Tail 80 -ErrorAction SilentlyContinue |
-                Select-String -Pattern 'uncaughtException|startup|Error:' |
+        Write-Host "  BLOCKED: service $serviceName is PAUSED (app crashed on startup repeatedly)."
+        Write-Host "  This is NOT ports, HTTPS, or localhost."
+        Write-Host "  This is NOT fixed by repeatedly clicking UAC Yes."
+        $stderrLog = Join-Path $PSScriptRoot 'storage\service-stderr.log'
+        $stdoutLog = Join-Path $PSScriptRoot 'storage\service-stdout.log'
+        $lastLine = $null
+        foreach ($logPath in @($stderrLog, $stdoutLog)) {
+            if (-not (Test-Path $logPath)) { continue }
+            $hit = Get-Content -Path $logPath -Tail 120 -ErrorAction SilentlyContinue |
+                Select-String -Pattern 'SyntaxError|uncaughtException|Error:|FATAL|Cannot find module' |
                 Select-Object -Last 1
-            if ($lastStartupError) {
-                Write-Host "  Last startup error: $($lastStartupError.Line)"
-            }
+            if ($hit) { $lastLine = $hit.Line; break }
         }
-        Write-Host "  Repair the reported startup error, then run this restart once as Administrator."
-    } else {
-        Write-Host "  BLOCKED: Windows did not allow the service restart."
-        Write-Host "  Click Yes on the UAC box, or right-click RESTART-FLEET.bat -> Run as administrator."
+        if ($lastLine) {
+            Write-Host "  Last startup error: $lastLine"
+        } else {
+            Write-Host "  Check storage\service-stderr.log and storage\service-stdout.log"
+        }
+        Write-Host "  Fix the code/config crash, then Run as administrator ONCE to clear Paused."
+        Write-Host ""
+        exit 3
     }
+    Write-Host "  BLOCKED: Windows did not allow the service restart (permission / UAC)."
+    Write-Host "  Click Yes on the UAC box, or right-click RESTART-FLEET.bat -> Run as administrator."
     Write-Host ""
     exit 1
 }

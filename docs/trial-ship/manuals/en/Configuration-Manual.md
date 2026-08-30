@@ -187,7 +187,9 @@ Per-user checkboxes control each tab and export capabilities. Always click **Sav
 
 **NAS/SAN:** IT must mount volume on Windows first; then point Mobility at mount letter.
 
-**SOS auto-record:** Enable **Auto-record server video on SOS alarm** in evidence settings if required.
+**SOS server recording (default ON):** Mobility Axiom **always defaults** to recording server-side video when SOS pulls live (`Enable server live capture` + `Auto-record server video on SOS alarm`). Operators may turn these **off** if the site does not want HQ capture. Folder path still follows the site’s storage layout (Evidence → Storage / live capture path).
+
+**SOS auto-record:** Leave **Auto-record server video on SOS alarm** on unless you intentionally disable HQ SOS video.
 
 ---
 

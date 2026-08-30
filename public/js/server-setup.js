@@ -11,13 +11,13 @@
         'server.mode.lan': 'LAN server',
         'server.mode.cloud': 'Cloud / VPS',
         'server.mode.hybrid': 'Hybrid (cloud ops + site LAN)',
-        'server.users.colClearMapPins': 'Clear map pins',
+        'server.users.colClearMapPins': 'Clear Map Pins',
         'server.users.addNewAdminOperator': 'Add New Admin / Operator',
         'server.dashSub.addAccount': 'Add New Admin / Operator',
         'server.dashSub.usersAuthority': 'Users and Authority',
         'server.dashSub.siteSecurity': 'Site security',
         'server.tab.dashboard': 'Dashboard Authentication',
-        'server.users.loginUsername': 'Login username',
+        'server.users.loginUsername': 'Login Username',
         'server.users.usernameRequired': 'Login username is required.',
     };
 
@@ -595,7 +595,7 @@
     }
 
     function setFleetSubTab(tab) {
-        const allowed = { wireless: 1, fixed: 1, docks: 1, firmware: 1, usb: 1 };
+        const allowed = { wireless: 1, fixed: 1, nvr: 1, docks: 1, firmware: 1, usb: 1 };
         if (!allowed[tab]) tab = 'wireless';
         if ((tab === 'firmware' || tab === 'usb') && !canManageServer) tab = 'wireless';
         activeFleetSubTab = tab;
@@ -625,6 +625,11 @@
         } else if (global.FixedCamsUi && FixedCamsUi.hideInPanel) {
             FixedCamsUi.hideInPanel();
         }
+        if (tab === 'nvr') {
+            if (global.SettingsNvr && SettingsNvr.showInPanel) SettingsNvr.showInPanel();
+        } else if (global.SettingsNvr && SettingsNvr.hideInPanel) {
+            SettingsNvr.hideInPanel();
+        }
         const saveBwc = document.getElementById('ss-save-bwc-list');
         if (saveBwc) saveBwc.hidden = resolvePillar(activeMainTab) !== 'fleet' || tab !== 'wireless' || !canManageServer;
     }
@@ -636,18 +641,19 @@
         const showId = onFleet ? ({
             wireless: 'bwc',
             fixed: 'fixed',
+            nvr: 'nvr',
             docks: 'docks',
             firmware: 'firmware',
             usb: 'usb',
         }[activeFleetSubTab] || 'bwc') : '';
-        ['bwc', 'firmware', 'usb', 'fixed', 'docks'].forEach(function (id) {
+        ['bwc', 'firmware', 'usb', 'fixed', 'nvr', 'docks'].forEach(function (id) {
             const panel = document.getElementById('ss-panel-' + id);
             if (!panel) return;
             const on = id === showId;
             panel.hidden = !on;
             panel.classList.toggle('active', on);
         });
-        ['wireless', 'fixed', 'docks', 'firmware', 'usb'].forEach(function (id) {
+        ['wireless', 'fixed', 'nvr', 'docks', 'firmware', 'usb'].forEach(function (id) {
             const btn = document.getElementById('ss-fleet-sub-' + id);
             if (btn) btn.classList.toggle('active', onFleet && id === activeFleetSubTab);
         });
@@ -659,6 +665,7 @@
         if (saveBwc) saveBwc.hidden = !onFleet || activeFleetSubTab !== 'wireless' || !canManageServer;
         if (!onFleet) {
             if (global.FixedCamsUi && FixedCamsUi.hideInPanel) FixedCamsUi.hideInPanel();
+            if (global.SettingsNvr && SettingsNvr.hideInPanel) SettingsNvr.hideInPanel();
         }
     }
 
@@ -2514,11 +2521,13 @@
         if (subLab) subLab.addEventListener('click', () => setDashSubTab('lab'));
         const fleetWireless = document.getElementById('ss-fleet-sub-wireless');
         const fleetFixed = document.getElementById('ss-fleet-sub-fixed');
+        const fleetNvr = document.getElementById('ss-fleet-sub-nvr');
         const fleetDocks = document.getElementById('ss-fleet-sub-docks');
         const fleetFw = document.getElementById('ss-fleet-sub-firmware');
         const fleetUsb = document.getElementById('ss-fleet-sub-usb');
         if (fleetWireless) fleetWireless.addEventListener('click', () => setFleetSubTab('wireless'));
         if (fleetFixed) fleetFixed.addEventListener('click', () => setFleetSubTab('fixed'));
+        if (fleetNvr) fleetNvr.addEventListener('click', () => setFleetSubTab('nvr'));
         if (fleetDocks) fleetDocks.addEventListener('click', () => setFleetSubTab('docks'));
         if (fleetFw) fleetFw.addEventListener('click', () => setFleetSubTab('firmware'));
         if (fleetUsb) fleetUsb.addEventListener('click', () => setFleetSubTab('usb'));
@@ -3421,308 +3430,3 @@
         canManageServer: function () { return canManageServer; },
     };
 })(window);
-
-/* ── VMS Storage Volume Manager ─────────────────────────────────────────────
- * Self-contained module. Soft hints only — never raw SQL/tech strings in UI.
- */
-(function () {
-    'use strict';
-
-    var state = { volumes: [], editingId: null, bound: false };
-    var EMPTY_HINT = 'No storage volumes configured yet. Click Add Volume to attach your first NAS.';
-
-    function qs(id) { return document.getElementById(id); }
-    function setStatus(msg, isErr) {
-        var el = qs('vms-vol-status');
-        if (!el) return;
-        el.textContent = msg || '';
-        el.style.color = isErr ? '#f87171' : '#94a3b8';
-    }
-    function setProbeResult(msg, ok) {
-        var el = qs('vms-vol-probe-result');
-        if (!el) return;
-        el.textContent = msg || '';
-        el.style.color = ok ? '#22c55e' : '#f87171';
-    }
-    function setModalErr(msg) {
-        var el = qs('vms-vol-modal-err');
-        if (!el) return;
-        el.textContent = msg || '';
-        el.hidden = !msg;
-    }
-    function softApiError(d) {
-        if (!d) return 'Something went wrong. Please try again.';
-        var e = d.error || d.notice || '';
-        if (!e || /relation|SQL|postgres|stack|ENOENT|ECONN/i.test(String(e))) {
-            return 'Storage is not ready yet. Please try again in a moment.';
-        }
-        return String(e);
-    }
-
-    async function loadVolumes() {
-        setStatus('Checking your storage arrays…', false);
-        try {
-            var r = await fetch('/api/vms/volumes', { credentials: 'same-origin' });
-            var d = await r.json().catch(function () { return { ok: true, volumes: [] }; });
-            state.volumes = Array.isArray(d.volumes) ? d.volumes : [];
-            renderTable();
-            if (!d.ok && !state.volumes.length) {
-                setStatus(softApiError(d), true);
-            } else if (!state.volumes.length) {
-                setStatus('Ready when you are — add your first array above.', false);
-            } else {
-                setStatus(state.volumes.length + (state.volumes.length === 1 ? ' array connected' : ' arrays connected'), false);
-            }
-        } catch (_e) {
-            state.volumes = [];
-            renderTable();
-            setStatus('Could not reach storage settings. Please refresh and try again.', true);
-        }
-    }
-
-    function renderTable() {
-        var tbody = qs('vms-vol-tbody');
-        if (!tbody) return;
-        if (!state.volumes.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="setup-hint" style="padding:14px 0">' + EMPTY_HINT + '</td></tr>';
-            return;
-        }
-        tbody.innerHTML = '';
-        state.volumes.forEach(function (v) {
-            var tr = document.createElement('tr');
-            tr.innerHTML =
-                '<td>' + esc(v.name) + '</td>' +
-                '<td><code>' + esc(v.role) + '</code></td>' +
-                '<td style="color:#94a3b8;font-size:11px">Server mount</td>' +
-                '<td>' + (v.threshold_pct != null ? v.threshold_pct + '%' : '85%') + '</td>' +
-                '<td>' + (v.retention_days != null ? v.retention_days + ' days' : 'No limit') + '</td>' +
-                '<td style="white-space:nowrap">' +
-                    '<button type="button" class="btn btn-ghost btn-sm" data-vms-edit="' + esc(v.id) + '">Edit</button> ' +
-                    '<button type="button" class="btn btn-ghost btn-sm" style="color:#f87171" data-vms-del="' + esc(v.id) + '">Remove</button>' +
-                '</td>';
-            tbody.appendChild(tr);
-        });
-    }
-
-    function esc(s) {
-        return String(s == null ? '' : s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
-
-    function clearFormFields() {
-        if (qs('vms-vol-name')) qs('vms-vol-name').value = '';
-        if (qs('vms-vol-role')) qs('vms-vol-role').value = 'fixed-archive';
-        if (qs('vms-vol-threshold')) qs('vms-vol-threshold').value = '85';
-        if (qs('vms-vol-path')) qs('vms-vol-path').value = '';
-        if (qs('vms-vol-retention')) qs('vms-vol-retention').value = '';
-        setModalErr('');
-        setProbeResult('', true);
-    }
-
-    function openModal(editId) {
-        state.editingId = editId || null;
-        var modal = qs('vms-vol-modal');
-        if (!modal) return;
-        setModalErr('');
-        setProbeResult('', true);
-        var title = qs('vms-vol-modal-title');
-        if (title) title.textContent = editId ? 'Edit Storage Array' : 'Add Storage Array';
-
-        if (editId) {
-            var v = state.volumes.find(function (x) { return x.id === editId; });
-            if (v) {
-                if (qs('vms-vol-name')) qs('vms-vol-name').value = v.name || '';
-                if (qs('vms-vol-role')) qs('vms-vol-role').value = v.role || 'fixed-archive';
-                if (qs('vms-vol-threshold')) qs('vms-vol-threshold').value = v.threshold_pct != null ? v.threshold_pct : 85;
-                if (qs('vms-vol-path')) qs('vms-vol-path').value = '';
-                if (qs('vms-vol-retention')) qs('vms-vol-retention').value = v.retention_days != null ? v.retention_days : '';
-            } else {
-                clearFormFields();
-            }
-        } else {
-            clearFormFields();
-        }
-
-        modal.hidden = false;
-        modal.classList.add('is-open');
-        modal.setAttribute('aria-hidden', 'false');
-        if (qs('vms-vol-name')) qs('vms-vol-name').focus();
-        try { modal.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_e) { /* ignore */ }
-    }
-
-    function closeModal() {
-        var modal = qs('vms-vol-modal');
-        if (modal) {
-            modal.classList.remove('is-open');
-            modal.hidden = true;
-            modal.setAttribute('aria-hidden', 'true');
-            modal.style.display = '';
-        }
-        state.editingId = null;
-        setModalErr('');
-        setProbeResult('', true);
-        var saveBtn = qs('vms-vol-save-btn');
-        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Volume'; }
-        var probeBtn = qs('vms-vol-probe-btn');
-        if (probeBtn) probeBtn.disabled = false;
-        clearFormFields();
-    }
-
-    async function probeMount() {
-        var mountPath = qs('vms-vol-path') ? qs('vms-vol-path').value.trim() : '';
-        if (!mountPath) { setProbeResult('Enter a path first, then test the connection.', false); return; }
-        setProbeResult('Testing connection…', true);
-        var btn = qs('vms-vol-probe-btn');
-        if (btn) btn.disabled = true;
-        try {
-            var r = await fetch('/api/vms/volumes/probe', {
-                method: 'POST', credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mount_path: mountPath }),
-            });
-            var d = await r.json();
-            if (d.ok) {
-                var info = d.probe || d;
-                var msg = 'Path looks good';
-                if (info.freeGb != null) msg += ' — about ' + Number(info.freeGb).toFixed(1) + ' GB free';
-                setProbeResult(msg, true);
-            } else {
-                setProbeResult(softApiError(d) || 'That path could not be reached.', false);
-            }
-        } catch (_e) {
-            setProbeResult('Could not test this path right now.', false);
-        } finally {
-            if (btn) btn.disabled = false;
-        }
-    }
-
-    async function saveVolume() {
-        var name = qs('vms-vol-name') ? qs('vms-vol-name').value.trim() : '';
-        var role = qs('vms-vol-role') ? qs('vms-vol-role').value : 'fixed-archive';
-        var mountPath = qs('vms-vol-path') ? qs('vms-vol-path').value.trim() : '';
-        var threshold = qs('vms-vol-threshold') ? Number(qs('vms-vol-threshold').value) : 85;
-        var retDays = qs('vms-vol-retention') ? qs('vms-vol-retention').value.trim() : '';
-
-        if (!name) { setModalErr('Please give this array a name.'); return; }
-        if (!mountPath && !state.editingId) { setModalErr('Please enter the server mount path.'); return; }
-        if (isNaN(threshold) || threshold < 50 || threshold > 99) {
-            setModalErr('Disk pressure threshold should be between 50 and 99.'); return;
-        }
-
-        var payload = {
-            name: name,
-            role: role,
-            threshold_pct: threshold,
-            retention_days: retDays ? Number(retDays) : null,
-        };
-        if (mountPath) payload.mount_path = mountPath;
-
-        var saveBtn = qs('vms-vol-save-btn');
-        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
-        setModalErr('');
-        try {
-            var url = state.editingId
-                ? '/api/vms/volumes/' + encodeURIComponent(state.editingId)
-                : '/api/vms/volumes';
-            var method = state.editingId ? 'PUT' : 'POST';
-            var r = await fetch(url, {
-                method: method, credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            var d = await r.json();
-            if (!d.ok) throw new Error(softApiError(d));
-            closeModal();
-            await loadVolumes();
-        } catch (e) {
-            setModalErr(e.message || 'Could not save. Check the path and try again.');
-        } finally {
-            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Volume'; }
-        }
-    }
-
-    async function deleteVolume(id) {
-        if (!id || !window.confirm('Remove this storage array from Axiom? Files on the NAS are not deleted.')) return;
-        try {
-            var r = await fetch('/api/vms/volumes/' + encodeURIComponent(id), {
-                method: 'DELETE', credentials: 'same-origin',
-            });
-            var d = await r.json();
-            if (!d.ok) throw new Error(softApiError(d));
-            await loadVolumes();
-        } catch (_e) {
-            setStatus('Could not remove that array. Please try again.', true);
-        }
-    }
-
-    function bindOnce() {
-        if (state.bound) return;
-        state.bound = true;
-
-        /* Event delegation — survives tab reorganize / late DOM */
-        document.addEventListener('click', function (e) {
-            var t = e.target;
-            if (!t || !t.closest) return;
-            if (t.closest('#vms-vol-add-btn')) {
-                e.preventDefault();
-                openModal(null);
-                return;
-            }
-            if (t.closest('#vms-vol-cancel-btn')) {
-                e.preventDefault();
-                closeModal();
-                return;
-            }
-            if (t.closest('#vms-vol-save-btn')) {
-                e.preventDefault();
-                saveVolume();
-                return;
-            }
-            if (t.closest('#vms-vol-probe-btn')) {
-                e.preventDefault();
-                probeMount();
-                return;
-            }
-            var edit = t.closest('[data-vms-edit]');
-            if (edit) {
-                e.preventDefault();
-                openModal(edit.getAttribute('data-vms-edit'));
-                return;
-            }
-            var del = t.closest('[data-vms-del]');
-            if (del) {
-                e.preventDefault();
-                deleteVolume(del.getAttribute('data-vms-del'));
-                return;
-            }
-            var modal = qs('vms-vol-modal');
-            if (modal && t === modal && modal.classList.contains('is-open')) {
-                /* inline form — ignore backdrop-style clicks */
-                return;
-            }
-        });
-
-        document.addEventListener('keydown', function (e) {
-            var modal = qs('vms-vol-modal');
-            if (e.key === 'Escape' && modal && modal.classList.contains('is-open')) {
-                e.preventDefault();
-                closeModal();
-            }
-        });
-    }
-
-    function init() {
-        bindOnce();
-        var modal = qs('vms-vol-modal');
-        if (modal) modal.setAttribute('aria-hidden', 'true');
-        loadVolumes();
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
-
-    window.VmsVolumeUi = { reload: loadVolumes, openAdd: function () { openModal(null); } };
-})();

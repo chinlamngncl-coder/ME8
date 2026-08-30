@@ -247,7 +247,7 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data || !data.featureEnabled) {
-                    paintEngineHealth(el, 'warn', tr('analytics.verify.engineNotLicensed', 'FR Engine \u2014 Not licensed'));
+                    paintEngineHealth(el, 'warn', tr('analytics.verify.engineNotLicensed', 'FR Engine - Not Licensed'));
                     return;
                 }
                 if (data.runtime && data.runtime.ok) {
@@ -300,7 +300,7 @@
                 }
                 if (!data || !data.featureEnabled) {
                     stopWeaponHealthPoll();
-                    paintEngineHealth(el, 'warn', tr('analytics.weapon.engineNotLicensed', 'Weapon Engine \u2014 Not licensed'));
+                    paintEngineHealth(el, 'warn', tr('analytics.weapon.engineNotLicensed', 'Weapon Engine - Not Licensed'));
                     return;
                 }
                 if (weaponEngineFullyReady(data.runtime)) {
@@ -611,7 +611,7 @@
         if (!anprLicensed()) {
             anprHealthFailStreak = 0;
             anprHealthLastKind = 'warn';
-            paintEngineHealth(el, 'warn', tr('analytics.anpr.engineNotLicensed', 'ANPR Engine \u2014 Not licensed'));
+            paintEngineHealth(el, 'warn', tr('analytics.anpr.engineNotLicensed', 'ANPR Engine - Not Licensed'));
             return;
         }
         if (!anprHealthLastKind) {
@@ -623,7 +623,7 @@
                 if (!data || !data.featureEnabled) {
                     anprHealthFailStreak = 0;
                     anprHealthLastKind = 'warn';
-                    paintEngineHealth(el, 'warn', tr('analytics.anpr.engineNotLicensed', 'ANPR Engine \u2014 Not licensed'));
+                    paintEngineHealth(el, 'warn', tr('analytics.anpr.engineNotLicensed', 'ANPR Engine - Not Licensed'));
                     return;
                 }
                 if (data.runtime && (
@@ -1222,7 +1222,7 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data || !data.featureEnabled) {
-                    el.textContent = tr('analytics.verify.engineNotLicensed', 'FR Engine \u2014 Not licensed');
+                    el.textContent = tr('analytics.verify.engineNotLicensed', 'FR Engine - Not Licensed');
                     el.hidden = false;
                     return;
                 }
@@ -1672,9 +1672,9 @@
         var rows = [
             [tr('analytics.bl.grade', 'Watch grade'), gradeBadgeHtml(e.listStatus)],
             [tr('analytics.bl.reason', 'Reason'), esc(reasonLabel(e.reasonCode, e.reasonOther))],
-            [tr('analytics.bl.idNumber', 'ID / case ref'), esc(e.idNumber || '\u2014')],
-            [tr('analytics.bl.lastSeen', 'Last seen'), esc(e.lastSeen || '\u2014')],
-            [tr('analytics.bl.lastIncident', 'Last incident'), esc(e.lastIncident || '\u2014')],
+            [tr('analytics.bl.idNumber', 'ID / Case Ref'), esc(e.idNumber || '\u2014')],
+            [tr('analytics.bl.lastSeen', 'Last Seen'), esc(e.lastSeen || '\u2014')],
+            [tr('analytics.bl.lastIncident', 'Last Incident'), esc(e.lastIncident || '\u2014')],
             [tr('analytics.bl.notes', 'Notes'), esc(e.notes || '\u2014')],
             [tr('analytics.bl.colWhen', 'Enrolled'), esc(when)],
             [tr('analytics.bl.enrolledBy', 'Enrolled by'), esc(e.enrolledBy || '\u2014')],

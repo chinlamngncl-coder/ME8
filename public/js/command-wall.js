@@ -961,7 +961,7 @@
             audioBtn.disabled = fixedCamera || !camId || !live || !online;
             const muted = isSlotMuted(slot);
             audioBtn.textContent = muted ? '🔇' : '🔊';
-            audioBtn.title = muted ? 'Listen to this panel' : 'Mute this panel';
+            audioBtn.title = muted ? 'Listen to This Panel' : 'Mute This Panel';
             audioBtn.classList.toggle('listening', !muted && live);
         }
         cell.classList.toggle('has-cam', !!camId);

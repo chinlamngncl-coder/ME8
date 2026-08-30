@@ -55,6 +55,13 @@ const ftpIngest       = require('./lib/ftpIngest');
 const fixedCamRegistry = require('./lib/fixedCamRegistry');
 const fixedCamOnvif = require('./lib/fixedCamOnvif');
 const fixedCamCatalogPg = require('./lib/fixedCamCatalogPg');
+const nvrRegistry = require('./lib/nvrRegistry');
+const queryDateBounds = require('./lib/queryDateBounds');
+const vmsForensicExport = require('./lib/vmsForensicExport');
+const bwcEvidenceIndexer = require('./lib/bwcEvidenceIndexer');
+const sosEvidenceIndexer = require('./lib/sosEvidenceIndexer');
+const vmsAiAlarmIndex = require('./lib/vmsAiAlarmIndex');
+const vmsAlarmEventPreview = require('./lib/vmsAlarmEventPreview');
 const evidenceCrypto   = require('./lib/evidenceCrypto');
 const evidenceUploadSafeName = require('./lib/evidenceUploadSafeName');
 const evidenceIngestGate = require('./lib/evidenceIngestGate');
@@ -348,6 +355,7 @@ function refreshEvidenceStorage() {
     evidenceWorkflow.init(STORAGE_DIR);
     evidenceSecureExport.init(STORAGE_DIR);
     evidenceCrypto.init(STORAGE_DIR);
+    vmsForensicExport.init(STORAGE_DIR);
     fixedCamRegistry.init(STORAGE_DIR);
     dockFtpIngestWatch.setRoot(FTP_ROOT);
     return { ftpRoot: FTP_ROOT, liveCaptureRoot: lcRoot, archiveRoot: archiveRoot };
@@ -723,7 +731,7 @@ async function ensureAndAttachHttps() {
         proc.stderr.on('data', (d) => { stderr += String(d); });
         proc.on('close', (code) => {
             if (code !== 0) {
-                log.web.warn('dashboard https cert ensure failed', {
+            log.web.warn('dashboard https cert ensure failed', {
                     status: code,
                     stderr: stderr.slice(0, 400),
                     stdout: stdout.slice(0, 400),
@@ -739,21 +747,21 @@ async function ensureAndAttachHttps() {
         });
     });
     dashboardTlsBoot = dashboardTls.resolveFromEnv({ httpPort: HTTP_PORT, baseDir: __dirname });
-    if (dashboardTlsBoot.enabled && dashboardTlsBoot.ready && dashboardTlsBoot.httpsOptions) {
-        httpsServer = https.createServer(dashboardTlsBoot.httpsOptions, app);
+if (dashboardTlsBoot.enabled && dashboardTlsBoot.ready && dashboardTlsBoot.httpsOptions) {
+    httpsServer = https.createServer(dashboardTlsBoot.httpsOptions, app);
         /* Attach Socket.IO first, then media router wraps it (must capture Engine.IO upgrade). */
-        io.attach(httpsServer);
+    io.attach(httpsServer);
         if (dashboardMediaWs && typeof dashboardMediaWs.bindUpgrade === 'function') {
             dashboardMediaWs.bindUpgrade(httpsServer);
         }
         log.web.info('dashboard https server ready');
-    } else if (dashboardTlsBoot.enabled && !dashboardTlsBoot.ready) {
-        log.web.warn('dashboard https enabled but not ready', {
-            reason: dashboardTlsBoot.reason,
-            certPath: dashboardTlsBoot.certPath,
-            keyPath: dashboardTlsBoot.keyPath,
-            hint: 'node scripts/ensure-lab-dashboard-tls-certs.js',
-        });
+} else if (dashboardTlsBoot.enabled && !dashboardTlsBoot.ready) {
+    log.web.warn('dashboard https enabled but not ready', {
+        reason: dashboardTlsBoot.reason,
+        certPath: dashboardTlsBoot.certPath,
+        keyPath: dashboardTlsBoot.keyPath,
+        hint: 'node scripts/ensure-lab-dashboard-tls-certs.js',
+    });
     }
 }
 
@@ -920,6 +928,7 @@ frLivePoller.init({
                 detail,
             });
         } catch (_) { /* ignore */ }
+        try { vmsAiAlarmIndex.logLiveFrHit(hit); } catch (_) { /* ignore */ }
     },
 });
 frLivePoller.start();
@@ -963,6 +972,7 @@ anprLivePoller.init({
                 },
             });
         } catch (_) { /* ignore */ }
+        try { vmsAiAlarmIndex.logLiveAnprHit(hit); } catch (_) { /* ignore */ }
     },
 });
 anprLivePoller.start();
@@ -982,7 +992,12 @@ weaponLivePoller.init({
         } catch (_) { /* ignore */ }
         return String(camId);
     },
-    emit: (event, payload, camId) => emitToDashboardSockets(event, payload, camId),
+    emit: (event, payload, camId) => {
+        if (event === 'weapon-detect' && payload) {
+            try { vmsAiAlarmIndex.logLiveWeaponHit(payload); } catch (_) { /* ignore */ }
+        }
+        return emitToDashboardSockets(event, payload, camId);
+    },
 });
 weaponLivePoller.start();
 frOfflineVideo.init({
@@ -1274,6 +1289,7 @@ const msgReassemblerPruneTimer = setInterval(() => {
 if (typeof msgReassemblerPruneTimer.unref === 'function') msgReassemblerPruneTimer.unref();
 
 app.use(express.json({ limit: '2mb' }));
+app.use(queryDateBounds.attachDateBounds);
 app.use((req, res, next) => {
     const prev = res.json.bind(res);
     res.json = function utf8Json(body) {
@@ -1514,11 +1530,11 @@ app.get('/api/metrics', (req, res) => {
         if (!lab.metricsEnabled) {
             return res.status(404).send('# metrics disabled\n');
         }
-        const auth = req.headers.authorization || '';
-        const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+            const auth = req.headers.authorization || '';
+            const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
         const configured = String(lab.metricsToken || '').trim();
         if (!configured || token !== configured) {
-            return res.status(401).send('# unauthorized\n');
+                return res.status(401).send('# unauthorized\n');
         }
         const fleet = fleetRegistry.getDashboardFleet ? fleetRegistry.getDashboardFleet() : [];
         const online = fleet.filter(function (d) { return d.online; }).length;
@@ -2642,6 +2658,25 @@ let bwcDevicesCache = { devices: [] };
 
 async function bootstrapSiteDatabase() {
     await siteDb.init(STORAGE_DIR);
+    /* Belt-and-suspenders: re-verify 018/027/030 before accepting traffic */
+    try {
+        await siteDb.ensureCriticalVmsSchema();
+    } catch (migErr) {
+        log.web.err('critical VMS schema ensure failed', {
+            error: migErr && migErr.message ? migErr.message : String(migErr),
+        });
+        throw migErr;
+    }
+    try {
+        const legacy = await nvrRegistry.ensureLegacyNvrChildrenProvisioned(STORAGE_DIR);
+        if (legacy && legacy.provisioned) {
+            log.web.info('nvr legacy auto-provision', legacy);
+        }
+    } catch (legErr) {
+        log.web.warn('nvr legacy auto-provision failed', {
+            error: legErr && legErr.message ? legErr.message : String(legErr),
+        });
+    }
     await operationOverlay.init({
         storageDir: STORAGE_DIR,
         getDispatchGroupColor: function (id) {
@@ -6081,7 +6116,7 @@ function emitToDashboardSockets(event, payload, camId) {
             const user = dispatchScope.userFromSession(session);
             if (!user || dashboardAuth.normalizeRole(user.role) !== 'super_admin') return;
         }
-        sock.emit(event, payload);
+            sock.emit(event, payload);
     });
 }
 
@@ -6929,20 +6964,64 @@ const { requireZoneAccess } = require('./lib/middleware/vmsAuth');
 
 /**
  * GET /api/vms/cameras/:camId/timeline?from=ISO&to=ISO
+ *   OR ?date=YYYY-MM-DD&tzOffset= (client local day; tzOffset = JS getTimezoneOffset)
  * Returns recording segments + alarm markers for the given camera and time window.
- * Segments: { segmentId, start_at, end_at, status } — NO file_path.
+ * Segments: { segmentId, start_at, end_at, status, storageTier } — NO file_path.
  * Alarm markers: { id, event_type, occurred_at, note }.
  */
+function vmsStorageTierLabel(role, volumeName, notes, tierType) {
+    const t = String(tierType || '').trim().toLowerCase();
+    if (t === 'local_edge') return 'Local Node';
+    if (t === 'nvr_hdd') return 'NVR HDD';
+    if (t === 'nas_archive') return 'NAS Archive';
+    const notesStr = String(notes || '').trim();
+    const tierMatch = notesStr.match(/tier:([a-z0-9_-]+)/i);
+    if (tierMatch) {
+        const key = tierMatch[1].toLowerCase();
+        const map = {
+            'edge-nvme': 'Edge NVMe',
+            'nvr-local': 'NVR HDD',
+            'nas-archive': 'NAS Archive',
+            'ftp-archive': 'FTP Archive',
+        };
+        if (map[key]) return map[key];
+    }
+    const n = String(volumeName || '').trim();
+    const r = String(role || '').trim();
+    if (/nvr/i.test(n)) return 'NVR HDD';
+    if (r === 'fixed-archive') return 'NAS Archive';
+    if (/ftp|nas|archive/i.test(n)) return 'NAS Archive';
+    if (r === 'bwc-ingest') return 'Local Node';
+    if (r === 'ai-feed') return 'AI Feed';
+    return n || 'Local Node';
+}
+
 app.get('/api/vms/cameras/:camId/timeline',
     dashboardAuth.requireDashboardAuth,
     requireZoneAccess,
     async (req, res) => {
         try {
             const camId = String(req.params.camId || '').trim();
-            const from  = String(req.query.from  || '').trim();
-            const to    = String(req.query.to    || '').trim();
+            const dateQ = String(req.query.date || '').trim();
+            let from  = String(req.query.from  || '').trim();
+            let to    = String(req.query.to    || '').trim();
             if (!camId) return res.status(400).json(opErr('camId required'));
-            if (!from || !to) return res.status(400).json(opErr('from and to ISO timestamps required'));
+
+            try {
+                await bwcEvidenceIndexer.indexForCamIds([camId]);
+                await sosEvidenceIndexer.indexForCamIds([camId]);
+            } catch (_) { /* non-fatal — timeline still returns existing segments */ }
+
+            if (dateQ) {
+                const bounds = req.dateBounds || queryDateBounds.resolveDateQueryBounds(req.query);
+                if (!bounds) {
+                    return res.status(400).json(opErr('date must be YYYY-MM-DD'));
+                }
+                from = bounds.from;
+                to = bounds.to;
+            } else if (!from || !to) {
+                return res.status(400).json(opErr('from and to ISO timestamps required, or date=YYYY-MM-DD'));
+            }
 
             /* Validate ISO timestamps */
             const fromMs = Date.parse(from);
@@ -6951,14 +7030,21 @@ app.get('/api/vms/cameras/:camId/timeline',
                 return res.status(400).json(opErr('Invalid time range'));
             }
 
-            /* Query segments — strip file_path, expose only virtual segmentId */
+            try {
+                await vmsAiAlarmIndex.indexForCamWindow(camId, from, to);
+            } catch (_) { /* non-fatal */ }
+
+            /* Query segments — strip file_path, expose virtual segmentId + storage tier label */
             const segResult = await siteDb.query(
-                `SELECT id, cam_id, start_at, end_at, status
-                 FROM vms_recording_segments
-                 WHERE cam_id = $1
-                   AND start_at <= $2
-                   AND (end_at >= $3 OR end_at IS NULL)
-                 ORDER BY start_at ASC`,
+                `SELECT s.id, s.cam_id, s.start_at, s.end_at, s.status, s.volume_id,
+                        v.name AS volume_name, v.role AS volume_role, v.notes AS volume_notes,
+                        v.tier_type AS volume_tier_type
+                 FROM vms_recording_segments s
+                 LEFT JOIN vms_storage_volumes v ON v.id = s.volume_id
+                 WHERE s.cam_id = $1
+                   AND s.start_at <= $2
+                   AND (s.end_at >= $3 OR s.end_at IS NULL)
+                 ORDER BY s.start_at ASC`,
                 [camId, to, from]
             );
             const segments = segResult.rows.map((r) => ({
@@ -6966,17 +7052,31 @@ app.get('/api/vms/cameras/:camId/timeline',
                 start_at:  r.start_at,
                 end_at:    r.end_at,
                 status:    r.status,
+                storageTier: vmsStorageTierLabel(r.volume_role, r.volume_name, r.volume_notes, r.volume_tier_type),
+                storageTierType: r.volume_tier_type || null,
             }));
 
-            /* Query alarm markers in window */
+            /* Alarm markers — capped; AI/SOS preferred over motion flood */
+            const almLimit = vmsAiAlarmIndex.MAX_TIMELINE_ALARMS || 180;
             const almResult = await siteDb.query(
                 `SELECT id, event_type, occurred_at, note
                  FROM vms_alarm_markers
                  WHERE cam_id = $1
                    AND occurred_at >= $2
                    AND occurred_at <= $3
-                 ORDER BY occurred_at ASC`,
-                [camId, from, to]
+                 ORDER BY
+                   CASE event_type
+                     WHEN 'sos' THEN 0
+                     WHEN 'analytics' THEN 1
+                     WHEN 'anpr' THEN 2
+                     WHEN 'tamper' THEN 3
+                     WHEN 'line_crossing' THEN 4
+                     WHEN 'motion' THEN 5
+                     ELSE 6
+                   END ASC,
+                   occurred_at ASC
+                 LIMIT $4`,
+                [camId, from, to, almLimit]
             );
 
             res.json({
@@ -6984,8 +7084,156 @@ app.get('/api/vms/cameras/:camId/timeline',
                 camId,
                 from,
                 to,
+                date:     dateQ || null,
+                tzOffset: (req.dateBounds && req.dateBounds.tzOffset != null)
+                    ? req.dateBounds.tzOffset
+                    : (req.query.tzOffset != null ? Number(req.query.tzOffset) : null),
                 segments,
                 alarms:   almResult.rows,
+            });
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    }
+);
+
+/**
+ * GET /api/vms/recording-days?camIds=a,b&year=2026&month=8&tzOffset=
+ * Days (YYYY-MM-DD, client local) with recording segments and/or alarm markers.
+ * No file paths. alarmDays = FR/ANPR/Weapon/ONVIF pins in vms_alarm_markers.
+ */
+app.get('/api/vms/recording-days',
+    dashboardAuth.requireDashboardAuth,
+    async (req, res) => {
+        try {
+            const camIds = String(req.query.camIds || req.query.camId || '')
+                .split(',')
+                .map((s) => String(s || '').trim())
+                .filter(Boolean)
+                .slice(0, 1); /* calendar: Focus Camera only — never grid union */
+            const year = parseInt(String(req.query.year || ''), 10);
+            const month = parseInt(String(req.query.month || ''), 10);
+            const tzOffset = parseInt(String(req.query.tzOffset || '0'), 10);
+            if (!camIds.length) {
+                return res.json({
+                    ok: true,
+                    year: year || null,
+                    month: month || null,
+                    days: [],
+                    alarmDays: [],
+                });
+            }
+            if (!Number.isFinite(year) || year < 2000 || year > 2100 ||
+                !Number.isFinite(month) || month < 1 || month > 12) {
+                return res.status(400).json(opErr('year and month required'));
+            }
+            try {
+                await bwcEvidenceIndexer.indexForCamIds(camIds);
+                await sosEvidenceIndexer.indexForCamIds(camIds);
+            } catch (_) { /* non-fatal */ }
+            const tz = Number.isFinite(tzOffset) ? tzOffset : 0;
+            /* Client-local month → UTC (tzOffset = JS getTimezoneOffset minutes) */
+            const monthStartUtc = new Date(Date.UTC(year, month - 1, 1) + tz * 60000);
+            const monthEndUtc = new Date(Date.UTC(year, month, 1) + tz * 60000);
+            const fromIso = monthStartUtc.toISOString();
+            const toIso = monthEndUtc.toISOString();
+            const monthStartLocalStr = `${year}-${String(month).padStart(2, '0')}-01 00:00:00`;
+            const nextY = month === 12 ? year + 1 : year;
+            const nextM = month === 12 ? 1 : month + 1;
+            const monthEndLocalStr = `${nextY}-${String(nextM).padStart(2, '0')}-01 00:00:00`;
+            try {
+                for (let i = 0; i < camIds.length; i++) {
+                    await vmsAiAlarmIndex.indexForCamWindow(camIds[i], fromIso, toIso);
+                }
+            } catch (_) { /* non-fatal */ }
+            const { rows } = await siteDb.query(
+                `SELECT DISTINCT to_char(d, 'YYYY-MM-DD') AS day
+                 FROM vms_recording_segments s
+                 CROSS JOIN LATERAL generate_series(
+                     date_trunc('day', (s.start_at AT TIME ZONE 'UTC') - make_interval(mins => $2)),
+                     date_trunc('day', (COALESCE(s.end_at, NOW()) AT TIME ZONE 'UTC') - make_interval(mins => $2)),
+                     interval '1 day'
+                 ) AS d
+                 WHERE s.cam_id = ANY($1::text[])
+                   AND s.start_at < $4::timestamptz
+                   AND (s.end_at >= $3::timestamptz OR s.end_at IS NULL)
+                   AND d >= $5::timestamp
+                   AND d < $6::timestamp
+                 ORDER BY day ASC`,
+                [camIds, tz, fromIso, toIso, monthStartLocalStr, monthEndLocalStr]
+            );
+            let alarmDays = [];
+            try {
+                /* Exact cam_id — frontend sends raw internal Focus Camera id. */
+                const focusCamId = String(camIds[0] || '').trim();
+                const alm = await siteDb.query(
+                    `SELECT DISTINCT to_char(
+                        date_trunc('day', (a.occurred_at AT TIME ZONE 'UTC') - make_interval(mins => $2)),
+                        'YYYY-MM-DD'
+                     ) AS day
+                     FROM vms_alarm_markers a
+                     WHERE a.cam_id = $1
+                       AND lower(coalesce(a.event_type, '')) IN (
+                         'analytics', 'sos', 'weapon', 'fr_hit', 'anpr_hit', 'anpr'
+                       )
+                       AND a.occurred_at >= $3::timestamptz
+                       AND a.occurred_at < $4::timestamptz
+                     ORDER BY day ASC`,
+                    [focusCamId, tz, fromIso, toIso]
+                );
+                alarmDays = (alm.rows || []).map((r) => String(r.day).slice(0, 10));
+            } catch (err) {
+                console.error('Alarm Days Query Error:', err);
+                alarmDays = [];
+            }
+            const recordingDays = rows.map((r) => String(r.day).slice(0, 10));
+            res.json({
+                ok: true,
+                year,
+                month,
+                days: recordingDays,
+                recordingDays,
+                alarmDays,
+            });
+        } catch (err) {
+            res.status(500).json(opErr(err));
+        }
+    }
+);
+
+/**
+ * GET /api/vms/alarm-event-preview
+ * Public snapshot URL for an Investigation alarm pin (no absolute paths).
+ */
+app.get('/api/vms/alarm-event-preview',
+    dashboardAuth.requireDashboardAuth,
+    async (req, res) => {
+        try {
+            const camId = String(req.query.camId || '').trim();
+            const occurredAt = String(req.query.occurredAt || '').trim();
+            const eventType = String(req.query.eventType || '').trim();
+            const note = String(req.query.note || '').trim().slice(0, 500);
+            const markerId = String(req.query.markerId || '').trim();
+            if (!camId || !occurredAt) {
+                return res.status(400).json(opErr('camId and occurredAt required'));
+            }
+            const resolved = await vmsAlarmEventPreview.resolvePreview({
+                camId,
+                occurredAt,
+                eventType,
+                note,
+                markerId,
+            });
+            res.json({
+                ok: true,
+                markerId: markerId || null,
+                camId,
+                occurredAt,
+                eventType: eventType || null,
+                note,
+                previewUrl: resolved.previewUrl,
+                hasSnapshot: resolved.hasSnapshot,
+                mediaKind: resolved.mediaKind,
             });
         } catch (err) {
             res.status(500).json(opErr(err));
@@ -7088,6 +7336,88 @@ app.get('/api/vms/segments/:segmentId/stream',
             if (!res.headersSent) res.status(500).json(opErr(err));
         }
     }
+);
+
+/**
+ * POST /api/vms/cameras/:camId/export-clip — Mark In/Out → FFmpeg -c copy + alarm sidecar
+ * Body: { markInMs|markIn, markOutMs|markOut }
+ */
+app.post('/api/vms/cameras/:camId/export-clip',
+    dashboardAuth.requireDashboardAuth,
+    requireZoneAccess,
+    express.json({ limit: '32kb' }),
+    async (req, res) => {
+        try {
+            const camId = String(req.params.camId || '').trim();
+            const b = req.body || {};
+            const inMs = b.markInMs != null ? Number(b.markInMs) : Date.parse(String(b.markIn || ''));
+            const outMs = b.markOutMs != null ? Number(b.markOutMs) : Date.parse(String(b.markOut || ''));
+            const password = String(b.password || b.exportPassword || '');
+            if (!password || password.length < 8) {
+                return res.status(400).json(opErr('Set an export password of at least 8 characters.'));
+            }
+            const sess = req.dashboardUser || req.session || {};
+            const evidenceExporter = require('./lib/evidenceExporter');
+            await evidenceExporter.streamSecureTimelineZip(res, {
+                camId: camId,
+                markInMs: inMs,
+                markOutMs: outMs,
+                password: password,
+                userId: sess.userId || null,
+                username: sess.username || null,
+            });
+        } catch (err) {
+            if (!res.headersSent) res.status(400).json(opErr(err));
+        }
+    }
+);
+
+/**
+ * POST /api/vms/cameras/:camId/capture-frame — JPEG at absolute timestamp from recording
+ * Body: { atMs|at }
+ */
+app.post('/api/vms/cameras/:camId/capture-frame',
+    dashboardAuth.requireDashboardAuth,
+    requireZoneAccess,
+    express.json({ limit: '16kb' }),
+    async (req, res) => {
+        try {
+            const camId = String(req.params.camId || '').trim();
+            const b = req.body || {};
+            const atMs = b.atMs != null ? Number(b.atMs) : Date.parse(String(b.at || ''));
+            const out = await vmsForensicExport.captureFrame(camId, atMs);
+            res.json(Object.assign({ ok: true }, out));
+        } catch (err) {
+            res.status(400).json(opErr(err));
+        }
+    }
+);
+
+function sendVmsForensicFile(req, res, kind) {
+    try {
+        const file = vmsForensicExport.resolveExportFile(req.params.exportId, kind);
+        if (!file) return res.status(404).json(opErr('Export not found'));
+        const type = kind === 'clip' ? 'video/mp4'
+            : (kind === 'sidecar' ? 'application/json' : 'image/jpeg');
+        res.setHeader('Content-Type', type);
+        res.setHeader('Content-Disposition', 'attachment; filename="' + file.fileName.replace(/"/g, '') + '"');
+        return res.sendFile(file.path);
+    } catch (err) {
+        return res.status(500).json(opErr(err));
+    }
+}
+
+app.get('/api/vms/forensic/:exportId/clip',
+    dashboardAuth.requireDashboardAuth,
+    function (req, res) { sendVmsForensicFile(req, res, 'clip'); }
+);
+app.get('/api/vms/forensic/:exportId/sidecar',
+    dashboardAuth.requireDashboardAuth,
+    function (req, res) { sendVmsForensicFile(req, res, 'sidecar'); }
+);
+app.get('/api/vms/forensic/:exportId/frame',
+    dashboardAuth.requireDashboardAuth,
+    function (req, res) { sendVmsForensicFile(req, res, 'frame'); }
 );
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -7692,12 +8022,12 @@ async function startFixedCamZlmProxy(camera, owner, opts) {
     const existing = fixedCamZlmProxies.get(id);
     if (existing) {
         if (existing.rtspUrl === resolved && existing.viewMode === viewMode) {
-            existing.owners.set(ownerId, Date.now() + 90000);
-            if (existing.stopTimer) {
-                clearTimeout(existing.stopTimer);
-                existing.stopTimer = null;
-            }
-            return existing;
+        existing.owners.set(ownerId, Date.now() + 90000);
+        if (existing.stopTimer) {
+            clearTimeout(existing.stopTimer);
+            existing.stopTimer = null;
+        }
+        return existing;
         }
         /* Hard reload when Live role changes (grid Sub ↔ focus Main) */
         await stopFixedCamZlmProxy(id, null, true);
@@ -8300,6 +8630,215 @@ app.delete('/api/fixed-cams/:id', dashboardAuth.requireSuperAdmin, async (req, r
             catch (pgErr) { log.web.warn('fixed-cam pg delete failed', { id: req.params.id, err: pgErr && pgErr.message }); }
         }
         log.web.info('fixed-cam deleted', { id: req.params.id });
+        res.json({ ok: true });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+/* ── NVR device registry (NVR-DEVICE-REGISTRY-V1) — config UI later; no discover/playback here ── */
+app.get('/api/nvr-devices', dashboardAuth.requireSuperAdmin, async (_req, res) => {
+    try {
+        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready.' });
+        const devices = await nvrRegistry.listDevices(STORAGE_DIR);
+        res.json({ ok: true, devices });
+    } catch (err) { res.status(500).json(opErr(err)); }
+});
+
+async function nvrProbeCameraFromBody(body) {
+    const b = body || {};
+    const id = String(b.id || '').trim();
+    let password = b.password != null ? String(b.password) : '';
+    if (id && !password && siteDb.isReady()) {
+        const plain = await nvrRegistry.getDevicePasswordPlain(id, STORAGE_DIR);
+        if (plain) password = plain;
+    }
+    let stored = null;
+    if (id && siteDb.isReady()) {
+        stored = await nvrRegistry.getDevice(id, STORAGE_DIR, { includeSecrets: false });
+    }
+    const host = String(b.host || (stored && stored.host) || '').trim();
+    if (!host) throw new Error('NVR host is required.');
+    const protocol = String(b.protocol || (stored && stored.protocol) || 'onvif').toLowerCase();
+    if (protocol !== 'onvif') {
+        throw new Error('ONVIF is required for this action.');
+    }
+    return {
+        id: id || 'nvr-probe',
+        streamSource: 'onvif',
+        onvif: {
+            host: host,
+            port: parseInt(b.httpPort != null ? b.httpPort : (stored && stored.httpPort), 10) || 80,
+            user: String(b.username != null ? b.username : ((stored && stored.username) || '')).trim(),
+            password: password,
+            devicePath: String(
+                b.onvifDevicePath || (stored && stored.onvifDevicePath) || '/onvif/device_service'
+            ).trim() || '/onvif/device_service',
+            rtspTransport: String(b.rtspTransport || (stored && stored.rtspTransport) || 'tcp').toLowerCase() === 'udp'
+                ? 'udp' : 'tcp',
+        },
+        streamTransport: String(b.rtspTransport || (stored && stored.rtspTransport) || 'tcp').toLowerCase() === 'udp'
+            ? 'udp' : 'tcp',
+        rtspUrl: '',
+    };
+}
+
+app.get('/api/nvr-devices/tree', dashboardAuth.requireSuperAdmin, async (_req, res) => {
+    try {
+        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready.' });
+        const tree = await nvrRegistry.listDevicesTree(STORAGE_DIR);
+        res.json({ ok: true, tree: Array.isArray(tree) ? tree : [] });
+    } catch (err) { res.status(500).json(opErr(err)); }
+});
+
+app.get('/api/nvr-devices/capacity/summary', dashboardAuth.requireSuperAdmin, async (_req, res) => {
+    try {
+        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready.' });
+        const summary = await nvrRegistry.getFixedPoolCapacitySummary(null);
+        res.json({ ok: true, capacity: summary });
+    } catch (err) { res.status(500).json(opErr(err)); }
+});
+
+app.post('/api/nvr-devices/test-onvif', dashboardAuth.requireSuperAdmin, express.json({ limit: '64kb' }), async (req, res) => {
+    try {
+        const camera = await nvrProbeCameraFromBody(req.body || {});
+        const probe = await fixedCamOnvif.authenticateAndProbe(camera);
+        try { if (probe.client && typeof probe.client.removeAllListeners === 'function') probe.client.removeAllListeners(); } catch (_) { /* ignore */ }
+        const profiles = Array.isArray(probe.streamProfiles) ? probe.streamProfiles : [];
+        res.json({
+            ok: true,
+            hostname: probe.hostname || camera.onvif.host,
+            port: probe.port || camera.onvif.port,
+            profileCount: profiles.length,
+        });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+app.post('/api/nvr-devices/discover-channels', dashboardAuth.requireSuperAdmin, express.json({ limit: '64kb' }), async (req, res) => {
+    try {
+        const camera = await nvrProbeCameraFromBody(req.body || {});
+        const probe = await fixedCamOnvif.authenticateAndProbe(camera);
+        try { if (probe.client && typeof probe.client.removeAllListeners === 'function') probe.client.removeAllListeners(); } catch (_) { /* ignore */ }
+        const profiles = Array.isArray(probe.streamProfiles) ? probe.streamProfiles : [];
+        const channels = profiles.map(function (p, i) {
+            return {
+                channelIndex: i,
+                name: String((p && (p.name || p.token)) || ('CH' + (i + 1))),
+                onvifProfileToken: String((p && p.token) || ''),
+                fixedCameraId: null,
+                enabled: true,
+            };
+        });
+        res.json({ ok: true, channels: channels, count: channels.length });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+app.get('/api/nvr-devices/:id', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready.' });
+        const device = await nvrRegistry.getDevice(req.params.id, STORAGE_DIR);
+        if (!device) return res.status(404).json({ ok: false, error: 'NVR device not found.' });
+        res.json({ ok: true, device });
+    } catch (err) { res.status(500).json(opErr(err)); }
+});
+
+app.post('/api/nvr-devices', dashboardAuth.requireSuperAdmin, express.json({ limit: '512kb' }), async (req, res) => {
+    try {
+        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready.' });
+        const body = req.body || {};
+        const channels = Array.isArray(body.channels) ? body.channels : [];
+        const device = channels.length
+            ? await nvrRegistry.createDeviceWithChannels(body, channels, STORAGE_DIR)
+            : await nvrRegistry.createDevice(body, STORAGE_DIR);
+        log.web.info('nvr-device added', { id: device && device.id, name: device && device.name, channels: channels.length });
+        res.json({ ok: true, device });
+    } catch (err) {
+        if (err && err.code === 'LIMIT_REACHED') {
+            return require('./lib/licenseLimitResponse').limitReached403(res, 'devices');
+        }
+        res.status(400).json(opErr(err));
+    }
+});
+
+app.put('/api/nvr-devices/:id', dashboardAuth.requireSuperAdmin, express.json({ limit: '64kb' }), async (req, res) => {
+    try {
+        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready.' });
+        const device = await nvrRegistry.updateDevice(req.params.id, req.body || {}, STORAGE_DIR);
+        if (!device) return res.status(404).json({ ok: false, error: 'NVR device not found.' });
+        log.web.info('nvr-device updated', { id: device.id, name: device.name });
+        res.json({ ok: true, device });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+app.delete('/api/nvr-devices/:id', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready.' });
+        const ok = await nvrRegistry.deleteDevice(req.params.id, STORAGE_DIR);
+        if (!ok) return res.status(404).json({ ok: false, error: 'NVR device not found.' });
+        log.web.info('nvr-device deleted', { id: req.params.id });
+        res.json({ ok: true });
+    } catch (err) { res.status(400).json(opErr(err)); }
+});
+
+app.get('/api/nvr-devices/:id/channels', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready.' });
+        const device = await nvrRegistry.getDevice(req.params.id, STORAGE_DIR);
+        if (!device) return res.status(404).json({ ok: false, error: 'NVR device not found.' });
+        res.json({ ok: true, channels: device.channels || [] });
+    } catch (err) { res.status(500).json(opErr(err)); }
+});
+
+app.put('/api/nvr-devices/:id/channels', dashboardAuth.requireSuperAdmin, express.json({ limit: '512kb' }), async (req, res) => {
+    try {
+        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready.' });
+        const channels = await nvrRegistry.replaceChannels(
+            req.params.id,
+            (req.body && req.body.channels) || req.body || [],
+            STORAGE_DIR
+        );
+        res.json({ ok: true, channels });
+    } catch (err) {
+        if (err && err.code === 'LIMIT_REACHED') {
+            return licenseLimitResponse.limitReached403(res, 'devices');
+        }
+        const msg = err && err.message ? String(err.message) : '';
+        const status = /not found/i.test(msg) ? 404 : 400;
+        res.status(status).json(opErr(err));
+    }
+});
+
+app.patch('/api/nvr-devices/:id/channels/:channelIndex', dashboardAuth.requireSuperAdmin, express.json({ limit: '16kb' }), async (req, res) => {
+    try {
+        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready.' });
+        const name = req.body && req.body.name != null ? String(req.body.name) : '';
+        const channel = await nvrRegistry.renameChannel(req.params.id, req.params.channelIndex, name, STORAGE_DIR);
+        res.json({ ok: true, channel });
+    } catch (err) {
+        const msg = err && err.message ? String(err.message) : '';
+        const status = /not found/i.test(msg) ? 404 : 400;
+        res.status(status).json(opErr(err));
+    }
+});
+
+app.post('/api/nvr-devices/:id/channels', dashboardAuth.requireSuperAdmin, express.json({ limit: '64kb' }), async (req, res) => {
+    try {
+        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready.' });
+        const channel = await nvrRegistry.upsertChannel(req.params.id, req.body || {}, STORAGE_DIR);
+        res.json({ ok: true, channel });
+    } catch (err) {
+        if (err && err.code === 'LIMIT_REACHED') {
+            return licenseLimitResponse.limitReached403(res, 'devices');
+        }
+        const msg = err && err.message ? String(err.message) : '';
+        const status = /not found/i.test(msg) ? 404 : 400;
+        res.status(status).json(opErr(err));
+    }
+});
+
+app.delete('/api/nvr-devices/:id/channels/:channelIndex', dashboardAuth.requireSuperAdmin, async (req, res) => {
+    try {
+        if (!siteDb.isReady()) return res.status(503).json({ ok: false, error: 'Catalog database is not ready.' });
+        const ok = await nvrRegistry.deleteChannel(req.params.id, req.params.channelIndex);
+        if (!ok) return res.status(404).json({ ok: false, error: 'NVR channel not found.' });
         res.json({ ok: true });
     } catch (err) { res.status(400).json(opErr(err)); }
 });
@@ -10957,7 +11496,7 @@ app.get('/api/evidence/export-stream/:exportId', requireEvidenceExport, async (r
         });
         res.setHeader('Content-Disposition', 'attachment; filename="' + String(resolved.row.fileName).replace(/"/g, '') + '"');
         if (session && dashboardAuth.normalizeRole(session.role) === 'super_admin') {
-            return evidenceCrypto.pipeDecrypted(resolved.fullPath, res);
+        return evidenceCrypto.pipeDecrypted(resolved.fullPath, res);
         }
         const exportWatermark = require('./lib/exportWatermark');
         const watermarkText = exportWatermark.buildWatermarkText(session && session.username);
@@ -14364,15 +14903,15 @@ function releaseCamStreamWhenUnwatched(camId, opts) {
     if (armedMeta) sosDeviceRecordArmedByCam.delete(camKey);
 
     const finishPoolTeardown = function () {
-        /* Gate C: stop ZLM side relay before pool stop (wall path unchanged). */
-        liveMediaAdapter.onPoolStop(camId);
-        if (pttVoiceCallCamId === camId) {
-            pttVoiceCallCamId = null;
-            emitBwcCallState(camId, false, null);
-        }
-        if (mediaSession.isVoiceCallActiveForCam(camId)) {
-            mediaSession.endVoiceCallOnly(sip, () => emitBwcCallState(camId, false, null));
-        }
+    /* Gate C: stop ZLM side relay before pool stop (wall path unchanged). */
+    liveMediaAdapter.onPoolStop(camId);
+    if (pttVoiceCallCamId === camId) {
+        pttVoiceCallCamId = null;
+        emitBwcCallState(camId, false, null);
+    }
+    if (mediaSession.isVoiceCallActiveForCam(camId)) {
+        mediaSession.endVoiceCallOnly(sip, () => emitBwcCallState(camId, false, null));
+    }
         /* Last viewer gone → immediate WVP hard-stop (no soft-stop linger / re-INVITE window).
          * BWC-VIDEO-STOP-ON-LAST-VIEWER-HARD-V1 — armed SOS still uses immediate via armedMeta. */
         const wvpStopOpts = { immediate: true };
@@ -14381,13 +14920,13 @@ function releaseCamStreamWhenUnwatched(camId, opts) {
             path: 'BWC-VIDEO-STOP-ON-LAST-VIEWER-HARD-V1',
             armedSos: !!armedMeta,
         });
-        return Promise.all([
-            liveStreamPool.stopStreamForCam(sip, camId),
+    return Promise.all([
+        liveStreamPool.stopStreamForCam(sip, camId),
             stopWvpSoftOpenBridge(camId, wvpStopOpts),
-        ]).then(() => {
-            sosInviteQueue.onStreamStopped(camId);
-            io.emit('video-stream-stopped', { camId, reason: 'operator_stop' });
-            return true;
+    ]).then(() => {
+        sosInviteQueue.onStreamStopped(camId);
+        io.emit('video-stream-stopped', { camId, reason: 'operator_stop' });
+        return true;
         });
     };
 
@@ -14853,8 +15392,8 @@ io.on('connection', (socket) => {
                 : (surface === 'analytics-fr' ? beforeSurfaces.analyticsFr
                     : (surface === 'analytics-anpr' ? beforeSurfaces.analyticsAnpr
                         : (surface === 'analytics-weapon' ? beforeSurfaces.analyticsWeapon
-                            : (surface === 'matrix-popout' ? beforeSurfaces.matrixPopout
-                                : (surface === 'live-popout' ? beforeSurfaces.livePopout
+                        : (surface === 'matrix-popout' ? beforeSurfaces.matrixPopout
+                            : (surface === 'live-popout' ? beforeSurfaces.livePopout
                                     : (surface === 'tactical' ? beforeSurfaces.tactical : beforeSurfaces.ops))))));
             const viewers = liveViewers.addView(socket.id, camId, surface);
             const afterSurfaces = liveViewers.socketSurfacesForCam(socket.id, camId);
