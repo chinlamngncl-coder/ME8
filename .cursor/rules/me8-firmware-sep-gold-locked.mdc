@@ -1,0 +1,16 @@
+# ME8 Firmware Sep Gold — primary restore floor (audit campaign)
+
+**Lock:** `me8-firmware-sep-gold-20260902`
+**Doc:** `BASELINE-ME8-FIRMWARE-SEP-GOLD.md`
+**Snapshot:** `baseline/2026-09-02-me8-firmware-sep-gold/` (2702 files, VERIFY OK)
+**Git:** commit `97d594e`, tag `me8-firmware-sep-gold-20260902`
+**Restore phrase (user only):** `RUN RESTORE-ME8-FIRMWARE-SEP-GOLD`
+**Plan being applied on top:** `docs/MOB-DISC-CONSOLIDATED-AUDIT-FIX-PLAN-20260902.md`
+
+## Rules
+
+- This supersedes `me8-firmware-gold-20260706` as the **default** restore for any regression during the consolidated audit MOBs. The 07-06 Gold stays as deep fallback.
+- AI never restores on its own. User types the phrase; AI runs `RESTORE-ME8-FIRMWARE-SEP-GOLD.ps1` then tells user to `RESTART-FLEET.bat` + hard refresh.
+- One MOB from the plan at a time; operator PASS → checkpoint. Re-lock (`CREATE-ME8-FIRMWARE-SEP-GOLD.ps1`) only when the user says so after a phase passes; update doc + this rule with new count/tag.
+- `baseline/2026-09-02-me8-firmware-sep-gold/**` is a snapshot — never edit files inside it.
+- Frozen-file list and all other locks from `me8-firmware-gold-locked.mdc` still apply.
