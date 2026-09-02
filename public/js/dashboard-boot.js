@@ -145,7 +145,7 @@
         var sosResponseRadiusLabel = null;
         var sosResponseNearby = [];
         var mapPositionsCache = [];
-        var SOS_RESPONSE_MAX = 10;
+        var SOS_RESPONSE_MAX = 8; /* SOS-LIVE-8-OVERRIDE-V1 — BWC pack incl. alarm */
         var SOS_RESPONSE_RADIUS_DEFAULT = 500;
         var SOS_RESPONSE_RADIUS_OPTIONS = [200, 300, 400, 500, 1000];
         var MAP_PIN_COLORS = [
@@ -3956,7 +3956,7 @@
         var pendingSosAck = null;
         var activeSosAlarms = {};
         var focusedSosCamId = null;
-        var sosQueueSnapshot = { active: [], queued: [], pending: [], maxLive: 6 };
+        var sosQueueSnapshot = { active: [], queued: [], pending: [], maxLive: 8 };
 
         function getSosAlarmCount() {
             return Object.keys(activeSosAlarms).length;
@@ -4590,6 +4590,23 @@
                             showSosPttTeamToast('Added ' + addName + ' \u2014 team now '
                                 + data.pttTeam.team.length + ' unit(s).', 12000);
                         }
+                        /* SOS-STOPRECORD-AND-HELPER-LIVE-V1 — +team → pin + wall (any cam). */
+                        try {
+                            var pack = (data.pttTeam && Array.isArray(data.pttTeam.team))
+                                ? data.pttTeam.team.slice()
+                                : [alarm.cameraId, helperCamId];
+                            pack = pack.map(function (id) { return normalizeCamId(id); }).filter(Boolean);
+                            if (typeof FleetUi !== 'undefined' && FleetUi.openBatchLivePins) {
+                                FleetUi.openBatchLivePins(pack);
+                            } else if (global.VideoWall && typeof VideoWall.openAllLivePins === 'function') {
+                                pack.forEach(function (id) {
+                                    if (typeof global.syncMapPinForCam === 'function') {
+                                        global.syncMapPinForCam(id, { openPopup: true });
+                                    }
+                                });
+                                VideoWall.openAllLivePins(pack);
+                            }
+                        } catch (_) { /* never break add */ }
                     } else {
                         showSosPttTeamToast((data && data.error) || 'Add to PTT failed.', 8000);
                         alert((data && data.error) || 'Add to PTT failed.');
@@ -4727,6 +4744,41 @@
         function refreshSosResponseTeam() {
             if (!sosIncidentActive || !pendingSosAck) return;
             var radiusM = getSosResponseRadiusM();
+            var alarmCamId = pendingSosAck && pendingSosAck.cameraId ? normalizeCamId(pendingSosAck.cameraId) : '';
+            /* SOS-CROSS-TEAM-NEAR-HELP-V1 — same server all teams; not other installs */
+            if (alarmCamId) {
+                fetch('/api/sos/nearby-helpers?cameraId=' + encodeURIComponent(alarmCamId)
+                    + '&radiusM=' + encodeURIComponent(String(radiusM)))
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!sosIncidentActive || !pendingSosAck) return;
+                        if (data && data.ok && Array.isArray(data.helpers)) {
+                            sosResponseNearby = data.helpers.map(function (d) {
+                                return {
+                                    cameraId: normalizeCamId(d.cameraId),
+                                    distanceM: d.distanceM,
+                                    name: d.name || d.cameraId,
+                                    online: d.online !== false,
+                                    crossTeam: true,
+                                };
+                            });
+                        } else {
+                            sosResponseNearby = computeSosNearby(radiusM);
+                        }
+                        updateSosResponseSummary();
+                        syncSosResponseCircleGeometry();
+                        if (document.getElementById('sos-ack-backdrop')
+                            && !document.getElementById('sos-ack-backdrop').hidden) {
+                            renderSosAckHelpers(alarmCamId);
+                        }
+                    })
+                    .catch(function () {
+                        sosResponseNearby = computeSosNearby(radiusM);
+                        updateSosResponseSummary();
+                        syncSosResponseCircleGeometry();
+                    });
+                return;
+            }
             sosResponseNearby = computeSosNearby(radiusM);
             updateSosResponseSummary();
             syncSosResponseCircleGeometry();
@@ -4895,6 +4947,13 @@
                     incidentId: data.incidentId || null,
                     alarmKind: data.alarmKind === 'fall' ? 'fall' : 'sos',
                 });
+                /* INV-SOS-PIN-AND-GAP-HONESTY-V1 — Investigation red pin refresh if open */
+                try {
+                    if (window.VmsInvestigationTimeline &&
+                        typeof window.VmsInvestigationTimeline.onSosAlarm === 'function') {
+                        window.VmsInvestigationTimeline.onSosAlarm(data);
+                    }
+                } catch (_) { /* ignore */ }
                 if (!focusedSosCamId || data.startVideo) focusedSosCamId = camId;
                 sosIncidentActive = getSosAlarmCount() > 0;
                 activeAlarmKind = activeSosAlarms[camId].alarmKind || 'sos';
@@ -5586,7 +5645,6 @@
             var listEl = document.getElementById('sos-ack-helpers');
             var emptyEl = document.getElementById('sos-ack-helpers-empty');
             if (!listEl) return;
-            refreshSosResponseTeam();
             var helpers = sosResponseNearby.slice();
             if (!helpers.length) {
                 listEl.innerHTML = '';
@@ -5596,10 +5654,14 @@
             }
             if (emptyEl) emptyEl.hidden = true;
             listEl.hidden = false;
+            /* Auto-check nearest online helpers so alarm+helpers <= SOS_RESPONSE_MAX (8). Operator may override. */
+            var autoLeft = Math.max(0, SOS_RESPONSE_MAX - 1);
             listEl.innerHTML = helpers.map(function (d) {
                 var distLabel = dashboardTr('sos.response.distanceM', { m: d.distanceM });
+                var auto = d.online !== false && autoLeft > 0;
+                if (auto) autoLeft -= 1;
                 return '<label class="sos-ack-helper-row">' +
-                    '<input type="checkbox" value="' + String(d.cameraId).replace(/"/g, '&quot;') + '" checked>' +
+                    '<input type="checkbox" value="' + String(d.cameraId).replace(/"/g, '&quot;') + '"' + (auto ? ' checked' : '') + '>' +
                     '<span class="sos-ack-helper-name">' + String(d.name).replace(/</g, '&lt;') +
                     ' <span class="sos-ack-helper-dist">(' + distLabel + ')</span></span>' +
                     '</label>';
@@ -5611,8 +5673,14 @@
             if (!listEl) return [];
             return Array.prototype.slice.call(listEl.querySelectorAll('input[type=checkbox]:checked'))
                 .map(function (cb) { return cb.value; })
-                .filter(Boolean);
+                .filter(Boolean)
+                .slice(0, Math.max(0, SOS_RESPONSE_MAX - 1));
         }
+        function openSosLivePackAfterAck(alarmCamId, helperCamIds) {
+            /* SOS-COLD-ACK-NO-HELPER-REARM-V1 — ACK must not reopen BWC pin/wall pack. */
+            return;
+        }
+
 
         function stashSosAckSnapshot(camId) {
             if (!camId) return;
@@ -5641,6 +5709,7 @@
             else document.getElementById('sos-ack-cam').innerText = camId;
             document.getElementById('sos-ack-time').innerText = time;
             document.getElementById('sos-ack-note').value = '';
+            refreshSosResponseTeam();
             renderSosAckHelpers(camId);
             document.getElementById('sos-ack-backdrop').hidden = false;
             updateSosAckCapturePreview(camId);
@@ -5927,6 +5996,12 @@
                             var hadSosPttTeam = global.activeSosPttTeam
                                 && global.activeSosPttTeam.length > 1;
                             refreshSosLedger();
+                            if (data && data.ok) {
+                                var liveHelpers = (data.pttTeam && data.pttTeam.team)
+                                    ? data.pttTeam.team
+                                    : ([camId].concat(payload.helperCamIds || []));
+                                openSosLivePackAfterAck(camId, liveHelpers);
+                            }
                             if (data && data.ok && data.endedGroupCall) {
                                 showSosPttTeamToast(
                                     'SOS group call ended \u2014 HQ PTT / Call ready.',

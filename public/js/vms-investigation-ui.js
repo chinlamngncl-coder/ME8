@@ -718,6 +718,11 @@
     var SEG_H = 28;
     var PIN_Y = 6;
     var PIN_H = 16;
+    /* INV-TIMELINE-MULTI-LANE-V1 */
+    var LANE_LABEL_W = 54;
+    var LANE_H = 16;
+    var LANE_GAP = 3;
+    var LANE_PIN_BAND = 18;
 
     var tl = {
         from: null,
@@ -727,14 +732,30 @@
         markInMs: null,
         markOutMs: null,
         dptzScale: 1,
+        dptzPanX: 0,
+        dptzPanY: 0,
         playing: false,
+        /* INV-SYNC-MASTER-CLOCK-V1 */
+        masterClockOn: false,
+        masterClockOriginMs: null,
+        masterClockOriginWall: 0,
+        _masterRaf: null,
+        _masterBusy: {},
+        _masterDrawAcc: 0,
         speed: 1,
+        syncLock: true,
         focusSlot: 0,
         tiles: [],
         mergedSegments: [],
         mergedAlarms: [],
         metadataFrames: [],
         dragging: false,
+        panning: false,
+        panLastX: 0,
+        panMoved: false,
+        zoomLevel: 1,
+        viewFromMs: null,
+        viewToMs: null,
         bound: false,
         visible: false,
         layoutMode: 'four',
@@ -745,6 +766,9 @@
         recordingDays: {},
         alarmDays: {},
         alarmDayList: [],
+        _apiAlarmDays: {},
+        _timelineVipDays: {},
+        _daysFetchGen: 0,
         calOpen: false,
         calDraftDate: null,
         ignoreOutsideClick: false,
@@ -752,9 +776,11 @@
 
     function tlLayoutStatusText(mode) {
         if (mode === 'single') return 'Single Camera · Full Resolution';
-        if (mode === 'six') return 'Six Cameras · Independent';
+        if (mode === 'six') {
+            return tl.syncLock ? 'Six Cameras · Sync Lock' : 'Six Cameras · Independent';
+        }
         if (mode === 'compare') return 'Same Camera · Time Compare';
-        return 'Four Cameras · Synchronised';
+        return tl.syncLock ? 'Four Cameras · Synchronised' : 'Four Cameras · Independent';
     }
 
     function tlCompareTimeInput(slot) {
@@ -888,10 +914,19 @@
     }
 
     function tlBindCamFields(tile, camId, camName) {
-        tile.camId = camId || null;
+        var nextId = camId || null;
+        var changed = String(tile.camId || '') !== String(nextId || '');
+        tile.camId = nextId;
         tile.camName = camName || '';
         tile.activeSegmentId = null;
         tile.playing = false;
+        /* INV-PLAY-FROM-PLAYHEAD-V1 — replacing Chin with kk must drop Chin's blue lane immediately */
+        if (changed) {
+            tile.segments = [];
+            tile.alarms = [];
+            tile.playheadMs = null;
+            if (tile.status) tile.status.textContent = '';
+        }
         if (tile.select) tile.select.value = camId || '';
         if (tile.tile) tile.tile.classList.toggle('has-cam', !!tile.camId);
         var camEl = tile.camLabel || (tile.tile && tile.tile.querySelector('.inv-vms-tile-cam'));
@@ -935,7 +970,10 @@
         if (!tile || !tile.tile) return;
         var play = tile.tile.querySelector('.inv-vms-tile-play');
         var pause = tile.tile.querySelector('.inv-vms-tile-pause');
+        var stop = tile.tile.querySelector('.inv-vms-tile-stop');
+        var mute = tile.tile.querySelector('.inv-vms-tile-mute');
         var show = !!tile.camId;
+        var hasMedia = !!(tile.video && tile.video.getAttribute('src'));
         if (play) {
             play.hidden = !show || !!tile.playing;
             play.disabled = !show;
@@ -944,6 +982,43 @@
             pause.hidden = !show || !tile.playing;
             pause.disabled = !show;
         }
+        if (stop) {
+            stop.hidden = !show || (!tile.playing && !hasMedia);
+            stop.disabled = !show;
+        }
+        if (mute) {
+            mute.hidden = !show;
+            mute.disabled = !show;
+            var muted = !!tile.audioMuted;
+            mute.textContent = muted ? 'Unmute' : 'Mute';
+            mute.setAttribute('data-i18n', muted ? 'investigation.unmute' : 'investigation.mute');
+            mute.setAttribute('aria-pressed', muted ? 'true' : 'false');
+            mute.classList.toggle('is-muted', muted);
+            try {
+                if (global.I18n && typeof I18n.t === 'function') {
+                    var key = muted ? 'investigation.unmute' : 'investigation.mute';
+                    var tr = I18n.t(key);
+                    if (tr && tr !== key) mute.textContent = tr;
+                }
+            } catch (_) { /* ignore */ }
+        }
+    }
+
+    function tlApplyTileAudio(tile) {
+        if (!tile || !tile.video) return;
+        try {
+            tile.video.muted = !!tile.audioMuted;
+        } catch (_) { /* ignore */ }
+    }
+
+    function tlToggleTileMute(tile) {
+        if (!tile) return;
+        tile.audioMuted = !tile.audioMuted;
+        tlApplyTileAudio(tile);
+        tlUpdateTileTransport(tile);
+        tlSetMeta(tile.audioMuted
+            ? ('Slot ' + (tile.slot + 1) + ' muted.')
+            : ('Slot ' + (tile.slot + 1) + ' unmuted.'));
     }
 
     function tlUpdateAllTileTransport() {
@@ -951,23 +1026,256 @@
         tlUpdateMasterTransportChrome();
     }
 
+    function tlPlayErrorMeta(err) {
+        var name = err && err.name ? String(err.name) : '';
+        if (name === 'NotAllowedError') {
+            return 'Browser blocked play after load. Trying muted play — click Play again if still black.';
+        }
+        if (name === 'NotSupportedError') {
+            return 'Recording stream not readable (format or decrypt). Check segment stream.';
+        }
+        if (name === 'AbortError') {
+            return 'Playback aborted while loading. Click Play From Alarm again.';
+        }
+        if (!err) return 'Playback failed.';
+        return 'Playback failed (' + (name || 'error') + ').';
+    }
+
+    function tlEnsureVideoPlayAttrs(video) {
+        if (!video) return;
+        try {
+            video.setAttribute('playsinline', '');
+            video.setAttribute('webkit-playsinline', '');
+            video.playsInline = true;
+            video.preload = 'auto';
+        } catch (_) { /* ignore */ }
+    }
+
+    /**
+     * VMS-PLAY-USER-GESTURE-V1 — play after async seek/load without relying on spent click gesture.
+     * Start muted (allowed), then unmute once playing.
+     */
+    function tlPlayVideoElement(video, opts) {
+        opts = opts || {};
+        return new Promise(function (resolve) {
+            if (!video || !video.src) {
+                resolve({ ok: false, reason: 'no-src' });
+                return;
+            }
+            tlEnsureVideoPlayAttrs(video);
+            if (opts.rate != null && Number.isFinite(opts.rate)) {
+                try { video.playbackRate = opts.rate; } catch (_) { /* ignore */ }
+            }
+            video.muted = true;
+            var p;
+            try {
+                p = video.play();
+            } catch (e) {
+                resolve({ ok: false, err: e });
+                return;
+            }
+            function tryUnmute() {
+                if (opts.unmute === false) {
+                    resolve({ ok: true, muted: true });
+                    return;
+                }
+                try { video.muted = false; } catch (_) { /* ignore */ }
+                if (video.paused) {
+                    video.muted = true;
+                    try { video.play(); } catch (_) { /* ignore */ }
+                    resolve({ ok: true, muted: true });
+                    return;
+                }
+                resolve({ ok: true, muted: !!video.muted });
+            }
+            if (p && typeof p.then === 'function') {
+                p.then(tryUnmute).catch(function (err) {
+                    video.muted = true;
+                    var p2;
+                    try { p2 = video.play(); } catch (e2) {
+                        resolve({ ok: false, err: err });
+                        return;
+                    }
+                    if (p2 && typeof p2.then === 'function') {
+                        p2.then(function () { resolve({ ok: true, muted: true }); })
+                            .catch(function (e3) { resolve({ ok: false, err: e3 || err }); });
+                    } else {
+                        resolve({ ok: true, muted: true });
+                    }
+                });
+            } else {
+                tryUnmute();
+            }
+        });
+    }
+
+    function tlNearestInDirection(tile, fromMs, forward) {
+        var segs = (tile && tile.segments) || [];
+        var best = null;
+        var i;
+        for (i = 0; i < segs.length; i++) {
+            var s = segs[i];
+            if (!s || s.status === 'unavailable') continue;
+            var a = tlIsoToMs(s.start_at);
+            var b = tlIsoToMs(s.end_at);
+            if (!Number.isFinite(a)) continue;
+            if (!Number.isFinite(b) || b < a) b = a + 1000;
+            if (forward) {
+                if (a > fromMs && (best == null || a < best)) best = a;
+            } else {
+                if (b < fromMs && (best == null || b > best)) best = b;
+            }
+        }
+        return best;
+    }
+
+    function tlNextSectorMs(fromMs, forward) {
+        var best = null;
+        tl.tiles.forEach(function (t) {
+            if (!t || !t.camId) return;
+            if (typeof tlTileActiveInLayout === 'function' && !tlTileActiveInLayout(t)) return;
+            (t.segments || []).forEach(function (seg) {
+                if (!seg || seg.status === 'unavailable') return;
+                var st = tlIsoToMs(seg.start_at);
+                var en = tlIsoToMs(seg.end_at);
+                if (!Number.isFinite(st)) return;
+                if (!Number.isFinite(en) || en < st) en = st + 1000;
+                if (forward) {
+                    if (st > fromMs + 40 && (best == null || st < best)) best = st;
+                } else if (en < fromMs - 40) {
+                    if (best == null || st > best) best = st;
+                }
+            });
+        });
+        return best;
+    }
+
+    function tlStepFocus(deltaMs) {
+        var tile = tlFocusTile();
+        if (!tile || !tile.camId) {
+            tlSetMeta('Focus a tile with a camera loaded first.');
+            return;
+        }
+        if (!tile.segments || !tile.segments.length) {
+            tlSetMeta('No recording loaded. Load Recordings first.');
+            return;
+        }
+        if (tile.playing) tlPauseTile(tile);
+        if (tl.masterClockOn) tlStopMasterClock();
+        var base = Number.isFinite(tile.playheadMs) ? tile.playheadMs
+            : (Number.isFinite(tl.playheadMs) ? tl.playheadMs : null);
+        if (!Number.isFinite(base)) {
+            var near0 = tlNearestPlayableMs(tile, tl.from ? tl.from.getTime() : null);
+            if (near0 == null) {
+                tlSetMeta('No playable time on this camera.');
+                return;
+            }
+            base = near0;
+        }
+        var target;
+        /* Sync Lock ±1s = next/prev blue sector (manual hop; no gap crawl). */
+        if (tl.syncLock && Math.abs(deltaMs) >= 900) {
+            target = tlNextSectorMs(base, deltaMs > 0);
+            if (target == null) {
+                tlSetMeta(deltaMs > 0 ? 'No next blue sector.' : 'No previous blue sector.');
+                return;
+            }
+        } else {
+            target = base + deltaMs;
+            if (tl.from) target = Math.max(tl.from.getTime(), target);
+            if (tl.to) target = Math.min(tl.to.getTime(), target);
+            if (!tlFindSegmentAt(tile.segments, target)) {
+                var hop = tlNearestInDirection(tile, base, deltaMs > 0);
+                if (hop == null) {
+                    tlSetMeta(deltaMs > 0 ? 'At end of recording.' : 'At start of recording.');
+                    return;
+                }
+                target = hop;
+            }
+        }
+        tile.playheadMs = target;
+        tl.playheadMs = target;
+        var readout = $('inv-vms-time-readout');
+        if (readout) readout.textContent = tlMsToLocalLabel(target);
+        if (tl.syncLock) {
+            tl.tiles.forEach(function (t) {
+                if (!tlShouldSeekTile(t)) return;
+                t.playheadMs = target;
+                if (t.playing) tlPauseTile(t);
+            });
+            tlSeekAll(target);
+            tlSetMeta((deltaMs > 0 ? 'Next' : 'Previous') + ' sector · ' +
+                tlMsToLocalLabel(target) + ' · press Play All');
+            tlDrawTimeline();
+            tlDrawOverlays();
+            tlUpdateAllTileTransport();
+        } else {
+            tlSeekTile(tile, target).then(function () {
+                tlDrawTimeline();
+                tlDrawOverlays();
+                tlUpdateAllTileTransport();
+            });
+            var abs = Math.abs(deltaMs);
+            var label = abs >= 900 ? ((deltaMs < 0 ? '−' : '+') + Math.round(abs / 1000) + 's')
+                : ((deltaMs < 0 ? '−' : '+') + 'frame');
+            tlSetMeta('Step ' + label + ' · ' + tlMsToLocalLabel(target));
+        }
+    }
+
     function tlPlayTile(tile) {
         if (!tile || !tile.camId || !tile.video) {
             tlSetMeta('Select a camera on this tile first.');
             return;
         }
-        tlOnFocusSlot(tile.slot);
-        var at = tile.playheadMs != null ? tile.playheadMs
-            : (tl.playheadMs != null ? tl.playheadMs : (tl.from ? tl.from.getTime() : null));
-        if (at == null) {
-            tlSetMeta('Load Recordings first.');
+        /* Sync On: tile Playback = same as Play All from timeline marker (no jump-back). */
+        if (tl.syncLock && tl.layoutMode !== 'compare') {
+            if (!Number.isFinite(tl.playheadMs) && Number.isFinite(tile.playheadMs)) {
+                tl.playheadMs = tile.playheadMs;
+            }
+            tlSyncPlayVideos();
             return;
         }
+        tlAuditPlayAllNoRecord('playback_tile');
+        tlOnFocusSlot(tile.slot);
+        /* INV-PLAY-FROM-PLAYHEAD-V1 — never snap to clip start; play from yellow only */
+        var at = Number.isFinite(tl.playheadMs) ? tl.playheadMs
+            : (Number.isFinite(tile.playheadMs) ? tile.playheadMs : null);
+        if (at == null) {
+            tlSetMeta('Move the timeline marker onto a blue block, then press Playback.');
+            return;
+        }
+        if (!tlFindSegmentAt(tile.segments || [], at)) {
+            tlSetMeta('No recording at the timeline marker for this camera. Move the marker onto a blue block.');
+            return;
+        }
+        tile.playheadMs = at;
+        if (tile.slot === tl.focusSlot || tl.syncLock) tl.playheadMs = at;
+        tlDrawTimeline();
         tile.playing = true;
+        tlEnsureVideoPlayAttrs(tile.video);
+        /* Seek once (load+#t / currentTime), then play — no second seek chain. */
         tlSeekTile(tile, at).then(function () {
-            if (!tile.playing || !tile.video) return;
-            tile.video.playbackRate = tl.speed;
-            try { tile.video.play(); } catch (_) { /* ignore */ }
+            if (!tile.playing || !tile.video) return null;
+            if (!tile.video.src) {
+                tlSetMeta('Recording file could not be opened for playback.');
+                tile.playing = false;
+                tlUpdateAllTileTransport();
+                return null;
+            }
+            return tlPlayVideoElement(tile.video, { rate: tl.speed, unmute: !tile.audioMuted });
+        }).then(function (res) {
+            if (!res) return;
+            tlApplyTileAudio(tile);
+            if (!res.ok) {
+                tile.playing = false;
+                tlSetMeta(tlPlayErrorMeta(res.err));
+            } else if (tile.audioMuted || res.muted) {
+                tlSetMeta(tile.audioMuted
+                    ? 'Playing from timeline marker (tile muted).'
+                    : 'Playing from timeline marker (sound muted by browser).');
+            } else {
+                tlSetMeta('Playing from timeline marker.');
+            }
             tlUpdateAllTileTransport();
         });
     }
@@ -977,7 +1285,8 @@
         tile.playing = false;
         if (tile.video) {
             try { tile.video.pause(); } catch (_) { /* ignore */ }
-            if (tile.activeSegmentId && Number.isFinite(tile.video.currentTime)) {
+            /* INV-SYNC-ONE-CLOCK-HARD-V1 — master owns playhead; do not steal from video. */
+            if (!tl.masterClockOn && tile.activeSegmentId && Number.isFinite(tile.video.currentTime)) {
                 var seg = null;
                 var si;
                 for (si = 0; si < tile.segments.length; si++) {
@@ -996,8 +1305,126 @@
         tlDrawTimeline();
     }
 
+    /** Capture playhead from current media time (same as pause). */
+    function tlCaptureTilePlayhead(tile) {
+        if (!tile || !tile.video || !tile.activeSegmentId) return;
+        if (tl.masterClockOn) return;
+        if (!Number.isFinite(tile.video.currentTime)) return;
+        var seg = null;
+        var si;
+        for (si = 0; si < tile.segments.length; si++) {
+            if (tile.segments[si].segmentId === tile.activeSegmentId) {
+                seg = tile.segments[si];
+                break;
+            }
+        }
+        if (!seg) return;
+        tile.playheadMs = tlIsoToMs(seg.start_at) + tile.video.currentTime * 1000;
+        if (tile.slot === tl.focusSlot) tl.playheadMs = tile.playheadMs;
+    }
+
+    function tlUnloadTileVideo(tile) {
+        if (!tile || !tile.video) return;
+        var v = tile.video;
+        try { v.pause(); } catch (_) { /* ignore */ }
+        try {
+            if (global.AxiomFlvManager) global.AxiomFlvManager.detach(v);
+        } catch (_) { /* ignore */ }
+        try {
+            v.removeAttribute('src');
+            v.src = '';
+            v.load();
+        } catch (_) { /* ignore */ }
+        if (tile.activeSegmentId && tl._segmentClaims &&
+            String(tl._segmentClaims[tile.activeSegmentId] || '') === String(tile.camId || '')) {
+            delete tl._segmentClaims[tile.activeSegmentId];
+        }
+        tile.activeSegmentId = null;
+        tile._streamCamId = null;
+    }
+
+    function tlStopTile(tile) {
+        if (!tile) return;
+        tlCaptureTilePlayhead(tile);
+        tile.playing = false;
+        tlUnloadTileVideo(tile);
+        tlUpdateAllTileTransport();
+        tlDrawTimeline();
+    }
+
+    function tlStopVideos() {
+        tlStopMasterClock();
+        tl.tiles.forEach(function (tile) {
+            tlCaptureTilePlayhead(tile);
+            tile.playing = false;
+            tlUnloadTileVideo(tile);
+        });
+        tlUpdateAllTileTransport();
+        tlDrawTimeline();
+        tlSetMeta('Stopped. Timeline marker kept — press Play All to resume from here.');
+    }
+
+    /**
+     * INV-PLAY-FROM-PLAYHEAD-V1 — clip ended: stop chrome, keep yellow where it is.
+     * Do NOT auto-jump to the next segment (that stole the playhead).
+     */
+    function tlOnTilePlaybackEnded(tile) {
+        if (!tile) return;
+        tile.playing = false;
+        /* INV-SYNC-SECTOR-STOP-V1 — this slot only goes black.
+           Do NOT kill Sync for everyone (that froze other cams mid-play).
+           Master clock keeps running while any selected slot still has blue;
+           it stops itself when all slots are in a gap. */
+        tlUnloadTileVideo(tile);
+        if (tl.masterClockOn) {
+            tlUpdateAllTileTransport();
+            tlDrawTimeline();
+            return;
+        }
+        tlCaptureTilePlayhead(tile);
+        tlUpdateAllTileTransport();
+        tlDrawTimeline();
+        if (tile.slot === tl.focusSlot || !tlAnyTilePlaying()) {
+            tlSetMeta('Playback stopped at the timeline marker. Move the marker, then press Play All.');
+        }
+    }
+
+    function tlOnTilePlaybackError(tile) {
+        if (!tile) return;
+        tile.playing = false;
+        if (tile.video) {
+            try { tile.video.pause(); } catch (_) { /* ignore */ }
+        }
+        tlUpdateAllTileTransport();
+        tlDrawTimeline();
+        if (tile.slot === tl.focusSlot || !tlAnyTilePlaying()) {
+            tlSetMeta('Playback stopped (stream error). Yellow line kept — click Play to try again.');
+        }
+    }
+
+    function tlBindTilePlaybackLifecycle(tile) {
+        if (!tile || !tile.video || tile._invPlayEndedBound) return;
+        tile._invPlayEndedBound = true;
+        tile.video.addEventListener('ended', function () {
+            tlOnTilePlaybackEnded(tile);
+        });
+        tile.video.addEventListener('error', function () {
+            if (!tile.playing && !tile.activeSegmentId) return;
+            tlOnTilePlaybackError(tile);
+        });
+    }
+
     function tlDisplaySegments() {
-        if (tl.layoutMode === 'four') return tl.mergedSegments;
+        /* INV-TIMELINE-MULTI-LANE-V1 — Sync Off / single: focus cam only.
+           Sync On four/six: draw uses per-lane tiles (not this list). */
+        if (tl.layoutMode === 'four' || tl.layoutMode === 'six') {
+            if (tl.syncLock) return tl.mergedSegments;
+            var ftOff = tlFocusTile();
+            if (!ftOff || !ftOff.camId) return [];
+            return (ftOff.segments || []).map(function (s) {
+                return Object.assign({ camId: ftOff.camId }, s);
+            });
+        }
         var ft = tlFocusTile();
         if (!ft || !ft.camId) return [];
         return (ft.segments || []).map(function (s) {
@@ -1006,7 +1433,14 @@
     }
 
     function tlDisplayAlarms() {
-        if (tl.layoutMode === 'four') return tl.mergedAlarms;
+        if (tl.layoutMode === 'four' || tl.layoutMode === 'six') {
+            if (tl.syncLock) return tl.mergedAlarms;
+            var ftOff = tlFocusTile();
+            if (!ftOff || !ftOff.camId) return [];
+            return (ftOff.alarms || []).map(function (a) {
+                return Object.assign({ camId: ftOff.camId }, a);
+            });
+        }
         var ft = tlFocusTile();
         if (!ft || !ft.camId) return [];
         return (ft.alarms || []).map(function (a) {
@@ -1026,15 +1460,23 @@
             if (t.tile) t.tile.classList.toggle('active-focus', i === tl.focusSlot);
         });
         if (tl.layoutMode === 'single') tlApplyLayout('single');
-        else if (tl.layoutMode === 'six' || tl.layoutMode === 'compare') {
+        else if (tl.layoutMode === 'compare') {
+            var ftC = tlFocusTile();
+            if (ftC) {
+                if (ftC.playheadMs == null && tl.from) ftC.playheadMs = tl.from.getTime();
+                if (ftC.playheadMs != null) tl.playheadMs = ftC.playheadMs;
+            }
+            tlSyncCompareTimeInput(ftC);
+            tlDrawTimeline();
+        } else if (tl.layoutMode === 'four' || tl.layoutMode === 'six') {
+            /* INV-TIMELINE-MULTI-LANE-V1 — focus links timeline highlight / Sync Off clock */
             var ft = tlFocusTile();
-            if (ft) {
+            if (!tl.syncLock && ft) {
                 if (ft.playheadMs == null && tl.from) ft.playheadMs = tl.from.getTime();
                 if (ft.playheadMs != null) tl.playheadMs = ft.playheadMs;
+                if (Number.isFinite(ft.playheadMs)) tlSeekTile(ft, ft.playheadMs);
             }
-            if (tl.layoutMode === 'compare') tlSyncCompareTimeInput(ft);
-            if (tl.playheadMs != null && tl.layoutMode === 'six') tlSeekAll(tl.playheadMs);
-            else tlDrawTimeline();
+            tlDrawTimeline();
         }
         tlHighlightTreeSelection(tlFocusTile() ? tlFocusTile().camId : '');
         tlSyncFocusCamBar();
@@ -1047,6 +1489,19 @@
         });
         tlApplyDptz();
         tlDrawOverlays();
+        tlRenderEventList();
+        /* Slot-assign cue — Focus owns next tree pick + scrubber. */
+        var focus = tlFocusTile();
+        if (focus && tl.layoutMode !== 'compare') {
+            var label = focus.camId
+                ? tlShortTreeLabel(focus.camName, focus.camId)
+                : 'empty';
+            var syncNote = (tl.layoutMode === 'four' || tl.layoutMode === 'six')
+                ? (tl.syncLock ? ' · multi-lane Sync On' : ' · timeline = this slot')
+                : '';
+            tlSetMeta('Focus · slot ' + (focus.slot + 1) + ' · ' + label + syncNote +
+                '. Click a camera to assign here, or drag onto another tile.');
+        }
     }
 
     function tlClearAllAssignments(metaMsg) {
@@ -1207,7 +1662,7 @@
         if (owned.length) {
             tlSetMeta('Removed from slot ' + (owned[0].slot + 1) +
                 (owned.length > 1 ? ('–' + (owned[owned.length - 1].slot + 1)) : '') +
-                '. Click a camera to assign to the next empty slot.');
+                '. Click a tile to Focus, then a camera to assign to that slot.');
         }
         return owned.length;
     }
@@ -1227,20 +1682,39 @@
             return;
         }
 
+        /* Toggle off if this cam is already on a visible tile. */
         if (tlTilesWithCam(camId).length) {
             tlClearCamFromVisibleSlots(camId);
+            tlMergeTimelineData();
+            tlDrawTimeline();
             tlSyncFocusCamBar();
             return;
         }
 
-        var target = tlNextEmptyTile();
-        if (!target) {
-            target = tlFocusTile();
-            if (!target || !tlSlotVisibleInLayout(target.slot)) target = tl.tiles[0];
-            if (!target) return;
-            tlSetMeta('All slots full — replaced slot ' + (target.slot + 1) +
-                '. Drag onto a slot to choose exactly, or click a highlighted camera to remove it.');
+        /*
+         * INV-MULTI-PLAY-STABLE-V1 — keep multi-lane:
+         * Prefer next empty slot so Chin+kk become 2 lanes.
+         * Replace Focus only when every visible slot is already filled.
+         */
+        var empty = tlNextEmptyTile();
+        var focus = tlFocusTile();
+        var target = null;
+        if (empty) {
+            target = empty;
+        } else if (focus && tlSlotVisibleInLayout(focus.slot)) {
+            target = focus;
+        } else {
+            target = tl.tiles[0];
         }
+        if (!target) return;
+        if (target.camId) {
+            tlSetMeta('Replaced slot ' + (target.slot + 1) +
+                ' (all slots full). Toggle a camera off to free a slot.');
+        } else if (focus && focus.camId && target.slot !== focus.slot) {
+            tlSetMeta('Added to slot ' + (target.slot + 1) +
+                ' — previous cameras stay on their slots (multi-lane).');
+        }
+        tlOnFocusSlot(target.slot);
         tlAssignCameraToTile(target, camId, camName);
     }
 
@@ -1254,6 +1728,8 @@
             tlHighlightTreeSelection(camId);
             tlRefreshRecordingDays();
             tlSyncFocusCamBar();
+            tlMergeTimelineData();
+            tlDrawTimeline();
             tlSetMeta(camId
                 ? ('Time Compare · same camera on four tiles. Set each Start time, then Load Recordings.')
                 : '');
@@ -1264,13 +1740,41 @@
         tlHighlightTreeSelection(tile.camId);
         tlRefreshRecordingDays();
         tlSyncFocusCamBar();
-        if (camId) {
-            tlSetMeta('Assigned to slot ' + (tile.slot + 1) +
-                ' · ' + tlShortTreeLabel(camName, camId) +
-                '. Focus bar shows the blue (focus) camera. Load uses all assigned tiles.');
-        } else {
+        tlMergeTimelineData();
+        tlDrawTimeline();
+        if (!camId) {
             tlSetMeta('');
+            return;
         }
+        /* Auto-fetch this slot's timeline when day/range already set — no Calendar OK needed */
+        if (tl.selectedDate || (tl.from && tl.to)) {
+            tlSetMeta('Loading timeline for slot ' + (tile.slot + 1) + ' · '
+                + tlShortTreeLabel(camName, camId) + '\u2026');
+            Promise.resolve(tlFetchTileTimeline(tile)).then(function () {
+                tlMergeTimelineData();
+                /* Do NOT move yellow to clip start when adding a 2nd/3rd cam */
+                if (!Number.isFinite(tl.playheadMs) && tile.segments && tile.segments.length) {
+                    var first = tlIsoToMs(tile.segments[0].start_at);
+                    if (Number.isFinite(first)) {
+                        tl.playheadMs = first;
+                        tile.playheadMs = first;
+                    }
+                } else if (Number.isFinite(tl.playheadMs)) {
+                    tile.playheadMs = tl.playheadMs;
+                }
+                tlDrawTimeline();
+                var n = tlLaneTilesForTimeline().length;
+                tlSetMeta('Slot ' + (tile.slot + 1) + ' · ' + tlShortTreeLabel(camName, camId)
+                    + ' ready · ' + n + ' lane(s). Sync On = multi-lane. Scrub yellow, then Play All.');
+            }).catch(function () {
+                tlSetMeta('Could not load timeline for '
+                    + tlShortTreeLabel(camName, camId) + '. Try Calendar OK / Load Recordings.');
+            });
+            return;
+        }
+        tlSetMeta('Assigned to slot ' + (tile.slot + 1) +
+            ' · ' + tlShortTreeLabel(camName, camId) +
+            '. Set Calendar / times, then Load Recordings.');
     }
 
     function tlTreeFilterText() {
@@ -1306,6 +1810,19 @@
         return n;
     }
 
+    function tlCamSourceKind(camOrId) {
+        var obj = null;
+        if (camOrId && typeof camOrId === 'object') obj = camOrId;
+        else if (camOrId != null && camCatalog[String(camOrId)]) obj = camCatalog[String(camOrId)];
+        if (!obj) return 'fixed';
+        var t = String(obj.type || '').toLowerCase();
+        if (t === 'bwc' || t === 'bodyworn' || t === 'body-worn') return 'bwc';
+        if (obj.deviceId && !obj.streamSource) return 'bwc';
+        if (t === 'fixed' || t === 'nvr' || t === 'ip' || t === 'onvif') return 'fixed';
+        if (obj.streamSource || obj.zone_id || obj.ptzEnabled != null) return 'fixed';
+        return 'fixed';
+    }
+
     function tlMakeTreeCamButton(cam) {
         var btn = document.createElement('button');
         btn.type = 'button';
@@ -1313,12 +1830,23 @@
         btn.setAttribute('data-cam-id', cam.id);
         btn.setAttribute('role', 'treeitem');
         btn.draggable = true;
+        var kind = tlCamSourceKind(cam);
+        btn.setAttribute('data-source-kind', kind);
         var fullTitle = (cam.name && String(cam.name) !== String(cam.id))
             ? (String(cam.name).trim() + ' · ' + cam.id)
             : String(cam.id || cam.name || '');
+        fullTitle = (kind === 'bwc' ? 'BWC · ' : 'Fixed · ') + fullTitle;
         btn.title = fullTitle;
         btn.setAttribute('data-cam-title', fullTitle);
-        btn.textContent = tlShortTreeLabel(cam.name, cam.id);
+        var badge = document.createElement('span');
+        badge.className = 'inv-vms-tree-cam-badge inv-vms-tree-cam-badge--' + kind;
+        badge.textContent = kind === 'bwc' ? 'BWC' : 'Fixed';
+        badge.setAttribute('aria-hidden', 'true');
+        var nameEl = document.createElement('span');
+        nameEl.className = 'inv-vms-tree-cam-name';
+        nameEl.textContent = tlShortTreeLabel(cam.name, cam.id);
+        btn.appendChild(badge);
+        btn.appendChild(nameEl);
         btn.addEventListener('click', function () {
             tlTreePickCamera(cam);
         });
@@ -1327,6 +1855,7 @@
                 ev.dataTransfer.setData('application/x-inv-vms-cam', JSON.stringify({
                     id: cam.id,
                     name: cam.name || cam.id,
+                    type: kind,
                 }));
                 ev.dataTransfer.setData('text/plain', String(cam.id || ''));
                 ev.dataTransfer.effectAllowed = 'copy';
@@ -1403,6 +1932,7 @@
                     bwcDetails.appendChild(tlMakeTreeCamButton({
                         id: id,
                         name: bwc.operatorName || id,
+                        type: 'bwc',
                     }));
                 });
                 siteDetails.appendChild(bwcDetails);
@@ -1425,14 +1955,24 @@
     function tlIsoToMs(s) { return s ? Date.parse(s) : 0; }
 
     function tlMsToLocalLabel(ms) {
-        if (!Number.isFinite(ms)) return '—';
+        if (!Number.isFinite(ms)) return '\u2014';
         try {
             var d = new Date(ms);
-            var pad = function (n) { return n < 10 ? '0' + n : String(n); };
-            return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
-                ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+            if (typeof global.fmtDateTime === 'function') {
+                var base = global.fmtDateTime(d.toISOString());
+                var sec = d.getSeconds();
+                var pad = function (n) { return n < 10 ? '0' + n : String(n); };
+                /* Centre chrome + seconds for scrub readout */
+                if (base && /,\s*\d{2}:\d{2}$/.test(base)) {
+                    return base + ':' + pad(sec);
+                }
+                return base || '\u2014';
+            }
+            var pad2 = function (n) { return n < 10 ? '0' + n : String(n); };
+            return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+                ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
         } catch (_) {
-            return '—';
+            return '\u2014';
         }
     }
 
@@ -1451,7 +1991,9 @@
 
     function tlFormatDtLabel(val) {
         var p = tlDtParts(val);
-        if (!p.date) return '— Select —';
+        if (!p.date) return '\u2014 Select \u2014';
+        var iso = p.date + 'T' + (p.time ? p.time.slice(0, 5) : '00:00');
+        if (typeof global.fmtDateTime === 'function') return global.fmtDateTime(iso);
         return p.date + ' ' + (p.time ? p.time.slice(0, 5) : '00:00');
     }
 
@@ -1540,9 +2082,13 @@
             if (other) btn.classList.add('is-other');
             if (iso === selected) btn.classList.add('is-selected');
             if (iso === today) btn.classList.add('is-today');
-            if (tl.alarmDays[iso] ||
-                (tl.alarmDayList && tl.alarmDayList.indexOf(iso) >= 0)) {
+            if (typeof tlDayHasVipRed === 'function' ? tlDayHasVipRed(iso) :
+                (tl.alarmDays[iso] || (tl.alarmDayList && tl.alarmDayList.indexOf(iso) >= 0))) {
                 btn.classList.add('has-alarm');
+                var vipDot = document.createElement('span');
+                vipDot.className = 'inv-vms-cal-vip-dot';
+                vipDot.setAttribute('aria-hidden', 'true');
+                btn.appendChild(vipDot);
             }
             btn.addEventListener('click', function (ev) {
                 ev.preventDefault();
@@ -1560,6 +2106,21 @@
             });
             grid.appendChild(btn);
         }
+        if (typeof tlApplyVipRedClasses === 'function') tlApplyVipRedClasses(grid);
+    }
+
+    function tlSyncCalMonthFromUnifiedRange() {
+        /* VMS-CALENDAR-VIP-RED-UNIFY-V1: Calendar month = Start Time (same unified range). */
+        var hid = $('inv-vms-from');
+        var parts = tlDtParts(hid && hid.value);
+        var dateStr = (parts && parts.date) || tlTodayDateInput();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) dateStr = tlTodayDateInput();
+        var p = dateStr.split('-').map(Number);
+        if (p[0] && p[1]) {
+            tl.calYear = p[0];
+            tl.calMonth = p[1];
+        }
+        if (!tl.calDraftDate) tl.calDraftDate = dateStr;
     }
 
     function tlOpenDtPop(which) {
@@ -1582,6 +2143,7 @@
                 return tlDtPad(n.getHours()) + ':' + tlDtPad(n.getMinutes()) + ':' + tlDtPad(n.getSeconds());
             })();
         }
+        /* Keep shared month on the same unified Start/End date — no separate calendar year. */
         tl.calYear = tl.dtDraft[which].year;
         tl.calMonth = tl.dtDraft[which].month;
         if (pop) pop.hidden = false;
@@ -1660,16 +2222,15 @@
 
     function tlSegmentCoversMs(ms, camId) {
         if (!Number.isFinite(ms)) return false;
-        var segs = tl.mergedSegments || [];
-        if (!segs.length) {
-            var ft = tlFocusTile();
-            if (ft && ft.segments) {
-                segs = ft.segments.map(function (s) {
-                    return Object.assign({ camId: ft.camId }, s);
-                });
+        var i;
+        if (camId) {
+            for (i = 0; i < (tl.tiles || []).length; i++) {
+                var t = tl.tiles[i];
+                if (!t || String(t.camId || '') !== String(camId)) continue;
+                if (tlFindSegmentAt(t.segments || [], ms)) return true;
             }
         }
-        var i;
+        var segs = tl.mergedSegments || [];
         for (i = 0; i < segs.length; i++) {
             var s = segs[i];
             if (!s) continue;
@@ -1683,22 +2244,443 @@
         return false;
     }
 
+    /** Nearest playable time on this tile (segment start if playhead is outside all clips). */
+    function tlNearestPlayableMs(tile, preferMs) {
+        var segs = (tile && tile.segments) || [];
+        var bestAt = null;
+        var bestDist = Infinity;
+        var i;
+        for (i = 0; i < segs.length; i++) {
+            var s = segs[i];
+            if (!s || s.status === 'unavailable') continue;
+            var a = tlIsoToMs(s.start_at);
+            var b = tlIsoToMs(s.end_at);
+            if (!Number.isFinite(a)) continue;
+            if (!Number.isFinite(b) || b < a) b = a + 1000;
+            if (Number.isFinite(preferMs) && preferMs >= a && preferMs <= b) return preferMs;
+            var dist = Number.isFinite(preferMs)
+                ? (preferMs < a ? (a - preferMs) : (preferMs - b))
+                : a;
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestAt = a;
+            }
+        }
+        return bestAt;
+    }
+
+    function tlResolvePlayAtMs(tile, opts) {
+        opts = opts || {};
+        var at = tile && tile.playheadMs != null ? tile.playheadMs
+            : (tl.playheadMs != null ? tl.playheadMs : (tl.from ? tl.from.getTime() : null));
+        /* INV-TIMELINE-MULTI-LANE-V1 — Sync Lock: exact shared clock, no snap to another clip */
+        if (opts.sharedClock || (tl.syncLock && (tl.layoutMode === 'four' || tl.layoutMode === 'six') && !opts.allowSnap)) {
+            at = Number.isFinite(tl.playheadMs) ? tl.playheadMs : at;
+            if (at == null || !tile) return null;
+            if (tlFindSegmentAt(tile.segments || [], at)) return at;
+            return null;
+        }
+        if (at == null || !tile) return null;
+        if (tlFindSegmentAt(tile.segments || [], at)) return at;
+        return tlNearestPlayableMs(tile, at);
+    }
+
+    function tlAlarmEventId(al) {
+        if (!al) return '';
+        var id = al.id || al.markerId || al.marker_id || al.eventId || al.event_id || '';
+        return String(id).trim();
+    }
+
+    function tlCopyAlarmPreviewId() {
+        var prev = tl._alarmPreview;
+        var id = (prev && prev.alarmId) ? String(prev.alarmId) : '';
+        if (!id && prev && prev.al) id = tlAlarmEventId(prev.al);
+        if (!id) {
+            tlSetMeta('No alarm ID to copy.');
+            return;
+        }
+        function ok() {
+            tlSetMeta('Alarm ID copied.');
+        }
+        function fail() {
+            tlSetMeta('Could not copy alarm ID.');
+        }
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(id).then(ok).catch(function () {
+                    try {
+                        var ta = document.createElement('textarea');
+                        ta.value = id;
+                        ta.setAttribute('readonly', '');
+                        ta.style.position = 'fixed';
+                        ta.style.left = '-9999px';
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(ta);
+                        ok();
+                    } catch (_) { fail(); }
+                });
+                return;
+            }
+        } catch (_) { /* fall through */ }
+        try {
+            var ta2 = document.createElement('textarea');
+            ta2.value = id;
+            ta2.setAttribute('readonly', '');
+            ta2.style.position = 'fixed';
+            ta2.style.left = '-9999px';
+            document.body.appendChild(ta2);
+            ta2.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta2);
+            ok();
+        } catch (_) { fail(); }
+    }
+
     function tlCloseAlarmPreview() {
         var panel = $('inv-vms-alarm-preview');
-        if (panel) panel.hidden = true;
+        if (panel) {
+            panel.hidden = true;
+            panel.classList.remove('is-no-recording');
+            panel.classList.remove('is-has-recording');
+            panel.classList.remove('is-minimized');
+            panel.classList.remove('is-dragging');
+        }
+        var minBtn = $('inv-vms-alarm-preview-min');
+        if (minBtn) {
+            minBtn.textContent = '\u2212';
+            minBtn.setAttribute('aria-label', 'Minimize');
+            minBtn.title = 'Minimize';
+        }
         var img = $('inv-vms-alarm-preview-img');
         if (img) {
             img.hidden = true;
             img.removeAttribute('src');
         }
+        var playBtn = $('inv-vms-alarm-preview-play');
+        if (playBtn) playBtn.hidden = true;
+        tl._alarmPreview = null;
+    }
+
+    function tlSetAlarmPreviewMinimized(on) {
+        var panel = $('inv-vms-alarm-preview');
+        var minBtn = $('inv-vms-alarm-preview-min');
+        if (!panel) return;
+        panel.classList.toggle('is-minimized', !!on);
+        if (minBtn) {
+            minBtn.textContent = on ? '\u25A1' : '\u2212';
+            minBtn.setAttribute('aria-label', on ? 'Restore' : 'Minimize');
+            minBtn.title = on ? 'Restore' : 'Minimize';
+        }
+    }
+
+    function tlBindAlarmPreviewChrome() {
+        if (tl._alarmPreviewChromeBound) return;
+        tl._alarmPreviewChromeBound = true;
+        var panel = $('inv-vms-alarm-preview');
+        var head = $('inv-vms-alarm-preview-drag');
+        var minBtn = $('inv-vms-alarm-preview-min');
+        if (!panel || !head) return;
+        var drag = { on: false, ox: 0, oy: 0, moved: false };
+
+        function placePanel(left, top) {
+            var w = panel.offsetWidth || 300;
+            var h = panel.offsetHeight || 80;
+            var maxL = Math.max(8, window.innerWidth - w - 8);
+            var maxT = Math.max(8, window.innerHeight - h - 8);
+            left = Math.max(8, Math.min(maxL, left));
+            top = Math.max(8, Math.min(maxT, top));
+            panel.style.left = left + 'px';
+            panel.style.top = top + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+            panel.style.transform = 'none';
+            tl._alarmPreviewPos = { left: left, top: top };
+        }
+
+        head.addEventListener('mousedown', function (e) {
+            if (e.button !== 0) return;
+            if (e.target && e.target.closest &&
+                e.target.closest('button')) return;
+            e.preventDefault();
+            var rect = panel.getBoundingClientRect();
+            drag.on = true;
+            drag.moved = false;
+            drag.ox = e.clientX - rect.left;
+            drag.oy = e.clientY - rect.top;
+            panel.classList.add('is-dragging');
+            placePanel(rect.left, rect.top);
+        });
+        window.addEventListener('mousemove', function (e) {
+            if (!drag.on) return;
+            drag.moved = true;
+            placePanel(e.clientX - drag.ox, e.clientY - drag.oy);
+        });
+        window.addEventListener('mouseup', function () {
+            if (!drag.on) return;
+            drag.on = false;
+            panel.classList.remove('is-dragging');
+        });
+        if (minBtn) {
+            minBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                tlSetAlarmPreviewMinimized(!panel.classList.contains('is-minimized'));
+            });
+        }
+        head.addEventListener('dblclick', function (e) {
+            if (e.target && e.target.closest && e.target.closest('button')) return;
+            tlSetAlarmPreviewMinimized(!panel.classList.contains('is-minimized'));
+        });
+    }
+
+    function tlEventListSource() {
+        var scopeEl = $('inv-vms-event-list-scope');
+        var scope = scopeEl ? String(scopeEl.value || 'focus') : 'focus';
+        if (scope === 'all') return (tl.mergedAlarms || []).slice();
+        var ft = tlFocusTile();
+        if (!ft || !ft.camId) return [];
+        return (ft.alarms || []).map(function (a) {
+            return Object.assign({ camId: ft.camId }, a);
+        });
+    }
+
+    function tlFmtEventWhen(ms, iso) {
+        if (Number.isFinite(ms)) return tlMsToLocalLabel(ms);
+        return String(iso || '—');
+    }
+
+    function tlCamLabelForId(camId) {
+        var id = String(camId || '').trim();
+        if (!id) return '—';
+        var i;
+        for (i = 0; i < tl.tiles.length; i++) {
+            var t = tl.tiles[i];
+            if (t && t.camId === id) return tlShortTreeLabel(t.camName, id);
+        }
+        return id;
+    }
+
+    function tlRenderEventList() {
+        var panel = $('inv-vms-event-list');
+        var rows = $('inv-vms-event-list-rows');
+        var empty = $('inv-vms-event-list-empty');
+        if (!panel || !rows) return;
+        var filterEl = $('inv-vms-event-list-filter');
+        var q = filterEl ? String(filterEl.value || '').trim().toLowerCase() : '';
+        var list = tlEventListSource().filter(function (al) {
+            if (!q) return true;
+            var et = String(al.event_type || al.eventType || '').toLowerCase();
+            var note = String(al.note || '').toLowerCase();
+            var cam = String(al.camId || al.cam_id || '').toLowerCase();
+            var id = tlAlarmEventId(al).toLowerCase();
+            return et.indexOf(q) >= 0 || note.indexOf(q) >= 0 || cam.indexOf(q) >= 0 || id.indexOf(q) >= 0;
+        });
+        list.sort(function (a, b) {
+            return tlIsoToMs(b.occurred_at || b.occurredAt) - tlIsoToMs(a.occurred_at || a.occurredAt);
+        });
+        var eventsBtn = $('inv-vms-events');
+        if (eventsBtn) {
+            eventsBtn.classList.toggle('active', !panel.hidden);
+            var n = list.length;
+            eventsBtn.textContent = n ? ('Events (' + n + ')') : 'Events';
+        }
+        if (panel.hidden) return;
+        rows.innerHTML = '';
+        list.forEach(function (al) {
+            var ms = tlIsoToMs(al.occurred_at || al.occurredAt);
+            var et = String(al.event_type || al.eventType || 'event');
+            var camId = String(al.camId || al.cam_id || '').trim();
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'inv-vms-event-list-row';
+            btn.setAttribute('role', 'listitem');
+            var typeEl = document.createElement('span');
+            typeEl.className = 'inv-vms-event-list-row-type';
+            typeEl.textContent = et;
+            var metaEl = document.createElement('span');
+            metaEl.className = 'inv-vms-event-list-row-meta';
+            metaEl.textContent = tlFmtEventWhen(ms, al.occurred_at || al.occurredAt) +
+                ' · ' + tlCamLabelForId(camId);
+            btn.appendChild(typeEl);
+            btn.appendChild(metaEl);
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                tlOpenAlarmPreview(al);
+            });
+            rows.appendChild(btn);
+        });
+        if (empty) empty.hidden = list.length > 0;
+    }
+
+    function tlCloseEventList() {
+        var panel = $('inv-vms-event-list');
+        if (panel) {
+            panel.hidden = true;
+            panel.classList.remove('is-minimized');
+            panel.classList.remove('is-dragging');
+        }
+        var minBtn = $('inv-vms-event-list-min');
+        if (minBtn) {
+            minBtn.textContent = '\u2212';
+            minBtn.setAttribute('aria-label', 'Minimize');
+            minBtn.title = 'Minimize';
+        }
+        var eventsBtn = $('inv-vms-events');
+        if (eventsBtn) {
+            eventsBtn.classList.remove('active');
+            eventsBtn.textContent = 'Events';
+        }
+    }
+
+    function tlSetEventListMinimized(on) {
+        var panel = $('inv-vms-event-list');
+        var minBtn = $('inv-vms-event-list-min');
+        if (!panel) return;
+        panel.classList.toggle('is-minimized', !!on);
+        if (minBtn) {
+            minBtn.textContent = on ? '\u25A1' : '\u2212';
+            minBtn.setAttribute('aria-label', on ? 'Restore' : 'Minimize');
+            minBtn.title = on ? 'Restore' : 'Minimize';
+        }
+    }
+
+    function tlOpenEventList() {
+        var panel = $('inv-vms-event-list');
+        if (!panel) return;
+        tlBindEventListChrome();
+        tlSetEventListMinimized(false);
+        if (tl._eventListPos) {
+            panel.style.left = tl._eventListPos.left + 'px';
+            panel.style.top = tl._eventListPos.top + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+        }
+        panel.hidden = false;
+        tlRenderEventList();
+    }
+
+    function tlToggleEventList() {
+        var panel = $('inv-vms-event-list');
+        if (!panel) return;
+        if (panel.hidden) tlOpenEventList();
+        else tlCloseEventList();
+    }
+
+    function tlBindEventListChrome() {
+        if (tl._eventListChromeBound) return;
+        tl._eventListChromeBound = true;
+        var panel = $('inv-vms-event-list');
+        var head = $('inv-vms-event-list-drag');
+        var minBtn = $('inv-vms-event-list-min');
+        var closeBtn = $('inv-vms-event-list-close');
+        var scopeEl = $('inv-vms-event-list-scope');
+        var filterEl = $('inv-vms-event-list-filter');
+        if (!panel || !head) return;
+        var drag = { on: false, ox: 0, oy: 0 };
+
+        function placePanel(left, top) {
+            var w = panel.offsetWidth || 340;
+            var h = panel.offsetHeight || 120;
+            var maxL = Math.max(8, window.innerWidth - w - 8);
+            var maxT = Math.max(8, window.innerHeight - h - 8);
+            left = Math.max(8, Math.min(maxL, left));
+            top = Math.max(8, Math.min(maxT, top));
+            panel.style.left = left + 'px';
+            panel.style.top = top + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+            tl._eventListPos = { left: left, top: top };
+        }
+
+        head.addEventListener('mousedown', function (e) {
+            if (e.button !== 0) return;
+            if (e.target && e.target.closest && e.target.closest('button')) return;
+            e.preventDefault();
+            var rect = panel.getBoundingClientRect();
+            drag.on = true;
+            drag.ox = e.clientX - rect.left;
+            drag.oy = e.clientY - rect.top;
+            panel.classList.add('is-dragging');
+            placePanel(rect.left, rect.top);
+        });
+        window.addEventListener('mousemove', function (e) {
+            if (!drag.on) return;
+            placePanel(e.clientX - drag.ox, e.clientY - drag.oy);
+        });
+        window.addEventListener('mouseup', function () {
+            if (!drag.on) return;
+            drag.on = false;
+            panel.classList.remove('is-dragging');
+        });
+        if (minBtn) {
+            minBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                tlSetEventListMinimized(!panel.classList.contains('is-minimized'));
+            });
+        }
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                tlCloseEventList();
+            });
+        }
+        head.addEventListener('dblclick', function (e) {
+            if (e.target && e.target.closest && e.target.closest('button')) return;
+            tlSetEventListMinimized(!panel.classList.contains('is-minimized'));
+        });
+        if (scopeEl) scopeEl.addEventListener('change', function () { tlRenderEventList(); });
+        if (filterEl) {
+            filterEl.addEventListener('input', function () { tlRenderEventList(); });
+        }
+        panel.addEventListener('click', function (e) { e.stopPropagation(); });
+    }
+
+    function tlTileForAlarmCam(camId) {
+        var want = String(camId || '').trim();
+        var i;
+        if (want) {
+            for (i = 0; i < (tl.tiles || []).length; i++) {
+                var t = tl.tiles[i];
+                if (t && String(t.camId || '') === want) return t;
+            }
+        }
+        return tlFocusTile();
+    }
+
+    function tlPlayAlarmPreview() {
+        var prev = tl._alarmPreview;
+        if (!prev || !Number.isFinite(prev.ms)) {
+            tlSetMeta('No alarm selected.');
+            return;
+        }
+        var tile = tlTileForAlarmCam(prev.camId);
+        if (!tile || !tile.camId || !tile.video) {
+            tlSetMeta('Assign this camera to a tile, then Play From Alarm.');
+            return;
+        }
+        tlOnFocusSlot(tile.slot);
+        tile.playheadMs = prev.ms;
+        tl.playheadMs = prev.ms;
+        tlDrawTimeline();
+        tlPlayTile(tile);
+        tlSetMeta('Playing from alarm time.');
     }
 
     function tlOpenAlarmPreview(al) {
         if (!al) return;
         var panel = $('inv-vms-alarm-preview');
         if (!panel) return;
-        var ms = tlIsoToMs(al.occurred_at);
-        var camId = String(al.camId || (tlFocusTile() && tlFocusTile().camId) || '').trim();
+        var ms = tlIsoToMs(al.occurred_at || al.occurredAt);
+        var camId = String(al.cam_id || al.camId || '').trim();
+        if (!camId) {
+            var ft0 = tlFocusTile();
+            if (ft0 && ft0.camId) camId = String(ft0.camId).trim();
+        }
         var typeEl = $('inv-vms-alarm-preview-type');
         var whenEl = $('inv-vms-alarm-preview-when');
         var camEl = $('inv-vms-alarm-preview-cam');
@@ -1706,7 +2688,8 @@
         var snapEl = $('inv-vms-alarm-preview-snap');
         var recEl = $('inv-vms-alarm-preview-rec');
         var img = $('inv-vms-alarm-preview-img');
-        var et = String(al.event_type || 'event');
+        var playBtn = $('inv-vms-alarm-preview-play');
+        var et = String(al.event_type || al.eventType || 'event');
         var note = String(al.note || '');
         if (typeEl) typeEl.textContent = 'Type · ' + et;
         if (whenEl) {
@@ -1717,6 +2700,11 @@
             var camName = (focus && focus.camId === camId && focus.camName) ? focus.camName : camId;
             camEl.textContent = 'Camera · ' + (camName || '—');
         }
+        var alarmId = tlAlarmEventId(al);
+        var idEl = $('inv-vms-alarm-preview-id');
+        var copyBtn = $('inv-vms-alarm-preview-copy');
+        if (idEl) idEl.textContent = 'ID · ' + (alarmId || '—');
+        if (copyBtn) copyBtn.disabled = !alarmId;
         if (noteEl) noteEl.textContent = note || '—';
         if (img) {
             img.hidden = true;
@@ -1724,23 +2712,54 @@
         }
         if (snapEl) snapEl.textContent = 'Looking up snapshot…';
         var hasRec = tlSegmentCoversMs(ms, camId);
+        if (!hasRec && Number.isFinite(ms)) {
+            /* Soft check: nearest segment on focus tile still allows Play (seek snaps). */
+            var softTile = tlTileForAlarmCam(camId);
+            if (softTile && tlNearestPlayableMs(softTile, ms) != null) hasRec = true;
+        }
+        panel.classList.toggle('is-no-recording', !hasRec);
+        panel.classList.toggle('is-has-recording', !!hasRec);
+        if (playBtn) playBtn.hidden = !hasRec;
         if (recEl) {
             recEl.textContent = hasRec
-                ? 'Recording available at this time.'
-                : 'No recording at this time.';
+                ? 'Recording available. Use Play From Alarm below.'
+                : 'No recording at this time. Snapshot and alarm details only.';
+        }
+        tl._alarmPreview = { al: al, ms: ms, camId: camId, hasRec: !!hasRec, alarmId: alarmId };
+        tlBindAlarmPreviewChrome();
+        tlSetAlarmPreviewMinimized(false);
+        if (tl._alarmPreviewPos) {
+            var pos = tl._alarmPreviewPos;
+            panel.style.left = pos.left + 'px';
+            panel.style.top = pos.top + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+            panel.style.transform = 'none';
+        } else {
+            panel.style.left = '';
+            panel.style.top = '';
+            panel.style.right = '';
+            panel.style.bottom = '';
+            panel.style.transform = '';
         }
         panel.hidden = false;
+        if (Number.isFinite(ms)) {
+            tl.playheadMs = ms;
+            var focusTile = tlFocusTile();
+            if (focusTile) focusTile.playheadMs = ms;
+        }
         if (hasRec && Number.isFinite(ms)) {
             tlPauseVideos();
             tlSeekAll(ms);
+            tlSetMeta('Alarm ready. Press Play From Alarm.');
         } else {
             tlPauseVideos();
-            if (Number.isFinite(ms)) tl.playheadMs = ms;
             tlUpdateTimelineChrome();
             tlDrawTimeline();
+            tlSetMeta('No recording at this alarm time. See the event panel for details.');
         }
         var url = '/api/vms/alarm-event-preview?camId=' + encodeURIComponent(camId) +
-            '&occurredAt=' + encodeURIComponent(String(al.occurred_at || '')) +
+            '&occurredAt=' + encodeURIComponent(String(al.occurred_at || al.occurredAt || '')) +
             '&eventType=' + encodeURIComponent(et) +
             '&note=' + encodeURIComponent(note.slice(0, 200)) +
             '&markerId=' + encodeURIComponent(String(al.id || ''));
@@ -1755,7 +2774,7 @@
                         if (snapEl) snapEl.textContent = 'No snapshot for this event.';
                     };
                     img.src = d.previewUrl;
-                    if (snapEl) snapEl.textContent = '';
+                    if (snapEl) snapEl.textContent = d.snapshotLabel || 'Snapshot';
                 } else if (snapEl) {
                     snapEl.textContent = 'No snapshot for this event.';
                 }
@@ -1829,6 +2848,7 @@
                 activeSegmentId: null,
                 playheadMs: null,
                 playing: false,
+                audioMuted: i !== 0, /* Focus slot 0 unmuted by default; others muted */
                 video: document.querySelector('.inv-vms-video[data-slot="' + i + '"]'),
                 overlay: document.querySelector('.inv-vms-overlay[data-slot="' + i + '"]'),
                 select: document.querySelector('.inv-vms-cam-select[data-slot="' + i + '"]'),
@@ -1881,6 +2901,8 @@
                 });
             }
         });
+        tlRenderEventList();
+        tlRebuildTimelineVipDayHints();
     }
 
     async function tlLoadCameraTree() {
@@ -1927,6 +2949,7 @@
                 var zoneName = zone.name || 'Zone';
                 (zone.cameras || []).forEach(function (cam) {
                     if (!cam || !cam.id) return;
+                    if (!cam.type) cam.type = 'fixed';
                     camCatalog[String(cam.id)] = cam;
                     pushCam(
                         cam.id,
@@ -2005,11 +3028,14 @@
     function tlOnFocusCamBarChange() {
         var sel = $('inv-vms-focus-cam');
         if (!sel) return;
-        tl.alarmDays = {};
-        tl.recordingDays = {};
-        tl.alarmDayList = [];
+        /* VMS-CALENDAR-VIP-RED-PAINT-V1: do NOT wipe VIP days before fetch —
+         * wipe race painted empty calendar while API still in flight. */
         var camId = String(sel.value || '').trim();
         if (!camId) {
+            tl.alarmDays = {};
+            tl.recordingDays = {};
+            tl.alarmDayList = [];
+            tl._apiAlarmDays = {};
             tlPaintRecordingCalendar();
             tlSetMeta('Pick a Focus Camera, or click cameras in the list to assign tiles.');
             return;
@@ -2172,50 +3198,171 @@
         return String(al.cam_id || al.camId || '').trim();
     }
 
+    function tlIsCalendarVipAlarm(al) {
+        /* 2-tier: calendar red dots = VIP only (match recording-days whitelist). */
+        var t = String((al && (al.event_type || al.eventType)) || '').toLowerCase().trim();
+        return t === 'analytics' || t === 'sos' || t === 'weapon' ||
+            t === 'fr_hit' || t === 'anpr_hit' || t === 'anpr';
+    }
+
+    function tlFocusIdentitySet() {
+        var set = {};
+        function add(v) {
+            var s = String(v || '').trim();
+            if (s) set[s] = true;
+        }
+        var focus = tlFocusTile();
+        if (focus && focus.camId) add(focus.camId);
+        var sel = $('inv-vms-focus-cam');
+        if (sel && sel.value) add(sel.value);
+        add(tlCalendarFocusCamId());
+        return set;
+    }
+
+    function tlIdMatchesFocus(id) {
+        var s = String(id || '').trim();
+        if (!s) return false;
+        var set = tlFocusIdentitySet();
+        if (set[s]) return true;
+        var k;
+        for (k in set) {
+            if (!Object.prototype.hasOwnProperty.call(set, k)) continue;
+            if (k === s) return true;
+            /* VIP-RED-VERIFY-V1: never substring-match long GB28181 ids (0008 vs 0009 false friends). */
+            if (/^\d{10,}$/.test(s) || /^\d{10,}$/.test(k)) continue;
+            if (k.indexOf(s) >= 0 || s.indexOf(k) >= 0) return true;
+        }
+        return false;
+    }
+
     function tlAugmentDaysFromLoadedTimeline() {
         var focusId = tlCalendarFocusCamId();
+        var focusSlot = tl.focusSlot;
         tlAugmentAlarmDaysFromMarkers();
         function addRec(ms) {
             var iso = tlLocalDayIsoFromMs(ms);
             if (iso && tlMarkDayInMonth(iso)) tl.recordingDays[iso] = true;
         }
-        function addAlarm(ms) {
+        function addAlarm(al, ms) {
+            if (!tlIsCalendarVipAlarm(al)) return;
             var iso = tlLocalDayIsoFromMs(ms);
-            if (iso && tlMarkDayInMonth(iso)) tl.alarmDays[iso] = true;
+            if (iso) tl.alarmDays[iso] = true;
         }
         (tl.tiles || []).forEach(function (tile) {
-            if (focusId && String(tile.camId || '').trim() !== focusId) return;
+            var isFocusTile = (tile.slot === focusSlot) ||
+                (focusId && String(tile.camId || '').trim() === focusId) ||
+                tlIdMatchesFocus(tile.camId);
+            if (focusId && !isFocusTile) return;
             (tile.segments || []).forEach(function (seg) {
                 addRec(tlIsoToMs(seg.start_at || seg.startAt));
                 addRec(tlIsoToMs(seg.end_at || seg.endAt));
             });
             (tile.alarms || []).forEach(function (al) {
-                addAlarm(tlIsoToMs(al && al.occurred_at));
+                addAlarm(al, tlIsoToMs(al && (al.occurred_at || al.occurredAt)));
             });
         });
         (tl.mergedSegments || []).forEach(function (seg) {
             if (!seg) return;
             if (focusId) {
                 var sid = String(seg.cam_id || seg.camId || '').trim();
-                if (sid && sid !== focusId) return;
+                if (sid && !tlIdMatchesFocus(sid)) return;
                 if (!sid) return;
             }
             addRec(tlIsoToMs(seg.start_at || seg.startAt));
             addRec(tlIsoToMs(seg.end_at || seg.endAt));
         });
         (tl.mergedAlarms || []).forEach(function (al) {
-            if (focusId && tlAlarmCamId(al) !== focusId) return;
-            addAlarm(tlIsoToMs(al && al.occurred_at));
+            if (focusId && !tlIdMatchesFocus(tlAlarmCamId(al))) return;
+            addAlarm(al, tlIsoToMs(al && (al.occurred_at || al.occurredAt)));
         });
     }
 
     function tlAugmentAlarmDaysFromMarkers() {
         var focusId = tlCalendarFocusCamId();
         (tl.mergedAlarms || []).forEach(function (al) {
-            if (focusId && tlAlarmCamId(al) !== focusId) return;
-            var iso = tlLocalDayIsoFromMs(tlIsoToMs(al && al.occurred_at));
+            if (!tlIsCalendarVipAlarm(al)) return;
+            if (focusId && !tlIdMatchesFocus(tlAlarmCamId(al))) return;
+            var iso = tlLocalDayIsoFromMs(tlIsoToMs(al && (al.occurred_at || al.occurredAt)));
             if (iso) tl.alarmDays[iso] = true;
         });
+        var focus = tlFocusTile();
+        if (focus && focus.alarms && focus.alarms.length) {
+            focus.alarms.forEach(function (al) {
+                if (!tlIsCalendarVipAlarm(al)) return;
+                var iso = tlLocalDayIsoFromMs(tlIsoToMs(al && (al.occurred_at || al.occurredAt)));
+                if (iso) tl.alarmDays[iso] = true;
+            });
+        }
+    }
+
+    function tlRebuildTimelineVipDayHints() {
+        /* VIP-only days from loaded focus alarms — full map (not month-clipped); paint filters cells. */
+        var next = {};
+        function add(al, camHint) {
+            if (!tlIsCalendarVipAlarm(al)) return;
+            var cid = tlAlarmCamId(al) || String(camHint || '').trim();
+            var focusId = tlCalendarFocusCamId();
+            if (focusId && cid && !tlIdMatchesFocus(cid)) return;
+            var ms = tlIsoToMs(al && (al.occurred_at || al.occurredAt));
+            if (!Number.isFinite(ms) || ms < 1e12) return;
+            var iso = tlLocalDayIsoFromMs(ms);
+            if (iso) next[iso] = true;
+        }
+        (tl.mergedAlarms || []).forEach(function (al) { add(al, al && al.camId); });
+        var focus = tlFocusTile();
+        if (focus && focus.alarms) {
+            focus.alarms.forEach(function (al) { add(al, focus.camId); });
+        }
+        tl._timelineVipDays = next;
+    }
+
+    function tlDayHasVipRed(iso) {
+        var d = String(iso || '').slice(0, 10);
+        if (!d) return false;
+        if (tl._apiAlarmDays && tl._apiAlarmDays[d]) return true;
+        return !!(tl._timelineVipDays && tl._timelineVipDays[d]);
+    }
+
+    function tlApplyVipRedClasses(root) {
+        if (!root) return;
+        var nodes = root.querySelectorAll('button[data-date]');
+        var i;
+        for (i = 0; i < nodes.length; i++) {
+            var btn = nodes[i];
+            var d = String(btn.getAttribute('data-date') || '').slice(0, 10);
+            var on = tlDayHasVipRed(d);
+            if (on) btn.classList.add('has-alarm');
+            else btn.classList.remove('has-alarm');
+            var dot = btn.querySelector('.inv-vms-cal-vip-dot');
+            if (on && !dot) {
+                dot = document.createElement('span');
+                dot.className = 'inv-vms-cal-vip-dot';
+                dot.setAttribute('aria-hidden', 'true');
+                btn.appendChild(dot);
+            } else if (!on && dot) {
+                try { btn.removeChild(dot); } catch (_) { /* ignore */ }
+            }
+        }
+    }
+
+    function tlForceCalendarPaint() {
+        /* Rebuild + force class pass from API VIP map. */
+        tl.alarmDayList = tl._apiAlarmDays ? Object.keys(tl._apiAlarmDays) : [];
+        tlRepaintOpenCalendars();
+        tlPaintRecordingCalendar();
+        try {
+            requestAnimationFrame(function () {
+                tlRepaintOpenCalendars();
+                tlPaintRecordingCalendar();
+            });
+        } catch (_) {
+            tlRepaintOpenCalendars();
+            tlPaintRecordingCalendar();
+        }
+        setTimeout(function () {
+            tlRepaintOpenCalendars();
+            tlPaintRecordingCalendar();
+        }, 0);
     }
 
     function tlRepaintOpenCalendars() {
@@ -2262,10 +3409,8 @@
             } else {
                 dayNum = i - startDow + 1;
             }
-            var targetDate = new Date(cellY, cellM - 1, dayNum);
-            var localDateStr = targetDate.getFullYear() + '-' +
-                String(targetDate.getMonth() + 1).padStart(2, '0') + '-' +
-                String(targetDate.getDate()).padStart(2, '0');
+            /* VIP-RED-PAINT-V1: pad Y-M-D directly — avoid Date() shifting cell keys. */
+            var localDateStr = cellY + '-' + pad(cellM) + '-' + pad(dayNum);
             var btn = document.createElement('button');
             btn.type = 'button';
             btn.textContent = String(dayNum);
@@ -2274,16 +3419,16 @@
             if (localDateStr === selected) btn.classList.add('is-selected');
             if (localDateStr === today) btn.classList.add('is-today');
             if (tl.recordingDays[localDateStr]) btn.classList.add('has-rec');
-            if (tl.alarmDays[localDateStr] ||
-                (tl.alarmDayList && tl.alarmDayList.indexOf(localDateStr) >= 0)) {
+            if (tlDayHasVipRed(localDateStr)) {
                 btn.classList.add('has-alarm');
+                var vip = document.createElement('span');
+                vip.className = 'inv-vms-cal-vip-dot';
+                vip.setAttribute('aria-hidden', 'true');
+                btn.appendChild(vip);
             }
             var tips = [localDateStr];
             if (tl.recordingDays[localDateStr]) tips.push('Has Recordings');
-            if (tl.alarmDays[localDateStr] ||
-                (tl.alarmDayList && tl.alarmDayList.indexOf(localDateStr) >= 0)) {
-                tips.push('Has Alarms');
-            }
+            if (tlDayHasVipRed(localDateStr)) tips.push('Has Alarms');
             btn.title = tips.join(' · ');
             btn.addEventListener('click', function (ev) {
                 ev.preventDefault();
@@ -2295,66 +3440,100 @@
             });
             grid.appendChild(btn);
         }
+        tlApplyVipRedClasses(grid);
     }
 
     async function tlRefreshRecordingDays() {
         tlEnsureCalMonth();
         var camId = tlCalendarFocusCamId();
         var gen = (tl._daysFetchGen = (tl._daysFetchGen || 0) + 1);
-        tl.recordingDays = {};
-        tl.alarmDays = {};
-        tl.alarmDayList = [];
-        tlRepaintOpenCalendars();
         function normDay(day) {
             var s = String(day || '').trim();
+            /* YYYY-MM-DD only — never Date.parse (UTC midnight shifts local day). */
             if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-            var ms = Date.parse(s);
-            if (!Number.isFinite(ms)) return '';
-            var dt = new Date(ms);
-            return dt.getFullYear() + '-' +
-                String(dt.getMonth() + 1).padStart(2, '0') + '-' +
-                String(dt.getDate()).padStart(2, '0');
+            return '';
         }
         if (!camId) {
+            /* No focus cam: no VIP API — clear reds (do not invent from timeline). */
+            tl._apiAlarmDays = {};
+            tl.alarmDays = {};
+            tl.alarmDayList = [];
             tlAugmentDaysFromLoadedTimeline();
             if (gen !== tl._daysFetchGen) return;
-            tl.alarmDayList = Object.keys(tl.alarmDays);
-            tlRepaintOpenCalendars();
+            tlForceCalendarPaint();
             return;
         }
         try {
             var url = '/api/vms/recording-days?camIds=' + encodeURIComponent(camId) +
                 '&year=' + encodeURIComponent(String(tl.calYear)) +
                 '&month=' + encodeURIComponent(String(tl.calMonth)) +
-                '&tzOffset=' + encodeURIComponent(String(new Date().getTimezoneOffset()));
-            var r = await fetch(url, { credentials: 'same-origin' });
+                '&tzOffset=' + encodeURIComponent(String(new Date().getTimezoneOffset())) +
+                '&_=' + encodeURIComponent(String(Date.now()));
+            var r = await fetch(url, {
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { 'Cache-Control': 'no-cache' },
+            });
             var d = await r.json();
             if (gen !== tl._daysFetchGen) return;
             if (!d.ok) throw new Error('days');
-            tl.recordingDays = {};
-            tl.alarmDays = {};
+            var nextRec = {};
+            var nextAlm = {};
             var recArr = (d.recordingDays && d.recordingDays.length) ? d.recordingDays : (d.days || []);
             if (Array.isArray(recArr)) {
                 recArr.forEach(function (dayStr) {
                     var iso = normDay(dayStr);
-                    if (iso) tl.recordingDays[iso] = true;
+                    if (iso) nextRec[iso] = true;
                 });
             }
             if (Array.isArray(d.alarmDays)) {
                 d.alarmDays.forEach(function (dayStr) {
                     var iso = normDay(dayStr);
-                    if (iso) tl.alarmDays[iso] = true;
+                    if (iso) nextAlm[iso] = true;
                 });
             }
-            tl.alarmDayList = Object.keys(tl.alarmDays);
-            tlRepaintOpenCalendars();
+            /* VIP-RED-VERIFY-V1: replace VIP map from API. SOS-V2: paint also uses timeline VIP hints. */
+            tl._apiAlarmDays = nextAlm;
+            tl.recordingDays = nextRec;
+            tl.alarmDays = Object.assign({}, nextAlm);
+            tl.alarmDayList = Object.keys(nextAlm);
+            tlAugmentRecordingDaysOnly();
+            tlRebuildTimelineVipDayHints();
+            tlForceCalendarPaint();
         } catch (_) {
             if (gen !== tl._daysFetchGen) return;
+            /* Keep last good _apiAlarmDays; still paint. */
+            tlForceCalendarPaint();
         }
-        if (gen !== tl._daysFetchGen) return;
-        tlAugmentDaysFromLoadedTimeline();
-        tl.alarmDayList = Object.keys(tl.alarmDays);
-        tlRepaintOpenCalendars();
+    }
+
+    function tlAugmentRecordingDaysOnly() {
+        var focusId = tlCalendarFocusCamId();
+        var focusSlot = tl.focusSlot;
+        function addRec(ms) {
+            var iso = tlLocalDayIsoFromMs(ms);
+            if (iso && tlMarkDayInMonth(iso)) tl.recordingDays[iso] = true;
+        }
+        (tl.tiles || []).forEach(function (tile) {
+            var isFocusTile = (tile.slot === focusSlot) ||
+                (focusId && String(tile.camId || '').trim() === focusId) ||
+                tlIdMatchesFocus(tile.camId);
+            if (focusId && !isFocusTile) return;
+            (tile.segments || []).forEach(function (seg) {
+                addRec(tlIsoToMs(seg.start_at || seg.startAt));
+                addRec(tlIsoToMs(seg.end_at || seg.endAt));
+            });
+        });
+        (tl.mergedSegments || []).forEach(function (seg) {
+            if (!seg) return;
+            if (focusId) {
+                var sid = String(seg.cam_id || seg.camId || '').trim();
+                if (sid && !tlIdMatchesFocus(sid)) return;
+                if (!sid) return;
+            }
+            addRec(tlIsoToMs(seg.start_at || seg.startAt));
+            addRec(tlIsoToMs(seg.end_at || seg.endAt));
+        });
     }
 
     function tlCalCommitOk() {
@@ -2388,10 +3567,16 @@
             toggle.addEventListener('click', function (ev) {
                 ev.preventDefault();
                 ev.stopPropagation();
-                tlEnsureCalMonth();
+                /* Unify: Calendar opens on Start Time month/year, same VIP map as Start/End. */
+                tlSyncCalMonthFromUnifiedRange();
                 tlSetCalOpen(!tl.calOpen);
-                if (tl.calOpen) tlRefreshRecordingDays();
-                else tlPaintRecordingCalendar();
+                if (tl.calOpen) {
+                    Promise.resolve(tlRefreshRecordingDays()).then(function () {
+                        tlForceCalendarPaint();
+                    });
+                } else {
+                    tlPaintRecordingCalendar();
+                }
             });
         }
         if (prev) {
@@ -2470,7 +3655,16 @@
         var r = await fetch(url, { credentials: 'same-origin' });
         var d = await r.json();
         if (!d.ok) throw new Error(d.error || 'timeline error');
-        tile.segments = d.segments || [];
+        /* INV-GAP-BLACK-AND-OWN-CAM-V1 — drop any clip whose camId is another loaded slot. */
+        tile.segments = (d.segments || []).filter(function (seg) {
+            if (!seg) return false;
+            if (!seg.camId || !tile.camId) return true;
+            if (String(seg.camId) === String(tile.camId)) return true;
+            if (tl.tiles.some(function (o) {
+                return o && o !== tile && o.camId && String(o.camId) === String(seg.camId);
+            })) return false;
+            return true;
+        });
         tile.alarms = d.alarms || [];
         if (d.from && d.to) {
             tl.from = new Date(d.from);
@@ -2483,25 +3677,287 @@
                 tiers[s.storageTier || 'Local Node'] = true;
             });
             var tierKeys = Object.keys(tiers);
-            tile.status.textContent = tile.segments.length + ' seg · ' + tile.alarms.length + ' evt' +
-                (tierKeys.length ? ' · ' + tierKeys.join(', ') : '');
+            var kind = tlCamSourceKind(tile.camId);
+            var kindTag = kind === 'bwc' ? 'BWC' : 'Fixed';
+            if (!(tile.segments || []).length) {
+                tile.status.textContent = kindTag + ' · no local recording';
+            } else {
+                tile.status.textContent = kindTag + ' · ' + tile.segments.length + ' seg · ' + tile.alarms.length + ' evt' +
+                    (tierKeys.length ? ' · ' + tierKeys.join(', ') : '');
+            }
         }
     }
 
     function tlFindSegmentAt(segments, utcMs) {
+        /* Prefer half-open [start, end) so clip junction does not stick on ended file. */
         var i;
-        for (i = 0; i < segments.length; i++) {
+        var fallback = null;
+        for (i = 0; i < (segments || []).length; i++) {
             var s = segments[i];
             if (s.status === 'unavailable') continue;
             var st = tlIsoToMs(s.start_at);
             var en = tlIsoToMs(s.end_at);
-            if (utcMs >= st && utcMs <= en) return s;
+            if (!Number.isFinite(st) || !Number.isFinite(en)) continue;
+            if (utcMs >= st && utcMs < en) return s;
+            if (utcMs === en) fallback = s;
         }
-        return null;
+        return fallback;
     }
 
-    function tlStreamUrl(segmentId) {
-        return '/api/vms/segments/' + encodeURIComponent(segmentId) + '/stream';
+    /** INV-GAP-BLACK-AND-OWN-CAM-V1 — segment camId belongs to another loaded slot (any cam). */
+    function tlSegmentOwnedByOtherTile(tile, seg) {
+        if (!tile || !seg) return false;
+        var sid = String(seg.camId || seg.cam_id || '').trim();
+        if (!sid) return false;
+        return tl.tiles.some(function (o) {
+            if (!o || o === tile || !o.camId) return false;
+            if (typeof tlTileActiveInLayout === 'function' && !tlTileActiveInLayout(o)) return false;
+            return String(o.camId) === sid;
+        });
+    }
+
+    function tlStopMasterClock() {
+        tl.masterClockOn = false;
+        if (tl._masterRaf) {
+            try { cancelAnimationFrame(tl._masterRaf); } catch (_) { /* ignore */ }
+        }
+        tl._masterRaf = null;
+        tl.masterClockOriginMs = null;
+        tl._masterBusy = {};
+    }
+
+    function tlMasterClockNowMs() {
+        if (!tl.masterClockOn || !Number.isFinite(tl.masterClockOriginMs)) {
+            return Number.isFinite(tl.playheadMs) ? tl.playheadMs : null;
+        }
+        var rate = Number(tl.speed) || 1;
+        return tl.masterClockOriginMs + (performance.now() - tl.masterClockOriginWall) * rate;
+    }
+
+    function tlRebaseMasterClock(ms) {
+        if (!Number.isFinite(ms)) return;
+        tl.masterClockOriginMs = ms;
+        tl.masterClockOriginWall = performance.now();
+        tl.playheadMs = ms;
+    }
+
+    function tlMasterApplyTiles(nowMs) {
+        /* INV-SYNC-ONE-CLOCK-HARD-V1 — every slot slaves to nowMs; gap = black; no free-run ahead.
+           INV-SYNC-EOF-STOP-YELLOW-V1 — never count EOF / past-blue as playing (that kept yellow crawling). */
+        var playingN = 0;
+        var gapLabels = [];
+        tl.tiles.forEach(function (tile) {
+            if (!tile || !tile.camId || !tlTileActiveInLayout(tile)) return;
+            tile.playheadMs = nowMs;
+            var seg = tlFindSegmentAt(tile.segments || [], nowMs);
+            if (!seg || tlSegmentOwnedByOtherTile(tile, seg)) {
+                tlClearTileAtGap(tile);
+                gapLabels.push(tlShortTreeLabel(tile.camName, tile.camId));
+                return;
+            }
+            var segStart = tlIsoToMs(seg.start_at);
+            var segEnd = tlIsoToMs(seg.end_at);
+            if (Number.isFinite(segEnd) && nowMs >= segEnd - 40) {
+                tlOnTilePlaybackEnded(tile);
+                gapLabels.push(tlShortTreeLabel(tile.camName, tile.camId));
+                return;
+            }
+            var targetOff = Number.isFinite(segStart)
+                ? Math.max(0, (nowMs - segStart) / 1000) : 0;
+            if (tile.video) {
+                var mediaDur = Number(tile.video.duration);
+                if (Number.isFinite(mediaDur) && mediaDur > 0.05 && targetOff >= mediaDur - 0.08) {
+                    tlOnTilePlaybackEnded(tile);
+                    gapLabels.push(tlShortTreeLabel(tile.camName, tile.camId));
+                    return;
+                }
+                if (tile.video.ended) {
+                    tlOnTilePlaybackEnded(tile);
+                    gapLabels.push(tlShortTreeLabel(tile.camName, tile.camId));
+                    return;
+                }
+            }
+            playingN += 1;
+            var segId = seg.segmentId;
+            var need = !tile.playing || tile.activeSegmentId !== segId
+                || !tile.video || !tile.video.getAttribute('src')
+                || tile._streamCamId !== tile.camId;
+            if (need) {
+                if (tile.video && tile.activeSegmentId && tile.activeSegmentId !== segId) {
+                    try { tile.video.pause(); } catch (_) { /* ignore */ }
+                }
+                if (tl._masterBusy[tile.slot]) return;
+                tl._masterBusy[tile.slot] = true;
+                tile.playing = true;
+                tlEnsureVideoPlayAttrs(tile.video);
+                var wantSegId = segId;
+                tlSeekTile(tile, nowMs).then(function (ok) {
+                    if (ok === false) {
+                        tile.playing = false;
+                        tlClearTileAtGap(tile);
+                        return null;
+                    }
+                    if (!tl.masterClockOn || !tile.playing || !tile.video) return null;
+                    var clockNow = tlMasterClockNowMs();
+                    var segNow = Number.isFinite(clockNow)
+                        ? tlFindSegmentAt(tile.segments || [], clockNow) : null;
+                    if (!segNow || segNow.segmentId !== wantSegId || tlSegmentOwnedByOtherTile(tile, segNow)) {
+                        tile.playing = false;
+                        tlClearTileAtGap(tile);
+                        return null;
+                    }
+                    if (!tile.video.src) {
+                        tile.playing = false;
+                        tlClearTileAtGap(tile);
+                        return null;
+                    }
+                    var off = Math.max(0, (clockNow - tlIsoToMs(segNow.start_at)) / 1000);
+                    var md = Number(tile.video.duration);
+                    if (Number.isFinite(md) && md > 0.05 && off >= md - 0.08) {
+                        tile.playing = false;
+                        tlOnTilePlaybackEnded(tile);
+                        return null;
+                    }
+                    if (Number.isFinite(md) && md > 0.05) {
+                        off = Math.min(off, Math.max(0, md - 0.05));
+                    }
+                    try {
+                        if (Math.abs((tile.video.currentTime || 0) - off) > 0.35) {
+                            tile.video.currentTime = off;
+                        }
+                    } catch (_) { /* ignore */ }
+                    return tlPlayVideoElement(tile.video, { rate: tl.speed, unmute: !tile.audioMuted })
+                        .then(function (res) {
+                            tlApplyTileAudio(tile);
+                            return res;
+                        });
+                }).catch(function () { /* ignore */ })
+                    .then(function () { tl._masterBusy[tile.slot] = false; });
+                return;
+            }
+            if (tile.video) {
+                var mediaDur2 = Number(tile.video.duration);
+                var target = targetOff;
+                if (Number.isFinite(mediaDur2) && mediaDur2 > 0.05) {
+                    target = Math.min(target, Math.max(0, mediaDur2 - 0.05));
+                }
+                try {
+                    var cur = tile.video.currentTime || 0;
+                    if (Math.abs(cur - target) > 0.28) {
+                        tile.video.currentTime = target;
+                    }
+                } catch (_) { /* ignore */ }
+                if (tile.video.paused) {
+                    tlPlayVideoElement(tile.video, { rate: tl.speed, unmute: !tile.audioMuted })
+                        .then(function () { tlApplyTileAudio(tile); });
+                }
+                try { tile.video.playbackRate = tl.speed; } catch (_) { /* ignore */ }
+            }
+        });
+        return { playingN: playingN, gapLabels: gapLabels };
+    }
+
+    function tlSelectedRecordingBounds() {
+        /* Latest blue end + next blue start after playhead (selected layout tiles). */
+        var lastEnd = null;
+        var nextStart = null;
+        var now = Number.isFinite(tl.playheadMs) ? tl.playheadMs : null;
+        tl.tiles.forEach(function (tile) {
+            if (!tile || !tile.camId || !tlTileActiveInLayout(tile)) return;
+            (tile.segments || []).forEach(function (s) {
+                if (!s || s.status === 'unavailable') return;
+                var st = tlIsoToMs(s.start_at);
+                var en = tlIsoToMs(s.end_at);
+                if (!Number.isFinite(st) || !Number.isFinite(en) || en < st) return;
+                if (lastEnd == null || en > lastEnd) lastEnd = en;
+                if (now != null && st > now + 40) {
+                    if (nextStart == null || st < nextStart) nextStart = st;
+                }
+            });
+        });
+        return { lastEnd: lastEnd, nextStart: nextStart };
+    }
+
+    function tlMasterClockTick() {
+        tl._masterRaf = null;
+        if (!tl.masterClockOn) return;
+        var now = tlMasterClockNowMs();
+        if (!Number.isFinite(now)) {
+            tlStopMasterClock();
+            return;
+        }
+        if (tl.to && now >= tl.to.getTime()) {
+            now = tl.to.getTime();
+            tl.playheadMs = now;
+            tlStopMasterClock();
+            tl.tiles.forEach(function (tile) {
+                tile.playing = false;
+                tlClearTileAtGap(tile);
+            });
+            tlSetMeta('Playback stopped at the end of the time range. Move the timeline marker, then press Play All.');
+            tlUpdateAllTileTransport();
+            tlDrawTimeline();
+            tlDrawOverlays();
+            return;
+        }
+        tl.playheadMs = now;
+        var snap = tlMasterApplyTiles(now);
+        /* INV-SYNC-SECTOR-STOP-V1 — stop at every sector end / mid-gap (no auto-crawl). */
+        if (snap && !snap.playingN) {
+            var bounds = tlSelectedRecordingBounds();
+            if (Number.isFinite(bounds.lastEnd) && now > bounds.lastEnd) {
+                now = bounds.lastEnd;
+                tl.playheadMs = now;
+                tlRebaseMasterClock(now);
+            }
+            tlStopMasterClock();
+            tl.tiles.forEach(function (tile) {
+                tile.playing = false;
+                tlClearTileAtGap(tile);
+            });
+            var hasFuture = bounds.nextStart != null && bounds.nextStart > now;
+            tlSetMeta(hasFuture
+                ? 'Sector ended (gap). Slot black. Press +1s to jump to the next blue bar, then Play All.'
+                : 'Playback stopped — no more recordings after this time. Move the timeline marker onto a blue bar, then Play All.');
+            tlUpdateAllTileTransport();
+            var readoutStop = $('inv-vms-time-readout');
+            if (readoutStop) readoutStop.textContent = tlMsToLocalLabel(tl.playheadMs);
+            tlDrawTimeline();
+            tlDrawOverlays();
+            return;
+        }
+        var readout = $('inv-vms-time-readout');
+        if (readout) readout.textContent = tlMsToLocalLabel(now);
+        tl._masterDrawAcc = (tl._masterDrawAcc || 0) + 1;
+        if (tl._masterDrawAcc >= 4) {
+            tl._masterDrawAcc = 0;
+            tlDrawTimeline();
+            tlDrawOverlays();
+            tlUpdateAllTileTransport();
+            if (snap && snap.playingN) {
+                tlSetMeta(snap.gapLabels && snap.gapLabels.length
+                    ? ('Playing from timeline marker. Waiting (no video yet): ' + snap.gapLabels.join(', '))
+                    : 'Playing from timeline marker (Sync).');
+            }
+        }
+        tl._masterRaf = requestAnimationFrame(tlMasterClockTick);
+    }
+
+    function tlStartMasterClock(fromMs) {
+        if (!Number.isFinite(fromMs)) return;
+        tl.masterClockOn = true;
+        tl.masterClockOriginMs = fromMs;
+        tl.masterClockOriginWall = performance.now();
+        tl.playheadMs = fromMs;
+        tl._masterBusy = {};
+        tl._masterDrawAcc = 0;
+        if (!tl._masterRaf) tl._masterRaf = requestAnimationFrame(tlMasterClockTick);
+    }
+
+    function tlStreamUrl(segmentId, camId) {
+        var u = '/api/vms/segments/' + encodeURIComponent(segmentId) + '/stream';
+        if (camId) u += '?cam=' + encodeURIComponent(String(camId));
+        return u;
     }
 
     /** Grid views use sub-stream (viewMode grid) — never main profile for 4-up. */
@@ -2521,87 +3977,308 @@
             }).catch(function () { return false; });
     }
 
-    function tlSeekTile(tile, utcMs) {
-        if (!tile || !tile.camId || !tile.video) return Promise.resolve();
-        var seg = tlFindSegmentAt(tile.segments, utcMs);
-        if (!seg) {
-            tile.activeSegmentId = null;
-            tile.video.removeAttribute('src');
+    function tlWaitVideoSeek(video, offsetSec) {
+        /* Fast best-effort — never hang Ops UI (max ~500ms).
+           Always seek when far from target — including offset≈0 (was skipping
+           and leaving video at end → instant "Playback ended"). */
+        return new Promise(function (resolve) {
+            if (!video || !Number.isFinite(offsetSec) || offsetSec < 0) {
+                resolve(true);
+                return;
+            }
+            var target = Math.max(0, offsetSec);
+            var cur = 0;
+            try { cur = Number(video.currentTime) || 0; } catch (_) { cur = 0; }
+            if (Math.abs(cur - target) <= 0.2) {
+                resolve(true);
+                return;
+            }
+            var done = false;
+            function finish() {
+                if (done) return;
+                done = true;
+                try { video.removeEventListener('seeked', onSeeked); } catch (_) { /* ignore */ }
+                resolve(true);
+            }
+            function onSeeked() {
+                clearTimeout(timer);
+                finish();
+            }
+            var timer = setTimeout(finish, 500);
             try {
-                if (global.AxiomFlvManager) global.AxiomFlvManager.detach(tile.video);
-            } catch (_) { /* ignore */ }
-            return Promise.resolve();
-        }
-        if (seg.status === 'recording') {
-            return tlStartLiveSubStream(tile.camId, tile.video);
-        }
-        var segStart = tlIsoToMs(seg.start_at);
-        var offsetSec = Math.max(0, (utcMs - segStart) / 1000);
-        var url = tlStreamUrl(seg.segmentId);
-        if (tile.activeSegmentId !== seg.segmentId) {
-            tile.activeSegmentId = seg.segmentId;
-            try {
-                if (global.AxiomFlvManager) global.AxiomFlvManager.detach(tile.video);
-            } catch (_) { /* ignore */ }
-            tile.video.src = url;
-            tile.video.load();
-            return new Promise(function (resolve) {
-                tile.video.onloadedmetadata = function () {
-                    tile.video.playbackRate = tl.speed;
-                    tile.video.currentTime = offsetSec;
-                    resolve();
-                };
-            });
-        }
-        tile.video.playbackRate = tl.speed;
-        tile.video.currentTime = offsetSec;
-        return Promise.resolve();
+                video.addEventListener('seeked', onSeeked);
+                video.currentTime = target;
+            } catch (_) {
+                clearTimeout(timer);
+                finish();
+            }
+        });
     }
 
-    function tlSeekAll(utcMs) {
+    function tlPlayVideoAtOffset(video, offsetSec, playOpts) {
+        /* One short seek, then play — no nested seek storm. */
+        return tlWaitVideoSeek(video, offsetSec).then(function () {
+            return tlPlayVideoElement(video, playOpts || {});
+        });
+    }
+
+    function tlSeekTile(tile, utcMs, opts) {
+        opts = opts || {};
+        if (!tile || !tile.camId || !tile.video) return Promise.resolve(true);
+        var seg = tlFindSegmentAt(tile.segments, utcMs);
+        if (!seg) {
+            tlClearTileAtGap(tile);
+            return Promise.resolve(true);
+        }
+        /* Never attach another loaded cam's segment to this slot (any cam ids). */
+        if (tlSegmentOwnedByOtherTile(tile, seg)) {
+            tlClearTileAtGap(tile);
+            return Promise.resolve(false);
+        }
+        if (seg.status === 'recording') {
+            tile.activeSegmentId = seg.segmentId;
+            tile._streamCamId = tile.camId;
+            return tlStartLiveSubStream(tile.camId, tile.video).then(function () { return true; });
+        }
+        var segStart = tlIsoToMs(seg.start_at);
+        var segEnd = tlIsoToMs(seg.end_at);
+        var offsetSec = Math.max(0, (utcMs - segStart) / 1000);
+        if (Number.isFinite(segEnd) && segEnd > segStart) {
+            var durSec = (segEnd - segStart) / 1000;
+            if (durSec > 0.1) offsetSec = Math.min(offsetSec, Math.max(0, durSec - 0.08));
+        }
+        var baseUrl = tlStreamUrl(seg.segmentId, tile.camId);
+        var url = offsetSec >= 0.25
+            ? (baseUrl + '#t=' + (Math.round(offsetSec * 100) / 100))
+            : baseUrl;
+        var v = tile.video;
+        tlEnsureVideoPlayAttrs(v);
+        try { v.preload = 'auto'; } catch (_) { /* ignore */ }
+
+        /* INV-SAME-FILE-GUARD-V1 — sync claim map (stops Play-All race on same segmentId). */
+        if (!tl._segmentClaims) tl._segmentClaims = {};
+        var claimOwner = tl._segmentClaims[seg.segmentId];
+        if (claimOwner && String(claimOwner) !== String(tile.camId)) {
+            tlClearTileAtGap(tile);
+            return Promise.resolve(false);
+        }
+        var claimed = null;
+        tl.tiles.forEach(function (other) {
+            if (!other || other === tile || !other.camId) return;
+            if (typeof tlTileActiveInLayout === 'function' && !tlTileActiveInLayout(other)) return;
+            if (other.activeSegmentId === seg.segmentId && other._streamCamId &&
+                String(other._streamCamId) !== String(tile.camId)) {
+                claimed = other;
+            }
+        });
+        if (claimed) {
+            tlClearTileAtGap(tile);
+            tlSetMeta('Blocked duplicate clip on this slot (same file as another camera).');
+            return Promise.resolve(false);
+        }
+        tl._segmentClaims[seg.segmentId] = String(tile.camId);
+
+        var srcNow = v.getAttribute('src') || '';
+        var needLoad = tile.activeSegmentId !== seg.segmentId
+            || !srcNow
+            || srcNow.indexOf(encodeURIComponent(seg.segmentId)) < 0
+            || tile._streamCamId !== tile.camId;
+
+        if (needLoad) {
+            tile.activeSegmentId = seg.segmentId;
+            tile._streamCamId = tile.camId;
+            try {
+                if (global.AxiomFlvManager) global.AxiomFlvManager.detach(v);
+            } catch (_) { /* ignore */ }
+            if (opts.quick) {
+                /* Scrub: kick load, do not wait (was freezing timeline clicks). */
+                v.src = url;
+                try { v.load(); } catch (_) { /* ignore */ }
+                try { v.currentTime = offsetSec; } catch (_) { /* ignore */ }
+                return Promise.resolve(true);
+            }
+            return new Promise(function (resolve) {
+                var settled = false;
+                var finishLoad = function () {
+                    if (settled) return;
+                    settled = true;
+                    try { v.playbackRate = tl.speed; } catch (_) { /* ignore */ }
+                    tlWaitVideoSeek(v, offsetSec).then(function () { resolve(true); });
+                };
+                var timer = setTimeout(finishLoad, 1500);
+                v.onerror = function () {
+                    clearTimeout(timer);
+                    finishLoad();
+                };
+                v.onloadedmetadata = function () {
+                    clearTimeout(timer);
+                    finishLoad();
+                };
+                v.src = url;
+                try { v.load(); } catch (_) { finishLoad(); }
+            });
+        }
+        try { v.playbackRate = tl.speed; } catch (_) { /* ignore */ }
+        if (opts.quick) {
+            try { v.currentTime = offsetSec; } catch (_) { /* ignore */ }
+            return Promise.resolve(true);
+        }
+        return tlWaitVideoSeek(v, offsetSec).then(function () { return true; });
+    }
+
+    function tlShouldSeekTile(tile) {
+        if (!tile || !tile.camId) return false;
+        if (!tlTileActiveInLayout(tile)) return false;
+        if (tl.syncLock) return true;
+        if (tile.slot === tl.focusSlot) return true;
+        if (tile.playing) return true;
+        return false;
+    }
+
+    function tlSyncLockChrome() {
+        var btn = $('inv-vms-sync-lock');
+        if (btn) {
+            btn.classList.toggle('active', !!tl.syncLock);
+            btn.setAttribute('aria-pressed', tl.syncLock ? 'true' : 'false');
+            btn.textContent = tl.syncLock ? 'Sync Lock On' : 'Sync Lock Off';
+        }
+        if (typeof tlUpdateLayoutChrome === 'function') {
+            try { tlUpdateLayoutChrome(); } catch (_) { /* ignore */ }
+        }
+    }
+
+    function tlSetSyncLock(on) {
+        tl.syncLock = !!on;
+        tlSyncLockChrome();
+        tlSetMeta(tl.syncLock
+            ? 'Sync Lock on — one clock; multi-lane timeline (focus lane highlighted).'
+            : 'Sync Lock off — timeline shows Focus camera only.');
+        if (tl.syncLock && Number.isFinite(tl.playheadMs)) tlSeekAll(tl.playheadMs);
+        tlDrawTimeline();
+    }
+
+    function tlSeekAll(utcMs, opts) {
+        opts = opts || {};
         if (!Number.isFinite(utcMs) || !tl.from || !tl.to) return;
         tl.playheadMs = Math.max(tl.from.getTime(), Math.min(tl.to.getTime(), utcMs));
         tlStoreFocusPlayhead();
         var readout = $('inv-vms-time-readout');
         if (readout) readout.textContent = tlMsToLocalLabel(tl.playheadMs);
+        var quick = !!opts.quick;
         var promises = tl.tiles.map(function (tile) {
-            if (tl.layoutMode === 'six' || tl.layoutMode === 'single' || tl.layoutMode === 'compare') {
-                if (tile.slot !== tl.focusSlot && !tile.playing) return Promise.resolve();
-            }
-            if (!tlTileActiveInLayout(tile)) return Promise.resolve();
-            return tlSeekTile(tile, tl.playheadMs);
+            if (!tlShouldSeekTile(tile)) return Promise.resolve(true);
+            tile.playheadMs = tl.playheadMs;
+            return tlSeekTile(tile, tl.playheadMs, { quick: quick });
         });
+        if (quick) {
+            tlDrawTimeline();
+            tlDrawOverlays();
+            tlUpdateAllTileTransport();
+            return;
+        }
         Promise.all(promises).then(function () {
             tlDrawTimeline();
             tlDrawOverlays();
             tl.tiles.forEach(function (tile) {
                 if (!tile.playing || !tile.video || !tile.video.src) return;
-                tile.video.playbackRate = tl.speed;
-                try { tile.video.play(); } catch (_) { /* ignore */ }
+                tlPlayVideoElement(tile.video, { rate: tl.speed, unmute: !tile.audioMuted })
+                    .then(function () { tlApplyTileAudio(tile); });
             });
             tlUpdateAllTileTransport();
         });
     }
 
+    function tlGapHonestyMeta(playingN, gapLabels) {
+        /* INV-SOS-PIN-AND-GAP-HONESTY-V1 — no fake sync; name cams in gap. */
+        var gaps = (gapLabels || []).filter(Boolean);
+        if (!playingN && gaps.length) {
+            return 'Yellow is in a gap for ' + gaps.join(', ') +
+                '. Move the timeline marker onto blue, then press Play All.';
+        }
+        if (playingN && gaps.length) {
+            return 'Playing ' + playingN + ' at yellow. Gap (no blue): ' + gaps.join(', ') +
+                '. Move the marker to where both lanes are blue for full Sync. Play does not jump to red markers.';
+        }
+        if (playingN) return 'Playing from playhead (yellow).';
+        return 'Move the timeline marker onto a blue block, then press Play All.';
+    }
+
+    function tlClearTileAtGap(tile) {
+        if (!tile) return;
+        tile.playing = false;
+        /* INV-GAP-BLACK-AND-OWN-CAM-V1 — always unload to black (no leftover other-cam frame). */
+        tlUnloadTileVideo(tile);
+        if (tile.video) {
+            try {
+                tile.video.removeAttribute('poster');
+                tile.video.style.background = '#000';
+            } catch (_) { /* ignore */ }
+        }
+    }
+
+    function tlAuditPlayAllNoRecord(source) {
+        /* INV-RECORD-WHO-FIRED-V1 — breadcrumb only; never sends device Record. */
+        var cams = [];
+        tl.tiles.forEach(function (t) {
+            if (t && t.camId && tlTileActiveInLayout(t)) cams.push(String(t.camId));
+        });
+        try {
+            fetch('/api/vms/investigation/play-audit', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: source || 'play_all',
+                    syncLock: !!tl.syncLock,
+                    playheadMs: Number.isFinite(tl.playheadMs) ? tl.playheadMs : null,
+                    cams: cams,
+                }),
+            }).catch(function () { /* ignore */ });
+        } catch (_) { /* ignore */ }
+    }
+
     function tlSyncPlayVideos() {
+        /* INV-SYNC-MASTER-CLOCK-V1 — drag yellow, Play All: shared clock; cams join when blue.
+           Never snap to clip start / red pin. */
+        tlAuditPlayAllNoRecord(tl.syncLock ? 'play_all_sync' : 'play_all');
+        var yellow = Number.isFinite(tl.playheadMs) ? tl.playheadMs : null;
+        if (yellow == null) {
+            tlSetMeta('Move the timeline marker onto the recordings, then press Play All.');
+            return;
+        }
         if (tl.layoutMode === 'compare') {
+            /* Compare keeps per-tile clocks — not master Sync. */
             var jobs = [];
+            var gapLabels = [];
             var i;
             for (i = 0; i < 4; i++) {
-                (function (tile) {
-                    if (!tile || !tile.camId || !tile.video) return;
-                    var at = tile.playheadMs != null ? tile.playheadMs
-                        : (tl.playheadMs != null ? tl.playheadMs : null);
-                    if (at == null) return;
-                    tile.playing = true;
-                    jobs.push(tlSeekTile(tile, at).then(function () {
-                        if (!tile.playing || !tile.video || !tile.video.src) return;
-                        tile.video.playbackRate = tl.speed;
-                        try { tile.video.play(); } catch (_) { /* ignore */ }
-                    }));
-                })(tl.tiles[i]);
+                var tile = tl.tiles[i];
+                if (!tile || !tile.camId || !tile.video) continue;
+                if (!tlFindSegmentAt(tile.segments || [], yellow)) {
+                    tlClearTileAtGap(tile);
+                    gapLabels.push(tlShortTreeLabel(tile.camName, tile.camId));
+                    continue;
+                }
+                tile.playheadMs = yellow;
+                tile.playing = true;
+                tlEnsureVideoPlayAttrs(tile.video);
+                jobs.push(tlSeekTile(tile, yellow).then(function () {
+                    if (!tile.playing || !tile.video || !tile.video.src) {
+                        tile.playing = false;
+                        return { ok: false, gap: true };
+                    }
+                    return tlPlayVideoElement(tile.video, { rate: tl.speed, unmute: !tile.audioMuted })
+                        .then(function (res) {
+                            tlApplyTileAudio(tile);
+                            return res;
+                        });
+                }));
             }
-            Promise.all(jobs).then(function () { tlUpdateAllTileTransport(); });
+            Promise.all(jobs).then(function () {
+                tlSetMeta(tlGapHonestyMeta(jobs.length, gapLabels));
+                tlDrawTimeline();
+                tlUpdateAllTileTransport();
+            });
             return;
         }
         tl.tiles.forEach(function (tile) {
@@ -2610,26 +4287,187 @@
                 if (tile.video) try { tile.video.pause(); } catch (_) { /* ignore */ }
                 return;
             }
-            if (!tile.video || !tile.camId || !tile.video.src) return;
-            tile.playing = true;
-            tile.video.playbackRate = tl.speed;
-            try { tile.video.play(); } catch (_) { /* ignore */ }
+            /* INV-SYNC-ONE-CLOCK-HARD-V1 — black gaps before clock starts (no leftover frames). */
+            if (tile.camId && !tlFindSegmentAt(tile.segments || [], yellow)) {
+                tlClearTileAtGap(tile);
+            }
         });
+        tlStartMasterClock(yellow);
+        tlMasterApplyTiles(yellow);
+        var readout0 = $('inv-vms-time-readout');
+        if (readout0) readout0.textContent = tlMsToLocalLabel(yellow);
+        tlDrawTimeline();
         tlUpdateAllTileTransport();
+        tlSetMeta('Playing from timeline marker (Sync). Other cameras join when their recording starts.');
     }
 
     function tlPauseVideos() {
+        tlStopMasterClock();
         tl.tiles.forEach(function (tile) {
             tile.playing = false;
             if (tile.video) try { tile.video.pause(); } catch (_) { /* ignore */ }
         });
-        if (tl.playheadMs != null) tlSeekAll(tl.playheadMs);
+        /* INV-PLAY-FROM-PLAYHEAD-V1 — do not re-seek (was fighting scrub / playhead) */
         tlUpdateAllTileTransport();
+        tlDrawTimeline();
+        tlSetMeta('Paused at timeline marker.');
     }
 
     function tlRatioForMs(ms) {
         if (!tl.from || !tl.to) return 0;
         return (ms - tl.from.getTime()) / (tl.to.getTime() - tl.from.getTime());
+    }
+
+    /* VMS-TIMELINE-ZOOM-PLAY-V1 — visible scrub window (zoom), full from/to stay load range. */
+    function tlFullSpanMs() {
+        if (!tl.from || !tl.to) return 1;
+        return Math.max(1, tl.to.getTime() - tl.from.getTime());
+    }
+
+    function tlSyncZoomLabel() {
+        var el = $('inv-vms-zoom-label');
+        if (!el) return;
+        var z = Math.max(1, Number(tl.zoomLevel) || 1);
+        el.textContent = (z <= 1 ? '1' : String(z)) + '\u00D7';
+    }
+
+    function tlResetTimelineZoom() {
+        tl.zoomLevel = 1;
+        if (tl.from && tl.to) {
+            tl.viewFromMs = tl.from.getTime();
+            tl.viewToMs = tl.to.getTime();
+        } else {
+            tl.viewFromMs = null;
+            tl.viewToMs = null;
+        }
+        tlSyncZoomLabel();
+    }
+
+    function tlViewBounds() {
+        if (!tl.from || !tl.to) return { fromMs: 0, toMs: 1, span: 1 };
+        var fullFrom = tl.from.getTime();
+        var fullTo = tl.to.getTime();
+        if (tl.viewFromMs == null || tl.viewToMs == null || tl.zoomLevel <= 1) {
+            return { fromMs: fullFrom, toMs: fullTo, span: Math.max(1, fullTo - fullFrom) };
+        }
+        var v0 = Math.max(fullFrom, Math.min(tl.viewFromMs, tl.viewToMs));
+        var v1 = Math.min(fullTo, Math.max(tl.viewFromMs, tl.viewToMs));
+        if (v1 <= v0) return { fromMs: fullFrom, toMs: fullTo, span: Math.max(1, fullTo - fullFrom) };
+        return { fromMs: v0, toMs: v1, span: Math.max(1, v1 - v0) };
+    }
+
+    function tlSetZoomLevel(level, anchorMs) {
+        if (!tl.from || !tl.to) return;
+        var fullFrom = tl.from.getTime();
+        var fullTo = tl.to.getTime();
+        var fullSpan = Math.max(1, fullTo - fullFrom);
+        var z = Math.max(1, Math.min(64, Math.round(Number(level) || 1)));
+        tl.zoomLevel = z;
+        if (z <= 1) {
+            tl.viewFromMs = fullFrom;
+            tl.viewToMs = fullTo;
+            tlSyncZoomLabel();
+            tlDrawTimeline();
+            return;
+        }
+        var span = fullSpan / z;
+        var mid = Number.isFinite(anchorMs) ? anchorMs
+            : (tl.playheadMs != null ? tl.playheadMs : fullFrom + fullSpan / 2);
+        var v0 = mid - span / 2;
+        var v1 = mid + span / 2;
+        if (v0 < fullFrom) { v1 += fullFrom - v0; v0 = fullFrom; }
+        if (v1 > fullTo) { v0 -= v1 - fullTo; v1 = fullTo; }
+        tl.viewFromMs = Math.max(fullFrom, v0);
+        tl.viewToMs = Math.min(fullTo, v1);
+        tlSyncZoomLabel();
+        tlDrawTimeline();
+    }
+
+    function tlClampViewWindow() {
+        if (!tl.from || !tl.to || tl.zoomLevel <= 1) return;
+        var fullFrom = tl.from.getTime();
+        var fullTo = tl.to.getTime();
+        var span = Math.max(1, (tl.viewToMs || 0) - (tl.viewFromMs || 0));
+        var v0 = Number(tl.viewFromMs);
+        var v1 = Number(tl.viewToMs);
+        if (!Number.isFinite(v0) || !Number.isFinite(v1)) return;
+        if (v0 < fullFrom) {
+            v1 += fullFrom - v0;
+            v0 = fullFrom;
+        }
+        if (v1 > fullTo) {
+            v0 -= v1 - fullTo;
+            v1 = fullTo;
+        }
+        v0 = Math.max(fullFrom, v0);
+        v1 = Math.min(fullTo, v1);
+        if (v1 - v0 < span) {
+            if (v0 <= fullFrom) v1 = Math.min(fullTo, fullFrom + span);
+            if (v1 >= fullTo) v0 = Math.max(fullFrom, fullTo - span);
+        }
+        tl.viewFromMs = v0;
+        tl.viewToMs = Math.max(v0 + 1, v1);
+    }
+
+    function tlPanByPixels(dxPx) {
+        if (!tl.from || !tl.to || tl.zoomLevel <= 1) return;
+        var canvas = $('inv-vms-timeline');
+        if (!canvas) return;
+        var W = Math.max(1, canvas.clientWidth || canvas.width || 1);
+        var vb = tlViewBounds();
+        var shift = (-Number(dxPx) || 0) * (vb.span / W);
+        tl.viewFromMs = vb.fromMs + shift;
+        tl.viewToMs = vb.toMs + shift;
+        tlClampViewWindow();
+        tlDrawTimeline();
+    }
+
+    function tlPanByFraction(frac) {
+        if (!tl.from || !tl.to || tl.zoomLevel <= 1) return;
+        var vb = tlViewBounds();
+        var shift = vb.span * (Number(frac) || 0);
+        tl.viewFromMs = vb.fromMs + shift;
+        tl.viewToMs = vb.toMs + shift;
+        tlClampViewWindow();
+        tlDrawTimeline();
+    }
+
+    function tlMsFromClientX(clientX) {
+        var canvas = $('inv-vms-timeline');
+        if (!canvas || !tl.from || !tl.to) return null;
+        var rect = canvas.getBoundingClientRect();
+        var w = rect.width || 1;
+        var labelW = tlUseMultiLaneTimeline() ? LANE_LABEL_W : 0;
+        var trackW = Math.max(1, w - labelW);
+        var x = clientX - rect.left - labelW;
+        var ratio = Math.max(0, Math.min(1, x / trackW));
+        var vb = tlViewBounds();
+        return vb.fromMs + ratio * vb.span;
+    }
+
+    function tlLaneTilesForTimeline() {
+        var out = [];
+        (tl.tiles || []).forEach(function (t) {
+            if (!t || !t.camId) return;
+            if (!tlTileActiveInLayout(t)) return;
+            out.push(t);
+        });
+        return out;
+    }
+
+    function tlUseMultiLaneTimeline() {
+        if (tl.layoutMode !== 'four' && tl.layoutMode !== 'six') return false;
+        /* Sync Off = focus lane only; Sync On = one yellow + all assigned lanes */
+        if (!tl.syncLock) return false;
+        return tlLaneTilesForTimeline().length >= 1;
+    }
+
+    function tlLaneShortName(tile) {
+        if (!tile) return '?';
+        var raw = tlShortTreeLabel(tile.camName, tile.camId) || ('S' + (tile.slot + 1));
+        var s = String(raw).trim();
+        if (s.length > 7) s = s.slice(0, 6) + '\u2026';
+        return s;
     }
 
     function tlUpdateTimelineChrome() {
@@ -2650,24 +4488,138 @@
         if (wrap && wrap.classList.contains('is-collapsed')) return;
         var ctx = canvas.getContext('2d');
         var W = canvas.clientWidth || 800;
+        var multi = tlUseMultiLaneTimeline();
+        var lanes = multi ? tlLaneTilesForTimeline() : null;
+        var H = TIMELINE_H;
+        if (multi && lanes && lanes.length) {
+            H = LANE_PIN_BAND + lanes.length * (LANE_H + LANE_GAP) + 6;
+            H = Math.max(TIMELINE_H, Math.min(H, 200));
+        }
         canvas.width = W;
-        canvas.height = TIMELINE_H;
-        var fromMs = tl.from.getTime();
-        var toMs = tl.to.getTime();
-        var span = toMs - fromMs || 1;
-        var xFor = function (ms) { return Math.round((ms - fromMs) / span * W); };
+        canvas.height = H;
+        canvas.style.height = H + 'px';
+        var vb = tlViewBounds();
+        var fromMs = vb.fromMs;
+        var toMs = vb.toMs;
+        var span = vb.span;
+        var labelW = multi ? LANE_LABEL_W : 0;
+        var trackW = Math.max(1, W - labelW);
+        var xFor = function (ms) {
+            return labelW + Math.round((ms - fromMs) / span * trackW);
+        };
 
         ctx.fillStyle = '#1e293b';
-        ctx.fillRect(0, 0, W, TIMELINE_H);
+        ctx.fillRect(0, 0, W, H);
 
-        /* Gap zones — full track dark gray baseline */
+        if (multi && lanes && lanes.length) {
+            /* INV-TIMELINE-MULTI-LANE-V1 — one playhead, thin lane per loaded slot */
+            var li;
+            for (li = 0; li < lanes.length; li++) {
+                var lane = lanes[li];
+                var y = LANE_PIN_BAND + li * (LANE_H + LANE_GAP);
+                var isFocus = lane.slot === tl.focusSlot;
+                ctx.fillStyle = isFocus ? 'rgba(59, 130, 246, 0.22)' : '#0f172a';
+                ctx.fillRect(0, y - 1, W, LANE_H + 2);
+                ctx.fillStyle = '#334155';
+                ctx.fillRect(labelW, y, trackW, LANE_H);
+                ctx.fillStyle = isFocus ? '#fde68a' : '#94a3b8';
+                ctx.font = (isFocus ? 'bold ' : '') + '10px system-ui';
+                ctx.fillText((lane.slot + 1) + ' ' + tlLaneShortName(lane), 4, y + 12);
+                (lane.segments || []).forEach(function (seg) {
+                    var s0 = tlIsoToMs(seg.start_at);
+                    var s1 = tlIsoToMs(seg.end_at);
+                    if (!Number.isFinite(s0)) return;
+                    if (!Number.isFinite(s1) || s1 < s0) s1 = s0 + 1;
+                    if (s1 < fromMs || s0 > toMs) return;
+                    var x1 = xFor(Math.max(s0, fromMs));
+                    var x2 = xFor(Math.min(s1, toMs));
+                    var ww = Math.max(2, x2 - x1);
+                    ctx.fillStyle = isFocus ? tlTierFill(seg) : 'rgba(56, 189, 248, 0.55)';
+                    ctx.globalAlpha = isFocus ? 1 : 0.72;
+                    ctx.fillRect(x1, y + 1, ww, LANE_H - 2);
+                    ctx.globalAlpha = 1;
+                });
+                /* Gap marker at playhead if this lane has no clip */
+                if (Number.isFinite(tl.playheadMs) && !tlFindSegmentAt(lane.segments || [], tl.playheadMs)) {
+                    var gx = xFor(tl.playheadMs);
+                    ctx.fillStyle = 'rgba(248, 113, 113, 0.85)';
+                    ctx.fillRect(gx - 1, y, 2, LANE_H);
+                }
+            }
+            /* INV-SOS-PIN-AND-GAP-HONESTY-V1 — Sync multi-lane: pins from ALL assigned cams
+               (was focus-only → SOS on kk hidden when Focus = Chin). */
+            var pinAlarms = tlDisplayAlarms() || [];
+            var lastPinX = -9999;
+            pinAlarms.forEach(function (al) {
+                var ams = tlIsoToMs(al.occurred_at || al.occurredAt);
+                if (!Number.isFinite(ams) || ams < fromMs || ams > toMs) return;
+                var x = xFor(ams);
+                if (Math.abs(x - lastPinX) < 4) return;
+                lastPinX = x;
+                var note = String(al.note || '');
+                var col = tlPinColor(note.indexOf('FR') === 0 || note.indexOf('Weapon') === 0
+                    ? 'analytics'
+                    : (al.event_type || al.eventType));
+                ctx.fillStyle = col;
+                ctx.beginPath();
+                ctx.moveTo(x, LANE_PIN_BAND - 2);
+                ctx.lineTo(x - 4, 2);
+                ctx.lineTo(x + 4, 2);
+                ctx.closePath();
+                ctx.fill();
+            });
+            if (tl.markInMs != null && tl.markInMs >= fromMs && tl.markInMs <= toMs) {
+                var ix = xFor(tl.markInMs);
+                ctx.fillStyle = 'rgba(34, 197, 94, 0.9)';
+                ctx.fillRect(ix - 1, 0, 2, H);
+            }
+            if (tl.markOutMs != null && tl.markOutMs >= fromMs && tl.markOutMs <= toMs) {
+                var ox = xFor(tl.markOutMs);
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+                ctx.fillRect(ox - 1, 0, 2, H);
+            }
+            if (tl.playheadMs != null && tl.playheadMs >= fromMs && tl.playheadMs <= toMs) {
+                var px = xFor(tl.playheadMs);
+                ctx.strokeStyle = '#fbbf24';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(px, 0);
+                ctx.lineTo(px, H);
+                ctx.stroke();
+            }
+            return;
+        }
+
+        /* Single-band timeline (Single cam, Sync Off, or one lane) */
         ctx.fillStyle = '#334155';
         ctx.fillRect(0, SEG_Y, W, SEG_H);
 
-        /* Recording segments — federated storage tier colors */
+        if (tl.zoomLevel > 1) {
+            var tickEvery = span > 3600000 ? 900000 : (span > 600000 ? 60000 : 15000);
+            var t0 = Math.ceil(fromMs / tickEvery) * tickEvery;
+            ctx.fillStyle = 'rgba(148, 163, 184, 0.35)';
+            ctx.font = '9px system-ui';
+            for (var tick = t0; tick <= toMs; tick += tickEvery) {
+                var tx = xFor(tick);
+                ctx.fillRect(tx, SEG_Y, 1, SEG_H);
+                if (tickEvery >= 60000) {
+                    ctx.fillStyle = 'rgba(148, 163, 184, 0.85)';
+                    var lab = tlMsToTimeInput(tick);
+                    if (lab.length >= 5) lab = lab.slice(0, 5);
+                    ctx.fillText(lab, tx + 2, SEG_Y - 2);
+                    ctx.fillStyle = 'rgba(148, 163, 184, 0.35)';
+                }
+            }
+        }
+
         tlDisplaySegments().forEach(function (seg) {
-            var x1 = xFor(tlIsoToMs(seg.start_at));
-            var x2 = xFor(tlIsoToMs(seg.end_at));
+            var s0 = tlIsoToMs(seg.start_at);
+            var s1 = tlIsoToMs(seg.end_at);
+            if (!Number.isFinite(s0)) return;
+            if (!Number.isFinite(s1) || s1 < s0) s1 = s0 + 1;
+            if (s1 < fromMs || s0 > toMs) return;
+            var x1 = xFor(Math.max(s0, fromMs));
+            var x2 = xFor(Math.min(s1, toMs));
             var w = Math.max(2, x2 - x1);
             ctx.fillStyle = tlTierFill(seg);
             ctx.fillRect(x1, SEG_Y, w, SEG_H);
@@ -2675,17 +4627,18 @@
                 ctx.fillStyle = 'rgba(241, 245, 249, 0.92)';
                 ctx.font = '9px system-ui';
                 var label = String(seg.storageTier);
-                if (label.length > 12) label = label.slice(0, 11) + '…';
+                if (label.length > 12) label = label.slice(0, 11) + '\u2026';
                 ctx.fillText(label, x1 + 3, SEG_Y + 12);
             }
         });
 
-        /* Metadata pins — thin near-overlap so AI + ONVIF do not paint a solid bar */
-        var lastPinX = -9999;
+        var lastPinXs = -9999;
         tlDisplayAlarms().forEach(function (al) {
-            var x = xFor(tlIsoToMs(al.occurred_at));
-            if (Math.abs(x - lastPinX) < 4) return;
-            lastPinX = x;
+            var ams = tlIsoToMs(al.occurred_at);
+            if (!Number.isFinite(ams) || ams < fromMs || ams > toMs) return;
+            var x = xFor(ams);
+            if (Math.abs(x - lastPinXs) < 4) return;
+            lastPinXs = x;
             var note = String(al.note || '');
             var col = tlPinColor(note.indexOf('FR') === 0 || note.indexOf('Weapon') === 0
                 ? 'analytics'
@@ -2699,32 +4652,30 @@
             ctx.fill();
         });
 
-        /* Mark In / Out */
-        if (tl.markInMs != null) {
-            var ix = xFor(tl.markInMs);
+        if (tl.markInMs != null && tl.markInMs >= fromMs && tl.markInMs <= toMs) {
+            var ix2 = xFor(tl.markInMs);
             ctx.fillStyle = 'rgba(34, 197, 94, 0.9)';
-            ctx.fillRect(ix - 1, 0, 2, TIMELINE_H);
+            ctx.fillRect(ix2 - 1, 0, 2, H);
             ctx.fillStyle = '#22c55e';
             ctx.font = '9px sans-serif';
-            ctx.fillText('IN', ix + 3, 10);
+            ctx.fillText('IN', ix2 + 3, 10);
         }
-        if (tl.markOutMs != null) {
-            var ox = xFor(tl.markOutMs);
+        if (tl.markOutMs != null && tl.markOutMs >= fromMs && tl.markOutMs <= toMs) {
+            var ox2 = xFor(tl.markOutMs);
             ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
-            ctx.fillRect(ox - 1, 0, 2, TIMELINE_H);
+            ctx.fillRect(ox2 - 1, 0, 2, H);
             ctx.fillStyle = '#ef4444';
             ctx.font = '9px sans-serif';
-            ctx.fillText('OUT', ox + 3, 10);
+            ctx.fillText('OUT', ox2 + 3, 10);
         }
 
-        /* Playhead */
-        if (tl.playheadMs != null) {
-            var px = xFor(tl.playheadMs);
+        if (tl.playheadMs != null && tl.playheadMs >= fromMs && tl.playheadMs <= toMs) {
+            var px2 = xFor(tl.playheadMs);
             ctx.strokeStyle = '#fbbf24';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(px, 0);
-            ctx.lineTo(px, TIMELINE_H);
+            ctx.moveTo(px2, 0);
+            ctx.lineTo(px2, H);
             ctx.stroke();
         }
     }
@@ -2761,11 +4712,8 @@
     }
 
     function tlOnTimelinePointer(clientX) {
-        var canvas = $('inv-vms-timeline');
-        if (!canvas || !tl.from || !tl.to) return;
-        var rect = canvas.getBoundingClientRect();
-        var ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-        var ms = tl.from.getTime() + ratio * (tl.to.getTime() - tl.from.getTime());
+        var ms = tlMsFromClientX(clientX);
+        if (ms == null) return;
         if (tl.layoutMode === 'compare') {
             var ft = tlFocusTile();
             if (ft) {
@@ -2773,15 +4721,23 @@
                 ft.playheadMs = ms;
                 tl.playheadMs = ms;
                 tlSyncCompareTimeInput(ft);
-                tlSeekTile(ft, ms).then(function () {
-                    tlDrawTimeline();
-                    tlDrawOverlays();
-                });
+                tlSeekTile(ft, ms, { quick: true });
+                tlDrawTimeline();
+                tlDrawOverlays();
             }
             return;
         }
-        tlPauseVideos();
-        tlSeekAll(ms);
+        /* INV-SYNC-MASTER-CLOCK-V1 — drag marker freely; pause Sync clock; keep position */
+        tlStopMasterClock();
+        tl.playheadMs = ms;
+        tl.tiles.forEach(function (tile) {
+            tile.playing = false;
+            if (tile.video) try { tile.video.pause(); } catch (_) { /* ignore */ }
+            if (tl.syncLock || tile.slot === tl.focusSlot) tile.playheadMs = ms;
+        });
+        tlSeekAll(ms, { quick: true });
+        tlDrawTimeline();
+        tlUpdateAllTileTransport();
     }
 
     function tlOnTimelineClick(e) {
@@ -2789,14 +4745,21 @@
         if (!canvas || !tl.from || !tl.to) return;
         var rect = canvas.getBoundingClientRect();
         var x = e.clientX - rect.left;
-        var W = canvas.width;
-        var fromMs = tl.from.getTime();
-        var span = tl.to.getTime() - fromMs || 1;
-        var hitMs = fromMs + (x / W) * span;
+        var W = Math.max(1, canvas.width || rect.width);
+        var vb = tlViewBounds();
+        var fromMs = vb.fromMs;
+        var span = vb.span;
+        var labelW = tlUseMultiLaneTimeline() ? LANE_LABEL_W : 0;
+        var trackW = Math.max(1, W - labelW);
         var hitPin = null;
         var best = 8;
-        tlDisplayAlarms().forEach(function (al) {
-            var ax = ((tlIsoToMs(al.occurred_at) - fromMs) / span) * W;
+        var pinList = tlUseMultiLaneTimeline()
+            ? ((tlFocusTile() && tlFocusTile().alarms) || tl.mergedAlarms || [])
+            : tlDisplayAlarms();
+        pinList.forEach(function (al) {
+            var ams = tlIsoToMs(al.occurred_at);
+            if (!Number.isFinite(ams) || ams < fromMs || ams > vb.toMs) return;
+            var ax = labelW + ((ams - fromMs) / span) * trackW;
             if (Math.abs(ax - x) <= best) {
                 best = Math.abs(ax - x);
                 hitPin = al;
@@ -2897,6 +4860,7 @@
             active.forEach(function (t) {
                 if (t.playheadMs == null) t.playheadMs = tl.playheadMs;
             });
+            tlResetTimelineZoom();
             tlDrawTimeline();
             tlSeekAll(tl.playheadMs);
             tlUpdateTimelineChrome();
@@ -2905,12 +4869,32 @@
                 (focusTile && focusTile.camId
                     ? (' · focus ' + tlShortTreeLabel(focusTile.camName, focusTile.camId))
                     : '') +
-                (tl.selectedDate ? ' · ' + tl.selectedDate : '') + '.');
-            tlRefreshRecordingDays();
+                (tl.selectedDate ? ' · ' + tl.selectedDate : '') +
+                tlEmptyRecordingMetaSuffix(active) + '.');
+            await tlRefreshRecordingDays();
         } catch (err) {
             tlSetMeta('Could not load recordings.');
             tlUpdateTimelineChrome();
         }
+    }
+
+    function tlEmptyRecordingMetaSuffix(tiles) {
+        var fixedEmpty = 0;
+        var bwcEmpty = 0;
+        (tiles || []).forEach(function (t) {
+            if (!t || !t.camId) return;
+            if ((t.segments || []).length) return;
+            if (tlCamSourceKind(t.camId) === 'bwc') bwcEmpty += 1;
+            else fixedEmpty += 1;
+        });
+        if (!fixedEmpty && !bwcEmpty) return '';
+        if (fixedEmpty && !bwcEmpty) {
+            return ' · Fixed: no local recording (continuous record / storage). Remote NVR pull is not in this release';
+        }
+        if (bwcEmpty && !fixedEmpty) {
+            return ' · BWC: no clips for this range (dock or SOS upload after duty)';
+        }
+        return ' · Some cameras have no local clips for this range';
     }
 
     function tlBindControls() {
@@ -2991,6 +4975,9 @@
             }
         });
         tlSyncDtTriggers();
+        try {
+            global.addEventListener('fm-i18n-changed', function () { tlSyncDtTriggers(); });
+        } catch (_) { /* ignore */ }
 
         var layoutSingle = $('inv-vms-layout-single');
         var layoutFour = $('inv-vms-layout-four');
@@ -3031,9 +5018,10 @@
             inp.addEventListener('click', function (ev) { ev.stopPropagation(); });
         });
 
-        function tlWireRailTransport(playId, pauseId) {
+        function tlWireRailTransport(playId, pauseId, stopId) {
             var rp = $(playId);
             var rz = $(pauseId);
+            var rs = stopId ? $(stopId) : null;
             if (rp) {
                 rp.addEventListener('click', function () {
                     var dock = $('inv-vms-sync-play');
@@ -3046,9 +5034,15 @@
                     if (dock) dock.click();
                 });
             }
+            if (rs) {
+                rs.addEventListener('click', function () {
+                    var dock = $('inv-vms-sync-stop');
+                    if (dock) dock.click();
+                });
+            }
         }
-        tlWireRailTransport('inv-vms-rail-play-all', 'inv-vms-rail-pause-all');
-        tlWireRailTransport('inv-vms-rail-compare-play', 'inv-vms-rail-compare-pause');
+        tlWireRailTransport('inv-vms-rail-play-all', 'inv-vms-rail-pause-all', 'inv-vms-rail-stop-all');
+        tlWireRailTransport('inv-vms-rail-compare-play', 'inv-vms-rail-compare-pause', 'inv-vms-rail-compare-stop');
 
         var treeSearch = $('inv-vms-tree-search');
         if (treeSearch) {
@@ -3077,6 +5071,8 @@
                 });
                 var tPlay = tile.tile.querySelector('.inv-vms-tile-play');
                 var tPause = tile.tile.querySelector('.inv-vms-tile-pause');
+                var tStop = tile.tile.querySelector('.inv-vms-tile-stop');
+                var tMute = tile.tile.querySelector('.inv-vms-tile-mute');
                 var tCap = tile.tile.querySelector('.inv-vms-tile-capture');
                 var tPtz = tile.tile.querySelector('.inv-vms-tile-dptz');
                 if (tPlay) {
@@ -3089,6 +5085,18 @@
                     tPause.addEventListener('click', function (ev) {
                         ev.stopPropagation();
                         tlPauseTile(tile);
+                    });
+                }
+                if (tStop) {
+                    tStop.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
+                        tlStopTile(tile);
+                    });
+                }
+                if (tMute) {
+                    tMute.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
+                        tlToggleTileMute(tile);
                     });
                 }
                 if (tCap) {
@@ -3107,7 +5115,9 @@
                 }
             }
             if (tile.video) {
+                tlBindTilePlaybackLifecycle(tile);
                 tile.video.addEventListener('timeupdate', function () {
+                    if (tl.masterClockOn) return;
                     if (!tile.playing) return;
                     if (!tile.activeSegmentId) return;
                     var seg = null;
@@ -3126,11 +5136,17 @@
                         var readout = $('inv-vms-time-readout');
                         if (readout) readout.textContent = tlMsToLocalLabel(utc);
                     }
-                    if (tl.layoutMode === 'four' && tile.slot === tl.focusSlot) {
+                    if (tl.syncLock && tile.slot === tl.focusSlot) {
                         tl.tiles.forEach(function (other) {
                             if (other.slot === tile.slot || !other.camId || !other.video || !other.playing) return;
+                            if (!tlTileActiveInLayout(other)) return;
+                            other.playheadMs = utc;
                             var oseg = tlFindSegmentAt(other.segments, utc);
-                            if (!oseg || oseg.segmentId !== other.activeSegmentId) return;
+                            if (!oseg) return;
+                            if (oseg.segmentId !== other.activeSegmentId) {
+                                tlSeekTile(other, utc);
+                                return;
+                            }
                             var oStart = tlIsoToMs(oseg.start_at);
                             var target = (utc - oStart) / 1000;
                             if (Math.abs(other.video.currentTime - target) > 0.35) {
@@ -3157,6 +5173,36 @@
         if (pauseBtn) {
             pauseBtn.addEventListener('click', tlPauseVideos);
         }
+        var syncLockBtn = $('inv-vms-sync-lock');
+        if (syncLockBtn) {
+            syncLockBtn.addEventListener('click', function () {
+                tlSetSyncLock(!tl.syncLock);
+            });
+        }
+        tlSyncLockChrome();
+        var stopAllBtn = $('inv-vms-sync-stop');
+        if (stopAllBtn) {
+            stopAllBtn.addEventListener('click', tlStopVideos);
+        }
+        var stepBack = $('inv-vms-step-back');
+        var stepFwd = $('inv-vms-step-fwd');
+        if (stepBack) {
+            stepBack.addEventListener('click', function () { tlStepFocus(-1000); });
+        }
+        if (stepFwd) {
+            stepFwd.addEventListener('click', function () { tlStepFocus(1000); });
+        }
+        document.addEventListener('keydown', function (e) {
+            if (!tl.visible) return;
+            if (e.target && e.target.closest &&
+                e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            e.preventDefault();
+            var frameMs = 1000 / 30;
+            var delta = e.shiftKey ? frameMs : 1000;
+            if (e.key === 'ArrowLeft') delta = -delta;
+            tlStepFocus(delta);
+        });
 
         document.querySelectorAll('.inv-vms-speed-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
@@ -3174,16 +5220,112 @@
         var canvas = $('inv-vms-timeline');
         if (canvas) {
             canvas.addEventListener('mousedown', function (e) {
+                if (e.button !== 0 && e.button !== 1) return;
+                /* Zoomed: drag pans; click (no move) seeks. Fit (1×): drag scrubs. */
+                if (tl.zoomLevel > 1 || e.button === 1) {
+                    e.preventDefault();
+                    tl.panning = true;
+                    tl.panMoved = false;
+                    tl.panLastX = e.clientX;
+                    tl.dragging = false;
+                    return;
+                }
+                if (e.button !== 0) return;
+                tl.panning = false;
                 tl.dragging = true;
+                tl.panMoved = false;
                 tlOnTimelinePointer(e.clientX);
             });
             window.addEventListener('mousemove', function (e) {
+                if (tl.panning) {
+                    var dx = e.clientX - tl.panLastX;
+                    if (Math.abs(dx) > 2) {
+                        tl.panMoved = true;
+                        tlPanByPixels(dx);
+                        tl.panLastX = e.clientX;
+                    }
+                    return;
+                }
                 if (!tl.dragging) return;
                 tlOnTimelinePointer(e.clientX);
             });
-            window.addEventListener('mouseup', function () { tl.dragging = false; });
-            canvas.addEventListener('click', tlOnTimelineClick);
+            window.addEventListener('mouseup', function () {
+                tl.dragging = false;
+                tl.panning = false;
+            });
+            canvas.addEventListener('click', function (e) {
+                if (tl.panMoved) {
+                    tl.panMoved = false;
+                    return;
+                }
+                tlOnTimelineClick(e);
+            });
+            canvas.addEventListener('auxclick', function (e) {
+                if (e.button === 1) e.preventDefault();
+            });
+            canvas.addEventListener('wheel', function (e) {
+                if (!tl.from || !tl.to) return;
+                e.preventDefault();
+                if (tl.zoomLevel > 1 && (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY))) {
+                    var panDx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? -e.deltaX : (e.deltaY > 0 ? -48 : 48);
+                    tlPanByPixels(panDx);
+                    return;
+                }
+                var anchor = tlMsFromClientX(e.clientX);
+                var cur = Math.max(1, Number(tl.zoomLevel) || 1);
+                if (e.deltaY < 0) tlSetZoomLevel(Math.min(64, cur * 2), anchor);
+                else tlSetZoomLevel(Math.max(1, Math.floor(cur / 2)), anchor);
+            }, { passive: false });
         }
+        var zoomIn = $('inv-vms-zoom-in');
+        var zoomOut = $('inv-vms-zoom-out');
+        var zoomFit = $('inv-vms-zoom-fit');
+        var panLeft = $('inv-vms-pan-left');
+        var panRight = $('inv-vms-pan-right');
+        if (zoomIn) {
+            zoomIn.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                var cur = Math.max(1, Number(tl.zoomLevel) || 1);
+                tlSetZoomLevel(Math.min(64, cur * 2), tl.playheadMs);
+            });
+        }
+        if (zoomOut) {
+            zoomOut.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                var cur = Math.max(1, Number(tl.zoomLevel) || 1);
+                tlSetZoomLevel(Math.max(1, Math.floor(cur / 2)), tl.playheadMs);
+            });
+        }
+        if (zoomFit) {
+            zoomFit.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                tlSetZoomLevel(1);
+            });
+        }
+        if (panLeft) {
+            panLeft.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                tlPanByFraction(-0.4);
+            });
+        }
+        if (panRight) {
+            panRight.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                tlPanByFraction(0.4);
+            });
+        }
+        tlSyncZoomLabel();
+        try {
+            global.addEventListener('fm-i18n-changed', function () {
+                if (tl.playheadMs != null) {
+                    var readout = $('inv-vms-time-readout');
+                    if (readout) readout.textContent = tlMsToLocalLabel(tl.playheadMs);
+                }
+                tlSyncDtTriggers();
+            });
+        } catch (_) { /* ignore */ }
+        tlBindAlarmPreviewChrome();
+        tlBindDptzPan();
         var alarmClose = $('inv-vms-alarm-preview-close');
         if (alarmClose) {
             alarmClose.addEventListener('click', function (e) {
@@ -3191,13 +5333,42 @@
                 tlCloseAlarmPreview();
             });
         }
+        var alarmPlay = $('inv-vms-alarm-preview-play');
+        if (alarmPlay) {
+            alarmPlay.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                tlPlayAlarmPreview();
+            });
+        }
+        var alarmCopy = $('inv-vms-alarm-preview-copy');
+        if (alarmCopy) {
+            alarmCopy.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                tlCopyAlarmPreviewId();
+            });
+        }
         var alarmPanel = $('inv-vms-alarm-preview');
         if (alarmPanel) {
             alarmPanel.addEventListener('click', function (e) { e.stopPropagation(); });
         }
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') tlCloseAlarmPreview();
+            if (e.key !== 'Escape') return;
+            var preview = $('inv-vms-alarm-preview');
+            if (preview && !preview.hidden) {
+                tlCloseAlarmPreview();
+                return;
+            }
+            tlCloseEventList();
         });
+        tlBindEventListChrome();
+        var eventsBtn = $('inv-vms-events');
+        if (eventsBtn) {
+            eventsBtn.addEventListener('click', function () {
+                tlToggleEventList();
+            });
+        }
 
         window.addEventListener('resize', function () {
             if (!tl.visible) return;
@@ -3261,25 +5432,40 @@
         tlDrawTimeline();
     }
 
-    function tlApplyDptz() {
-        var tile = tlFocusTile();
-        if (!tile || !tile.tile) return;
-        var stage = tile.tile.querySelector('.inv-vms-tile-stage');
+    function tlClampDptzPan(stage) {
         var scale = tl.dptzScale || 1;
-        if (stage) stage.classList.toggle('is-dptz', scale > 1);
-        if (tile.video) tile.video.style.transform = scale > 1 ? ('scale(' + scale + ')') : '';
-        if (tile.overlay) tile.overlay.style.transform = scale > 1 ? ('scale(' + scale + ')') : '';
-        var btn = $('inv-vms-dptz');
-        if (btn) {
-            btn.textContent = scale > 1 ? ('Digital PTZ ' + scale + 'x') : 'Digital PTZ';
-            btn.classList.toggle('active', scale > 1);
+        if (scale <= 1 || !stage) {
+            tl.dptzPanX = 0;
+            tl.dptzPanY = 0;
+            return;
         }
+        var maxX = (stage.clientWidth * (scale - 1)) / 2;
+        var maxY = (stage.clientHeight * (scale - 1)) / 2;
+        if (!Number.isFinite(maxX) || maxX < 0) maxX = 0;
+        if (!Number.isFinite(maxY) || maxY < 0) maxY = 0;
+        tl.dptzPanX = Math.max(-maxX, Math.min(maxX, tl.dptzPanX || 0));
+        tl.dptzPanY = Math.max(-maxY, Math.min(maxY, tl.dptzPanY || 0));
     }
 
-    function tlToggleDptz() {
-        var steps = [1, 1.5, 2, 3];
-        var i = steps.indexOf(tl.dptzScale);
-        tl.dptzScale = steps[(i + 1) % steps.length];
+    function tlDptzCssTransform() {
+        var scale = tl.dptzScale || 1;
+        if (scale <= 1) return '';
+        return 'translate(' + (tl.dptzPanX || 0) + 'px,' + (tl.dptzPanY || 0) + 'px) scale(' + scale + ')';
+    }
+
+    function tlDptzSteps() {
+        return [1, 1.5, 2, 3, 4, 6, 8];
+    }
+
+    function tlSetDptzScale(next, metaMsg) {
+        var steps = tlDptzSteps();
+        var scale = Number(next);
+        if (steps.indexOf(scale) < 0) scale = 1;
+        if (scale <= 1) {
+            tl.dptzPanX = 0;
+            tl.dptzPanY = 0;
+        }
+        tl.dptzScale = scale;
         tl.tiles.forEach(function (tile) {
             if (!tile.tile) return;
             var stage = tile.tile.querySelector('.inv-vms-tile-stage');
@@ -3288,9 +5474,123 @@
             if (tile.overlay) tile.overlay.style.transform = '';
         });
         tlApplyDptz();
-        tlSetMeta(tl.dptzScale > 1
-            ? ('Digital PTZ ' + tl.dptzScale + 'x on focused tile')
-            : 'Digital PTZ off');
+        if (metaMsg != null) tlSetMeta(metaMsg);
+        else {
+            tlSetMeta(tl.dptzScale > 1
+                ? ('Digital PTZ ' + tl.dptzScale + 'x — wheel zoom · drag to pan')
+                : 'Digital PTZ off');
+        }
+    }
+
+    function tlApplyDptz() {
+        var tile = tlFocusTile();
+        if (!tile || !tile.tile) return;
+        var stage = tile.tile.querySelector('.inv-vms-tile-stage');
+        var scale = tl.dptzScale || 1;
+        if (scale <= 1) {
+            tl.dptzPanX = 0;
+            tl.dptzPanY = 0;
+        } else if (stage) {
+            tlClampDptzPan(stage);
+        }
+        if (stage) stage.classList.toggle('is-dptz', scale > 1);
+        var xf = tlDptzCssTransform();
+        if (tile.video) tile.video.style.transform = xf;
+        if (tile.overlay) tile.overlay.style.transform = xf;
+        var btn = $('inv-vms-dptz');
+        if (btn) {
+            btn.textContent = scale > 1 ? ('Digital PTZ ' + scale + 'x') : 'Digital PTZ';
+            btn.classList.toggle('active', scale > 1);
+        }
+    }
+
+    function tlBindDptzPan() {
+        if (tl._dptzPanBound) return;
+        tl._dptzPanBound = true;
+        var drag = { on: false, lx: 0, ly: 0, moved: false };
+
+        function stageOfEvent(e) {
+            var el = e.target;
+            if (!el || !el.closest) return null;
+            return el.closest('.inv-vms-tile-stage.is-dptz');
+        }
+
+        function focusStageOfEvent(e) {
+            var el = e.target;
+            if (!el || !el.closest) return null;
+            var stage = el.closest('.inv-vms-tile-stage');
+            if (!stage) return null;
+            var tile = tlFocusTile();
+            if (!tile || !tile.tile) return null;
+            if (tile.tile.querySelector('.inv-vms-tile-stage') !== stage) return null;
+            return stage;
+        }
+
+        document.addEventListener('mousedown', function (e) {
+            if (e.button !== 0) return;
+            if ((tl.dptzScale || 1) <= 1) return;
+            if (e.target && e.target.closest && e.target.closest('.inv-vms-tile-transport, button, a')) return;
+            var stage = stageOfEvent(e);
+            if (!stage) return;
+            var tile = tlFocusTile();
+            if (!tile || !tile.tile) return;
+            if (tile.tile.querySelector('.inv-vms-tile-stage') !== stage) return;
+            drag.on = true;
+            drag.moved = false;
+            drag.lx = e.clientX;
+            drag.ly = e.clientY;
+            stage.classList.add('is-dptz-panning');
+            e.preventDefault();
+        });
+        window.addEventListener('mousemove', function (e) {
+            if (!drag.on) return;
+            var dx = e.clientX - drag.lx;
+            var dy = e.clientY - drag.ly;
+            if (dx || dy) drag.moved = true;
+            drag.lx = e.clientX;
+            drag.ly = e.clientY;
+            tl.dptzPanX = (tl.dptzPanX || 0) + dx;
+            tl.dptzPanY = (tl.dptzPanY || 0) + dy;
+            tlApplyDptz();
+        });
+        window.addEventListener('mouseup', function () {
+            if (!drag.on) return;
+            drag.on = false;
+            document.querySelectorAll('.inv-vms-tile-stage.is-dptz-panning').forEach(function (el) {
+                el.classList.remove('is-dptz-panning');
+            });
+        });
+        document.addEventListener('click', function (e) {
+            if (!drag.moved) return;
+            var stage = stageOfEvent(e);
+            if (!stage) return;
+            e.stopPropagation();
+            drag.moved = false;
+        }, true);
+        /* VMS-DIGITAL-PTZ-WHEEL-ZOOM-V1: wheel on Focus tile stage steps zoom ladder */
+        document.addEventListener('wheel', function (e) {
+            if (!tl.visible) return;
+            if (e.target && e.target.closest && e.target.closest('.inv-vms-tile-transport, button, a, input, textarea')) return;
+            var stage = focusStageOfEvent(e);
+            if (!stage) return;
+            var dy = e.deltaY;
+            if (!dy) return;
+            e.preventDefault();
+            var steps = tlDptzSteps();
+            var i = steps.indexOf(tl.dptzScale);
+            if (i < 0) i = 0;
+            if (dy < 0) i = Math.min(steps.length - 1, i + 1);
+            else i = Math.max(0, i - 1);
+            if (steps[i] === tl.dptzScale) return;
+            tlSetDptzScale(steps[i]);
+        }, { passive: false, capture: true });
+    }
+
+    function tlToggleDptz() {
+        var steps = tlDptzSteps();
+        var i = steps.indexOf(tl.dptzScale);
+        if (i < 0) i = 0;
+        tlSetDptzScale(steps[(i + 1) % steps.length]);
     }
 
     async function tlExportEvidence() {
@@ -3465,6 +5765,29 @@
             },
             onHide: function () {
                 tl.visible = false;
+            },
+            /* INV-SOS-PIN-AND-GAP-HONESTY-V1 — refresh assigned cam timeline so red SOS pin appears */
+            onSosAlarm: function (data) {
+                if (!tl.visible || !data) return;
+                var camId = String(data.cameraId || data.camId || '').trim();
+                if (!camId) return;
+                var touched = false;
+                tl.tiles.forEach(function (tile) {
+                    if (!tile || !tile.camId) return;
+                    if (String(tile.camId) !== camId) return;
+                    touched = true;
+                    Promise.resolve(tlFetchTileTimeline(tile)).then(function () {
+                        tlMergeTimelineData();
+                        tlDrawTimeline();
+                        tlSetMeta('SOS marker refreshed for ' +
+                            tlShortTreeLabel(tile.camName, tile.camId) +
+                            '. Scrub yellow onto blue overlap for Sync Play — pins are markers only.');
+                    }).catch(function () { /* ignore */ });
+                });
+                if (!touched) {
+                    /* Still merge if live marker lands on next Load; soft meta only when on Investigation */
+                    tlSetMeta('SOS raised. Load Recordings (or re-assign cam) to show the red pin.');
+                }
             },
         };
         return true;

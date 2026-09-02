@@ -294,10 +294,11 @@
         }
         #app-view-investigation .inv-vms-day-cal-grid button {
             position: relative !important;
+            overflow: visible !important;
         }
         #app-view-investigation .inv-vms-day-cal-grid button.has-alarm::after {
-            content: '' !important; position: absolute !important; top: 4px !important; right: 4px !important;
-            width: 6px !important; height: 6px !important; background-color: #ef4444 !important;
+            content: '' !important; position: absolute !important; top: 2px !important; right: 2px !important;
+            width: 7px !important; height: 7px !important; background-color: #ef4444 !important;
             border-radius: 50% !important; pointer-events: none !important; z-index: 10 !important;
         }
         #app-view-investigation .inv-vms-day-cal-grid button.has-rec::before {
@@ -305,8 +306,8 @@
             margin-left: -2.5px; border-radius: 50%; background: #38bdf8; pointer-events: none;
         }
         #app-view-investigation .inv-vms-dt-cal-grid button.has-alarm::after {
-            content: '' !important; position: absolute !important; top: 4px !important; right: 4px !important;
-            width: 6px !important; height: 6px !important; background-color: #ef4444 !important;
+            content: '' !important; position: absolute !important; top: 2px !important; right: 2px !important;
+            width: 7px !important; height: 7px !important; background-color: #ef4444 !important;
             border-radius: 50% !important; pointer-events: none !important; z-index: 10 !important;
         }
         #app-view-investigation .inv-vms-dt-pop-lab { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; font-size: 11px; color: #94a3b8; }
@@ -370,18 +371,66 @@
         #app-view-investigation .inv-vms-dock { flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid #475569; border-radius: 12px; background: transparent; max-height: 42vh; overflow-y: auto; }
         #app-view-investigation .inv-vms-layout-btn { padding: 6px 12px; font-size: 11px; font-weight: 600; border: 1px solid #475569; border-radius: 6px; background: #0b1220 !important; color: #e2e8f0 !important; cursor: pointer; }
         #app-view-investigation .inv-vms-layout-btn.active { background: #2563eb !important; border-color: #2563eb; color: #fff !important; }
-        #app-view-investigation .inv-vms-timeline-wrap { position: relative; flex-shrink: 0; border: 1px solid #334155; border-radius: 8px; padding: 6px 8px; background: #0b1220; }
+        #app-view-investigation .inv-vms-timeline-wrap { position: relative; flex-shrink: 0; border: 1px solid #334155; border-radius: 8px; padding: 6px 8px; background: #0b1220; overflow: visible; }
         #app-view-investigation .inv-vms-timeline-wrap.is-collapsed { display: none; }
-        #app-view-investigation .inv-vms-alarm-preview { position: absolute; right: 10px; bottom: calc(100% + 6px); z-index: 30; width: 260px; max-width: min(260px, 92vw); padding: 10px 12px; border: 1px solid #475569; border-radius: 10px; background: #0b1220; box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
+        #app-view-investigation .inv-vms-alarm-preview {
+            position: fixed; right: 20px; bottom: 20px; left: auto; top: auto; transform: none;
+            z-index: 27000; width: 300px; max-width: min(340px, 92vw); max-height: min(70vh, 520px);
+            overflow-x: hidden; overflow-y: auto; padding: 10px 12px; border: 1px solid #475569; border-radius: 10px;
+            background: #0b1220; box-shadow: 0 8px 24px rgba(0,0,0,0.45); pointer-events: auto;
+        }
+        #app-view-investigation .inv-vms-alarm-preview.is-no-recording {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            right: auto;
+            bottom: auto;
+            transform: translate(-50%, -50%);
+            pointer-events: auto;
+            width: min(400px, 92vw);
+            max-width: min(400px, 92vw);
+            max-height: min(85vh, 720px);
+            z-index: 27000;
+            overflow-y: auto;
+        }
+        #app-view-investigation .inv-vms-alarm-preview.is-has-recording { pointer-events: auto; }
         #app-view-investigation .inv-vms-alarm-preview[hidden] { display: none !important; }
-        #app-view-investigation .inv-vms-alarm-preview-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: 12px; color: #e2e8f0; }
-        #app-view-investigation .inv-vms-alarm-preview-close { border: none; background: transparent; color: #94a3b8; font-size: 18px; cursor: pointer; }
+        #app-view-investigation .inv-vms-alarm-preview-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -2px 0 8px; padding: 2px 0 6px; font-size: 12px; color: #e2e8f0; cursor: grab; user-select: none; border-bottom: 1px solid #1e293b; }
+        #app-view-investigation .inv-vms-alarm-preview.is-dragging .inv-vms-alarm-preview-head { cursor: grabbing; }
+        #app-view-investigation .inv-vms-alarm-preview-head-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+        #app-view-investigation .inv-vms-alarm-preview-min,
+        #app-view-investigation .inv-vms-alarm-preview-close { border: none; background: transparent; color: #94a3b8; font-size: 16px; line-height: 1; width: 28px; height: 28px; cursor: pointer; pointer-events: auto; border-radius: 6px; }
+        #app-view-investigation .inv-vms-alarm-preview-min:hover,
+        #app-view-investigation .inv-vms-alarm-preview-close:hover { color: #e2e8f0; background: rgba(51, 65, 85, 0.5); }
+        #app-view-investigation .inv-vms-alarm-preview.is-minimized { max-height: none; overflow: hidden; width: 220px; padding-bottom: 8px; }
+        #app-view-investigation .inv-vms-alarm-preview.is-minimized .inv-vms-alarm-preview-body { display: none !important; }
+        #app-view-investigation .inv-vms-alarm-preview.is-minimized .inv-vms-alarm-preview-head { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
         #app-view-investigation .inv-vms-alarm-preview-line,
         #app-view-investigation .inv-vms-alarm-preview-note,
-        #app-view-investigation .inv-vms-alarm-preview-media { margin: 0 0 4px; font-size: 11px; color: #94a3b8; line-height: 1.35; }
+        #app-view-investigation .inv-vms-alarm-preview-media { margin: 0 0 4px; font-size: 11px; color: #94a3b8; line-height: 1.35; white-space: normal; word-break: break-word; }
         #app-view-investigation .inv-vms-alarm-preview-note { color: #e2e8f0; }
-        #app-view-investigation .inv-vms-alarm-preview-img { display: block; width: 100%; max-height: 140px; object-fit: contain; margin: 6px 0; border-radius: 6px; border: 1px solid #334155; background: #000; }
-        #app-view-investigation #inv-vms-timeline { width: 100%; height: 72px; display: block; }
+        #app-view-investigation .inv-vms-alarm-preview-rec { color: #fbbf24; font-weight: 600; white-space: normal; word-break: break-word; }
+        #app-view-investigation .inv-vms-alarm-preview.is-no-recording .inv-vms-alarm-preview-rec { color: #f87171; }
+        #app-view-investigation .inv-vms-alarm-preview-img { display: block; width: 100%; max-height: 200px; object-fit: contain; margin: 6px 0; border-radius: 6px; border: 1px solid #334155; background: #000; }
+        #app-view-investigation .inv-vms-alarm-preview.is-no-recording .inv-vms-alarm-preview-img { max-height: min(280px, 40vh); }
+        #app-view-investigation .inv-vms-alarm-preview-id-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+            margin: 0 0 4px; flex-wrap: wrap;
+        }
+        #app-view-investigation .inv-vms-alarm-preview-id-row .inv-vms-alarm-preview-line { margin: 0; flex: 1 1 auto; min-width: 0; }
+        #app-view-investigation .inv-vms-alarm-preview-copy {
+            flex: 0 0 auto; max-width: 120px; height: 28px; padding: 0 10px; font-size: 11px;
+            pointer-events: auto; cursor: pointer;
+        }
+        #app-view-investigation .inv-vms-alarm-preview-copy[disabled] { opacity: 0.45; cursor: default; }
+        #app-view-investigation .inv-vms-alarm-preview-actions {
+            display: flex; flex-direction: row; gap: 8px; margin-top: 10px; align-items: center;
+        }
+        #app-view-investigation .inv-vms-alarm-preview-play {
+            flex: 1 1 auto; max-width: 220px; height: 32px; pointer-events: auto; cursor: pointer;
+        }
+        #app-view-investigation .inv-vms-alarm-preview-play[hidden] { display: none !important; }
+        #app-view-investigation #inv-vms-timeline { width: 100%; min-height: 72px; height: auto; display: block; }
         #app-top-nav {
             flex-shrink: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 6px;
             padding: 0 16px; white-space: nowrap; overflow-x: auto;
@@ -2384,6 +2433,30 @@
         #vc-panel-live.vc-in-meeting .vc-live-dashboard {
             display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; min-height: 0;
         }
+        /* VC-JOIN-CACHE-AND-SIDE-STABLE-V1 — lobby side overlays; Join hide must not grow stage. */
+        #vc-panel-live .vc-live-dashboard {
+            position: relative;
+            flex: 0 0 auto !important;
+            max-height: none !important;
+            grid-template-columns: 1fr !important;
+            overflow: visible;
+        }
+        #vc-panel-live.is-lobby .vc-live-console {
+            padding-right: min(308px, 33vw);
+            box-sizing: border-box;
+        }
+        #vc-panel-live.is-lobby .vc-live-side {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: min(300px, 32vw);
+            max-height: 40vh;
+            z-index: 6;
+            overflow: auto;
+        }
+        #vc-panel-live.vc-in-meeting .vc-live-console {
+            padding-right: 0;
+        }
         #vc-panel-live.vc-in-meeting .vc-live-side { display: none !important; }
         #vc-panel-live.vc-in-meeting #vc-live-lobby-block { display: none !important; }
         .vc-live-top { flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -2441,12 +2514,12 @@
         #vc-panel-live.vc-in-meeting .vc-rec-inline { margin: 2px 0 0; font-size: 10px; }
         .vc-live-actions .vc-host-tools-panel {
             flex-basis: 100%; width: 100%; margin: 0;
-            display: flex; flex-direction: column; gap: 10px;
-            /* card chrome: .enterprise-card */
+            display: flex; flex-direction: column; gap: 6px;
+            padding: 8px 10px;
         }
         .vc-host-tools-title {
-            margin: 0; font-size: 11px; font-weight: 700; text-transform: uppercase;
-            letter-spacing: 0.06em; color: #94a3b8;
+            margin: 0; font-size: 12px; font-weight: 600;
+            text-transform: none; letter-spacing: normal; color: #e2e8f0;
         }
         .vc-live-actions .vc-advanced { flex-basis: 100%; margin: 0; padding: 0; border: none; background: transparent; }
         .vc-live-actions .vc-advanced summary { margin-bottom: 4px; font-size: 11px; }
@@ -2512,32 +2585,81 @@
         }
 
 
-        /* VC-EMPTY-STATES-AND-LOBBY-V1 - hide stage/dock in lobby; empty-room placeholder */
+        /* VC-CP-LAYOUT-MEETING-FIRST-V1 — lobby: no black stage plate; meeting: stage fills viewport. */
         #vc-stage[hidden],
-        .vc-stage[hidden] {
-            display: none !important;
-        }
-        #vc-panel-live.is-lobby #vc-stage:not(.vc-in-room),
-        #vc-panel-live:not(.vc-in-meeting) #vc-stage:not(.vc-in-room) {
+        .vc-stage[hidden],
+        #vc-lobby-main[hidden] {
             display: none !important;
         }
         #vc-panel-live.is-lobby,
-        #vc-panel-live:not(.vc-in-meeting) {
-            overflow: auto;
+        #vc-panel-live:not(.vc-in-meeting),
+        #vc-panel-live.vc-in-meeting {
+            display: flex !important;
+            flex-direction: column;
+            flex: 1 1 0%;
+            min-height: 0;
+            overflow: hidden;
         }
         #vc-panel-live.is-lobby .vc-live-dashboard,
         #vc-panel-live:not(.vc-in-meeting) .vc-live-dashboard {
-            flex: 1 1 auto;
+            flex: 0 0 auto;
             min-height: 0;
+            overflow: visible;
         }
         #conference-panel.is-lobby,
-        #conference-panel:not(.vc-in-meeting) {
-            height: auto;
-            max-height: none;
-            overflow: auto;
+        #conference-panel:not(.vc-in-meeting),
+        #conference-panel.vc-in-meeting {
+            flex: 1 1 0%;
+            min-height: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .vc-lobby-main {
+            flex: 1 1 0%;
+            min-height: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            box-sizing: border-box;
+            background: var(--bg-surface, #0b1220);
+        }
+        .vc-lobby-main-inner {
+            max-width: 420px;
+            width: 100%;
+            padding: 20px 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            text-align: left;
+        }
+        .vc-lobby-main-inner h3 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary, #f1f5f9);
+            letter-spacing: normal;
+            text-transform: none;
+            font-family: inherit;
+        }
+        .vc-lobby-main-inner p {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.45;
+            color: var(--text-secondary, #94a3b8);
+            font-family: inherit;
+        }
+        #vc-panel-live.is-lobby #vc-stage,
+        #vc-panel-live:not(.vc-in-meeting) #vc-stage {
+            display: none !important;
+        }
+        #vc-panel-live.vc-in-meeting #vc-lobby-main {
+            display: none !important;
         }
         .vc-stage.vc-empty-stage {
-            background: #0f172a !important;
+            background: var(--bg-surface, #0f172a) !important;
             border-color: #334155;
         }
         .vc-stage.vc-empty-stage .vc-stage-canvas {
@@ -2563,31 +2685,85 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 10px;
+            gap: 8px;
             height: 100%;
             padding: 24px;
             box-sizing: border-box;
-            color: #64748b;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            color: var(--text-secondary, #94a3b8);
+            font-family: inherit;
             background: transparent;
             text-align: center;
             pointer-events: none;
         }
         .empty-stage-placeholder[hidden] { display: none !important; }
-        .empty-stage-icon { color: #475569; opacity: 0.9; margin-bottom: 4px; }
+        .empty-stage-icon { color: #64748b; opacity: 0.85; margin-bottom: 2px; }
         .empty-stage-title {
             margin: 0;
-            font-size: 18px;
-            font-weight: 700;
-            letter-spacing: 0.12em;
-            color: #94a3b8;
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: normal;
+            text-transform: none;
+            color: var(--text-primary, #e2e8f0);
+            font-family: inherit;
         }
         .empty-stage-body {
             margin: 0;
             font-size: 13px;
             line-height: 1.45;
-            color: #64748b;
-            max-width: 360px;
+            color: var(--text-secondary, #94a3b8);
+            max-width: 380px;
+            font-family: inherit;
+        }
+        /* VC-FOCUS-PTZ-V1 — Camera Control on stage (fixed PTZ Focus only) */
+        #vc-stage #vc-ptz-hud.cw-ptz-panel {
+            position: absolute;
+            right: 12px;
+            bottom: 58px;
+            z-index: 22;
+            width: 168px;
+            padding: 10px;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            background: #0f172a;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+        }
+        #vc-stage #vc-ptz-hud.cw-ptz-panel[hidden] { display: none !important; }
+        #vc-stage #vc-ptz-hud .cw-ptz-title {
+            color: #93c5fd;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: normal;
+            text-transform: none;
+            margin-bottom: 4px;
+        }
+        #vc-stage #vc-ptz-hud .cw-ptz-camera {
+            min-height: 28px;
+            margin: 4px 0 8px;
+            color: #e2e8f0;
+            font-size: 11px;
+            line-height: 1.35;
+        }
+        #vc-stage #vc-ptz-hud .cw-ptz-pad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+        #vc-stage #vc-ptz-hud .cw-ptz-pad button,
+        #vc-stage #vc-ptz-hud .cw-ptz-zoom button {
+            padding: 6px 4px;
+            font-size: 11px;
+            border-radius: 6px;
+            border: 1px solid #475569;
+            background: #1e293b;
+            color: #f1f5f9;
+            cursor: pointer;
+        }
+        #vc-stage #vc-ptz-hud button:disabled { opacity: 0.35; cursor: not-allowed; }
+        #vc-stage #vc-ptz-hud .cw-ptz-status {
+            font-size: 10px;
+            color: #94a3b8;
+            margin-top: 4px;
         }
         .vc-stage.vc-has-streams .vc-spotlight-inner {
             background: #000;
@@ -7260,6 +7436,21 @@
             width: 100%; box-sizing: border-box;
         }
         #sos-ptt-add-strip[hidden] { display: none !important; }
+        .sos-ptt-team-chips {
+            display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0;
+        }
+        .sos-ptt-team-chips[hidden] { display: none !important; }
+        .sos-ptt-team-chip {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+            background: #1e293b; color: #fde68a; border: 1px solid #f59e0b;
+        }
+        .sos-ptt-team-chip.is-alarm { border-color: #fca5a5; color: #fecaca; }
+        .sos-ptt-team-chip-remove {
+            border: 0; background: transparent; color: #fca5a5; cursor: pointer;
+            font-size: 14px; line-height: 1; padding: 0 2px; font-weight: 700;
+        }
+        .sos-ptt-team-chip-remove:hover { color: #fff; }
         .sos-ptt-add-member-btn {
             border: 1px dashed #fbbf24; background: #1e293b; color: #fde68a;
             border-radius: 6px; padding: 5px 14px; font-size: 12px; font-weight: 700;
@@ -9455,6 +9646,10 @@
         .sos-ack-helper-row input { flex-shrink: 0; }
         .sos-ack-helper-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         #sos-ack-helpers-empty { margin: 0; font-size: 10px; color: #64748b; }
+        #sos-ack-fixed-wrap { margin-top: 10px; }
+        #sos-ack-fixed-wrap .hint { margin: 0 0 6px; font-size: 10px; color: #94a3b8; line-height: 1.35; }
+        #sos-ack-fixed { display: flex; flex-direction: column; gap: 3px; max-height: 96px; overflow-y: auto; }
+        #sos-ack-fixed-empty { margin: 0; font-size: 10px; color: #64748b; }
         .sos-ack-actions { display: flex; gap: 6px; margin-top: 10px; }
         .sos-ack-actions button { flex: 1; padding: 8px; font-size: 11px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; }
         #sos-ack-cancel { background: #334155; color: #e2e8f0; }
@@ -9837,7 +10032,7 @@
         .sos-detail-actions button { flex: 1; min-width: 100px; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; background: #334155; color: #e2e8f0; }
         .sos-detail-actions .sos-detail-secondary { flex: 0 1 auto; background: transparent; color: #94a3b8; font-weight: 500; font-size: 11px; }
     </style>
-    <link rel="stylesheet" href="/css/global.css?v=20260829-inv-four-rail-v1">
+    <link rel="stylesheet" href="/css/global.css?v=20260831-source-badge-v1">
     <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260821-fc-toolbar-pad-v1">
 </head>
 <body>
@@ -9911,6 +10106,12 @@
                 <p class="hint" data-i18n="sos.ack.helpersHint" hidden></p>
                 <div id="sos-ack-helpers"></div>
                 <p id="sos-ack-helpers-empty" hidden data-i18n="sos.ack.helpersEmpty">No other online units &mdash; acknowledge without a response team.</p>
+            </div>
+            <div id="sos-ack-fixed-wrap" hidden>
+                <label data-i18n="sos.ack.fixedLabel">Nearby Fixed / PTZ (Live Wall, Max 2)</label>
+                <p class="hint" data-i18n="sos.ack.fixedHint">Nearest two are selected for live wall slots. Up to four stay linked on the case.</p>
+                <div id="sos-ack-fixed"></div>
+                <p id="sos-ack-fixed-empty" hidden data-i18n="sos.ack.fixedEmpty">No nearby fixed cameras in radius.</p>
             </div>
             <div id="sos-ack-capture-wrap" hidden>
                 <label class="block" data-i18n="sos.ack.captureLabel">Live Video Capture (from This Screen)</label>
@@ -10123,6 +10324,7 @@
                 <span id="sos-response-summary" data-i18n="sos.response.scanning">Scanning for nearby units&hellip;</span>
             </div>
             <div id="sos-ptt-add-strip" hidden>
+                <div id="sos-ptt-team-chips" class="sos-ptt-team-chips" hidden></div>
                 <button type="button" id="sos-ptt-member-btn" class="sos-ptt-add-member-btn">+ Team Member</button>
                 <div id="sos-ptt-member-panel" hidden>
                     <div id="sos-ptt-add-list"></div>
@@ -10210,6 +10412,7 @@
                 </div>
                 <div id="ptt-group-talk-row" class="btn-row horizontal" hidden>
                     <button type="button" class="btn btn-action" id="ptt-group-talk-hold" style="flex:1;" data-i18n="ptt.groupBox.holdTalk" aria-pressed="false">Hold Group PTT</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="ptt-group-record-evidence" style="flex:1;" data-i18n="ptt.groupBox.recordEvidence" aria-pressed="false">Record to Evidence</button>
                 </div>
                 <p id="ptt-group-talk-hint" class="hint" hidden data-i18n="ptt.groupBox.fieldHint"></p>
                 <div id="sos-ptt-team-sidebar" class="sos-ptt-team-sidebar" hidden>
@@ -12191,7 +12394,7 @@
             <div class="inv-vms-stage-row">
                 <aside class="inv-vms-tree-panel enterprise-card" id="inv-vms-sidebar" aria-label="Cameras">
                     <h3 class="inv-vms-tree-panel-title" data-i18n="investigation.cameraTree">Cameras</h3>
-                    <p class="inv-vms-tree-legend" data-i18n="investigation.treeLegend">Cyan = assigned to tiles · Blue = focus camera</p>
+                    <p class="inv-vms-tree-legend" data-i18n="investigation.treeLegend">Cyan = assigned · Blue = focus · BWC / Fixed badges</p>
                     <input type="search" class="inv-vms-tree-search" id="inv-vms-tree-search" data-i18n-placeholder="investigation.treeSearch" placeholder="Search Cameras" autocomplete="off">
                     <div class="inv-vms-cam-tree" id="inv-vms-cam-tree" role="tree"></div>
                 </aside>
@@ -12200,10 +12403,11 @@
                         <aside class="inv-vms-slot-rail" id="inv-vms-slot-rail" aria-label="Slot Tools">
                             <div class="inv-vms-rail-panel" id="inv-vms-rail-four" data-rail="four">
                                 <h4 class="inv-vms-rail-title" data-i18n="investigation.layoutFour">Four Cameras</h4>
-                                <p class="inv-vms-rail-hint" data-i18n="investigation.railFourHint">Click cameras to fill the next empty slot. Drag onto a tile to replace.</p>
+                                <p class="inv-vms-rail-hint" data-i18n="investigation.railFourHint">Click a tile to Focus, then a camera for that slot. Drag onto a tile to replace.</p>
                                 <div class="inv-vms-rail-actions">
                                     <button type="button" class="btn-primary inv-vms-rail-btn" id="inv-vms-rail-play-all" data-i18n="investigation.playAllSelected">Play All Selected</button>
                                     <button type="button" class="btn-secondary inv-vms-rail-btn" id="inv-vms-rail-pause-all" data-i18n="investigation.pauseAllSelected">Pause All Selected</button>
+                                    <button type="button" class="btn-secondary inv-vms-rail-btn" id="inv-vms-rail-stop-all" data-i18n="investigation.stopAllSelected">Stop All Selected</button>
                                 </div>
                             </div>
                             <div class="inv-vms-rail-panel" id="inv-vms-rail-compare" data-rail="compare" hidden>
@@ -12230,6 +12434,7 @@
                                 <div class="inv-vms-rail-actions">
                                     <button type="button" class="btn-primary inv-vms-rail-btn" id="inv-vms-rail-compare-play" data-i18n="investigation.playAllSelected">Play All Selected</button>
                                     <button type="button" class="btn-secondary inv-vms-rail-btn" id="inv-vms-rail-compare-pause" data-i18n="investigation.pauseAllSelected">Pause All Selected</button>
+                                    <button type="button" class="btn-secondary inv-vms-rail-btn" id="inv-vms-rail-compare-stop" data-i18n="investigation.stopAllSelected">Stop All Selected</button>
                                 </div>
                             </div>
                         </aside>
@@ -12247,6 +12452,8 @@
                         <div class="inv-vms-tile-transport" data-slot="0">
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-play" data-slot="0" data-i18n="investigation.playback">Play</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-pause" data-slot="0" hidden data-i18n="investigation.pause">Pause</button>
+                            <button type="button" class="inv-vms-tile-btn inv-vms-tile-stop" data-slot="0" hidden data-i18n="investigation.stop">Stop</button>
+                            <button type="button" class="inv-vms-tile-btn inv-vms-tile-mute" data-slot="0" data-i18n="investigation.mute" title="Mute">Mute</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-capture" data-slot="0" data-i18n="investigation.captureFrame">Capture</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-dptz" data-slot="0">Digital PTZ</button>
                         </div>
@@ -12265,6 +12472,8 @@
                         <div class="inv-vms-tile-transport" data-slot="1">
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-play" data-slot="1" data-i18n="investigation.playback">Play</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-pause" data-slot="1" hidden data-i18n="investigation.pause">Pause</button>
+                            <button type="button" class="inv-vms-tile-btn inv-vms-tile-stop" data-slot="1" hidden data-i18n="investigation.stop">Stop</button>
+                            <button type="button" class="inv-vms-tile-btn inv-vms-tile-mute" data-slot="1" data-i18n="investigation.mute" title="Mute">Mute</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-capture" data-slot="1" data-i18n="investigation.captureFrame">Capture</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-dptz" data-slot="1">Digital PTZ</button>
                         </div>
@@ -12283,6 +12492,8 @@
                         <div class="inv-vms-tile-transport" data-slot="2">
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-play" data-slot="2" data-i18n="investigation.playback">Play</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-pause" data-slot="2" hidden data-i18n="investigation.pause">Pause</button>
+                            <button type="button" class="inv-vms-tile-btn inv-vms-tile-stop" data-slot="2" hidden data-i18n="investigation.stop">Stop</button>
+                            <button type="button" class="inv-vms-tile-btn inv-vms-tile-mute" data-slot="2" data-i18n="investigation.mute" title="Mute">Mute</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-capture" data-slot="2" data-i18n="investigation.captureFrame">Capture</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-dptz" data-slot="2">Digital PTZ</button>
                         </div>
@@ -12301,6 +12512,8 @@
                         <div class="inv-vms-tile-transport" data-slot="3">
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-play" data-slot="3" data-i18n="investigation.playback">Play</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-pause" data-slot="3" hidden data-i18n="investigation.pause">Pause</button>
+                            <button type="button" class="inv-vms-tile-btn inv-vms-tile-stop" data-slot="3" hidden data-i18n="investigation.stop">Stop</button>
+                            <button type="button" class="inv-vms-tile-btn inv-vms-tile-mute" data-slot="3" data-i18n="investigation.mute" title="Mute">Mute</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-capture" data-slot="3" data-i18n="investigation.captureFrame">Capture</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-dptz" data-slot="3">Digital PTZ</button>
                         </div>
@@ -12319,6 +12532,8 @@
                         <div class="inv-vms-tile-transport" data-slot="4">
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-play" data-slot="4" data-i18n="investigation.playback">Play</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-pause" data-slot="4" hidden data-i18n="investigation.pause">Pause</button>
+                            <button type="button" class="inv-vms-tile-btn inv-vms-tile-stop" data-slot="4" hidden data-i18n="investigation.stop">Stop</button>
+                            <button type="button" class="inv-vms-tile-btn inv-vms-tile-mute" data-slot="4" data-i18n="investigation.mute" title="Mute">Mute</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-capture" data-slot="4" data-i18n="investigation.captureFrame">Capture</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-dptz" data-slot="4">Digital PTZ</button>
                         </div>
@@ -12337,6 +12552,8 @@
                         <div class="inv-vms-tile-transport" data-slot="5">
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-play" data-slot="5" data-i18n="investigation.playback">Play</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-pause" data-slot="5" hidden data-i18n="investigation.pause">Pause</button>
+                            <button type="button" class="inv-vms-tile-btn inv-vms-tile-stop" data-slot="5" hidden data-i18n="investigation.stop">Stop</button>
+                            <button type="button" class="inv-vms-tile-btn inv-vms-tile-mute" data-slot="5" data-i18n="investigation.mute" title="Mute">Mute</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-capture" data-slot="5" data-i18n="investigation.captureFrame">Capture</button>
                             <button type="button" class="inv-vms-tile-btn inv-vms-tile-dptz" data-slot="5">Digital PTZ</button>
                         </div>
@@ -12364,10 +12581,15 @@
                             <div class="inv-vms-control-group">
                                 <button type="button" class="btn-primary" id="inv-vms-sync-play" data-i18n="investigation.playAllSelected">Play All Selected</button>
                                 <button type="button" class="btn-secondary" id="inv-vms-sync-pause" hidden data-i18n="investigation.pauseAllSelected">Pause All Selected</button>
+                                <button type="button" class="btn-secondary" id="inv-vms-sync-stop" data-i18n="investigation.stopAllSelected">Stop All Selected</button>
+                                <button type="button" class="btn-secondary active" id="inv-vms-sync-lock" aria-pressed="true" data-i18n="investigation.syncLockOn">Sync Lock On</button>
+                                <button type="button" class="btn-secondary" id="inv-vms-step-back" title="Step Back 1 Second" data-i18n="investigation.stepBack">−1s</button>
+                                <button type="button" class="btn-secondary" id="inv-vms-step-fwd" title="Step Forward 1 Second" data-i18n="investigation.stepFwd">+1s</button>
                                 <button type="button" class="btn-secondary" id="inv-vms-mark-in" data-i18n="investigation.markIn">Mark In</button>
                                 <button type="button" class="btn-secondary" id="inv-vms-mark-out" data-i18n="investigation.markOut">Mark Out</button>
                                 <button type="button" class="btn-secondary" id="inv-vms-export" data-i18n="investigation.exportEvidence">Export Evidence</button>
                                 <button type="button" class="btn-secondary" id="inv-vms-dptz" data-i18n="investigation.digitalPtz">Digital PTZ</button>
+                                <button type="button" class="btn-secondary" id="inv-vms-events" data-i18n="investigation.eventList">Events</button>
                                 <button type="button" class="btn-secondary" id="inv-vms-capture" data-i18n="investigation.captureFrame">Capture Frame</button>
                             </div>
                         </div>
@@ -12385,18 +12607,65 @@
                             <span class="inv-vms-time-readout" id="inv-vms-time-readout">—</span>
                         </div>
                         <div class="inv-vms-timeline-wrap is-collapsed" id="inv-vms-timeline-wrap">
+                            <div class="inv-vms-timeline-zoom" id="inv-vms-timeline-zoom" role="group" aria-label="Timeline Zoom">
+                                <button type="button" class="btn-secondary inv-vms-zoom-btn" id="inv-vms-pan-left" title="Pan Left">◀</button>
+                                <button type="button" class="btn-secondary inv-vms-zoom-btn" id="inv-vms-zoom-out" title="Zoom Out">−</button>
+                                <span class="inv-vms-zoom-label" id="inv-vms-zoom-label">1×</span>
+                                <button type="button" class="btn-secondary inv-vms-zoom-btn" id="inv-vms-zoom-in" title="Zoom In">+</button>
+                                <button type="button" class="btn-secondary inv-vms-zoom-btn" id="inv-vms-pan-right" title="Pan Right">▶</button>
+                                <button type="button" class="btn-secondary inv-vms-zoom-btn" id="inv-vms-zoom-fit" data-i18n="investigation.timelineZoomFit">Fit</button>
+                                <span class="inv-vms-zoom-hint" data-i18n="investigation.timelinePanHint">Drag to pan · click to seek</span>
+                            </div>
                             <div id="inv-vms-alarm-preview" class="inv-vms-alarm-preview" hidden role="dialog" aria-label="Alarm Event">
-                                <div class="inv-vms-alarm-preview-head">
+                                <div class="inv-vms-alarm-preview-head" id="inv-vms-alarm-preview-drag">
                                     <strong data-i18n="investigation.alarmEvent">Alarm Event</strong>
-                                    <button type="button" class="inv-vms-alarm-preview-close" id="inv-vms-alarm-preview-close" aria-label="Close">×</button>
+                                    <div class="inv-vms-alarm-preview-head-actions">
+                                        <button type="button" class="inv-vms-alarm-preview-min" id="inv-vms-alarm-preview-min" aria-label="Minimize" title="Minimize">−</button>
+                                        <button type="button" class="inv-vms-alarm-preview-close" id="inv-vms-alarm-preview-close" aria-label="Close">×</button>
+                                    </div>
                                 </div>
+                                <div class="inv-vms-alarm-preview-body" id="inv-vms-alarm-preview-body">
                                 <p class="inv-vms-alarm-preview-line" id="inv-vms-alarm-preview-type"></p>
                                 <p class="inv-vms-alarm-preview-line" id="inv-vms-alarm-preview-when"></p>
                                 <p class="inv-vms-alarm-preview-line" id="inv-vms-alarm-preview-cam"></p>
+                                <p class="inv-vms-alarm-preview-id-row" id="inv-vms-alarm-preview-id-row">
+                                    <span class="inv-vms-alarm-preview-line" id="inv-vms-alarm-preview-id">ID · —</span>
+                                    <button type="button" class="btn-secondary inv-vms-alarm-preview-copy" id="inv-vms-alarm-preview-copy" data-i18n="investigation.alarmCopyId">Copy ID</button>
+                                </p>
                                 <p class="inv-vms-alarm-preview-note" id="inv-vms-alarm-preview-note"></p>
                                 <img id="inv-vms-alarm-preview-img" class="inv-vms-alarm-preview-img" alt="" hidden>
                                 <p class="inv-vms-alarm-preview-media" id="inv-vms-alarm-preview-snap"></p>
                                 <p class="inv-vms-alarm-preview-media" id="inv-vms-alarm-preview-rec"></p>
+                                <div class="inv-vms-alarm-preview-actions" id="inv-vms-alarm-preview-actions">
+                                    <button type="button" class="btn-primary inv-vms-alarm-preview-play" id="inv-vms-alarm-preview-play" hidden data-i18n="investigation.alarmPreviewPlay">Play From Alarm</button>
+                                </div>
+                                </div>
+                            </div>
+                            <div id="inv-vms-event-list" class="inv-vms-event-list" hidden role="dialog" aria-label="Events">
+                                <div class="inv-vms-event-list-head" id="inv-vms-event-list-drag">
+                                    <strong data-i18n="investigation.eventListTitle">Events</strong>
+                                    <div class="inv-vms-event-list-head-actions">
+                                        <button type="button" class="inv-vms-event-list-min" id="inv-vms-event-list-min" aria-label="Minimize" title="Minimize">−</button>
+                                        <button type="button" class="inv-vms-event-list-close" id="inv-vms-event-list-close" aria-label="Close">×</button>
+                                    </div>
+                                </div>
+                                <div class="inv-vms-event-list-body" id="inv-vms-event-list-body">
+                                    <div class="inv-vms-event-list-filters">
+                                        <label class="inv-vms-event-list-lab">
+                                            <span data-i18n="investigation.eventListScope">Scope</span>
+                                            <select id="inv-vms-event-list-scope" class="inv-vms-event-list-scope">
+                                                <option value="focus" data-i18n="investigation.eventListScopeFocus">Focus Camera</option>
+                                                <option value="all" data-i18n="investigation.eventListScopeAll">All Loaded</option>
+                                            </select>
+                                        </label>
+                                        <label class="inv-vms-event-list-lab">
+                                            <span data-i18n="investigation.eventListFilter">Type Filter</span>
+                                            <input type="text" id="inv-vms-event-list-filter" class="inv-vms-event-list-filter" maxlength="80" placeholder="SOS, face…" data-i18n-placeholder="investigation.eventListFilterPh" autocomplete="off">
+                                        </label>
+                                    </div>
+                                    <div id="inv-vms-event-list-rows" class="inv-vms-event-list-rows" role="list"></div>
+                                    <p id="inv-vms-event-list-empty" class="inv-vms-event-list-empty" hidden data-i18n="investigation.eventListEmpty">No events for this load.</p>
+                                </div>
                             </div>
                             <canvas id="inv-vms-timeline" aria-label="Recording Timeline" data-i18n-aria="investigation.timelineAria"></canvas>
                         </div>
@@ -12410,7 +12679,7 @@
                 <p class="inv-vms-secure-export-hint" data-i18n="investigation.secureExportHint">Set a password to protect the download package. Keep this password — it is required to open the ZIP.</p>
                 <label class="inv-vms-secure-export-lab">
                     <span data-i18n="investigation.secureExportPassword">Export Password</span>
-                    <input type="password" id="inv-vms-secure-export-pass" class="inv-vms-secure-export-input" autocomplete="new-password" minlength="8" maxlength="128">
+                    <input type="password" oncopy="return false" onpaste="return false" oncut="return false" id="inv-vms-secure-export-pass" class="inv-vms-secure-export-input" autocomplete="new-password" minlength="8" maxlength="128">
                 </label>
                 <p id="inv-vms-secure-export-err" class="inv-vms-secure-export-err" hidden></p>
                 <div class="inv-vms-secure-export-actions">
@@ -12516,16 +12785,21 @@
                         </div>
                     </aside>
                 </div>
+                <div id="vc-lobby-main" class="vc-lobby-main">
+                    <div class="vc-lobby-main-inner enterprise-card">
+                        <h3 data-i18n="conference.lobbyReadyTitle">Ready to Join</h3>
+                        <p data-i18n="conference.lobbyReadyBody">Choose a room, then Join Room. Add body cameras or fixed cameras for command and collaboration.</p>
+                    </div>
+                </div>
                 <div id="vc-stage" class="vc-stage vc-client-v1" hidden>
                     <div class="vc-stage-canvas">
                         <div class="empty-stage-placeholder" hidden>
-                            <svg class="empty-stage-icon" viewBox="0 0 64 64" width="48" height="48" aria-hidden="true">
+                            <svg class="empty-stage-icon" viewBox="0 0 64 64" width="40" height="40" aria-hidden="true">
                                 <rect x="8" y="18" width="36" height="28" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
                                 <path d="M44 28l12-6v20l-12-6z" fill="none" stroke="currentColor" stroke-width="2"/>
-                                <line x1="12" y1="12" x2="52" y2="52" stroke="currentColor" stroke-width="2.5"/>
                             </svg>
-                            <h2 class="empty-stage-title" data-i18n="conference.emptyStageTitle">ROOM ACTIVE</h2>
-                            <p class="empty-stage-body" data-i18n="conference.emptyStageBody">Waiting for participants or BWC streams...</p>
+                            <h2 class="empty-stage-title" data-i18n="conference.emptyStageTitle">Room Active</h2>
+                            <p class="empty-stage-body" data-i18n="conference.emptyStageBody">Waiting for participants or camera streams.</p>
                         </div>
                         <div class="vc-pip-layer" hidden aria-label="Picture in picture"></div>
                         <div class="vc-stage-body layout-speaker vc-mode-split vc-mode-speaker">
@@ -12559,7 +12833,7 @@
                             <button type="button" class="btn btn-ghost btn-sm vc-dock-btn" data-vc-action="document" data-i18n="conference.layoutShareDocument">Share Document</button>
                         </div>
                         <span class="vc-dock-spacer"></span>
-                        <button type="button" class="btn btn-ghost btn-sm vc-stage-mute-all" id="vc-stage-mute-all" hidden data-i18n="conference.muteAll">Mute all</button>
+                        <button type="button" class="btn btn-ghost btn-sm vc-stage-mute-all" id="vc-stage-mute-all" hidden data-i18n="conference.muteAll">Mute Everyone</button>
                         <button type="button" class="btn btn-ghost btn-sm vc-stage-leave" id="vc-stage-leave" data-i18n="conference.leaveRoom">Leave</button>
                         <input type="file" id="vc-share-image-input" accept="image/*" hidden>
                         <input type="file" id="vc-share-video-input" accept="video/*" hidden>
@@ -12585,6 +12859,10 @@
                         <span id="vc-rec-meta" class="hint"></span>
                     </div>
                     <div class="axiom-list-toolbar-right" id="vc-rec-bulk-actions" hidden>
+                        <label class="hint vc-rec-note-wrap" for="vc-rec-officer-note">
+                            <span data-i18n="conference.recOfficerNote">Officer Note</span>
+                            <textarea id="vc-rec-officer-note" class="form-control" rows="2" maxlength="2000" data-i18n-placeholder="conference.recOfficerNotePh" placeholder="Optional note for Evidence / SOS case"></textarea>
+                        </label>
                         <button type="button" class="btn btn-action btn-sm" id="vc-rec-push-evidence">Push to Evidence</button>
                         <button type="button" class="btn btn-danger btn-sm" id="vc-rec-bulk-purge" hidden>Bulk Purge</button>
                     </div>
@@ -14540,6 +14818,7 @@
     <script src="/js/dashboard-ws-url.js?v=20260723-wss-video-audio-sockets-v1"></script>
     <script src="/js/i18n.js?v=20260723-reverse-proxy-ui-polish-v1"></script>
     <script src="/js/ui-formatter.js?v=20260821-tag-dict-v1"></script>
+    <script src="/js/axiom-datetime.js?v=20260831-centre-unify-v1"></script>
     <script src="/js/session-bus.js?v=20260702-settings-session-sync"></script>
     <script src="/js/license-entitlements-ui.js?v=20260826-license-banner-copy-v1"></script>
     <script src="/js/mobility-map-gis.js?v=20260815-geo-tools-bar-v1"></script>
@@ -14556,7 +14835,7 @@
     <script defer src="/js/settings-storage.js?v=20260828-consolidation-v1"></script>
     <script src="/js/help-about.js?v=20260723-help-about-center-v1"></script>
     <script src="/js/platform-smtp.js?v=20260706-smtp-settings"></script>
-    <script src="/js/settings-hub.js?v=20260819-date-dmy-v1"></script>
+    <script src="/js/settings-hub.js?v=20260831-centre-unify-v1"></script>
     <script src="/js/live-viewer-telemetry.js?v=20260709-live-viewer-telemetry"></script>
     <script src="/js/tech-diagnostics.js?v=20260821-patch-verify-v2"></script>
     <script src="/js/usb-maintenance.js?v=20260609-usb2"></script>
@@ -14576,33 +14855,33 @@
     <script src="/js/anpr-plate-cropper.js?v=20260729-anpr-snapshot-v1"></script>
     <script src="/js/hq-alert-audio.js?v=20260810-hq-alert-custom-tone-files-v1"></script>
     <script src="/js/analytic-toast-drag.js?v=20260811-analytic-toast-draggable-v1"></script>
-    <script src="/js/fr-alarm.js?v=20260824-fr-unmute80-field-tone-v1"></script>
+    <script src="/js/fr-alarm.js?v=20260901-analytics-sos-pattern-v1"></script>
     <script src="/js/anpr-live-watch.js?v=20260825-operator-voice-v1"></script>
     <script src="/js/anpr-offline-match.js?v=20260818-offline-link-v1"></script>
     <script src="/js/anpr-image-investigation.js?v=20260818-offline-link-v1"></script>
     <script src="/js/anpr-history.js?v=20260801-anpr-history-v1"></script>
     <script src="/js/weapon-live-watch.js?v=20260811-wd-tile-expand-v1"></script>
     <script src="/js/weapon-alarm.js?v=20260816-cases-unify-v1"></script>
-    <script src="/js/analytics-hub.js?v=20260825-ascii-safe-v1"></script>
+    <script src="/js/analytics-hub.js?v=20260901-ai-dismiss-stop-v1"></script>
     <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/operator-ui.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/ev-context-rail.js?v=20260817-path-mask-rt-grid-v1"></script>
     <script src="/js/evidence-storage-ui.js?v=20260816-storage-path-redact-v1"></script>
     <script src="/js/route-trace.js?v=20260827-media-tools-v1"></script>
-    <script src="/js/case-files-ui.js?v=20260819-date-dmy-v1"></script>
+    <script src="/js/case-files-ui.js?v=20260901-sos-sa-handoff-v1"></script>
     <script src="/js/evidence-delete-queue-ui.js?v=20260826-evidence-lifecycle-v1"></script>
     <script src="/js/evidence-retention-ui.js?v=20260826-evidence-lifecycle-v1"></script>
     <script src="/js/fr-kept-ui.js?v=20260819-date-dmy-v1"></script>
     <script src="/js/dock-identity-setup.js?v=20260816-settings-pillars-v1"></script>
     <script src="/js/ftp-inbox-ui.js?v=20260819-date-dmy-v1"></script>
-    <script src="/js/evidence-hub.js?v=20260827-omnibus-v2"></script>
-    <script src="/js/system-health-plain.js?v=20260830-heartbeat-v12"></script>
+    <script src="/js/evidence-hub.js?v=20260901-ptt-audio-v1"></script>
+    <script src="/js/system-health-plain.js?v=20260901-auto-login-v1"></script>
     <script src="/js/missed-activity.js?v=20260824-ma-nudge-click-copy-v1"></script>
     <script src="/js/evidence-manager.js?v=20260828-inv-nav-click-v1"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260824-fr-unmute80-field-tone-v1"></script>
+    <script src="/js/video-wall.js?v=20260902-sos-helper-shut-wall-and-pin-v1"></script>
     <script src="/js/video-matrix.js?v=20260721-ops10-v1"></script>
-    <script src="/js/global.js?v=20260830-heartbeat-v13"></script>
+    <script src="/js/global.js?v=20260901-auto-login-v1"></script>
     <script src="/js/global-device-presence.js?v=20260801-global-presence-v1"></script>
     <script src="/js/fleet-ui.js?v=20260816-map-state-user-v1"></script>
     <script src="/js/map-popout-sync.js?v=20260612-mirror"></script>
@@ -15045,8 +15324,10 @@
         var sosResponseCircleRing = null;
         var sosResponseRadiusLabel = null;
         var sosResponseNearby = [];
+        var sosResponseFixed = [];
         var mapPositionsCache = [];
-        var SOS_RESPONSE_MAX = 10;
+        var SOS_RESPONSE_MAX = 8; /* SOS-LIVE-8-OVERRIDE-V1 — BWC pack incl. alarm */
+        var SOS_IP_LIVE_MAX = 2; /* SOS-IP-WALL-OVERRIDE-V1 — live wall slots 9–10 */
         var SOS_RESPONSE_RADIUS_DEFAULT = 500;
         var SOS_RESPONSE_RADIUS_OPTIONS = [200, 300, 400, 500, 1000];
         var MAP_PIN_COLORS = [
@@ -19824,7 +20105,7 @@
         var pendingSosAck = null;
         var activeSosAlarms = {};
         var focusedSosCamId = null;
-        var sosQueueSnapshot = { active: [], queued: [], pending: [], maxLive: 6 };
+        var sosQueueSnapshot = { active: [], queued: [], pending: [], maxLive: 8 };
         var sosGroupCallState = { active: false, phase: 'idle', participants: [] };
 
         function getSosAlarmCount() {
@@ -20414,11 +20695,13 @@
             var el = document.getElementById('sos-response-summary');
             if (!el) {
                 syncSosPttMemberUi();
+                renderSosPttTeamChips();
                 return;
             }
             if (!active) {
                 el.classList.remove('sos-ptt-team-active');
                 syncSosPttMemberUi();
+                renderSosPttTeamChips();
                 return;
             }
             var labels = sosPttTeamFriendlyNames(team).join(', ');
@@ -20426,6 +20709,7 @@
             el.textContent = 'PTT team ON \u2014 ' + team.length + ' unit(s): ' + labels
                 + '. Hold PTT on map pin or wall until you close SOS.';
             syncSosPttMemberUi();
+            renderSosPttTeamChips();
         }
 
         function sosPttTeamSizeNow() {
@@ -20504,6 +20788,96 @@
             return out;
         }
 
+        function renderSosPttTeamChips() {
+            var el = document.getElementById('sos-ptt-team-chips');
+            if (!el) return;
+            var team = global.activeSosPttTeam;
+            var alarm = getFocusedSosAlarm() || pendingSosAck;
+            var alarmId = alarm && alarm.cameraId ? normalizeCamId(alarm.cameraId) : '';
+            if (!Array.isArray(team) || team.length < 2) {
+                el.hidden = true;
+                el.innerHTML = '';
+                return;
+            }
+            el.hidden = false;
+            el.innerHTML = team.map(function (rawId) {
+                var id = normalizeCamId(rawId);
+                var name = id;
+                if (typeof FleetDisplay !== 'undefined' && FleetDisplay.friendlyDeviceName) {
+                    name = FleetDisplay.friendlyDeviceName(id) || id;
+                }
+                var isAlarm = id === alarmId;
+                var cid = String(id).replace(/"/g, '&quot;');
+                var removeBtn = isAlarm
+                    ? ''
+                    : ('<button type="button" class="sos-ptt-team-chip-remove" data-cam-id="'
+                        + cid + '" title="Remove from team" aria-label="Remove from team">\u2212</button>');
+                return '<span class="sos-ptt-team-chip' + (isAlarm ? ' is-alarm' : '') + '">'
+                    + escapePinText(name) + (isAlarm ? ' (SOS)' : '') + removeBtn + '</span>';
+            }).join('');
+            el.querySelectorAll('.sos-ptt-team-chip-remove').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    removeSosPttHelper(btn.getAttribute('data-cam-id'));
+                });
+            });
+        }
+
+        function removeSosPttHelper(helperCamId) {
+            helperCamId = normalizeCamId(helperCamId);
+            var alarm = getFocusedSosAlarm() || pendingSosAck;
+            if (!alarm || !alarm.cameraId) {
+                alert('No active SOS alarm.');
+                return;
+            }
+            if (helperCamId === normalizeCamId(alarm.cameraId)) {
+                alert('Cannot remove the SOS officer from the team.');
+                return;
+            }
+            var team = Array.isArray(global.activeSosPttTeam) ? global.activeSosPttTeam.slice() : [];
+            if (team.indexOf(helperCamId) < 0) {
+                alert('That unit is not on the PTT team.');
+                return;
+            }
+            var rmName = (typeof FleetDisplay !== 'undefined' && FleetDisplay.friendlyDeviceName)
+                ? FleetDisplay.friendlyDeviceName(helperCamId) : helperCamId;
+            showSosPttTeamToast('Removing ' + rmName + ' from team\u2026', 8000);
+            fetch('/api/sos-ptt-team-remove', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cameraId: alarm.cameraId,
+                    removeCamId: helperCamId,
+                    existingTeam: team,
+                }),
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (applySosPttTeamResult(data, { silentToast: true })) {
+                        showSosPttTeamToast('Removed ' + rmName
+                            + ' \u2014 live stopped; SD Record clears in ~6s.', 12000);
+                        /* SOS-HELPER-REMOVE-SHUT-LIVE-V1 — pin + wall stop for helper only. */
+                        try {
+                            if (global.VideoWall && typeof VideoWall.shutSosHelperLive === 'function') {
+                                VideoWall.shutSosHelperLive(helperCamId);
+                            }
+                            if (typeof FleetUi !== 'undefined' && FleetUi.togglePinSelect) {
+                                FleetUi.togglePinSelect(helperCamId, false);
+                            }
+                        } catch (_) { /* never break remove */ }
+                    } else {
+                        showSosPttTeamToast((data && data.error) || 'Remove failed.', 8000);
+                        alert((data && data.error) || 'Remove from PTT failed.');
+                        renderSosPttTeamChips();
+                    }
+                })
+                .catch(function () {
+                    showSosPttTeamToast('Remove failed.', 8000);
+                    alert('Remove from PTT failed.');
+                    renderSosPttTeamChips();
+                });
+        }
+        window.removeSosPttHelper = removeSosPttHelper;
+
         function renderSosPttMemberList() {
             var list = document.getElementById('sos-ptt-add-list');
             if (!list) return;
@@ -20571,6 +20945,7 @@
                 showSosPttTeamToast('PTT team ON \u2014 ' + names + ' (' + data.pttTeam.team.length + ' units). Hold PTT to talk.', 14000);
             }
             renderSosPttMemberList();
+            renderSosPttTeamChips();
             return true;
         }
 
@@ -20618,6 +20993,23 @@
                             showSosPttTeamToast('Added ' + addName + ' \u2014 team now '
                                 + data.pttTeam.team.length + ' unit(s).', 12000);
                         }
+                        /* SOS-STOPRECORD-AND-HELPER-LIVE-V1 — +team → pin + wall (any cam). */
+                        try {
+                            var pack = (data.pttTeam && Array.isArray(data.pttTeam.team))
+                                ? data.pttTeam.team.slice()
+                                : [alarm.cameraId, helperCamId];
+                            pack = pack.map(function (id) { return normalizeCamId(id); }).filter(Boolean);
+                            if (typeof FleetUi !== 'undefined' && FleetUi.openBatchLivePins) {
+                                FleetUi.openBatchLivePins(pack);
+                            } else if (global.VideoWall && typeof VideoWall.openAllLivePins === 'function') {
+                                pack.forEach(function (id) {
+                                    if (typeof global.syncMapPinForCam === 'function') {
+                                        global.syncMapPinForCam(id, { openPopup: true });
+                                    }
+                                });
+                                VideoWall.openAllLivePins(pack);
+                            }
+                        } catch (_) { /* never break add */ }
                     } else {
                         showSosPttTeamToast((data && data.error) || 'Add to PTT failed.', 8000);
                         alert((data && data.error) || 'Add to PTT failed.');
@@ -20755,7 +21147,55 @@
         function refreshSosResponseTeam() {
             if (!sosIncidentActive || !pendingSosAck) return;
             var radiusM = getSosResponseRadiusM();
+            var alarmCamId = pendingSosAck && pendingSosAck.cameraId ? normalizeCamId(pendingSosAck.cameraId) : '';
+            /* SOS-CROSS-TEAM-NEAR-HELP-V1 — same server all teams; not other installs */
+            if (alarmCamId) {
+                fetch('/api/sos/nearby-helpers?cameraId=' + encodeURIComponent(alarmCamId)
+                    + '&radiusM=' + encodeURIComponent(String(radiusM)))
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!sosIncidentActive || !pendingSosAck) return;
+                        if (data && data.ok && Array.isArray(data.helpers)) {
+                            sosResponseNearby = data.helpers.map(function (d) {
+                                return {
+                                    cameraId: normalizeCamId(d.cameraId),
+                                    distanceM: d.distanceM,
+                                    name: d.name || d.cameraId,
+                                    online: d.online !== false,
+                                    crossTeam: true,
+                                };
+                            });
+                        } else {
+                            sosResponseNearby = computeSosNearby(radiusM);
+                        }
+                        sosResponseFixed = (data && data.ok && Array.isArray(data.fixedCameras))
+                            ? data.fixedCameras.map(function (c) {
+                                return {
+                                    cameraId: String(c.cameraId || '').trim(),
+                                    distanceM: c.distanceM,
+                                    name: c.name || c.cameraId,
+                                    type: c.type || (c.ptzEnabled ? 'PTZ' : 'Fixed'),
+                                };
+                            }).filter(function (c) { return c.cameraId; })
+                            : [];
+                        updateSosResponseSummary();
+                        syncSosResponseCircleGeometry();
+                        if (document.getElementById('sos-ack-backdrop')
+                            && !document.getElementById('sos-ack-backdrop').hidden) {
+                            renderSosAckHelpers(alarmCamId);
+                            renderSosAckFixed();
+                        }
+                    })
+                    .catch(function () {
+                        sosResponseNearby = computeSosNearby(radiusM);
+                        sosResponseFixed = [];
+                        updateSosResponseSummary();
+                        syncSosResponseCircleGeometry();
+                    });
+                return;
+            }
             sosResponseNearby = computeSosNearby(radiusM);
+            sosResponseFixed = [];
             updateSosResponseSummary();
             syncSosResponseCircleGeometry();
         }
@@ -20815,7 +21255,10 @@
         }
 
         function clearSosResponseCircle(clearNearby) {
-            if (clearNearby !== false) sosResponseNearby = [];
+            if (clearNearby !== false) {
+                sosResponseNearby = [];
+                sosResponseFixed = [];
+            }
             if (sosResponseCircle) {
                 try { map.removeLayer(sosResponseCircle); } catch (_) { /* ignore */ }
                 sosResponseCircle = null;
@@ -20923,6 +21366,13 @@
                     incidentId: data.incidentId || null,
                     alarmKind: data.alarmKind === 'fall' ? 'fall' : 'sos',
                 });
+                /* INV-SOS-PIN-AND-GAP-HONESTY-V1 — Investigation red pin refresh if open */
+                try {
+                    if (window.VmsInvestigationTimeline &&
+                        typeof window.VmsInvestigationTimeline.onSosAlarm === 'function') {
+                        window.VmsInvestigationTimeline.onSosAlarm(data);
+                    }
+                } catch (_) { /* ignore */ }
                 if (!focusedSosCamId || data.startVideo) focusedSosCamId = camId;
                 sosIncidentActive = getSosAlarmCount() > 0;
                 activeAlarmKind = activeSosAlarms[camId].alarmKind || 'sos';
@@ -21630,7 +22080,6 @@
             var listEl = document.getElementById('sos-ack-helpers');
             var emptyEl = document.getElementById('sos-ack-helpers-empty');
             if (!listEl) return;
-            refreshSosResponseTeam();
             var helpers = sosResponseNearby.slice();
             if (!helpers.length) {
                 listEl.innerHTML = '';
@@ -21640,14 +22089,57 @@
             }
             if (emptyEl) emptyEl.hidden = true;
             listEl.hidden = false;
+            /* Auto-check nearest online helpers so alarm+helpers <= SOS_RESPONSE_MAX (8). Operator may override. */
+            var autoLeft = Math.max(0, SOS_RESPONSE_MAX - 1);
             listEl.innerHTML = helpers.map(function (d) {
                 var distLabel = dashboardTr('sos.response.distanceM', { m: d.distanceM });
+                var auto = d.online !== false && autoLeft > 0;
+                if (auto) autoLeft -= 1;
                 return '<label class="sos-ack-helper-row">' +
-                    '<input type="checkbox" value="' + String(d.cameraId).replace(/"/g, '&quot;') + '" checked>' +
+                    '<input type="checkbox" value="' + String(d.cameraId).replace(/"/g, '&quot;') + '"' + (auto ? ' checked' : '') + '>' +
                     '<span class="sos-ack-helper-name">' + String(d.name).replace(/</g, '&lt;') +
                     ' <span class="sos-ack-helper-dist">(' + distLabel + ')</span></span>' +
                     '</label>';
             }).join('');
+        }
+
+        /* SOS-IP-WALL-OVERRIDE-V1 — ≤4 interest list; max 2 checked for live wall. */
+        function renderSosAckFixed() {
+            var wrap = document.getElementById('sos-ack-fixed-wrap');
+            var listEl = document.getElementById('sos-ack-fixed');
+            var emptyEl = document.getElementById('sos-ack-fixed-empty');
+            if (!wrap || !listEl) return;
+            var cams = (sosResponseFixed || []).slice(0, 4);
+            if (!cams.length) {
+                listEl.innerHTML = '';
+                wrap.hidden = true;
+                if (emptyEl) emptyEl.hidden = true;
+                return;
+            }
+            wrap.hidden = false;
+            if (emptyEl) emptyEl.hidden = true;
+            var autoLeft = SOS_IP_LIVE_MAX;
+            listEl.innerHTML = cams.map(function (c) {
+                var distLabel = dashboardTr('sos.response.distanceM', { m: c.distanceM });
+                var typeLabel = c.type ? String(c.type) : 'Fixed';
+                var auto = autoLeft > 0;
+                if (auto) autoLeft -= 1;
+                return '<label class="sos-ack-helper-row">' +
+                    '<input type="checkbox" class="sos-ack-fixed-cb" value="'
+                    + String(c.cameraId).replace(/"/g, '&quot;') + '"' + (auto ? ' checked' : '') + '>' +
+                    '<span class="sos-ack-helper-name">' + String(c.name).replace(/</g, '&lt;')
+                    + ' <span class="sos-ack-helper-dist">(' + typeLabel + ' · ' + distLabel + ')</span></span>' +
+                    '</label>';
+            }).join('');
+            if (!listEl._sosIpCapBound) {
+                listEl._sosIpCapBound = true;
+                listEl.addEventListener('change', function (ev) {
+                    var t = ev && ev.target;
+                    if (!t || t.type !== 'checkbox' || !t.checked) return;
+                    var checked = listEl.querySelectorAll('input.sos-ack-fixed-cb:checked');
+                    if (checked.length > SOS_IP_LIVE_MAX) t.checked = false;
+                });
+            }
         }
 
         function selectedSosAckHelpers() {
@@ -21655,8 +22147,30 @@
             if (!listEl) return [];
             return Array.prototype.slice.call(listEl.querySelectorAll('input[type=checkbox]:checked'))
                 .map(function (cb) { return cb.value; })
-                .filter(Boolean);
+                .filter(Boolean)
+                .slice(0, Math.max(0, SOS_RESPONSE_MAX - 1));
         }
+
+        function selectedSosAckFixedLive() {
+            var listEl = document.getElementById('sos-ack-fixed');
+            if (!listEl) return [];
+            return Array.prototype.slice.call(listEl.querySelectorAll('input.sos-ack-fixed-cb:checked'))
+                .map(function (cb) { return String(cb.value || '').trim(); })
+                .filter(Boolean)
+                .slice(0, SOS_IP_LIVE_MAX);
+        }
+
+        function openSosLivePackAfterAck(alarmCamId, helperCamIds, fixedLiveIds) {
+            /* SOS-COLD-ACK-NO-HELPER-REARM-V1 — ACK must not reopen BWC pin/wall pack.
+               Fixed/IP slots only when operator selected them. */
+            try {
+                var fixedIds = (fixedLiveIds || selectedSosAckFixedLive()).slice(0, SOS_IP_LIVE_MAX);
+                if (fixedIds.length && global.VideoWall && typeof VideoWall.openSosIpLiveSlots === 'function') {
+                    VideoWall.openSosIpLiveSlots(fixedIds);
+                }
+            } catch (_) { /* never break ack */ }
+        }
+
 
         function stashSosAckSnapshot(camId) {
             if (!camId) return;
@@ -21685,7 +22199,9 @@
             else document.getElementById('sos-ack-cam').innerText = camId;
             document.getElementById('sos-ack-time').innerText = time;
             document.getElementById('sos-ack-note').value = '';
+            refreshSosResponseTeam();
             renderSosAckHelpers(camId);
+            renderSosAckFixed();
             document.getElementById('sos-ack-backdrop').hidden = false;
             updateSosAckCapturePreview(camId);
             stashSosAckSnapshot(camId);
@@ -21938,6 +22454,7 @@
                 note: note,
                 helperCamIds: selectedSosAckHelpers(),
             };
+            var fixedLiveIds = selectedSosAckFixedLive();
             var includeSnapEl = document.getElementById('sos-ack-include-snap');
             var includeSnap = !!(includeSnapEl && includeSnapEl.checked && !includeSnapEl.disabled);
 
@@ -21972,6 +22489,12 @@
                         .then(function (r) { return r.json(); })
                         .then(function (data) {
                             refreshSosLedger();
+                            if (data && data.ok) {
+                                var liveHelpers = (data.pttTeam && data.pttTeam.team)
+                                    ? data.pttTeam.team
+                                    : ([camId].concat(payload.helperCamIds || []));
+                                openSosLivePackAfterAck(camId, liveHelpers, fixedLiveIds);
+                            }
                             if (data && data.ok && data.endedGroupCall) {
                                 showSosPttTeamToast(
                                     'SOS group call ended \u2014 HQ PTT / Call ready.',
@@ -22024,6 +22547,7 @@
         function formatLedgerTime(iso) {
             if (!iso) return '';
             try {
+                if (typeof fmtDateTime === 'function') return fmtDateTime(iso);
                 return new Date(iso).toLocaleString();
             } catch (_) {
                 return iso;
@@ -22538,6 +23062,74 @@
         if (pttGroupTalkHold && global.VideoWall && VideoWall.bindDispatchGroupPttHold) {
             VideoWall.bindDispatchGroupPttHold(pttGroupTalkHold);
         }
+        /* PTT-GROUP-MANUAL-RECORD-V1 */
+        (function bindPttGroupManualRecord() {
+            var recBtn = document.getElementById('ptt-group-record-evidence');
+            if (!recBtn || recBtn._pttManualRecBound) return;
+            recBtn._pttManualRecBound = true;
+            function resolveManualRecCams() {
+                if (Array.isArray(global.activeSosPttTeam) && global.activeSosPttTeam.length) {
+                    return global.activeSosPttTeam.map(String).filter(Boolean);
+                }
+                if (Array.isArray(global.activeDispatchPttTeam) && global.activeDispatchPttTeam.length) {
+                    return global.activeDispatchPttTeam.map(String).filter(Boolean);
+                }
+                return [];
+            }
+            function applyManualRecUi(snap) {
+                global.__pttManualRecordActive = !!(snap && snap.active);
+                if (global.VideoWall && VideoWall.syncAllPttUi) VideoWall.syncAllPttUi();
+                else if (typeof syncDispatchGroupTalkChrome === 'function') syncDispatchGroupTalkChrome();
+            }
+            recBtn.addEventListener('click', function () {
+                var armed = !!global.__pttManualRecordActive;
+                if (armed) {
+                    fetch('/api/ptt/manual-record', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'stop' }),
+                    }).then(function (r) { return r.json(); }).then(function (data) {
+                        applyManualRecUi(data && data.manualRecord);
+                        var st = document.getElementById('ptt-group-status');
+                        if (st) st.textContent = dashboardTr('ptt.groupBox.recordEvidenceStopped');
+                    }).catch(function () { /* ignore */ });
+                    return;
+                }
+                var cams = resolveManualRecCams();
+                if (cams.length < 1) {
+                    alert(dashboardTr('ptt.groupBox.recordEvidenceNeedTeam'));
+                    return;
+                }
+                fetch('/api/ptt/manual-record', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'start', camIds: cams }),
+                }).then(function (r) { return r.json(); }).then(function (data) {
+                    if (!data || !data.ok) {
+                        alert((data && data.error) || dashboardTr('errors.generic'));
+                        return;
+                    }
+                    applyManualRecUi(data.manualRecord);
+                    var st = document.getElementById('ptt-group-status');
+                    if (st) st.textContent = dashboardTr('ptt.groupBox.recordEvidenceArmed');
+                }).catch(function () {
+                    alert(dashboardTr('errors.generic'));
+                });
+            });
+            if (socket && !socket.__pttManualRecBound) {
+                socket.__pttManualRecBound = true;
+                socket.on('ptt-manual-record-state', function (snap) {
+                    applyManualRecUi(snap);
+                });
+            }
+            fetch('/api/ptt/manual-record', { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.ok) applyManualRecUi(data.manualRecord);
+                }).catch(function () { /* ignore */ });
+        })();
         syncDispatchGroupTalkChrome();
         bindCallGroupMemberClicks();
         var callGroupJoinBtn = document.getElementById('call-group-join');
@@ -23040,12 +23632,12 @@
             });
         })();
     </script>
-    <script defer src="/js/vc-lazy.js?v=20260814-vc-recordings-list-v1"></script>
+    <script defer src="/js/vc-lazy.js?v=20260901-vc-focus-ptz-v1"></script>
     <script defer src="/js/fixed-cams-ui.js?v=20260821-fc-layout-fix-v2"></script>
     <script defer src="/js/settings-nvr.js?v=20260828-consolidation-v1"></script>
     <script defer src="/js/vms-sos-payload.js?v=20260825-sos-site-ack-a3-v1"></script>
     <script defer src="/js/vms-command-shell.js?v=20260825-operator-voice-v1"></script>
-    <script defer src="/js/vms-investigation-ui.js?v=20260830-strict-id-v13"></script>
+    <script defer src="/js/vms-investigation-ui.js?v=20260902-inv-sync-eof-stop-yellow-v1"></script>
     <script defer src="/js/vms-spatial-floorplan.js?v=20260825-operator-voice-v1"></script>
 
 <!-- Fixed Cameras dialog &mdash; opens from Settings card, fully self-contained, no fleet-ui.js dependency -->

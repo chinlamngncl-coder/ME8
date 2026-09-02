@@ -17,7 +17,8 @@
 
     function blockPassClipboard(e) {
         var t = e.target;
-        if (!t || t.id !== 'login-pass') return;
+        if (!t) return;
+        if (t.id !== 'login-pass' && t.id !== 'login-user') return;
         e.preventDefault();
         return false;
     }
@@ -108,6 +109,10 @@
     }
 
     function redirectAfterLogin(data) {
+        try {
+            localStorage.removeItem('ax_force_relogin');
+            sessionStorage.removeItem('ax_server_dead_recovery');
+        } catch (e) { /* ignore */ }
         if (data && data.mustChangePassword) {
             window.location.replace('/must-change-password.html');
         } else if (data && data.mustEnrollTotp) {

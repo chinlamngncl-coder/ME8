@@ -729,13 +729,16 @@
         const row = document.getElementById('ptt-group-talk-row');
         const hint = document.getElementById('ptt-group-talk-hint');
         const btn = document.getElementById('ptt-group-talk-hold');
+        const recBtn = document.getElementById('ptt-group-record-evidence');
         const activeNet = dispatchGroupNetActive();
-        if (row) row.hidden = !activeNet;
+        const sosTeam = Array.isArray(global.activeSosPttTeam) && global.activeSosPttTeam.length > 1;
+        const showRow = !!(activeNet || sosTeam);
+        if (row) row.hidden = !showRow;
         if (hint) hint.hidden = !activeNet;
         if (!btn) return;
         const talking = !!(pttHolding && pttTalkCamIds && pttTalkCamIds.length > 1);
         btn.classList.toggle('active', talking);
-        btn.disabled = !activeNet || !pttEnabled
+        btn.disabled = !showRow || !pttEnabled
             || (pttHolding && !talking)
             || false;
         btn.setAttribute('aria-pressed', talking ? 'true' : 'false');
@@ -743,6 +746,15 @@
             btn.title = tr('ptt.groupTalking', { n: pttTalkCamIds.length });
         } else {
             btn.title = tr('ptt.groupBox.holdTalk');
+        }
+        if (recBtn) {
+            const armed = !!(global.__pttManualRecordActive);
+            recBtn.classList.toggle('active', armed);
+            recBtn.setAttribute('aria-pressed', armed ? 'true' : 'false');
+            recBtn.disabled = !showRow;
+            recBtn.textContent = armed
+                ? tr('ptt.groupBox.recordEvidenceOn')
+                : tr('ptt.groupBox.recordEvidence');
         }
     }
 
@@ -2649,12 +2661,22 @@
         return existing ? findSlotIndex(existing) : 0;
     }
 
-    function reserveWallSlotForCam(camId) {
-        let idx = findWallSlotForCam(camId);
-        if (idx == null || idx < 0 || idx >= PIN_SLOT_COUNT) idx = freeWallSlotForCam(camId);
-        if (idx == null || idx < 0) return null;
-        pendingWallSlots[idx] = camId;
-        return idx;
+    /**
+     * SOS-OPS-PIN-WALL-TAKEOVER-V1 — pin/wall claim: free slot, else steal like FR blacklist
+     * (prefer unpinned / non-alarm). Pin still mirrors wall; no second decode.
+     * opts.out: optional { stole, victim } filled when stealing.
+     */
+    function reserveWallSlotForCam(camId, opts) {
+        opts = opts || {};
+        const pick = pickFrBlacklistWallSlot(camId);
+        if (pick.slot == null || pick.slot < 0) return null;
+        pendingWallSlots[pick.slot] = camId;
+        if (opts.out) {
+            opts.out.stole = !!pick.stole;
+            opts.out.victim = pick.victim || null;
+            opts.out.reused = !!pick.reused;
+        }
+        return pick.slot;
     }
 
     function releaseWallSlot(slotIndex, camId) {
@@ -4019,7 +4041,8 @@ function handoffPlayerAttaching(player) {
                 if (openSlot != null && openSlot !== slotIndex) {
                     return assignCamToSlot(camId, openSlot, opts);
                 }
-                if (!(opts && opts.alarm && occupant === camId)) return;
+                /* SOS-OPS-PIN-WALL-TAKEOVER-V1 — pin/user steal may replace Open All occupant */
+                if (!(opts && (opts.forceReassign || opts.userPlay || (opts.alarm && occupant === camId)))) return;
             }
         }
         const allowOffline = !!(opts && (opts.alarm || opts.forceInvite));
@@ -4369,6 +4392,27 @@ function handoffPlayerAttaching(player) {
             else updateMapPinStopButton(id);
         });
         return ids;
+    }
+
+    /* SOS-IP-WALL-OVERRIDE-V1 — up to 2 fixed/IP on wall slots 8–9 (BWC Open All uses 0–7). */
+    function openSosIpLiveSlots(fixedSourceIds) {
+        const maxIp = Math.max(0, SLOT_COUNT - PIN_SLOT_COUNT);
+        const ids = (fixedSourceIds || []).map(function (id) {
+            const raw = String(id || '').trim();
+            if (!raw) return '';
+            return isFixedCameraSourceId(raw) ? raw : ('fixed:' + raw.replace(/^fixed:/, ''));
+        }).filter(Boolean).slice(0, maxIp);
+        if (!ids.length) return;
+        const slots = getSlots();
+        for (let i = 0; i < ids.length; i += 1) {
+            const slotIndex = PIN_SLOT_COUNT + i;
+            const slotEl = slots[slotIndex];
+            if (!slotEl) continue;
+            pauseRotationForSlots([slotIndex]);
+            pendingWallSlots[slotIndex] = ids[i];
+            slotEl.dataset.camId = ids[i];
+            playFixedCameraOnSlot(slotEl, ids[i]);
+        }
     }
 
     async function playFixedCameraOnSlot(slotEl, sourceId) {
@@ -4778,11 +4822,13 @@ function handoffPlayerAttaching(player) {
         element.style.padding = '0';
         element.classList.remove('vid-box-live');
         if (isWallPlayingCam(camId)) {
+            const claimMeta = {};
             const wallSlot = (forcedWallSlot != null && forcedWallSlot >= 0)
                 ? forcedWallSlot
                 : (function () {
-                    const onWall = findWallSlotForCam(camId);
-                    return (onWall != null && onWall >= 0) ? onWall : reserveWallSlotForCam(camId);
+                    const onWall = findSlotByCamId(camId);
+                    if (onWall) return findSlotIndex(onWall);
+                    return reserveWallSlotForCam(camId, { out: claimMeta });
                 }());
             if (wallHasPlayerForCam(camId)) {
                 attachMapPopupPlayer(camId, element);
@@ -4793,7 +4839,10 @@ function handoffPlayerAttaching(player) {
             if (wallSlot != null && wallSlot >= 0 && !wallSlotHasLivePlayer(wallSlot, camId)) {
                 pendingWallSlots[wallSlot] = camId;
                 assignCamToSlot(camId, wallSlot, {
-                    skipInvite: true,
+                    skipInvite: !claimMeta.stole,
+                    forceInvite: !!claimMeta.stole,
+                    forceReassign: !!claimMeta.stole,
+                    userPlay: true,
                     keepAlarm: true,
                     wallSlotReserved: true,
                     alarm: wallAlarm,
@@ -4806,21 +4855,23 @@ function handoffPlayerAttaching(player) {
         }
         if (guardFieldPttCommInsteadOfPinAutoPlay(camId, 0, opts)) return;
         requestStreamForCam(camId, !!opts.forceLive);
-        // mob-play-on-map-popup-wall-claim: always claim a wall slot (Firmware Gold).
-        // Optional freeWallSlotForCam skip left opsWallClaimsCam false during colocated
-        // popupclose \u2192 releaseServerStreamIfIdle \u2192 stop-video \u2192 pool kill.
+        // SOS-OPS-PIN-WALL-TAKEOVER-V1 — claim/steal pin-capable wall slot; pin mirrors wall.
+        const claimMeta = {};
         const slotIndex = (forcedWallSlot != null && forcedWallSlot >= 0)
             ? forcedWallSlot
-            : reserveWallSlotForCam(camId);
+            : reserveWallSlotForCam(camId, { out: claimMeta });
+        if (slotIndex == null || slotIndex < 0) {
+            attachMapPopupPlayer(camId, element);
+            updateMapPinStopButton(camId);
+            return;
+        }
         pendingWallSlots[slotIndex] = camId;
-        const forceWallInvite = !!(opts.forceLive && !wvpVideoHandoffUi);
-        assignCamToSlot(camId, slotIndex, forceWallInvite ? {
-            forceInvite: true,
-            keepAlarm: true,
-            wallSlotReserved: true,
-            alarm: wallAlarm,
-        } : {
-            skipInvite: true,
+        const forceWallInvite = !!(opts.forceLive && !wvpVideoHandoffUi) || !!claimMeta.stole;
+        assignCamToSlot(camId, slotIndex, {
+            forceInvite: forceWallInvite,
+            skipInvite: !forceWallInvite,
+            forceReassign: !!claimMeta.stole,
+            userPlay: true,
             keepAlarm: true,
             wallSlotReserved: true,
             alarm: wallAlarm,
@@ -4976,6 +5027,45 @@ function handoffPlayerAttaching(player) {
         }
         if (typeof global.refreshOpenPinPopups === 'function') {
             setTimeout(function () { global.refreshOpenPinPopups(); }, 50);
+        }
+    }
+
+    /**
+     * SOS-HELPER-REMOVE-SHUT-LIVE-V1 — − helper: stop that cam pin + wall only.
+     * Never touches the SOS presser. Server StopRecord stays on unpick API.
+     * SOS-HELPER-SHUT-WALL-AND-PIN-V1 — Open All / wall: stopSlot then still clear pin
+     * (do not return early — that left pin live).
+     */
+    function shutSosHelperLive(camId) {
+        camId = String(camId || '').trim();
+        if (!camId) return;
+        var sosCam = typeof global.getSosCamId === 'function' ? global.getSosCamId() : null;
+        if (sosCam && String(sosCam).trim() === camId) return;
+        try {
+            if (typeof global.markPinVideoUserStop === 'function') {
+                global.markPinVideoUserStop(camId);
+            }
+        } catch (_) { /* ignore */ }
+        var slotEl = typeof findSlotByCamId === 'function' ? findSlotByCamId(camId) : null;
+        if (slotEl) {
+            stopSlot(slotEl);
+        }
+        clearVideoSignalLostForCam(camId);
+        destroyMapPlayer(camId);
+        resetMapPopupVideo(camId);
+        dismissMapPinPopup(camId);
+        if (openAllSlotByCam && openAllSlotByCam[camId] != null) {
+            delete openAllSlotByCam[camId];
+        }
+        if (openAllReservedIds && openAllReservedIds.indexOf(camId) >= 0) {
+            openAllReservedIds = openAllReservedIds.filter(function (id) { return id !== camId; });
+        }
+        streamingCams.delete(camId);
+        if (streamingCamId === camId) {
+            streamingCamId = streamingCams.values().next().value || null;
+        }
+        if (socket) {
+            emitOpsStopVideo(camId, 'operator', 'shutSosHelperLive');
         }
     }
 
@@ -5648,8 +5738,9 @@ function handoffPlayerAttaching(player) {
     }
 
     /**
-     * FR-BLACKLIST-MAP-PIN-TAKEOVER-V1 — put catching BWC on wall (steal unpinned slot if 8 full)
-     * + open/play map pin. Does not edit pin-mirror cores.
+     * FR-BLACKLIST-MAP-PIN-TAKEOVER-V1 + SOS-OPS-PIN-WALL-TAKEOVER-V1
+     * Pick wall pin-slot (0..PIN_SLOT_COUNT-1): reuse / free / steal unpinned then any non-alarm.
+     * Does not edit pin-mirror cores.
      */
     function pickFrBlacklistWallSlot(camId) {
         const existing = findSlotByCamId(camId);
@@ -5790,6 +5881,7 @@ function handoffPlayerAttaching(player) {
         playOnMapPopup,
         playMapPinVideoIfPopupOpen,
         openAllLivePins,
+        openSosIpLiveSlots,
         prepareOpenAllLive,
         releaseOpenAllState,
         syncAllOpenPinWallPanels,
@@ -5810,6 +5902,7 @@ function handoffPlayerAttaching(player) {
         syncMapPinStreamingOverlay,
         updateMapPinStopButton,
         stopLiveForCam: stopPinLive,
+        shutSosHelperLive,
         cleanupMapPinPlayerOnPopupClose,
         emitRegisterViewerOnly,
         emitUnregisterViewerOnly,

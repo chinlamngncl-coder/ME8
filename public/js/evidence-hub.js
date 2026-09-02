@@ -89,9 +89,16 @@
         return /\.(jpe?g|png|gif|webp|bmp)$/i.test(String(name || ''));
     }
 
+    function isAudioEvidenceName(name) {
+        return /\.(wav|mp3|ogg|m4a|aac)$/i.test(String(name || ''));
+    }
+
     function renderControlledPreview(file) {
         const isImage = isImageEvidenceName(file.fileName);
-        const kind = isImage ? tr('evidenceHub.previewKindImage') : tr('evidenceHub.previewKindVideo');
+        const isAudio = isAudioEvidenceName(file.fileName);
+        const kind = isImage
+            ? tr('evidenceHub.previewKindImage')
+            : (isAudio ? tr('evidenceHub.previewKindAudio') : tr('evidenceHub.previewKindVideo'));
         return '<div class="ev-preview-shell">'
             + '<div class="ev-preview-note">'
             + '<h4>' + tr('evidenceHub.previewLockedTitle') + '</h4>'
@@ -117,11 +124,13 @@
         const host = document.getElementById('ev-preview-stage');
         if (!host) return;
         const isImage = isImageEvidenceName(fileName);
+        const isAudio = isAudioEvidenceName(fileName);
+        const head = '<div class="ev-preview-stage-head"><button type="button" class="btn btn-ghost btn-sm" id="ev-detail-hide-preview">' + tr('common.close') + '</button></div>';
         host.innerHTML = isImage
-            ? '<div class="ev-preview-stage-head"><button type="button" class="btn btn-ghost btn-sm" id="ev-detail-hide-preview">' + tr('common.close') + '</button></div>'
-                + '<img id="ev-detail-player" alt="' + esc(fileName) + '" src="' + esc(previewUrl) + '">'
-            : '<div class="ev-preview-stage-head"><button type="button" class="btn btn-ghost btn-sm" id="ev-detail-hide-preview">' + tr('common.close') + '</button></div>'
-                + '<video id="ev-detail-player" controls playsinline src="' + esc(previewUrl) + '"></video>';
+            ? head + '<img id="ev-detail-player" alt="' + esc(fileName) + '" src="' + esc(previewUrl) + '">'
+            : (isAudio
+                ? head + '<audio id="ev-detail-player" controls preload="metadata" src="' + esc(previewUrl) + '"></audio>'
+                : head + '<video id="ev-detail-player" controls playsinline src="' + esc(previewUrl) + '"></video>');
         host.hidden = false;
         const openBtn = document.getElementById('ev-detail-open-preview');
         if (openBtn) openBtn.hidden = true;

@@ -45,7 +45,7 @@ services:
       - ../storage/conference-recordings:/recordings
 
   ingress:
-    image: livekit/ingress:v1.8.4
+    image: livekit/ingress:latest
     restart: unless-stopped
     depends_on:
       - livekit

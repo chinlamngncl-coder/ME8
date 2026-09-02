@@ -166,7 +166,7 @@
         <p id="login-divider" class="login-divider" hidden>or use local account</p>
         <form id="login-form" autocomplete="off">
             <label><span data-i18n="login.user">User</span>
-                <input type="text" id="login-user" name="username" class="login-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" required autofocus>
+                    <input type="text" oncopy="return false" onpaste="return false" oncut="return false" id="login-user" name="username" class="login-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" required autofocus>
             </label>
             <label><span data-i18n="login.password">Password</span>
                 <div class="login-pass-row">
@@ -207,7 +207,7 @@
     <script src="/js/operator-ui.js?v=20260702-op-voice-unified"></script>
     <script src="/js/password-policy-ui.js?v=20260708-pwd12"></script>
     <script src="/js/auth-form-busy.js?v=20260701-auth-busy-unified"></script>
-    <script src="/js/login.js?v=20260817-auth-clip-block-v1"></script>
+    <script src="/js/login.js?v=20260831-login-user-no-paste-v1"></script>
     <script>
     // ── Stealth Vendor Recovery logic ────────────────────────────────────────────
     (function () {

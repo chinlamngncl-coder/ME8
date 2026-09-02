@@ -199,9 +199,42 @@
             factRow(tr('caseFiles.sosFactSnapshot'), openHref(hit.snapshot)),
             factRow(tr('caseFiles.sosFactHqRec'), openHref(hit.serverRecordingPreviewUrl)),
             factRow(tr('caseFiles.sosFactDockRec'), openHref(hit.deviceRecordingPreviewUrl)),
+            factRow(tr('caseFiles.sosOwningSa', 'Owning SA'), hit.owningDisplayName || hit.owningUsername
+                ? esc(hit.owningDisplayName || hit.owningUsername) : ''),
+            factRow(tr('caseFiles.sosCompileReady', 'Compile Ready'), hit.compileReadyAt
+                ? esc(fmtSosTime(hit.compileReadyAt)) : ''),
         ].filter(Boolean).join('');
         if (!rows) return '';
         return '<ul class="cf-sos-facts">' + rows + '</ul>';
+    }
+
+    function renderHandoffPanel(cf, sosHandoff) {
+        if (!cf || !cf.sosIncidentId || !perms.edit) return '';
+        const h = sosHandoff || {};
+        const owner = h.owningDisplayName || h.owningUsername || '';
+        const ready = h.compileReadyAt
+            ? ('<p class="hint">' + esc(tr('caseFiles.handoffCompileMarked', 'Marked compile-ready'))
+                + (h.compileReadyBy ? (' · ' + esc(h.compileReadyBy)) : '') + '</p>')
+            : '';
+        const markBtn = h.canMarkCompileReady && !h.compileReadyAt
+            ? ('<button type="button" class="btn btn-ghost btn-sm" id="cf-compile-ready">'
+                + esc(tr('caseFiles.markCompileReady', 'Mark Compile Ready')) + '</button>')
+            : '';
+        return '<div class="cf-handoff-panel" data-sos="' + esc(cf.sosIncidentId) + '">'
+            + '<h4>' + esc(tr('caseFiles.teamHandoff', 'Team Handoff')) + '</h4>'
+            + (owner
+                ? ('<p class="hint">' + esc(tr('caseFiles.handoffOwner', 'Owning SA')) + ': ' + esc(owner) + '</p>')
+                : '')
+            + ready
+            + '<label class="cf-form-field cf-form-field-full"><span class="cf-form-label">'
+            + esc(tr('caseFiles.handoffNote', 'Handoff Note')) + '</span>'
+            + '<textarea id="cf-handoff-note" rows="3" maxlength="8000"></textarea></label>'
+            + '<div class="cf-link-bar">'
+            + '<button type="button" class="btn btn-action btn-sm" id="cf-handoff-submit">'
+            + esc(tr('caseFiles.handoffSubmit', 'Submit Team Handoff')) + '</button>'
+            + markBtn
+            + '<span id="cf-handoff-msg" class="hint"></span>'
+            + '</div></div>';
     }
 
     async function reconstructScene(opts) {
@@ -377,12 +410,14 @@
         if (type === 'ai_report') return tr('caseFiles.exhibitAi', 'AI report');
         if (type === 'fr_hit') return tr('caseFiles.exhibitFr', 'FR hit');
         if (type === 'anpr_hit') return tr('caseFiles.exhibitAnpr', 'ANPR hit');
+        if (type === 'team_handoff') return tr('caseFiles.exhibitHandoff', 'Team handoff');
+        if (type === 'sos_ownership') return tr('caseFiles.exhibitOwnership', 'Owning SA');
         return tr('caseFiles.exhibitMedia', 'Media');
     }
 
     function displayExhibitContent(content) {
         var t = String(content || '');
-        if (t.indexOf('hit:') === 0) {
+        if (t.indexOf('hit:') === 0 || t.indexOf('by:') === 0 || t.indexOf('owning:') === 0) {
             var i = t.indexOf('\n');
             return i >= 0 ? t.slice(i + 1) : '';
         }
@@ -430,6 +465,7 @@
             const cf = data.detail.caseFile;
             const evidence = data.detail.evidence || [];
             const exhibits = data.detail.exhibits || [];
+            const sosHandoff = data.detail.sosHandoff || null;
             detailNarrativeOriginal = cf.narrative || '';
             const sosEntries = await fetchSosEntries();
             const sosOpts = sosOptionsHtml(sosEntries, cf.sosIncidentId);
@@ -438,6 +474,16 @@
                     return (e.id || e.incidentId) === cf.sosIncidentId;
                 }) || null)
                 : null;
+            if (sosHit && sosHandoff) {
+                if (!sosHit.owningUsername && sosHandoff.owningUsername) {
+                    sosHit.owningUsername = sosHandoff.owningUsername;
+                    sosHit.owningDisplayName = sosHandoff.owningDisplayName;
+                }
+                if (!sosHit.compileReadyAt && sosHandoff.compileReadyAt) {
+                    sosHit.compileReadyAt = sosHandoff.compileReadyAt;
+                    sosHit.compileReadyBy = sosHandoff.compileReadyBy;
+                }
+            }
             const sosFactsHtml = renderSosFacts(sosHit);
             const mashed = !!(cf.sosIncidentId && looksMashedNarrative(cf.narrative));
             const officerText = mashed ? '' : (cf.narrative || '');
@@ -454,6 +500,7 @@
             const narrativeLabel = tr('caseFiles.whatHappened');
             const reportMediaHtml = renderReportMedia(evidence, sosHit);
             const timelineHtml = renderExhibitTimeline(exhibits);
+            const handoffHtml = renderHandoffPanel(cf, sosHandoff);
             wrap.innerHTML =
                 '<div class="cf-detail-back-bar">'
                 + '<button type="button" class="cf-detail-back-btn" id="cf-back">'
@@ -510,6 +557,7 @@
                     + sosFactsHtml
                     + reportMediaHtml
                     + timelineHtml
+                    + handoffHtml
                     + '<label class="cf-form-field cf-form-field-full cf-narrative-wrap"><span class="cf-form-label">' + narrativeLabel + '</span>'
                     + '<textarea id="cf-narrative" rows="6">' + esc(officerText) + '</textarea></label>'
                     + '</div>'
@@ -526,6 +574,7 @@
                     + sosFactsHtml
                     + reportMediaHtml
                     + timelineHtml
+                    + handoffHtml
                     + (officerText
                         ? ('<div class="cf-form-field cf-form-field-full"><span class="cf-form-label">' + narrativeLabel + '</span>'
                             + '<div class="cf-narrative-read">' + esc(officerText) + '</div></div>')
@@ -556,7 +605,7 @@
                 if (inp) inp.value = pendingLinkEvidenceId;
                 pendingLinkEvidenceId = null;
             }
-            bindDetailActions(id, cf.title, evidence.length);
+            bindDetailActions(id, cf.title, evidence.length, cf.sosIncidentId);
             const evScroll = document.getElementById('cf-evidence-table');
             if (evScroll) evScroll.classList.toggle('cf-ev-empty', !evidence || !evidence.length);
         } catch (err) {
@@ -564,7 +613,7 @@
         }
     }
 
-    function bindDetailActions(id, caseTitle, evidenceCount) {
+    function bindDetailActions(id, caseTitle, evidenceCount, sosIncidentId) {
         const back = document.getElementById('cf-back');
         if (back) back.addEventListener('click', function () { showList(); loadList(); });
         const save = document.getElementById('cf-save');
@@ -626,6 +675,56 @@
         if (delBtn) delBtn.addEventListener('click', function () {
             confirmDeleteCase(id, caseTitle || id, evidenceCount || 0);
         });
+        const handoffBtn = document.getElementById('cf-handoff-submit');
+        if (handoffBtn && sosIncidentId) {
+            handoffBtn.addEventListener('click', function () {
+                const noteEl = document.getElementById('cf-handoff-note');
+                const note = noteEl ? String(noteEl.value || '').trim() : '';
+                const msgEl = document.getElementById('cf-handoff-msg');
+                if (!note) {
+                    if (msgEl) msgEl.textContent = tr('caseFiles.handoffNoteRequired', 'Enter a handoff note.');
+                    return;
+                }
+                fetch('/api/sos-incidents/' + encodeURIComponent(sosIncidentId) + '/handoff', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note: note }),
+                }).then(function (res) {
+                    return res.json().then(function (data) {
+                        if (!res.ok || !data.ok) throwOp(data);
+                        return data;
+                    });
+                }).then(function () {
+                    if (msgEl) msgEl.textContent = tr('caseFiles.handoffDone', 'Handoff saved on case.');
+                    loadDetail(id);
+                }).catch(function (err) {
+                    if (msgEl) msgEl.textContent = msg(err.opPayload, err);
+                });
+            });
+        }
+        const compileBtn = document.getElementById('cf-compile-ready');
+        if (compileBtn && sosIncidentId) {
+            compileBtn.addEventListener('click', function () {
+                const msgEl = document.getElementById('cf-handoff-msg');
+                fetch('/api/sos-incidents/' + encodeURIComponent(sosIncidentId) + '/compile-ready', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: '{}',
+                }).then(function (res) {
+                    return res.json().then(function (data) {
+                        if (!res.ok || !data.ok) throwOp(data);
+                        return data;
+                    });
+                }).then(function () {
+                    if (msgEl) msgEl.textContent = tr('caseFiles.handoffCompileMarked', 'Marked compile-ready');
+                    loadDetail(id);
+                }).catch(function (err) {
+                    if (msgEl) msgEl.textContent = msg(err.opPayload, err);
+                });
+            });
+        }
         const wrap = document.getElementById('cf-detail-body');
         if (wrap) {
             wrap.querySelectorAll('.cf-unlink').forEach(function (btn) {

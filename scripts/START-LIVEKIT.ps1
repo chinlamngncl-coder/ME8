@@ -36,11 +36,16 @@ if ($yaml -match '(?m)^\s*rtmp_base_url:\s*.+$') {
 } elseif ($yaml -notmatch '(?m)^ingress:') {
     $yaml = $yaml.TrimEnd() + "`r`ningress:`r`n  rtmp_base_url: rtmp://${hostIp}:1935/x`r`n"
 }
-# Replace keys block (placeholder or previous)
-if ($yaml -match '(?ms)^keys:\r?\n(?:[ \t].*\r?\n)*') {
-    $yaml = $yaml -replace '(?ms)^keys:\r?\n(?:[ \t].*\r?\n)*', "keys:`r`n  ${lkKey}: ${lkSecret}`r`n"
+# Replace keys block only (never swallow redis/room/ingress — no DotAll on .*)
+if ($yaml -match '(?m)^keys:\r?\n(?:[ \t]+[^\r\n]*\r?\n)+') {
+    $yaml = $yaml -replace '(?m)^keys:\r?\n(?:[ \t]+[^\r\n]*\r?\n)+', "keys:`r`n  ${lkKey}: ${lkSecret}`r`n"
+} elseif ($yaml -match '(?m)^keys:\r?\n') {
+    $yaml = $yaml -replace '(?m)^keys:\r?\n[ \t]+[^\r\n]*\r?\n', "keys:`r`n  ${lkKey}: ${lkSecret}`r`n"
 } else {
     $yaml = $yaml.TrimEnd() + "`r`nkeys:`r`n  ${lkKey}: ${lkSecret}`r`n"
+}
+if ($yaml -notmatch '(?m)^redis:\s*$') {
+    $yaml = $yaml.TrimEnd() + "`r`nredis:`r`n  address: redis:6379`r`n"
 }
 
 Set-Content -Path $runtimePath -Value $yaml -NoNewline

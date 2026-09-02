@@ -10,6 +10,9 @@ cd /d "%~dp0"
 echo.
 echo  RESTART Mobility Axiom
 echo  Folder: %~dp0
+echo  NOTE: This STARTS / RESTARTS the server and leaves it RUNNING.
+echo  Closing this window does NOT stop the server.
+echo  To STOP the server for connection-lost testing: run STOP-FLEET.bat
 echo.
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0restart-fleet-prefer-service.ps1"
@@ -18,6 +21,8 @@ set "RF_RC=%ERRORLEVEL%"
 if "%RF_RC%"=="0" (
     echo.
     echo  Service restart done. Leave service running in background.
+    echo  Closing this window does NOT stop the server.
+    echo  To STOP: run STOP-FLEET.bat
     echo  Open dashboard URLs:
     powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0restart-fleet-prefer-service.ps1" -PrintUrlsOnly
     echo  This window can be closed.

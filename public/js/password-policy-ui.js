@@ -5,6 +5,7 @@
 
     var AUTH_PASSWORD_SELECTORS = [
         '#login-pass',
+        '#login-user',
         '#ss-gate-password',
         '#enroll-password',
         '#pwd-current',
@@ -15,6 +16,7 @@
         '#ss-dash-pass-confirm',
         '#ss-new-pass',
         '#ss-reset-new-pass',
+        '#inv-vms-secure-export-pass',
     ];
 
     function tr(key, params) {

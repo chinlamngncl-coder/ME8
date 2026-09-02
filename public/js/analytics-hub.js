@@ -2643,6 +2643,28 @@
             });
     }
 
+    function stopAiViewerMedia(opts) {
+        opts = opts || {};
+        var viewer = document.getElementById('ax-ai-result-viewer');
+        if (viewer) {
+            try {
+                viewer.querySelectorAll('video, audio').forEach(function (el) {
+                    try { el.pause(); } catch (_) { /* ignore */ }
+                    try {
+                        el.removeAttribute('src');
+                        el.src = '';
+                        el.load();
+                    } catch (_) { /* ignore */ }
+                });
+            } catch (_) { /* ignore */ }
+            if (!opts.keepDom) {
+                viewer.classList.remove('is-processing', 'is-compare');
+                viewer.textContent = '';
+            }
+        }
+        if (!opts.keepUrl) revokeAiPreviewUrl();
+    }
+
     function revokeAiPreviewUrl() {
         if (!aiPreviewUrl) return;
         try { URL.revokeObjectURL(aiPreviewUrl); } catch (_) { /* ignore */ }
@@ -2652,7 +2674,7 @@
     function setAiViewerProcessing() {
         var viewer = document.getElementById('ax-ai-result-viewer');
         if (!viewer) return;
-        revokeAiPreviewUrl();
+        stopAiViewerMedia();
         viewer.classList.add('is-processing');
         viewer.textContent = '';
         var spin = document.createElement('span');
@@ -2668,6 +2690,8 @@
     function setAiViewerMedia(src, kind) {
         var viewer = document.getElementById('ax-ai-result-viewer');
         if (!viewer) return;
+        /* keepUrl: src is often the current aiPreviewUrl blob */
+        stopAiViewerMedia({ keepUrl: true });
         viewer.classList.remove('is-processing', 'is-compare');
         viewer.textContent = '';
         if (kind === 'video') {
@@ -2996,7 +3020,8 @@
         try { sessionStorage.removeItem('pending_ai_report'); } catch (_) { /* ignore */ }
         setPendingAnalysisCaseId('');
         aiScanGen += 1;
-        revokeAiPreviewUrl();
+        /* AI-DISMISS-STOP-MEDIA-V1 — kill media before hide so audio cannot ghost-play */
+        stopAiViewerMedia();
         var card = document.getElementById('ax-ai-result-card');
         if (card) {
             card.hidden = true;
@@ -3029,6 +3054,8 @@
     }
 
     function hideAiModalKeepFile() {
+        /* AI-DISMISS-STOP-MEDIA-V1 — leaving analyze UI must stop sound even if file id kept */
+        stopAiViewerMedia();
         var modal = document.getElementById('ai-analysis-modal');
         if (modal) modal.hidden = true;
     }

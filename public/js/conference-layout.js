@@ -856,9 +856,102 @@
         return cams.length ? cams[0] : null;
     }
 
+    let remountSuspended = false;
+    let remountPending = false;
+    /* VC-FOCUS-PTZ-V1 — fixed ONVIF PTZ only (reuse VmsPtzJoystick). */
+    let fixedPtzById = Object.create(null);
+    let vcPtzJoystick = null;
+    let vcPtzHud = null;
+
     function remount() {
+        if (remountSuspended) {
+            remountPending = true;
+            return;
+        }
+        remountPending = false;
         mountTiles();
         syncToolbarState();
+        syncVcPtzHud();
+    }
+
+    function suspendRemount() {
+        remountSuspended = true;
+    }
+
+    function resumeRemount() {
+        remountSuspended = false;
+        if (remountPending) {
+            remountPending = false;
+            remount();
+        }
+    }
+
+    function setFixedPtzCatalog(map) {
+        fixedPtzById = Object.create(null);
+        if (map && typeof map === 'object') {
+            Object.keys(map).forEach(function (id) {
+                fixedPtzById[String(id)] = !!map[id];
+            });
+        }
+        syncVcPtzHud();
+    }
+
+    function ensureVcPtzHud() {
+        if (!stageEl) return null;
+        if (!global.VmsPtzJoystick || typeof global.VmsPtzJoystick.create !== 'function') return null;
+        if (!vcPtzHud) {
+            vcPtzHud = document.createElement('div');
+            vcPtzHud.id = 'vc-ptz-hud';
+            vcPtzHud.hidden = true;
+            stageEl.appendChild(vcPtzHud);
+        }
+        if (!vcPtzJoystick) {
+            vcPtzJoystick = global.VmsPtzJoystick.create(vcPtzHud, {
+                showNumpad: false,
+                isFloating: false,
+                compact: false,
+            }, {});
+        }
+        return vcPtzHud;
+    }
+
+    function focusFixedPtzTarget() {
+        if (!lkRoom) return null;
+        const focusMode = missionMode === 'focus';
+        const opsLarge = !!(pinnedSid && missionMode === 'operations' && shareLayout === 'large');
+        if (!focusMode && !opsLarge) return null;
+        let sid = null;
+        if (focusMode) sid = pinnedSid || primaryShareSid() || primaryCameraSid();
+        else sid = pinnedSid;
+        if (!sid) return null;
+        const row = tiles.get(sid) || staticShares.get(sid);
+        if (!row || row.kind !== 'fixed') return null;
+        let cameraId = '';
+        if (row.el && row.el.dataset && row.el.dataset.fixedCameraId) {
+            cameraId = String(row.el.dataset.fixedCameraId);
+        } else if (row.participantIdentity) {
+            cameraId = String(row.participantIdentity).replace(/^fixed-/, '');
+        }
+        if (!cameraId || !fixedPtzById[cameraId]) return null;
+        let label = cameraId;
+        if (row.el) {
+            const lab = row.el.querySelector('.vc-tile-label, .vc-tile-name, .vc-label');
+            if (lab && lab.textContent) label = String(lab.textContent).trim() || cameraId;
+        }
+        return { cameraId: cameraId, label: label };
+    }
+
+    function syncVcPtzHud() {
+        const hud = ensureVcPtzHud();
+        if (!hud || !vcPtzJoystick) return;
+        const target = focusFixedPtzTarget();
+        if (!target) {
+            vcPtzJoystick.setTarget(null, { hasPtz: false, label: '' });
+            hud.hidden = true;
+            return;
+        }
+        vcPtzJoystick.setTarget(target.cameraId, { hasPtz: true, label: target.label });
+        hud.hidden = false;
     }
 
     function autoLayout() {
@@ -1144,16 +1237,17 @@
         stageEl.classList.toggle('vc-empty-stage', empty);
         stageEl.classList.toggle('vc-has-streams', inRoom && tileCount > 0);
         stageEl.classList.toggle('vc-in-room', inRoom);
+        stageEl.classList.remove('vc-lobby-shell');
         const ph = ensureEmptyStagePlaceholder();
         if (!ph) return;
         if (empty) {
             const title = ph.querySelector('.empty-stage-title');
             const body = ph.querySelector('.empty-stage-body');
-            if (title) title.textContent = tr('conference.emptyStageTitle', 'ROOM ACTIVE');
+            if (title) title.textContent = tr('conference.emptyStageTitle', 'Room Active');
             if (body) {
                 body.textContent = tr(
                     'conference.emptyStageBody',
-                    'Waiting for participants or BWC streams...'
+                    'Waiting for participants or camera streams.'
                 );
             }
             ph.hidden = false;
@@ -1357,6 +1451,11 @@
             shell.wrap.dataset.participantIdentity = bwcId;
             shell.wrap.dataset.bwcCamId = bwcId.replace(/^bwc-/, '');
         }
+        if (kind === 'fixed' && participant && participant.identity) {
+            const fixedId = String(participant.identity);
+            shell.wrap.dataset.participantIdentity = fixedId;
+            shell.wrap.dataset.fixedCameraId = fixedId.replace(/^fixed-/, '');
+        }
         const vid = document.createElement('video');
         vid.autoplay = true;
         vid.playsInline = true;
@@ -1499,6 +1598,7 @@
         setLayoutMode('split');
         syncToolbarState();
         syncEmptyStageState();
+        syncVcPtzHud();
     }
 
     function setConnecting(message) {
@@ -1524,6 +1624,7 @@
         if (stageEl) {
             stageEl.hidden = false;
             stageEl.classList.add('vc-in-room');
+            stageEl.classList.remove('vc-lobby-shell');
         }
         syncEmptyStageState();
     }
@@ -1531,11 +1632,14 @@
     function hide() {
         setConnecting(null);
         if (stageEl) {
+            /* VC-CP-LAYOUT-MEETING-FIRST-V1 — stage off in lobby; lobby card owns the space. */
             stageEl.hidden = true;
-            stageEl.classList.remove('vc-in-room', 'vc-empty-stage', 'vc-has-streams');
+            stageEl.classList.remove('vc-in-room', 'vc-has-streams', 'vc-empty-stage', 'vc-lobby-shell');
             const ph = stageEl.querySelector('.empty-stage-placeholder');
             if (ph) ph.hidden = true;
         }
+        if (vcPtzJoystick) vcPtzJoystick.setTarget(null, { hasPtz: false, label: '' });
+        if (vcPtzHud) vcPtzHud.hidden = true;
     }
 
     function setRoom(room) {
@@ -1570,6 +1674,9 @@
         addVideoShare: addVideoShare,
         addDocumentShare: addDocumentShare,
         autoLayout: autoLayout,
+        suspendRemount: suspendRemount,
+        resumeRemount: resumeRemount,
+        syncEmptyStageState: syncEmptyStageState,
         setShareExpected: setShareExpected,
         setShareError: setShareError,
         resetShareToGrid: resetShareToGrid,
@@ -1583,5 +1690,7 @@
         updateParticipantState: updateParticipantState,
         setActiveSpeakers: setActiveSpeakers,
         clearParticipantStates: clearParticipantStates,
+        setFixedPtzCatalog: setFixedPtzCatalog,
+        syncVcPtzHud: syncVcPtzHud,
     };
 }(window));

@@ -47,6 +47,73 @@
     var current = null;
     var activeStandbyTeam = null;
     var FR_STANDBY_RADIUS_M = 500;
+    var FR_LIVE_PACK_MAX = 8; /* ANALYTICS-ALARM-SOS-PATTERN-V1 — match SOS BWC pack */
+    var FR_IP_LIVE_MAX = 2;
+
+    /* ANALYTICS-ALARM-SOS-PATTERN-V1 — same server nearby helpers + ≤2 fixed live (SOS pattern). */
+    function openAnalyticsAlarmLivePack(alarmCamId, opts) {
+        opts = opts || {};
+        var camId = String(alarmCamId || '').trim();
+        if (!camId || !global.VideoWall) return;
+        var radiusM = opts.radiusM != null ? opts.radiusM : FR_STANDBY_RADIUS_M;
+        fetch('/api/sos/nearby-helpers?cameraId=' + encodeURIComponent(camId)
+            + '&radiusM=' + encodeURIComponent(String(radiusM)), { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var helpers = (data && data.ok && Array.isArray(data.helpers))
+                    ? data.helpers.filter(function (d) { return d && d.online !== false; })
+                        .map(function (d) { return String(d.cameraId || '').trim(); })
+                        .filter(Boolean)
+                    : [];
+                var ids = [camId].concat(helpers);
+                var seen = {};
+                ids = ids.filter(function (id) {
+                    if (seen[id]) return false;
+                    seen[id] = true;
+                    return true;
+                }).slice(0, FR_LIVE_PACK_MAX);
+                if (ids.length && typeof VideoWall.openAllLivePins === 'function') {
+                    VideoWall.openAllLivePins(ids);
+                } else if (typeof VideoWall.promoteFrBlacklistLive === 'function') {
+                    VideoWall.promoteFrBlacklistLive(camId, opts);
+                }
+                var fixed = (data && data.ok && Array.isArray(data.fixedCameras))
+                    ? data.fixedCameras.map(function (c) { return String(c.cameraId || '').trim(); }).filter(Boolean)
+                    : [];
+                if (fixed.length && typeof VideoWall.openSosIpLiveSlots === 'function') {
+                    VideoWall.openSosIpLiveSlots(fixed.slice(0, FR_IP_LIVE_MAX));
+                }
+                if (opts.autoUnmute) {
+                    try {
+                        if (typeof VideoWall.unmuteAudioForFrBlacklistLive === 'function') {
+                            VideoWall.unmuteAudioForFrBlacklistLive(camId, opts.scorePct != null ? opts.scorePct : 80);
+                        } else if (typeof VideoWall.setCamAudioMuted === 'function') {
+                            VideoWall.setCamAudioMuted(camId, false);
+                        }
+                    } catch (_) { /* ignore */ }
+                }
+            })
+            .catch(function () {
+                try {
+                    if (typeof VideoWall.promoteFrBlacklistLive === 'function') {
+                        VideoWall.promoteFrBlacklistLive(camId, opts);
+                    }
+                } catch (_) { /* ignore */ }
+            });
+    }
+
+    function fetchCrossTeamNearbyHelpers(camId, radiusM) {
+        return fetch('/api/sos/nearby-helpers?cameraId=' + encodeURIComponent(camId)
+            + '&radiusM=' + encodeURIComponent(String(radiusM || FR_STANDBY_RADIUS_M)), {
+            credentials: 'same-origin',
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (!(data && data.ok && Array.isArray(data.helpers))) return [];
+            return data.helpers
+                .filter(function (d) { return d && d.online !== false; })
+                .map(function (d) { return String(d.cameraId || '').trim(); })
+                .filter(Boolean);
+        }).catch(function () { return []; });
+    }
     var RED_TOAST_MINIMIZE_MS = 60000;
     var redToastTimer = null;
     var redToastUiBound = false;
@@ -773,21 +840,19 @@
             if (!offline && alertTierForHit(hit) === 'high' && hit.camId) {
                 setTimeout(function () {
                     try {
-                        if (global.VideoWall && typeof VideoWall.promoteFrBlacklistLive === 'function') {
-                            /* FR-BLACKLIST-AUTO-UNMUTE-V1 — live only; >= 80%. Offline never reaches here. */
-                            var scoreUnmute = Number(hit.scorePct);
-                            var autoUnmute = Number.isFinite(scoreUnmute) && scoreUnmute >= 80;
-                            VideoWall.promoteFrBlacklistLive(hit.camId, {
-                                autoUnmute: autoUnmute,
-                                scorePct: scoreUnmute,
-                                onPinnedSteal: function () {
-                                    showStandbyToast(tr(
-                                        'analytics.fr.blacklistPinStealPinned',
-                                        'FR blacklist took a pinned live slot \u2014 review wall panels.'
-                                    ), 7000);
-                                },
-                            });
-                        }
+                        /* ANALYTICS-ALARM-SOS-PATTERN-V1 — pack live like SOS (≤8 BWC + ≤2 IP) */
+                        var scoreUnmute = Number(hit.scorePct);
+                        var autoUnmute = Number.isFinite(scoreUnmute) && scoreUnmute >= 80;
+                        openAnalyticsAlarmLivePack(hit.camId, {
+                            autoUnmute: autoUnmute,
+                            scorePct: scoreUnmute,
+                            onPinnedSteal: function () {
+                                showStandbyToast(tr(
+                                    'analytics.fr.blacklistPinStealPinned',
+                                    'FR blacklist took a pinned live slot \u2014 review wall panels.'
+                                ), 7000);
+                            },
+                        });
                     } catch (_) { /* ignore */ }
                 }, 480);
             }
@@ -885,54 +950,77 @@
         showStandbyToast(tr('analytics.fr.standbyPttPushing', 'Pushing standby PTT team\u2026'), 8000);
 
         var camId = current.camId;
-        var helpers = [];
-        if (typeof global.computeNearbyForCam === 'function') {
-            helpers = global.computeNearbyForCam(camId, FR_STANDBY_RADIUS_M)
-                .filter(function (d) { return d.online !== false; })
-                .map(function (d) { return d.cameraId; });
-        }
-        if (!helpers.length && typeof global.computeNearestForCam === 'function') {
-            var nearest = global.computeNearestForCam(camId);
-            if (nearest && nearest.online !== false && confirm(tr('analytics.fr.standbyPttNearestConfirm',
-                'No unit inside 500 m. Push standby PTT to nearest ({name}, {dist} m GPS)?',
-                { name: nearest.name || nearest.cameraId, dist: nearest.distanceM }))) {
-                helpers = [nearest.cameraId];
-            } else if (!nearest || nearest.online === false) {
+        function finishStandbyWithHelpers(helpers) {
+            helpers = (helpers || []).filter(Boolean).slice(0, Math.max(0, FR_LIVE_PACK_MAX - 1));
+            if (!helpers.length && typeof global.computeNearestForCam === 'function') {
+                var nearest = global.computeNearestForCam(camId);
+                if (nearest && nearest.online !== false && confirm(tr('analytics.fr.standbyPttNearestConfirm',
+                    'No unit inside 500 m. Push standby PTT to nearest ({name}, {dist} m GPS)?',
+                    { name: nearest.name || nearest.cameraId, dist: nearest.distanceM }))) {
+                    helpers = [nearest.cameraId];
+                } else if (!nearest || nearest.online === false) {
+                    if (btn) btn.disabled = false;
+                    if (hqBtn) hqBtn.disabled = false;
+                    if (drawerBtn) drawerBtn.disabled = false;
+                    alert(tr('analytics.fr.standbyPttNoNearby', 'No online nearby units within 500 m.'));
+                    return;
+                } else {
+                    if (btn) btn.disabled = false;
+                    if (hqBtn) hqBtn.disabled = false;
+                    if (drawerBtn) drawerBtn.disabled = false;
+                    return;
+                }
+            }
+            if (!helpers.length) {
                 if (btn) btn.disabled = false;
                 if (hqBtn) hqBtn.disabled = false;
                 if (drawerBtn) drawerBtn.disabled = false;
                 alert(tr('analytics.fr.standbyPttNoNearby', 'No online nearby units within 500 m.'));
                 return;
-            } else {
+            }
+
+            fetch('/api/analytics/fr/ptt-standby-team', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    hitId: current.hitId,
+                    camId: camId,
+                    helperCamIds: helpers,
+                }),
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                if (!applyStandbyPttResult(data)) {
+                    var err = (data && data.error) || tr('analytics.fr.standbyPttFail', 'Standby PTT push failed.');
+                    showStandbyToast(err, 8000);
+                    alert(err + ' ' + tr('analytics.fr.standbyPttFailHint', 'Is PTT enabled on server?'));
+                    return;
+                }
+                try {
+                    openAnalyticsAlarmLivePack(camId, { autoUnmute: false });
+                } catch (_) { /* ignore */ }
+            }).catch(function () {
+                showStandbyToast(tr('analytics.fr.standbyPttFail', 'Standby PTT push failed.'), 8000);
+                alert(tr('analytics.fr.standbyPttFail', 'Standby PTT push failed.'));
+            }).finally(function () {
                 if (btn) btn.disabled = false;
                 if (hqBtn) hqBtn.disabled = false;
                 if (drawerBtn) drawerBtn.disabled = false;
-                return;
-            }
+            });
         }
 
-        fetch('/api/analytics/fr/ptt-standby-team', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin',
-            body: JSON.stringify({
-                hitId: current.hitId,
-                camId: camId,
-                helperCamIds: helpers,
-            }),
-        }).then(function (r) { return r.json(); }).then(function (data) {
-            if (!applyStandbyPttResult(data)) {
-                var err = (data && data.error) || tr('analytics.fr.standbyPttFail', 'Standby PTT push failed.');
-                showStandbyToast(err, 8000);
-                alert(err + ' ' + tr('analytics.fr.standbyPttFailHint', 'Is PTT enabled on server?'));
+        /* ANALYTICS-ALARM-SOS-PATTERN-V1 — cross-team nearby (same server) like SOS */
+        fetchCrossTeamNearbyHelpers(camId, FR_STANDBY_RADIUS_M).then(function (helpers) {
+            if (helpers.length) {
+                finishStandbyWithHelpers(helpers);
+                return;
             }
-        }).catch(function () {
-            showStandbyToast(tr('analytics.fr.standbyPttFail', 'Standby PTT push failed.'), 8000);
-            alert(tr('analytics.fr.standbyPttFail', 'Standby PTT push failed.'));
-        }).finally(function () {
-            if (btn) btn.disabled = false;
-            if (hqBtn) hqBtn.disabled = false;
-            if (drawerBtn) drawerBtn.disabled = false;
+            var local = [];
+            if (typeof global.computeNearbyForCam === 'function') {
+                local = global.computeNearbyForCam(camId, FR_STANDBY_RADIUS_M)
+                    .filter(function (d) { return d.online !== false; })
+                    .map(function (d) { return d.cameraId; });
+            }
+            finishStandbyWithHelpers(local);
         });
     }
 
@@ -3073,6 +3161,7 @@
         previewRedToastLab: previewRedToastLab,
         showRedToast: showRedToast,
         goOpsOnHit: goOpsOnHit,
+        openAnalyticsAlarmLivePack: openAnalyticsAlarmLivePack,
         keepEvidencePack: keepEvidencePack,
         openSnapLightbox: openSnapLightbox,
         toast: showStandbyToast,
