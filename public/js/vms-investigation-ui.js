@@ -235,7 +235,11 @@
                 }
                 players.set(String(camId), { video: video, stage: stage });
                 setCellLive(cell);
-                try { video.play(); } catch (_) { /* ignore */ }
+                /* VMS-PLAY-GESTURE-HYGIENE-V1 — AxiomFlvManager.attach already plays (muted retry +
+                   click-to-play inside); the extra bare play() only produced an unhandled rejection. */
+                if (!(global.AxiomFlvManager && typeof global.AxiomFlvManager.attach === 'function')) {
+                    try { var p0 = video.play(); if (p0 && p0.catch) p0.catch(function () {}); } catch (_) { /* ignore */ }
+                }
             })
             .catch(function () {
                 if (gen !== mountGen) return;
@@ -758,6 +762,10 @@
         viewToMs: null,
         bound: false,
         visible: false,
+        /* INV-LIVE-REFRESH-AND-CACHE-V1 */
+        _sosDirtyCams: {},
+        _sosPendingCams: {},
+        _sosRefreshTimer: null,
         layoutMode: 'four',
         treeData: [],
         treeFilter: '',
@@ -944,11 +952,16 @@
             }
         }
         if (tile.video) {
-            tile.video.removeAttribute('src');
+            /* INV-TAB-ONHIDE-TEARDOWN-V1 — pause → detach → unload (was src-strip first, then detach) */
+            try { tile.video.pause(); } catch (_) { /* ignore */ }
             try {
                 if (global.AxiomFlvManager) global.AxiomFlvManager.detach(tile.video);
             } catch (_) { /* ignore */ }
-            try { tile.video.pause(); } catch (_) { /* ignore */ }
+            try {
+                tile.video.removeAttribute('src');
+                tile.video.src = '';
+                tile.video.load();
+            } catch (_) { /* ignore */ }
         }
         tlUpdateTileTransport(tile);
     }
@@ -1227,8 +1240,16 @@
             tlSetMeta('Select a camera on this tile first.');
             return;
         }
+        /* INV-TILE-HOLD-SCRUB-PLAY-EOF-GUARD-V1 — tile Play releases this slot's hold. */
+        tile.hold = false;
+        tile._exhaustedSegId = null;
         /* Sync On: tile Playback = same as Play All from timeline marker (no jump-back). */
         if (tl.syncLock && tl.layoutMode !== 'compare') {
+            if (tl.masterClockOn) {
+                /* Master already running for the other slots — this slot simply rejoins on the next tick. */
+                tlUpdateAllTileTransport();
+                return;
+            }
             if (!Number.isFinite(tl.playheadMs) && Number.isFinite(tile.playheadMs)) {
                 tl.playheadMs = tile.playheadMs;
             }
@@ -1254,7 +1275,12 @@
         tile.playing = true;
         tlEnsureVideoPlayAttrs(tile.video);
         /* Seek once (load+#t / currentTime), then play — no second seek chain. */
-        tlSeekTile(tile, at).then(function () {
+        tlSeekTile(tile, at).then(function (ok) {
+            if (ok === false) { /* INV-SYNC-SEEK-GENERATION-V1 — superseded / cam changed mid-seek */
+                if (tile.playing && !tile.activeSegmentId) tile.playing = false;
+                tlUpdateAllTileTransport();
+                return null;
+            }
             if (!tile.playing || !tile.video) return null;
             if (!tile.video.src) {
                 tlSetMeta('Recording file could not be opened for playback.');
@@ -1283,6 +1309,8 @@
     function tlPauseTile(tile) {
         if (!tile) return;
         tile.playing = false;
+        /* INV-TILE-HOLD-SCRUB-PLAY-EOF-GUARD-V1 — per-slot hold: master clock must not re-play it */
+        tile.hold = true;
         if (tile.video) {
             try { tile.video.pause(); } catch (_) { /* ignore */ }
             /* INV-SYNC-ONE-CLOCK-HARD-V1 — master owns playhead; do not steal from video. */
@@ -1347,6 +1375,7 @@
         if (!tile) return;
         tlCaptureTilePlayhead(tile);
         tile.playing = false;
+        tile.hold = true; /* INV-TILE-HOLD-SCRUB-PLAY-EOF-GUARD-V1 */
         tlUnloadTileVideo(tile);
         tlUpdateAllTileTransport();
         tlDrawTimeline();
@@ -1362,6 +1391,88 @@
         tlUpdateAllTileTransport();
         tlDrawTimeline();
         tlSetMeta('Stopped. Timeline marker kept — press Play All to resume from here.');
+    }
+
+    /**
+     * INV-TAB-ONHIDE-TEARDOWN-V1 — operator left the Investigation tab. Stop the master
+     * clock (RAF), pause + detach + unload every tile video (own FLV sessions only — the
+     * Ops wall players are never touched), keep each playhead so Play All resumes.
+     * Idempotent: safe when nothing is playing.
+     */
+    function tlTeardownForHide() {
+        try { tlStopMasterClock(); } catch (_) { /* ignore */ }
+        var hadVideo = false;
+        tl.tiles.forEach(function (tile) {
+            if (!tile) return;
+            if (tile.playing || (tile.video && tile.video.src)) hadVideo = true;
+            try { tlCaptureTilePlayhead(tile); } catch (_) { /* ignore */ }
+            tile.playing = false;
+            try { tlUnloadTileVideo(tile); } catch (_) { /* ignore */ }
+        });
+        if (hadVideo) {
+            try { tlUpdateAllTileTransport(); } catch (_) { /* ignore */ }
+        }
+    }
+
+    /* INV-LIVE-REFRESH-AND-CACHE-V1 — SOS lane refresh: per-cam coalesced (600 ms), one draw. */
+    function tlRefreshSosLanes(camIds) {
+        var jobs = [];
+        var names = [];
+        tl.tiles.forEach(function (tile) {
+            if (!tile || !tile.camId || camIds.indexOf(String(tile.camId)) < 0) return;
+            names.push(tlShortTreeLabel(tile.camName, tile.camId));
+            jobs.push(Promise.resolve(tlFetchTileTimeline(tile)).catch(function () { /* ignore */ }));
+        });
+        if (!jobs.length) {
+            tlSetMeta('SOS raised. Load Recordings (or re-assign cam) to show the red pin.');
+            return;
+        }
+        Promise.all(jobs).then(function () {
+            if (!tl.visible) return;
+            tlMergeTimelineData();
+            tlDrawTimeline();
+            tlSetMeta('SOS marker refreshed for ' + names.join(', ') +
+                '. Scrub yellow onto blue overlap for Sync Play — pins are markers only.');
+        });
+    }
+
+    function tlQueueSosRefresh(camId) {
+        tl._sosPendingCams[camId] = true;
+        if (tl._sosRefreshTimer) return;
+        tl._sosRefreshTimer = setTimeout(function () {
+            tl._sosRefreshTimer = null;
+            var cams = Object.keys(tl._sosPendingCams);
+            tl._sosPendingCams = {};
+            if (cams.length) tlRefreshSosLanes(cams);
+        }, 600);
+    }
+
+    function tlFlushSosDirty() {
+        var cams = Object.keys(tl._sosDirtyCams);
+        if (!cams.length) return;
+        tl._sosDirtyCams = {};
+        tlRefreshSosLanes(cams);
+    }
+
+    function tlClipSegmentEndToMedia(tile, seg, mediaDurSec) {
+        if (!seg) return false;
+        var start = tlIsoToMs(seg.start_at);
+        var durMs = Number(mediaDurSec) * 1000;
+        if (!Number.isFinite(start) || !Number.isFinite(durMs) || durMs < 80) return false;
+        var mediaEnd = start + Math.round(durMs);
+        var curEnd = tlIsoToMs(seg.end_at);
+        if (Number.isFinite(curEnd) && mediaEnd >= curEnd - 30) return false;
+        var iso = new Date(mediaEnd).toISOString();
+        function patch(list) {
+            (list || []).forEach(function (s) {
+                if (!s) return;
+                if (seg.segmentId && s.segmentId === seg.segmentId) s.end_at = iso;
+            });
+        }
+        patch(tile && tile.segments);
+        patch(tl.mergedSegments);
+        seg.end_at = iso;
+        return true;
     }
 
     /**
@@ -1411,6 +1522,17 @@
         tile.video.addEventListener('error', function () {
             if (!tile.playing && !tile.activeSegmentId) return;
             tlOnTilePlaybackError(tile);
+        });
+        /* INV-SYNC-SEEK-GENERATION-V1 — transport chrome follows the media element. A browser-side
+           pause (autoplay policy, native controls, stalled decode) while the tile still says
+           "playing" would leave a Pause button on a frozen frame. Ignored while a seek/load is in
+           flight (load() fires pause) and under the master clock (the tick re-plays paused slots). */
+        tile.video.addEventListener('pause', function () {
+            if (!tile.playing || tile._seekBusy || tl.masterClockOn) return;
+            var v = tile.video;
+            if (!v || v.ended || !v.getAttribute('src') || v.readyState < 2) return;
+            tile.playing = false;
+            tlUpdateAllTileTransport();
         });
     }
 
@@ -1558,7 +1680,12 @@
         tlUpdateLayoutChrome();
         tl.tiles.forEach(function (t) {
             if (!t.video || tlTileActiveInLayout(t)) return;
-            try { t.video.pause(); } catch (_) { /* ignore */ }
+            /* INV-LIVE-REFRESH-AND-CACHE-V1 — a slot hidden by the layout was only paused: its FLV
+               session and buffer stayed alive. Keep playhead, release the media; it re-seeks when
+               the layout shows it again (tlSeekAll only touches active slots). */
+            try { tlCaptureTilePlayhead(t); } catch (_) { /* ignore */ }
+            t.playing = false;
+            tlUnloadTileVideo(t);
         });
         if (tl.layoutMode === 'compare') {
             tl.tiles.forEach(tlSyncCompareTimeInput);
@@ -1720,6 +1847,10 @@
 
     function tlAssignCameraToTile(tile, camId, camName) {
         if (!tile) return;
+        /* INV-TAB-ONHIDE-TEARDOWN-V1 — reassign while Sync runs: stop the clock first, or the
+           RAF keeps stepping a slot whose video was just detached. */
+        if (tl.masterClockOn) tlStopMasterClock();
+        tlRadioTeardownForTile(tile);
         if (tl.layoutMode === 'compare') {
             var i;
             for (i = 0; i < 4; i++) {
@@ -1953,6 +2084,11 @@
     }
 
     function tlIsoToMs(s) { return s ? Date.parse(s) : 0; }
+    /* ALARM-MARKER-CONTRACT-V1 — one reader for marker time (REST occurred_at / socket occurredAt / at). */
+    function tlAlarmAt(al) {
+        if (!al) return NaN;
+        return tlIsoToMs(al.occurred_at || al.occurredAt || al.at);
+    }
 
     function tlMsToLocalLabel(ms) {
         if (!Number.isFinite(ms)) return '\u2014';
@@ -2214,7 +2350,8 @@
     function tlPinColor(eventType) {
         var t = String(eventType || '').toLowerCase();
         if (t.indexOf('sos') >= 0 || t.indexOf('distress') >= 0 || t.indexOf('fall') >= 0) return '#ef4444';
-        if (t.indexOf('tamper') >= 0 || t.indexOf('motion') >= 0 || t.indexOf('intrusion') >= 0) return '#fbbf24';
+        if (t.indexOf('tamper') >= 0 || t.indexOf('motion') >= 0 || t.indexOf('intrusion') >= 0 ||
+            t.indexOf('line_crossing') >= 0 || t.indexOf('crossing') >= 0) return '#fbbf24';
         if (t.indexOf('fr') >= 0 || t.indexOf('face') >= 0 || t.indexOf('anpr') >= 0 ||
             t.indexOf('weapon') >= 0 || t.indexOf('ai') >= 0 || t.indexOf('analytics') >= 0) return '#22d3ee';
         return '#22d3ee';
@@ -2478,7 +2615,7 @@
             return et.indexOf(q) >= 0 || note.indexOf(q) >= 0 || cam.indexOf(q) >= 0 || id.indexOf(q) >= 0;
         });
         list.sort(function (a, b) {
-            return tlIsoToMs(b.occurred_at || b.occurredAt) - tlIsoToMs(a.occurred_at || a.occurredAt);
+            return tlAlarmAt(b) - tlAlarmAt(a);
         });
         var eventsBtn = $('inv-vms-events');
         if (eventsBtn) {
@@ -2489,7 +2626,7 @@
         if (panel.hidden) return;
         rows.innerHTML = '';
         list.forEach(function (al) {
-            var ms = tlIsoToMs(al.occurred_at || al.occurredAt);
+            var ms = tlAlarmAt(al);
             var et = String(al.event_type || al.eventType || 'event');
             var camId = String(al.camId || al.cam_id || '').trim();
             var btn = document.createElement('button');
@@ -2675,7 +2812,7 @@
         if (!al) return;
         var panel = $('inv-vms-alarm-preview');
         if (!panel) return;
-        var ms = tlIsoToMs(al.occurred_at || al.occurredAt);
+        var ms = tlAlarmAt(al);
         var camId = String(al.cam_id || al.camId || '').trim();
         if (!camId) {
             var ft0 = tlFocusTile();
@@ -2886,7 +3023,7 @@
             });
         });
         segs.sort(function (a, b) { return tlIsoToMs(a.start_at) - tlIsoToMs(b.start_at); });
-        alarms.sort(function (a, b) { return tlIsoToMs(a.occurred_at) - tlIsoToMs(b.occurred_at); });
+        alarms.sort(function (a, b) { return tlAlarmAt(a) - tlAlarmAt(b); });
         tl.mergedSegments = segs;
         tl.mergedAlarms = alarms;
         tl.metadataFrames = [];
@@ -2895,7 +3032,7 @@
             if (meta && meta.bbox) {
                 tl.metadataFrames.push({
                     camId: al.camId,
-                    atMs: tlIsoToMs(al.occurred_at),
+                    atMs: tlAlarmAt(al),
                     bbox: meta.bbox,
                     label: meta.label || al.event_type || '',
                 });
@@ -3200,9 +3337,9 @@
 
     function tlIsCalendarVipAlarm(al) {
         /* 2-tier: calendar red dots = VIP only (match recording-days whitelist). */
+        /* ALARM-MARKER-CONTRACT-V1: only CHECK-legal types (020) — same list as recording-days. */
         var t = String((al && (al.event_type || al.eventType)) || '').toLowerCase().trim();
-        return t === 'analytics' || t === 'sos' || t === 'weapon' ||
-            t === 'fr_hit' || t === 'anpr_hit' || t === 'anpr';
+        return t === 'analytics' || t === 'sos' || t === 'anpr';
     }
 
     function tlFocusIdentitySet() {
@@ -3258,7 +3395,7 @@
                 addRec(tlIsoToMs(seg.end_at || seg.endAt));
             });
             (tile.alarms || []).forEach(function (al) {
-                addAlarm(al, tlIsoToMs(al && (al.occurred_at || al.occurredAt)));
+                addAlarm(al, tlAlarmAt(al));
             });
         });
         (tl.mergedSegments || []).forEach(function (seg) {
@@ -3273,7 +3410,7 @@
         });
         (tl.mergedAlarms || []).forEach(function (al) {
             if (focusId && !tlIdMatchesFocus(tlAlarmCamId(al))) return;
-            addAlarm(al, tlIsoToMs(al && (al.occurred_at || al.occurredAt)));
+            addAlarm(al, tlAlarmAt(al));
         });
     }
 
@@ -3282,14 +3419,14 @@
         (tl.mergedAlarms || []).forEach(function (al) {
             if (!tlIsCalendarVipAlarm(al)) return;
             if (focusId && !tlIdMatchesFocus(tlAlarmCamId(al))) return;
-            var iso = tlLocalDayIsoFromMs(tlIsoToMs(al && (al.occurred_at || al.occurredAt)));
+            var iso = tlLocalDayIsoFromMs(tlAlarmAt(al));
             if (iso) tl.alarmDays[iso] = true;
         });
         var focus = tlFocusTile();
         if (focus && focus.alarms && focus.alarms.length) {
             focus.alarms.forEach(function (al) {
                 if (!tlIsCalendarVipAlarm(al)) return;
-                var iso = tlLocalDayIsoFromMs(tlIsoToMs(al && (al.occurred_at || al.occurredAt)));
+                var iso = tlLocalDayIsoFromMs(tlAlarmAt(al));
                 if (iso) tl.alarmDays[iso] = true;
             });
         }
@@ -3303,7 +3440,7 @@
             var cid = tlAlarmCamId(al) || String(camHint || '').trim();
             var focusId = tlCalendarFocusCamId();
             if (focusId && cid && !tlIdMatchesFocus(cid)) return;
-            var ms = tlIsoToMs(al && (al.occurred_at || al.occurredAt));
+            var ms = tlAlarmAt(al);
             if (!Number.isFinite(ms) || ms < 1e12) return;
             var iso = tlLocalDayIsoFromMs(ms);
             if (iso) next[iso] = true;
@@ -3500,9 +3637,10 @@
             tlAugmentRecordingDaysOnly();
             tlRebuildTimelineVipDayHints();
             tlForceCalendarPaint();
-        } catch (_) {
+        } catch (err) {
             if (gen !== tl._daysFetchGen) return;
-            /* Keep last good _apiAlarmDays; still paint. */
+            /* ALARM-MARKER-CONTRACT-V1: logged, not swallowed. Keep last good _apiAlarmDays; still paint. */
+            try { console.warn('[investigation] recording-days failed', err && err.message ? err.message : err); } catch (_) { /* ignore */ }
             tlForceCalendarPaint();
         }
     }
@@ -3642,13 +3780,15 @@
     async function tlFetchTileTimeline(tile) {
         if (!tile.camId) return;
         var url;
+        /* ALARM-MARKER-CONTRACT-V1 — same tzOffset the calendar sends, so a day means the browser's day. */
+        var tzq = '&tzOffset=' + encodeURIComponent(String(new Date().getTimezoneOffset()));
         if (tl.selectedDate) {
             url = '/api/vms/cameras/' + encodeURIComponent(tile.camId) + '/timeline' +
-                '?date=' + encodeURIComponent(tl.selectedDate);
+                '?date=' + encodeURIComponent(tl.selectedDate) + tzq;
         } else if (tl.from && tl.to) {
             url = '/api/vms/cameras/' + encodeURIComponent(tile.camId) + '/timeline' +
                 '?from=' + encodeURIComponent(tl.from.toISOString()) +
-                '&to=' + encodeURIComponent(tl.to.toISOString());
+                '&to=' + encodeURIComponent(tl.to.toISOString()) + tzq;
         } else {
             return;
         }
@@ -3685,6 +3825,107 @@
                 tile.status.textContent = kindTag + ' · ' + tile.segments.length + ' seg · ' + tile.alarms.length + ' evt' +
                     (tierKeys.length ? ' · ' + tierKeys.join(', ') : '');
             }
+        }
+        tlRadioLoadForTile(tile);
+    }
+
+    /* INV-SOS-RADIO-AUDIO-TRACK-V1 — HQ call / PTT WAVs bound to SOS incidents on this cam play as
+       hidden audio slaves driven by the master playhead (absolute UTC). Video stays untouched.
+       Fail-open: any error → no radio, timeline unaffected. */
+    var RADIO_SYNC_MS = 250;
+    var RADIO_DRIFT_SEC = 0.6;
+    var RADIO_FALLBACK_DUR_MS = 5 * 60 * 1000;
+    var radioSyncTimer = null;
+
+    function tlRadioTeardownForTile(tile) {
+        if (!tile || !Array.isArray(tile.radioTracks)) return;
+        tile.radioTracks.forEach(function (t) {
+            if (!t || !t.el) return;
+            try { t.el.pause(); } catch (_) { /* ignore */ }
+            try { t.el.removeAttribute('src'); t.el.load(); } catch (_) { /* ignore */ }
+            try { if (t.el.parentNode) t.el.parentNode.removeChild(t.el); } catch (_) { /* ignore */ }
+        });
+        tile.radioTracks = [];
+    }
+
+    function tlRadioLoadForTile(tile) {
+        tlRadioTeardownForTile(tile);
+        if (!tile || !tile.camId || !tl.from || !tl.to) return;
+        var camId = String(tile.camId);
+        /* BWC: VMS camera id != SIP device id used by the SOS ledger — accept either. */
+        var cat = camCatalog[camId] || null;
+        var idSet = {};
+        idSet[camId] = true;
+        if (cat && cat.deviceId) idSet[String(cat.deviceId)] = true;
+        if (cat && cat.sipId) idSet[String(cat.sipId)] = true;
+        var fromMs = tl.from.getTime();
+        var toMs = tl.to.getTime();
+        var days = Math.max(1, Math.ceil((Date.now() - fromMs) / 86400000) + 1);
+        fetch('/api/sos-incidents?limit=100&days=' + days, { credentials: 'same-origin', cache: 'no-store' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (!tile || String(tile.camId) !== camId) return;
+                var tracks = [];
+                (d && d.entries || []).forEach(function (e) {
+                    if (!e || !idSet[String(e.cameraId || '')]) return;
+                    (e.pttAudioRecordings || []).forEach(function (r) {
+                        if (!r) return;
+                        var src = r.previewUrl || (r.evidenceId ? '/api/evidence/preview/' + encodeURIComponent(r.evidenceId) : '');
+                        var startMs = Date.parse(r.startedAt || r.at || '');
+                        if (!src || !Number.isFinite(startMs)) return;
+                        if (startMs > toMs || startMs + RADIO_FALLBACK_DUR_MS < fromMs) return;
+                        var el = document.createElement('audio');
+                        el.preload = 'metadata';
+                        el.className = 'sos-talk-audio';
+                        el.src = src;
+                        document.body.appendChild(el);
+                        var track = { el: el, startMs: startMs, durMs: RADIO_FALLBACK_DUR_MS, camId: camId };
+                        el.addEventListener('loadedmetadata', function () {
+                            if (Number.isFinite(el.duration) && el.duration > 0) track.durMs = el.duration * 1000;
+                        });
+                        tracks.push(track);
+                    });
+                });
+                tile.radioTracks = tracks;
+                if (tracks.length && tile.status && tile.status.textContent.indexOf('radio') < 0) {
+                    tile.status.textContent += ' · radio ' + tracks.length;
+                }
+                if (tracks.length && !radioSyncTimer) radioSyncTimer = setInterval(tlRadioSyncAll, RADIO_SYNC_MS);
+            })
+            .catch(function () { /* fail-open */ });
+    }
+
+    function tlRadioSyncAll() {
+        var anyTracks = false;
+        var playing = !!(tl.masterClockOn || tl.tiles.some(function (t) { return t && t.playing; }));
+        var headMs = tl.playheadMs;
+        tl.tiles.forEach(function (tile) {
+            if (!tile || !Array.isArray(tile.radioTracks) || !tile.radioTracks.length) return;
+            anyTracks = true;
+            tile.radioTracks.forEach(function (t) {
+                var el = t.el;
+                if (!el) return;
+                var inRange = Number.isFinite(headMs) && headMs >= t.startMs && headMs < t.startMs + t.durMs;
+                if (!playing || !inRange) {
+                    if (!el.paused) { try { el.pause(); } catch (_) { /* ignore */ } }
+                    return;
+                }
+                var target = (headMs - t.startMs) / 1000;
+                el.muted = !!tile.audioMuted;
+                var rate = Number.isFinite(tl.speed) && tl.speed > 0 ? tl.speed : 1;
+                if (el.playbackRate !== rate) { try { el.playbackRate = rate; } catch (_) { /* ignore */ } }
+                if (Math.abs((el.currentTime || 0) - target) > RADIO_DRIFT_SEC) {
+                    try { el.currentTime = target; } catch (_) { /* ignore */ }
+                }
+                if (el.paused) {
+                    var p = el.play();
+                    if (p && p.catch) p.catch(function () { /* autoplay policy — user gesture already given by Play */ });
+                }
+            });
+        });
+        if (!anyTracks && radioSyncTimer) {
+            clearInterval(radioSyncTimer);
+            radioSyncTimer = null;
         }
     }
 
@@ -3745,13 +3986,23 @@
         /* INV-SYNC-ONE-CLOCK-HARD-V1 — every slot slaves to nowMs; gap = black; no free-run ahead.
            INV-SYNC-EOF-STOP-YELLOW-V1 — never count EOF / past-blue as playing (that kept yellow crawling). */
         var playingN = 0;
+        var heldN = 0;
         var gapLabels = [];
         tl.tiles.forEach(function (tile) {
             if (!tile || !tile.camId || !tlTileActiveInLayout(tile)) return;
             tile.playheadMs = nowMs;
+            /* INV-TILE-HOLD-SCRUB-PLAY-EOF-GUARD-V1 — operator paused/stopped this slot: master
+               leaves it alone (not playing, not a gap) until tile Play / Play All / scrub. */
+            if (tile.hold) { heldN += 1; return; }
             var seg = tlFindSegmentAt(tile.segments || [], nowMs);
             if (!seg || tlSegmentOwnedByOtherTile(tile, seg)) {
                 tlClearTileAtGap(tile);
+                gapLabels.push(tlShortTreeLabel(tile.camName, tile.camId));
+                return;
+            }
+            /* Media file shorter than the DB segment (end_at = finalize time): once the file is
+               exhausted stay black for the rest of that segment — no reload → ended → reload flash. */
+            if (tile._exhaustedSegId && tile._exhaustedSegId === seg.segmentId) {
                 gapLabels.push(tlShortTreeLabel(tile.camName, tile.camId));
                 return;
             }
@@ -3766,12 +4017,19 @@
                 ? Math.max(0, (nowMs - segStart) / 1000) : 0;
             if (tile.video) {
                 var mediaDur = Number(tile.video.duration);
-                if (Number.isFinite(mediaDur) && mediaDur > 0.05 && targetOff >= mediaDur - 0.08) {
-                    tlOnTilePlaybackEnded(tile);
-                    gapLabels.push(tlShortTreeLabel(tile.camName, tile.camId));
-                    return;
+                if (Number.isFinite(mediaDur) && mediaDur > 0.05) {
+                    if (tlClipSegmentEndToMedia(tile, seg, mediaDur)) {
+                        segEnd = tlIsoToMs(seg.end_at);
+                    }
+                    if (targetOff >= mediaDur - 0.08) {
+                        tile._exhaustedSegId = seg.segmentId;
+                        tlOnTilePlaybackEnded(tile);
+                        gapLabels.push(tlShortTreeLabel(tile.camName, tile.camId));
+                        return;
+                    }
                 }
                 if (tile.video.ended) {
+                    tile._exhaustedSegId = seg.segmentId;
                     tlOnTilePlaybackEnded(tile);
                     gapLabels.push(tlShortTreeLabel(tile.camName, tile.camId));
                     return;
@@ -3793,8 +4051,13 @@
                 var wantSegId = segId;
                 tlSeekTile(tile, nowMs).then(function (ok) {
                     if (ok === false) {
-                        tile.playing = false;
-                        tlClearTileAtGap(tile);
+                        /* INV-SYNC-SEEK-GENERATION-V1 — superseded by a newer seek on this tile
+                           (activeSegmentId still set): leave the newer load alone. Real refusal
+                           (claim / other-cam) already cleared the tile → mirror that state. */
+                        if (!tile.activeSegmentId) {
+                            tile.playing = false;
+                            tlClearTileAtGap(tile);
+                        }
                         return null;
                     }
                     if (!tl.masterClockOn || !tile.playing || !tile.video) return null;
@@ -3813,12 +4076,14 @@
                     }
                     var off = Math.max(0, (clockNow - tlIsoToMs(segNow.start_at)) / 1000);
                     var md = Number(tile.video.duration);
-                    if (Number.isFinite(md) && md > 0.05 && off >= md - 0.08) {
-                        tile.playing = false;
-                        tlOnTilePlaybackEnded(tile);
-                        return null;
-                    }
                     if (Number.isFinite(md) && md > 0.05) {
+                        tlClipSegmentEndToMedia(tile, segNow, md);
+                        if (off >= md - 0.08) {
+                            tile.playing = false;
+                            tile._exhaustedSegId = wantSegId;
+                            tlOnTilePlaybackEnded(tile);
+                            return null;
+                        }
                         off = Math.min(off, Math.max(0, md - 0.05));
                     }
                     try {
@@ -3854,7 +4119,7 @@
                 try { tile.video.playbackRate = tl.speed; } catch (_) { /* ignore */ }
             }
         });
-        return { playingN: playingN, gapLabels: gapLabels };
+        return { playingN: playingN, gapLabels: gapLabels, heldN: heldN };
     }
 
     function tlSelectedRecordingBounds() {
@@ -3902,6 +4167,17 @@
         }
         tl.playheadMs = now;
         var snap = tlMasterApplyTiles(now);
+        /* INV-TILE-HOLD-SCRUB-PLAY-EOF-GUARD-V1 — every selected slot is on operator hold:
+           park the clock here, keep the slots as they are (no gap-clear, no "sector ended"). */
+        if (snap && !snap.playingN && snap.heldN) {
+            tlStopMasterClock();
+            tl.playheadMs = now;
+            tlSetMeta('All slots paused. Press Play on a slot or Play All to resume.');
+            tlUpdateAllTileTransport();
+            tlDrawTimeline();
+            tlDrawOverlays();
+            return;
+        }
         /* INV-SYNC-SECTOR-STOP-V1 — stop at every sector end / mid-gap (no auto-crawl). */
         if (snap && !snap.playingN) {
             var bounds = tlSelectedRecordingBounds();
@@ -4084,6 +4360,29 @@
             || srcNow.indexOf(encodeURIComponent(seg.segmentId)) < 0
             || tile._streamCamId !== tile.camId;
 
+        /* INV-SYNC-SEEK-GENERATION-V1 — every seek gets a per-tile generation. After any await
+           (load timer / metadata / seeked) the seek re-checks that it is still the newest one for
+           this tile and that cam / segment / element are unchanged. A stale seek resolves false and
+           never touches the video (the old 1.5 s load timer used to seek a *newer* clip to an old
+           offset). Callers treat false as "do not play". */
+        var gen = tile._seekGen = (tile._seekGen || 0) + 1;
+        var camAtStart = tile.camId;
+        var segIdAtStart = seg.segmentId;
+        function stale() {
+            return tile._seekGen !== gen
+                || tile.video !== v
+                || String(tile.camId || '') !== String(camAtStart || '')
+                || tile.activeSegmentId !== segIdAtStart;
+        }
+        function settleBusy(ok) {
+            if (tile._seekGen === gen) tile._seekBusy = false;
+            var md = Number(v.duration);
+            if (ok !== false && Number.isFinite(md) && md > 0.05) {
+                if (tlClipSegmentEndToMedia(tile, seg, md)) tlDrawTimeline();
+            }
+            return ok;
+        }
+
         if (needLoad) {
             tile.activeSegmentId = seg.segmentId;
             tile._streamCamId = tile.camId;
@@ -4092,18 +4391,22 @@
             } catch (_) { /* ignore */ }
             if (opts.quick) {
                 /* Scrub: kick load, do not wait (was freezing timeline clicks). */
+                tile._seekBusy = true;
                 v.src = url;
                 try { v.load(); } catch (_) { /* ignore */ }
                 try { v.currentTime = offsetSec; } catch (_) { /* ignore */ }
+                setTimeout(function () { settleBusy(true); }, 0);
                 return Promise.resolve(true);
             }
+            tile._seekBusy = true;
             return new Promise(function (resolve) {
                 var settled = false;
                 var finishLoad = function () {
                     if (settled) return;
                     settled = true;
+                    if (stale()) { resolve(settleBusy(false)); return; }
                     try { v.playbackRate = tl.speed; } catch (_) { /* ignore */ }
-                    tlWaitVideoSeek(v, offsetSec).then(function () { resolve(true); });
+                    tlWaitVideoSeek(v, offsetSec).then(function () { resolve(settleBusy(!stale())); });
                 };
                 var timer = setTimeout(finishLoad, 1500);
                 v.onerror = function () {
@@ -4123,7 +4426,8 @@
             try { v.currentTime = offsetSec; } catch (_) { /* ignore */ }
             return Promise.resolve(true);
         }
-        return tlWaitVideoSeek(v, offsetSec).then(function () { return true; });
+        tile._seekBusy = true;
+        return tlWaitVideoSeek(v, offsetSec).then(function () { return settleBusy(!stale()); });
     }
 
     function tlShouldSeekTile(tile) {
@@ -4162,9 +4466,15 @@
         if (!Number.isFinite(utcMs) || !tl.from || !tl.to) return;
         tl.playheadMs = Math.max(tl.from.getTime(), Math.min(tl.to.getTime(), utcMs));
         tlStoreFocusPlayhead();
+        /* INV-TILE-HOLD-SCRUB-PLAY-EOF-GUARD-V1 — explicit seek (±1 s, scrub, Sync on) re-arms exhausted slots */
+        tl.tiles.forEach(function (t) { if (t) t._exhaustedSegId = null; });
         var readout = $('inv-vms-time-readout');
         if (readout) readout.textContent = tlMsToLocalLabel(tl.playheadMs);
         var quick = !!opts.quick;
+        /* INV-SYNC-SEEK-GENERATION-V1 — newest Sync-Lock seek wins; an older in-flight seekAll
+           that resolves later must not play / redraw over it (serialised by supersession). */
+        var seekAllGen = tl._seekAllGen = (tl._seekAllGen || 0) + 1;
+        var targetMs = tl.playheadMs;
         var promises = tl.tiles.map(function (tile) {
             if (!tlShouldSeekTile(tile)) return Promise.resolve(true);
             tile.playheadMs = tl.playheadMs;
@@ -4176,11 +4486,16 @@
             tlUpdateAllTileTransport();
             return;
         }
-        Promise.all(promises).then(function () {
+        Promise.all(promises).then(function (results) {
+            if (tl._seekAllGen !== seekAllGen) return;
             tlDrawTimeline();
             tlDrawOverlays();
-            tl.tiles.forEach(function (tile) {
+            tl.tiles.forEach(function (tile, i) {
+                if (results[i] === false) return;
                 if (!tile.playing || !tile.video || !tile.video.src) return;
+                /* post-await revalidation: the loaded segment must still be the one under yellow */
+                var segNow = tlFindSegmentAt(tile.segments || [], targetMs);
+                if (!segNow || segNow.segmentId !== tile.activeSegmentId) return;
                 tlPlayVideoElement(tile.video, { rate: tl.speed, unmute: !tile.audioMuted })
                     .then(function () { tlApplyTileAudio(tile); });
             });
@@ -4237,9 +4552,20 @@
         } catch (_) { /* ignore */ }
     }
 
+    /* INV-TILE-HOLD-SCRUB-PLAY-EOF-GUARD-V1 — Play All / scrub release every per-slot hold and
+       every "media exhausted" mark so the master clock may pick the slot up again. */
+    function tlReleaseTileHolds(alsoExhausted) {
+        tl.tiles.forEach(function (tile) {
+            if (!tile) return;
+            tile.hold = false;
+            if (alsoExhausted) tile._exhaustedSegId = null;
+        });
+    }
+
     function tlSyncPlayVideos() {
         /* INV-SYNC-MASTER-CLOCK-V1 — drag yellow, Play All: shared clock; cams join when blue.
            Never snap to clip start / red pin. */
+        tlReleaseTileHolds(false);
         tlAuditPlayAllNoRecord(tl.syncLock ? 'play_all_sync' : 'play_all');
         var yellow = Number.isFinite(tl.playheadMs) ? tl.playheadMs : null;
         if (yellow == null) {
@@ -4251,19 +4577,15 @@
             var jobs = [];
             var gapLabels = [];
             var i;
-            for (i = 0; i < 4; i++) {
-                var tile = tl.tiles[i];
-                if (!tile || !tile.camId || !tile.video) continue;
-                if (!tlFindSegmentAt(tile.segments || [], yellow)) {
-                    tlClearTileAtGap(tile);
-                    gapLabels.push(tlShortTreeLabel(tile.camName, tile.camId));
-                    continue;
-                }
+            /* INV-SYNC-SEEK-GENERATION-V1 — per-tile closure (the old `var tile` inside the for
+               loop made every .then() see the LAST tile → compare played one slot, not four);
+               a stale / superseded seek drops that tile back to not-playing instead of playing. */
+            var compareJob = function (tile) {
                 tile.playheadMs = yellow;
                 tile.playing = true;
                 tlEnsureVideoPlayAttrs(tile.video);
-                jobs.push(tlSeekTile(tile, yellow).then(function () {
-                    if (!tile.playing || !tile.video || !tile.video.src) {
+                return tlSeekTile(tile, yellow).then(function (ok) {
+                    if (ok === false || !tile.playing || !tile.video || !tile.video.src) {
                         tile.playing = false;
                         return { ok: false, gap: true };
                     }
@@ -4272,7 +4594,17 @@
                             tlApplyTileAudio(tile);
                             return res;
                         });
-                }));
+                });
+            };
+            for (i = 0; i < 4; i++) {
+                var cmpTile = tl.tiles[i];
+                if (!cmpTile || !cmpTile.camId || !cmpTile.video) continue;
+                if (!tlFindSegmentAt(cmpTile.segments || [], yellow)) {
+                    tlClearTileAtGap(cmpTile);
+                    gapLabels.push(tlShortTreeLabel(cmpTile.camName, cmpTile.camId));
+                    continue;
+                }
+                jobs.push(compareJob(cmpTile));
             }
             Promise.all(jobs).then(function () {
                 tlSetMeta(tlGapHonestyMeta(jobs.length, gapLabels));
@@ -4328,7 +4660,7 @@
         var el = $('inv-vms-zoom-label');
         if (!el) return;
         var z = Math.max(1, Number(tl.zoomLevel) || 1);
-        el.textContent = (z <= 1 ? '1' : String(z)) + '\u00D7';
+        el.textContent = (z <= 1 ? '1' : String(z)) + 'x';
     }
 
     function tlResetTimelineZoom() {
@@ -4524,7 +4856,7 @@
                 ctx.fillRect(labelW, y, trackW, LANE_H);
                 ctx.fillStyle = isFocus ? '#fde68a' : '#94a3b8';
                 ctx.font = (isFocus ? 'bold ' : '') + '10px system-ui';
-                ctx.fillText((lane.slot + 1) + ' ' + tlLaneShortName(lane), 4, y + 12);
+                ctx.fillText(String(lane.slot + 1), 4, y + 12);
                 (lane.segments || []).forEach(function (seg) {
                     var s0 = tlIsoToMs(seg.start_at);
                     var s1 = tlIsoToMs(seg.end_at);
@@ -4533,7 +4865,8 @@
                     if (s1 < fromMs || s0 > toMs) return;
                     var x1 = xFor(Math.max(s0, fromMs));
                     var x2 = xFor(Math.min(s1, toMs));
-                    var ww = Math.max(2, x2 - x1);
+                    var ww = x2 > x1 ? (x2 - x1) : 0;
+                    if (ww < 1) return;
                     ctx.fillStyle = isFocus ? tlTierFill(seg) : 'rgba(56, 189, 248, 0.55)';
                     ctx.globalAlpha = isFocus ? 1 : 0.72;
                     ctx.fillRect(x1, y + 1, ww, LANE_H - 2);
@@ -4551,7 +4884,7 @@
             var pinAlarms = tlDisplayAlarms() || [];
             var lastPinX = -9999;
             pinAlarms.forEach(function (al) {
-                var ams = tlIsoToMs(al.occurred_at || al.occurredAt);
+                var ams = tlAlarmAt(al);
                 if (!Number.isFinite(ams) || ams < fromMs || ams > toMs) return;
                 var x = xFor(ams);
                 if (Math.abs(x - lastPinX) < 4) return;
@@ -4620,7 +4953,8 @@
             if (s1 < fromMs || s0 > toMs) return;
             var x1 = xFor(Math.max(s0, fromMs));
             var x2 = xFor(Math.min(s1, toMs));
-            var w = Math.max(2, x2 - x1);
+            var w = x2 > x1 ? (x2 - x1) : 0;
+            if (w < 1) return;
             ctx.fillStyle = tlTierFill(seg);
             ctx.fillRect(x1, SEG_Y, w, SEG_H);
             if (w > 56 && seg.storageTier) {
@@ -4634,7 +4968,7 @@
 
         var lastPinXs = -9999;
         tlDisplayAlarms().forEach(function (al) {
-            var ams = tlIsoToMs(al.occurred_at);
+            var ams = tlAlarmAt(al);
             if (!Number.isFinite(ams) || ams < fromMs || ams > toMs) return;
             var x = xFor(ams);
             if (Math.abs(x - lastPinXs) < 4) return;
@@ -4711,6 +5045,42 @@
         });
     }
 
+    function tlPointerHitsBlue(clientX) {
+        var ms = tlMsFromClientX(clientX);
+        if (!Number.isFinite(ms)) return false;
+        if (tl.layoutMode === 'compare') {
+            var cft = tlFocusTile();
+            return !!(cft && tlFindSegmentAt(cft.segments || [], ms));
+        }
+        if (tlUseMultiLaneTimeline()) {
+            return tlLaneTilesForTimeline().some(function (t) {
+                return t && tlFindSegmentAt(t.segments || [], ms);
+            });
+        }
+        var f = tlFocusTile();
+        if (f && f.camId) return !!tlFindSegmentAt(f.segments || [], ms);
+        return (tl.mergedSegments || []).some(function (seg) {
+            return !!tlFindSegmentAt([seg], ms);
+        });
+    }
+
+    function tlPointerNearPlayhead(clientX) {
+        var canvas = $('inv-vms-timeline');
+        if (!canvas || !Number.isFinite(tl.playheadMs) || !tl.from || !tl.to) return false;
+        var rect = canvas.getBoundingClientRect();
+        var W = rect.width || 1;
+        var labelW = tlUseMultiLaneTimeline() ? LANE_LABEL_W : 0;
+        var vb = tlViewBounds();
+        var px = labelW + ((tl.playheadMs - vb.fromMs) / vb.span) * Math.max(1, W - labelW);
+        return Math.abs((clientX - rect.left) - px) <= 8;
+    }
+
+    function tlPointerOnLabelGutter(clientX) {
+        var canvas = $('inv-vms-timeline');
+        if (!canvas || !tlUseMultiLaneTimeline()) return false;
+        return (clientX - canvas.getBoundingClientRect().left) < LANE_LABEL_W;
+    }
+
     function tlOnTimelinePointer(clientX) {
         var ms = tlMsFromClientX(clientX);
         if (ms == null) return;
@@ -4730,6 +5100,7 @@
         /* INV-SYNC-MASTER-CLOCK-V1 — drag marker freely; pause Sync clock; keep position */
         tlStopMasterClock();
         tl.playheadMs = ms;
+        tlReleaseTileHolds(true); /* INV-TILE-HOLD-SCRUB-PLAY-EOF-GUARD-V1 */
         tl.tiles.forEach(function (tile) {
             tile.playing = false;
             if (tile.video) try { tile.video.pause(); } catch (_) { /* ignore */ }
@@ -4757,7 +5128,7 @@
             ? ((tlFocusTile() && tlFocusTile().alarms) || tl.mergedAlarms || [])
             : tlDisplayAlarms();
         pinList.forEach(function (al) {
-            var ams = tlIsoToMs(al.occurred_at);
+            var ams = tlAlarmAt(al);
             if (!Number.isFinite(ams) || ams < fromMs || ams > vb.toMs) return;
             var ax = labelW + ((ams - fromMs) / span) * trackW;
             if (Math.abs(ax - x) <= best) {
@@ -4766,11 +5137,40 @@
             }
         });
         if (hitPin) {
+            tl._pinHitAt = Date.now(); /* INV-TILE-HOLD-SCRUB-PLAY-EOF-GUARD-V1 — pin click never auto-plays */
             tlOpenAlarmPreview(hitPin);
             return;
         }
         tlCloseAlarmPreview();
         tlOnTimelinePointer(e.clientX);
+    }
+
+    /* INV-TILE-HOLD-SCRUB-PLAY-EOF-GUARD-V1 — NLE behaviour: release the yellow marker on a blue
+       block → play from there (Sync: Play All; else focus slot). Released in a gap → stay paused
+       (existing meta explains). Deferred one tick so the canvas `click` (which re-seeks) runs first. */
+    function tlResumeAfterScrub() {
+        setTimeout(function () {
+            if (tl._pinHitAt && (Date.now() - tl._pinHitAt) < 400) return;
+            if (!Number.isFinite(tl.playheadMs)) return;
+            var at = tl.playheadMs;
+            if (tl.layoutMode === 'compare') {
+                var ft = tlFocusTile();
+                if (ft && ft.camId && tlFindSegmentAt(ft.segments || [], at)) tlPlayTile(ft);
+                return;
+            }
+            var onBlue = tl.tiles.some(function (t) {
+                if (!t || !t.camId || !tlTileActiveInLayout(t)) return false;
+                if (!tl.syncLock && t.slot !== tl.focusSlot) return false;
+                return !!tlFindSegmentAt(t.segments || [], at);
+            });
+            if (!onBlue) return;
+            if (tl.syncLock) {
+                tlSyncPlayVideos();
+            } else {
+                var f = tlFocusTile();
+                if (f) tlPlayTile(f);
+            }
+        }, 0);
     }
 
     async function tlLoadTimeline(opts) {
@@ -4969,6 +5369,7 @@
             if (tl.calOpen) tlSetCalOpen(false);
         });
         document.addEventListener('keydown', function (e) {
+            if (!tl.visible) return; /* INV-TAB-ONHIDE-TEARDOWN-V1 */
             if (e.key === 'Escape') {
                 tlCloseAllDtPops();
                 if (tl.calOpen) tlSetCalOpen(false);
@@ -5221,8 +5622,13 @@
         if (canvas) {
             canvas.addEventListener('mousedown', function (e) {
                 if (e.button !== 0 && e.button !== 1) return;
-                /* Zoomed: drag pans; click (no move) seeks. Fit (1×): drag scrubs. */
-                if (tl.zoomLevel > 1 || e.button === 1) {
+                /* NLE: zoomed empty grey / left gutter / middle-button = pan (blue stays put).
+                   Yellow line or a blue clip = scrub. Wheel still zooms. Fit (1x) cannot pan. */
+                var wantPan = e.button === 1
+                    || (e.button === 0 && tl.zoomLevel > 1
+                        && (tlPointerOnLabelGutter(e.clientX)
+                            || (!tlPointerNearPlayhead(e.clientX) && !tlPointerHitsBlue(e.clientX))));
+                if (wantPan) {
                     e.preventDefault();
                     tl.panning = true;
                     tl.panMoved = false;
@@ -5250,8 +5656,10 @@
                 tlOnTimelinePointer(e.clientX);
             });
             window.addEventListener('mouseup', function () {
+                var wasScrub = !!tl.dragging;
                 tl.dragging = false;
                 tl.panning = false;
+                if (wasScrub) tlResumeAfterScrub(); /* INV-TILE-HOLD-SCRUB-PLAY-EOF-GUARD-V1 */
             });
             canvas.addEventListener('click', function (e) {
                 if (tl.panMoved) {
@@ -5354,6 +5762,7 @@
             alarmPanel.addEventListener('click', function (e) { e.stopPropagation(); });
         }
         document.addEventListener('keydown', function (e) {
+            if (!tl.visible) return; /* INV-TAB-ONHIDE-TEARDOWN-V1 */
             if (e.key !== 'Escape') return;
             var preview = $('inv-vms-alarm-preview');
             if (preview && !preview.hidden) {
@@ -5761,33 +6170,29 @@
                 tlLoadCameraTree().then(function () {
                     tlResizeOverlays();
                     tlDrawTimeline();
+                    /* INV-LIVE-REFRESH-AND-CACHE-V1 — SOS raised while on another tab: refresh
+                       those cams' lanes now so the red pin appears without Load / reload. */
+                    tlFlushSosDirty();
                 });
             },
             onHide: function () {
+                if (!tl.visible) return;
                 tl.visible = false;
+                /* INV-TAB-ONHIDE-TEARDOWN-V1 — no hidden playback, no RAF, no wheel/keydown capture */
+                tlTeardownForHide();
             },
             /* INV-SOS-PIN-AND-GAP-HONESTY-V1 — refresh assigned cam timeline so red SOS pin appears */
             onSosAlarm: function (data) {
-                if (!tl.visible || !data) return;
+                if (!data) return;
                 var camId = String(data.cameraId || data.camId || '').trim();
                 if (!camId) return;
-                var touched = false;
-                tl.tiles.forEach(function (tile) {
-                    if (!tile || !tile.camId) return;
-                    if (String(tile.camId) !== camId) return;
-                    touched = true;
-                    Promise.resolve(tlFetchTileTimeline(tile)).then(function () {
-                        tlMergeTimelineData();
-                        tlDrawTimeline();
-                        tlSetMeta('SOS marker refreshed for ' +
-                            tlShortTreeLabel(tile.camName, tile.camId) +
-                            '. Scrub yellow onto blue overlap for Sync Play — pins are markers only.');
-                    }).catch(function () { /* ignore */ });
-                });
-                if (!touched) {
-                    /* Still merge if live marker lands on next Load; soft meta only when on Investigation */
-                    tlSetMeta('SOS raised. Load Recordings (or re-assign cam) to show the red pin.');
+                /* INV-LIVE-REFRESH-AND-CACHE-V1 — hidden tab: mark dirty, refresh on onShow.
+                   Visible: coalesce per cam (SOS bursts fire several socket events). */
+                if (!tl.visible) {
+                    tl._sosDirtyCams[camId] = true;
+                    return;
                 }
+                tlQueueSosRefresh(camId);
             },
         };
         return true;

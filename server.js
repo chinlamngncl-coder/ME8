@@ -365,7 +365,10 @@ function refreshEvidenceStorage() {
             evidenceRegistry: evidenceRegistry,
             evidenceIngestGate: evidenceIngestGate,
             evidenceCrypto: evidenceCrypto,
+            sosIncidents: sosIncidents,
         });
+        /* SOS-AUDIO-RECORD-GATE-AND-CALL-V1 — solo SOS (no PTT team) still counts as evidence cam */
+        pttFieldGroupRelay.setOpenSosResolver((camId) => sosIncidents.findOpenIncidentIdForResponseCam(camId));
     } catch (_) { /* PTT evidence optional */ }
     vmsForensicExport.init(STORAGE_DIR);
     fixedCamRegistry.init(STORAGE_DIR);
@@ -785,6 +788,7 @@ if (dashboardTlsBoot.enabled && dashboardTlsBoot.ready && dashboardTlsBoot.https
     }
 }
 
+let sosGroupCallRecordingId = null; /* SOS-AUDIO-RECORD-GATE-AND-CALL-V1 */
 const sosGroupCall = sipGroupCallFactory.create({
     sip,
     log,
@@ -793,7 +797,30 @@ const sosGroupCall = sipGroupCallFactory.create({
     serverId: SERVER_ID,
     sipPort: SIP_PORT,
     rtpBase: SOS_GROUP_CALL_RTP_BASE,
-    onState: (state) => io.emit('sos-group-call-state', state),
+    onState: (state) => {
+        /* SOS-AUDIO-RECORD-GATE-AND-CALL-V1 — group call HQ side: begin on idle→active, end on
+           active→idle (covers owner stop, per-leg failure, engine timeouts). SOS kind only. */
+        try {
+            const callId = state && state.callId ? String(state.callId) : null;
+            if (state && state.active && callId && callId !== sosGroupCallRecordingId) {
+                if (sosGroupCallRecordingId) pttEvidenceRecorder.endHqGroupCall(sosGroupCallRecordingId);
+                sosGroupCallRecordingId = null;
+                const camIds = (state.participants || []).map((p) => p && p.camId).filter(Boolean);
+                /* CALL-GROUP-RECORD-BUTTON-V1 — dispatch (manual) group call records too when the
+                   operator armed Record to Evidence on those cams. SOS unchanged. */
+                if ((state.kind === 'sos' || state.kind === 'dispatch') && pttFieldGroupRelay.anyCamInPttEvidence(camIds)) {
+                    const owner = state.ownerSocketId ? io.sockets.sockets.get(state.ownerSocketId) : null;
+                    const uname = owner && owner.dashboardUser && owner.dashboardUser.username ? owner.dashboardUser.username : null;
+                    pttEvidenceRecorder.beginHqGroupCall(callId, camIds, uname);
+                    sosGroupCallRecordingId = callId;
+                }
+            } else if ((!state || !state.active) && sosGroupCallRecordingId) {
+                pttEvidenceRecorder.endHqGroupCall(sosGroupCallRecordingId);
+                sosGroupCallRecordingId = null;
+            }
+        } catch (_) { /* never break the call */ }
+        io.emit('sos-group-call-state', state);
+    },
     onMixedPcm: (pcm, meta) => {
         if (!meta || !meta.ownerSocketId || !pcm || !pcm.length) return;
         io.to(meta.ownerSocketId).emit('sos-group-call-audio', {
@@ -2364,7 +2391,15 @@ app.get('/api/auth-audit-ship-checklist', dashboardAuth.requireSuperAdmin, (req,
     }
 });
 
-gisOffline.registerGisOfflineRoutes(app);
+gisOffline.registerGisOfflineRoutes(app, {
+    getMapSource: function () {
+        try {
+            return serverSettings.normalizeMapSource(serverSettings.load(STORAGE_DIR).mapSource);
+        } catch (_) {
+            return 'auto';
+        }
+    },
+});
 
 app.post('/api/bwc-companion/sos-trigger', requireBwcCompanionToken, handleBwcCompanionSosTrigger);
 app.post('/api/bwc-companion/button-event', requireBwcCompanionToken, handleBwcCompanionButtonEvent);
@@ -2437,16 +2472,22 @@ app.use('/api', tenantMiddleware.requireValidLicenseWhenEnforced);
 /* MOB-APPLY 8.3 — CAD/RMS mock API (air-gap features.cadIntegration) */
 app.use('/api/cad', require('./routes/cad-integration'));
 
+/* AIRGAP-GEOCODE-AND-FETCH-TIMEOUT-V1 — UI hides place search when the server says off */
+app.get('/api/gis/geocode/status', (req, res) => {
+    res.json({ ok: true, enabled: mapGeocode.isEnabled() });
+});
+
 app.get('/api/gis/geocode', async (req, res) => {
     try {
         const out = await mapGeocode.search(req.query && req.query.q);
         res.json({ ok: true, query: out.query, results: out.results });
     } catch (err) {
         const status = err.status || 500;
+        const errorKey = err.errorKey || 'map.placeSearch.failed';
         res.status(status).json({
             ok: false,
-            errorKey: err.errorKey || 'map.placeSearch.failed',
-            error: err.message || 'Geocode failed',
+            errorKey,
+            error: errorKey,   /* never err.message to the client */
         });
     }
 });
@@ -2587,9 +2628,16 @@ app.get('/api/storage', (req, res) => {
 app.get('/api/sos-incidents', (req, res) => {
     try {
         const session = req.dashboardUser || dashboardAuth.sessionFromRequest(req);
+        const canSee = (camId) => sessionCanSeeSosDevice(session, camId);
+        const oneId = req.query && req.query.id ? String(req.query.id).trim() : '';
+        if (oneId) {
+            const entry = sosIncidents.getPublicEntry(oneId);
+            if (!entry) return res.status(404).json(opErr('Not found'));
+            if (entry.cameraId && !canSee(entry.cameraId)) return res.status(404).json(opErr('Not found'));
+            return res.json({ ok: true, entry: entry });
+        }
         const limit = req.query && req.query.limit;
         const days = req.query && req.query.days;
-        const canSee = (camId) => sessionCanSeeSosDevice(session, camId);
         res.json(sosIncidents.getDashboard(limit, days, canSee));
     } catch (err) {
         res.status(500).json(opErr(err, { entries: [], chart: [] }));
@@ -2686,6 +2734,20 @@ async function bootstrapSiteDatabase() {
         log.web.warn('nvr legacy auto-provision failed', {
             error: legErr && legErr.message ? legErr.message : String(legErr),
         });
+    }
+    /* SOS-PTT-AUDIO-ORPHAN-REBIND-V1 — radio WAVs named ~alarm-<id>~ that never attached */
+    try {
+        const rb = sosIncidents.rebindOrphanPttAudio(await siteDb.listEvidenceFiles(3000));
+        if (rb && rb.bound) log.web.info('sos ptt audio orphan rebind', rb);
+    } catch (rbErr) {
+        log.web.warn('sos ptt audio orphan rebind skipped', { error: rbErr && rbErr.message ? rbErr.message : String(rbErr) });
+    }
+    /* ALARM-MARKER-CONTRACT-V1 — one-time: non-ISO occurred_at rows fixed before readers cast ::timestamptz */
+    try {
+        const rep = await vmsAiAlarmIndex.repairNonIsoMarkers();
+        if (rep && (rep.fixed || rep.removed)) log.web.info('alarm marker repair', rep);
+    } catch (repErr) {
+        log.web.warn('alarm marker repair skipped', { error: repErr && repErr.message ? repErr.message : String(repErr) });
     }
     await operationOverlay.init({
         storageDir: STORAGE_DIR,
@@ -4197,6 +4259,18 @@ app.post('/api/ptt/manual-record', requireEvidenceEdit, express.json({ limit: '1
         });
         const snap = pttFieldGroupRelay.getManualRecordSnapshot();
         try { io.emit('ptt-manual-record-state', snap); } catch (_) { /* ignore */ }
+        /* CALL-GROUP-RECORD-BUTTON-V1 — armed mid-call: start the HQ group-call recording now
+           instead of waiting for the next call. */
+        try {
+            const gc = sosGroupCall && typeof sosGroupCall.snapshot === 'function' ? sosGroupCall.snapshot() : null;
+            if (gc && gc.active && gc.callId && gc.kind === 'dispatch' && gc.callId !== sosGroupCallRecordingId) {
+                const gcCams = (gc.participants || []).map((p) => p && p.camId).filter(Boolean);
+                if (pttFieldGroupRelay.anyCamInPttEvidence(gcCams)) {
+                    pttEvidenceRecorder.beginHqGroupCall(String(gc.callId), gcCams, session && session.username || null);
+                    sosGroupCallRecordingId = String(gc.callId);
+                }
+            }
+        } catch (_) { /* never break arm */ }
         res.json({ ok: true, manualRecord: snap });
     } catch (err) {
         res.status(err.status || 500).json(opErr(err));
@@ -4220,6 +4294,11 @@ app.post('/api/dispatch-ptt-group', licenseEntitlementsMw.requireFeature('ptt'),
         }
         if (!PTT_ENABLED) {
             return res.status(503).json(opErr("PTT not enabled on server"));
+        }
+        /* SOS-AUDIO-PRIORITY-V1 */
+        if (sosIncidents.getOpenAlarms().length) {
+            log.ptt.info('dispatch ptt group refused', { reason: 'sos_open', path: 'sos-audio-priority-v1' });
+            return res.status(409).json({ ok: false, error: SOS_AUDIO_LOCK_MSG, sosLocked: true });
         }
 
         let camIds = [];
@@ -4703,6 +4782,9 @@ app.post('/api/server-settings', dashboardAuth.requireSuperAdmin, (req, res) => 
         if (settings.site && settings.site.timezone) siteTime.configure(settings.site.timezone);
         tenantProfile.save(STORAGE_DIR, settings);
         refreshEvidenceStorage();
+        if (body.mapSource != null) {
+            try { io.emit('map-source-changed', { mapSource: settings.mapSource }); } catch (_) { /* ignore */ }
+        }
         auditLog.recordFromRequest(req, 'server.settings.save', {
             target: settings.publicHost,
             detail: {
@@ -4722,6 +4804,24 @@ app.post('/api/server-settings', dashboardAuth.requireSuperAdmin, (req, res) => 
             siteTimezone: siteTime.getTimezone(),
             ftpRestartRequired: true,
         });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.post('/api/gis/map-source', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        const body = req.body || {};
+        if (reverifyForbidden(req, res, body)) return;
+        const mapSource = serverSettings.normalizeMapSource(body.mapSource);
+        const current = serverSettings.load(STORAGE_DIR);
+        const saved = serverSettings.save(STORAGE_DIR, Object.assign({}, current, { mapSource }));
+        try { io.emit('map-source-changed', { mapSource: saved.mapSource }); } catch (_) { /* ignore */ }
+        auditLog.recordFromRequest(req, 'gis.map_source.save', {
+            actor: req.dashboardUser && req.dashboardUser.username,
+            detail: { mapSource: saved.mapSource },
+        });
+        res.json({ ok: true, mapSource: saved.mapSource });
     } catch (err) {
         res.status(500).json(opErr(err));
     }
@@ -7411,12 +7511,13 @@ app.get('/api/vms/cameras/:camId/timeline',
 
             /* Alarm markers — capped; AI/SOS preferred over motion flood */
             const almLimit = vmsAiAlarmIndex.MAX_TIMELINE_ALARMS || 180;
+            /* ALARM-MARKER-CONTRACT-V1: cast text occurred_at (same contract as recording-days); return cam_id. */
             const almResult = await siteDb.query(
-                `SELECT id, event_type, occurred_at, note
+                `SELECT id, cam_id, event_type, occurred_at, note
                  FROM vms_alarm_markers
                  WHERE cam_id = ANY($1::text[])
-                   AND occurred_at >= $2
-                   AND occurred_at <= $3
+                   AND occurred_at::timestamptz >= $2::timestamptz
+                   AND occurred_at::timestamptz <= $3::timestamptz
                  ORDER BY
                    CASE event_type
                      WHEN 'sos' THEN 0
@@ -7427,7 +7528,7 @@ app.get('/api/vms/cameras/:camId/timeline',
                      WHEN 'motion' THEN 5
                      ELSE 6
                    END ASC,
-                   occurred_at ASC
+                   occurred_at::timestamptz ASC
                  LIMIT $4`,
                 [camIdList, from, to, almLimit]
             );
@@ -7577,9 +7678,7 @@ app.get('/api/vms/recording-days',
                          ) AS day
                          FROM vms_alarm_markers a
                          WHERE a.cam_id = ANY($1::text[])
-                           AND lower(coalesce(a.event_type, '')) IN (
-                             'analytics', 'sos', 'weapon', 'fr_hit', 'anpr_hit', 'anpr'
-                           )
+                           AND lower(coalesce(a.event_type, '')) IN ('analytics', 'sos', 'anpr')
                            AND a.occurred_at::timestamptz >= $3::timestamptz
                            AND a.occurred_at::timestamptz < $4::timestamptz
                          ORDER BY day ASC`,
@@ -7588,7 +7687,9 @@ app.get('/api/vms/recording-days',
                     alarmDays = (alm.rows || []).map((r) => String(r.day).slice(0, 10));
                 }
             } catch (err) {
-                console.error('Alarm Days Query Error:', err);
+                log.web.warn('recording-days alarmDays query failed', {
+                    camIds: resolvedIds, error: err && err.message ? err.message : String(err),
+                });
                 alarmDays = [];
             }
             const recordingDays = rows.map((r) => String(r.day).slice(0, 10));
@@ -13829,6 +13930,7 @@ const ftpUsedShield = new scalePrep.FtpUsedShield({
 global.usedFtpFiles = {
     has: (name) => ftpUsedShield.has(name),
     add: (name) => ftpUsedShield.add(name),
+    claim: (name) => ftpUsedShield.claim(name),
 };
 
 function camIdFromFtpUploadPath(filePath, fallback) {
@@ -13880,8 +13982,9 @@ function ingestLatestFtpSnapshot(camId) {
     const id = camIdFromFtpUploadPath(best.full, fallbackId);
     if (!id || !sosIncidents.hasOpenAlarm(id)) return null;
     
-    // Lock the file name permanently before assigning it
-    global.usedFtpFiles.add(best.name);
+    // JSON-STORE-SINGLE-WRITER-V1 — claim atomically; if another cam's ingest won between
+    // scan and here (or the shield swept/re-added), give up instead of double-linking.
+    if (!global.usedFtpFiles.claim(best.name)) return null;
 
     const snap = sosIncidents.attachSnapshotFromFtp(best.full, best.name, id);
     if (snap && snap.snapshotUrl) {
@@ -13932,6 +14035,13 @@ function startVideoForSosAlarm(camId) {
 
     let attempts = 0;
     const maxAttempts = 12; // Retries every second for up to 12 seconds total
+
+    /* SOS-INVITE-GUARDS-V1 — one cold-pull sequence per cam. Lock spans the retry window
+       (+1 s); released early on streaming / no_contact / invite_failed as before. */
+    if (!sosInviteLock.tryAcquire(camId, (maxAttempts + 1) * 1000)) {
+        log.sip.info('sos server pull skipped', { camId, reason: 'sos_connect_lock', path: 'sos-invite-guards-v1' });
+        return;
+    }
 
     function checkAndPullVideo() {
         attempts++;
@@ -13993,8 +14103,9 @@ function emitSosAlarmToDashboard(payload) {
         replay: !!out.replay,
     });
     smartGpsTrack.onSosAlarmPushed(out);
-    /* INV-SOS-PIN-AND-GAP-HONESTY-V1 — write SOS pin into vms_alarm_markers immediately */
-    try {
+    /* INV-SOS-PIN-AND-GAP-HONESTY-V1 — write SOS pin into vms_alarm_markers immediately.
+       ALARM-MARKER-CONTRACT-V1: raise/merge already pin via deviceAlarm; refresh/replay pushes skip. */
+    if (!out.refresh && !out.replay) try {
         vmsAiAlarmIndex.logLiveSosAlarm({
             id: out.incidentId || out.id || null,
             cameraId: out.cameraId,
@@ -14041,8 +14152,9 @@ deviceAlarm.configure({
     scheduleSnapshot: scheduleSnapshotIngest,
     scheduleDeviceRecord: (camId, incidentId) => scheduleDeviceRecordOnSos(camId, incidentId, 'sos_alarm'),
     resolveOperatorName: resolveOperatorNameForCam,
-    logLiveSosAlarm: (entry) => {
-        try { return vmsAiAlarmIndex.logLiveSosAlarm(entry); } catch (_) { return null; }
+    logLiveSosAlarm: (entry, opts) => {
+        /* ALARM-MARKER-CONTRACT-V1: pass opts ({ mergeAt }) through — repeat press pin */
+        try { return vmsAiAlarmIndex.logLiveSosAlarm(entry, opts); } catch (_) { return null; }
     },
     touchDeviceOnline,
     restoreCameraContact: (camId, request) => restoreCameraContactForCam(camId, request),
@@ -14649,6 +14761,22 @@ function pauseLoginReplayForSos() {
     loginReplayDeferUntil = Date.now() + LOGIN_REPLAY_SOS_PAUSE_MS;
 }
 
+/* SOS-AUDIO-PRIORITY-V1 — while any SOS is open, HQ group audio (manual PTT group / dispatch call
+   group) is refused unless every target is in the SOS lane. 1:1 pin PTT/Call stays allowed.
+   Returns the operator message, or null when allowed. */
+const SOS_AUDIO_LOCK_MSG = 'SOS active — HQ group audio is locked to the SOS team until acknowledged.';
+function sosAudioLockReason(camIds) {
+    try {
+        if (!sosIncidents.getOpenAlarms().length) return null;
+        const ids = (camIds || []).map(String).filter(Boolean);
+        if (ids.length < 2) return null;
+        const outside = ids.some((id) => !pttFieldGroupRelay.isCamInSosTeam(id) && !pttFieldGroupRelay.isCamInOpenSos(id));
+        return outside ? SOS_AUDIO_LOCK_MSG : null;
+    } catch (_) {
+        return null;
+    }
+}
+
 function loginReplayBlockedBySos() {
     if (Date.now() < loginReplayDeferUntil) return true;
     try {
@@ -15202,6 +15330,29 @@ function emitBwcCallState(camId, active, error, extra) {
         if (active) voiceCallActiveByCam.set(id, true);
         else voiceCallActiveByCam.delete(id);
     }
+    /* SOS-AUDIO-RECORD-GATE-AND-CALL-V1 — single choke point for every call end (HQ hang-up,
+       BWC BYE, INVITE fail, socket loss). Record HQ side only when the cam is an evidence cam. */
+    try {
+        if (id && active && !wasActive && pttFieldGroupRelay.isPttEvidenceCam(id)) {
+            /* CALL-RECORD-NO-DOUBLE-1TO1-V1 — cam already inside a live group call: the group
+               recorder has HQ's mic; do not write the same seconds twice. */
+            let inGroupCall = false;
+            try {
+                const gc = sosGroupCall && typeof sosGroupCall.snapshot === 'function' ? sosGroupCall.snapshot() : null;
+                inGroupCall = !!(gc && gc.active && sosGroupCallRecordingId
+                    && (gc.participants || []).some((p) => p && String(p.camId) === id));
+            } catch (_) { /* fail-open → record */ }
+            if (inGroupCall) {
+                log.ptt.info('call record skipped (in group call)', { camId: id, callId: sosGroupCallRecordingId });
+            } else {
+                const owner = pttVoiceCallOwnerSocketId ? io.sockets.sockets.get(pttVoiceCallOwnerSocketId) : null;
+                const uname = owner && owner.dashboardUser && owner.dashboardUser.username ? owner.dashboardUser.username : null;
+                pttEvidenceRecorder.beginHqCall(id, uname);
+            }
+        } else if (id && !active && wasActive) {
+            pttEvidenceRecorder.endHqCall(id);
+        }
+    } catch (_) { /* never break the call */ }
     io.emit('bwc-call-state', Object.assign({
         camId: camId || null,
         active: !!active,
@@ -15508,6 +15659,7 @@ function launchOutboundTalkCall(camId, socket) {
     const profile = voiceIntercomProfile.resolve('phone-channel0');
     const tel = getVoiceIntercomTelemetry();
     pttVoiceCallCamId = camId;
+    pttVoiceCallOwnerSocketId = socket && socket.id ? socket.id : null;
     log.media.info('voice call sdk audio-only sip', {
         camId,
         profile: profile.id,
@@ -15564,6 +15716,7 @@ function launchFleetVoiceBroadcast(camId, socket) {
         return;
     }
     pttVoiceCallCamId = camId;
+    pttVoiceCallOwnerSocketId = socket && socket.id ? socket.id : null;
     markRecentVoiceBroadcast(camId);
     voiceBroadcastPending = { camId, at: Date.now(), byeRetried: false };
     scheduleVoiceBroadcastInviteWatch(camId, 8000);
@@ -15668,6 +15821,10 @@ function isCamIdInActivePttTalk(camId) {
 }
 /** Active operator→BWC call mic (PTT TX only — no second SIP INVITE). */
 let pttVoiceCallCamId = null;
+/* PTT-PER-SOCKET-VOICE-TARGET-V1 — socket.id that started the voice call. Only that socket
+   may feed `call-audio` into it; null (late inbound / legacy) keeps the old camId-match rule. */
+let pttVoiceCallOwnerSocketId = null;
+let callAudioForeignWarnAt = 0;
 
 /**
  * mob-fleet-boot-online-soften — do NOT mass-offline every real BWC on restart
@@ -15999,7 +16156,8 @@ io.on('connection', (socket) => {
         const camId = data && data.cameraId ? String(data.cameraId).trim() : null;
         if (!camId) return;
         queryDeviceStatus(camId, { force: true });
-        startFastStatusPolling(camId, 'pin-open');
+        /* WVP-FLV-UPSTREAM-EOF-12S-V1 — same guard as start-video: 1 Hz MESSAGE poll makes the BWC drop its RTP/BYE */
+        if (fastStatusPollAllowedForCam(camId, 'pin-open')) startFastStatusPolling(camId, 'pin-open');
         maybeQueryGpsForDevice(camId, { force: true });
     });
 
@@ -16008,7 +16166,9 @@ io.on('connection', (socket) => {
         log.web.info('dashboard selected device', { camId: dashboardSelectedCamId });
         if (dashboardSelectedCamId) {
             queryDeviceStatus(dashboardSelectedCamId, { force: true });
-            startFastStatusPolling(dashboardSelectedCamId, 'select-device');
+            if (fastStatusPollAllowedForCam(dashboardSelectedCamId, 'select-device')) {
+                startFastStatusPolling(dashboardSelectedCamId, 'select-device');
+            }
             const g = lastGpsByCam[dashboardSelectedCamId];
             if (g) {
                 socket.emit('gps-update', {
@@ -16380,6 +16540,7 @@ io.on('connection', (socket) => {
                 return;
             }
             if (!wvpHandoffStart) startFastStatusPolling(camId, 'start-video');
+            else stopFastStatusPolling(camId, 'wvp_stream'); /* WVP-FLV-UPSTREAM-EOF-12S-V1 */
         }
         startMediaFromDashboard(payload, socket);
     });
@@ -16740,6 +16901,9 @@ io.on('connection', (socket) => {
         if (sosGroupCall.ownerSocketId() !== socket.id) return;
         const frame = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
         if (!frame.length) return;
+        if (sosGroupCallRecordingId) {
+            try { pttEvidenceRecorder.appendHqGroupCall(sosGroupCallRecordingId, frame); } catch (_) { /* never break the call */ }
+        }
         sosGroupCall.sendHqAlaw(frame);
     });
 
@@ -16762,6 +16926,12 @@ io.on('connection', (socket) => {
                     ? 'End the SOS group call first'
                     : 'A call group is already active',
             });
+            return;
+        }
+        /* SOS-AUDIO-PRIORITY-V1 */
+        if (sosIncidents.getOpenAlarms().length) {
+            log.ptt.info('dispatch call group refused', { reason: 'sos_open', path: 'sos-audio-priority-v1' });
+            socket.emit('dispatch-call-group-result', { ok: false, error: SOS_AUDIO_LOCK_MSG, sosLocked: true });
             return;
         }
         const denied = camIds.find((id) => !isBwcCameraId(id) || !sessionCanSeeCam(session, id));
@@ -16881,12 +17051,27 @@ io.on('connection', (socket) => {
 
     socket.on('call-audio', (meta, chunk) => {
         if (!meta || !chunk) return;
+        /* PTT-PER-SOCKET-VOICE-TARGET-V1 — a socket that did not start the call never feeds it;
+           global-target fallback is for the owner only (no meta.camId from a foreign tab). */
+        const isOwner = !pttVoiceCallOwnerSocketId || pttVoiceCallOwnerSocketId === socket.id;
+        if (!isOwner) {
+            const at = Date.now();
+            if (at - callAudioForeignWarnAt > 5000) {
+                callAudioForeignWarnAt = at;
+                log.media.warn('call audio dropped — not call owner', {
+                    socketId: socket.id, owner: pttVoiceCallOwnerSocketId,
+                    camId: meta.camId || null, path: 'ptt-per-socket-voice-target-v1',
+                });
+            }
+            return;
+        }
         const camId = meta.camId || pttVoiceCallCamId || mediaSession.getVoiceCallCamId();
         if (!camId) return;
         const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
         if (!buf.length) return;
         if (mediaSession.isVoiceCallActiveForCam(camId)) {
             const tx = VOICE_CALL_TX_GAIN === 1 ? buf : amplifyAlaw(buf, VOICE_CALL_TX_GAIN);
+            try { pttEvidenceRecorder.appendHqCall(camId, tx); } catch (_) { /* never break the call */ }
             if (!mediaSession.sendVoiceCallAudio(tx)) {
                 log.media.warn('call audio tx dropped', { camId, bytes: tx.length });
             }
@@ -16933,9 +17118,22 @@ io.on('connection', (socket) => {
             emitPttTalkState(socket, null, false, 'No selected BWC on PTT channel — check TCP 29201 after register');
             return;
         }
+        /* SOS-AUDIO-PRIORITY-V1 — manual group already joined before the SOS: refuse the group talk */
+        const sosLock = sosAudioLockReason(online);
+        if (sosLock) {
+            log.ptt.warn('talk blocked', { camIds: online, reason: 'sos_audio_lock', path: 'sos-audio-priority-v1' });
+            emitPttTalkState(socket, online[0], false, sosLock);
+            return;
+        }
+        /* PTT-HQ-SINGLE-FLOOR-V1 — acquire before arming targets; busy = no frames sent */
+        const hqFloor = pttFieldGroupRelay.beginHqFloor(socket.id, online);
+        if (!hqFloor || !hqFloor.ok) {
+            log.ptt.warn('talk blocked', { camIds: online, reason: 'hq_floor_busy', holder: hqFloor && hqFloor.holderSocketId });
+            emitPttTalkState(socket, online[0], false, 'Another operator is talking to this BWC — wait for release');
+            return;
+        }
         pttTalkTargetsBySocket.set(socket.id, online);
         pttGroupTxProofBySocket.set(socket.id, { seq: 0 });
-        pttFieldGroupRelay.beginHqFloor(socket.id, online);
         log.ptt.info('operator talk start', { camIds: online, group: online.length > 1 });
         online.forEach((id) => queryDeviceStatus(id, { force: false }));
         emitPttTalkState(socket, online[0], true, null);
@@ -16954,9 +17152,10 @@ io.on('connection', (socket) => {
         const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
         if (!buf.length) return;
         const targets = pttTalkTargetsBySocket.get(socket.id);
-        const camIds = targets && targets.length
-            ? targets
-            : [meta.camId || connectedCameraId].filter(Boolean);
+        /* PTT-HQ-SINGLE-FLOOR-V1 — no floor (busy / never started) → drop frames, never cross-talk */
+        if (!targets || !targets.length) return;
+        pttFieldGroupRelay.touchHqFloor(socket.id);
+        const camIds = targets;
         const proofState = camIds.length > 1
             ? (pttGroupTxProofBySocket.get(socket.id) || { seq: 0 })
             : null;
@@ -17047,6 +17246,9 @@ io.on('connection', (socket) => {
         pttTalkTargetsBySocket.delete(socket.id);
         pttGroupTxProofBySocket.delete(socket.id);
         pttFieldGroupRelay.endHqFloor(socket.id);
+        /* PTT-PER-SOCKET-VOICE-TARGET-V1 — owner gone: fall back to legacy camId-match rule
+           so a reloaded tab can still end / feed the call; never leave a dead owner pinned. */
+        if (pttVoiceCallOwnerSocketId === socket.id) pttVoiceCallOwnerSocketId = null;
         try { pttEvidenceRecorder.endHqTalk(socket.id); } catch (_) { /* never break PTT */ }
         if (sosGroupCall.isActive() && sosGroupCall.ownerSocketId() === socket.id) {
             sosGroupCall.stop('operator_disconnect');
@@ -17636,6 +17838,26 @@ function startFastStatusPolling(camId, reason) {
     return true;
 }
 
+/* WVP-FLV-UPSTREAM-EOF-12S-V1 — fast 1 Hz DeviceStatus poll is for the classic pool path only.
+   On WVP/ZLM handoff the BWC answers a MESSAGE every second by closing its RTP (FIN) + BYE →
+   ZLM unregisters → every FLV reader (tiles + HQ ffmpeg) dies → flashing / 10 s clips. */
+function fastStatusPollAllowedForCam(camId, reason) {
+    if (!shouldSkipFleetInviteForWvpSoftOpen(null)) return true;
+    log.sip.info('fast status poll skipped', { camId, reason, hasContact: true, why: 'wvp_video_handoff' });
+    return false;
+}
+
+function stopFastStatusPolling(camId, reason) {
+    const id = String(camId || '').trim();
+    const existing = fastStatusPollByCam.get(id);
+    if (!existing) return false;
+    clearInterval(existing.interval);
+    clearTimeout(existing.stop);
+    fastStatusPollByCam.delete(id);
+    log.sip.info('fast status poll stopped', { camId: id, reason: reason || 'manual' });
+    return true;
+}
+
 function maybeQueryGpsForDevice(camId, opts) {
     if (!getContactUriForCam(camId) || !camId || !deviceNeedsGpsPoll(camId)) return false;
     const force = !!(opts && opts.force);
@@ -18022,6 +18244,7 @@ sip.start({ address: BIND_HOST, port: SIP_PORT }, (request, remote) => {
             if (!pttVoiceCallCamId) {
                 log.media.info('voice call late inbound invite', { camId: inboundCamId });
                 pttVoiceCallCamId = inboundCamId;
+                pttVoiceCallOwnerSocketId = null;
             }
             voiceBroadcastPending = null;
             clearVoiceInviteWatch();

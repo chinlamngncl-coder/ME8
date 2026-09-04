@@ -93,6 +93,30 @@
         return /\.(wav|mp3|ogg|m4a|aac)$/i.test(String(name || ''));
     }
 
+    /* EVIDENCE-SHOW-PTT-AUDIO-V1 — radio WAVs carry machine names (CALL-hq~cam~incident~ms~pid~seq.wav).
+       Show an operator label; raw name stays in the hint and on the detail page. */
+    function isRadioAudioFile(f) {
+        if (!f) return false;
+        if (f.source === 'ptt_audio') return true;
+        return /^(CALL-hq|PTT-(hq|field))/i.test(String(f.fileName || ''));
+    }
+    function radioAudioLabel(f) {
+        const name = String(f.fileName || '');
+        let kind;
+        if (/^CALL-hq/i.test(name)) kind = tr('evidenceHub.radioKindCall');
+        else if (/^PTT-field/i.test(name)) kind = tr('evidenceHub.radioKindFieldPtt');
+        else kind = tr('evidenceHub.radioKindHqPtt');
+        const cam = f.deviceId
+            ? ((global.FleetDisplay && FleetDisplay.friendlyDeviceName) ? FleetDisplay.friendlyDeviceName(f.deviceId) : f.deviceId)
+            : '';
+        const m = name.match(/~(alarm-[\w-]+)~/);
+        const sos = m ? ' · ' + tr('evidenceHub.radioSosTag') : '';
+        return kind + (cam ? ' · ' + cam : '') + sos;
+    }
+    function evidenceDisplayName(f) {
+        return isRadioAudioFile(f) ? radioAudioLabel(f) : String(f.fileName || '');
+    }
+
     function renderControlledPreview(file) {
         const isImage = isImageEvidenceName(file.fileName);
         const isAudio = isAudioEvidenceName(file.fileName);
@@ -1170,10 +1194,11 @@
                             + '<span></span></label> ')
                         : '')
                     + '<code>' + esc(f.id) + '</code></td>'
-                    + '<td>' + esc(f.fileName) + ' <span class="hint">· ' + fmtBytes(f.byteSize) + '</span>' + tagsHtml + '</td>'
+                    + '<td>' + esc(evidenceDisplayName(f)) + ' <span class="hint">· ' + fmtBytes(f.byteSize)
+                        + (isRadioAudioFile(f) ? ' · ' + esc(f.fileName) : '') + '</span>' + tagsHtml + '</td>'
                     + '<td>' + esc(f.operatorName || '\u2014') + '</td>'
                     + '<td>' + esc(fmtTime(f.uploadedAt)) + '</td>'
-                    + '<td>' + esc(f.storageTier || f.source || 'local') + '</td>'
+                    + '<td>' + esc(isRadioAudioFile(f) ? tr('evidenceHub.radioTypeCol') : (f.storageTier || f.source || 'local')) + '</td>'
                     + '<td><span class="ev-detail-inline"><button type="button" class="btn btn-ghost btn-sm ev-open-detail" data-file-id="' + esc(f.id) + '">' + tr('evidenceHub.open') + '</button>'
                     + (returnCase
                         ? (' <button type="button" class="btn btn-action btn-sm ev-link-to-case" data-file-id="' + esc(f.id) + '">' + tr('caseFiles.linkToThisCase') + '</button>')
@@ -3853,6 +3878,32 @@
         if (run) run.addEventListener('click', submitTrimClip);
         if (startEl) startEl.addEventListener('input', updateTrimWorkspaceLen);
         if (endEl) endEl.addEventListener('input', updateTrimWorkspaceLen);
+        /* INV-LIVE-REFRESH-AND-CACHE-V1 — In/Out readouts follow the media: once duration is known
+           clamp Out + set input max (workspace opened from the catalog has no duration yet); the
+           Set In / Set Out titles show the live playhead, throttled to 4 Hz. */
+        if (vid) {
+            vid.addEventListener('loadedmetadata', function () {
+                var dur = Number(vid.duration);
+                if (!Number.isFinite(dur) || dur <= 0) return;
+                var maxStr = (Math.round(dur * 10) / 10).toFixed(1);
+                if (startEl) startEl.max = maxStr;
+                if (endEl) {
+                    endEl.max = maxStr;
+                    var endNow = Number(endEl.value);
+                    if (endEl.value === '' || !Number.isFinite(endNow) || endNow > dur) endEl.value = maxStr;
+                }
+                updateTrimWorkspaceLen();
+            });
+            var lastReadoutAt = 0;
+            vid.addEventListener('timeupdate', function () {
+                var now = Date.now();
+                if (now - lastReadoutAt < 250) return;
+                lastReadoutAt = now;
+                var t = (Math.round((vid.currentTime || 0) * 10) / 10).toFixed(1) + ' s';
+                if (setIn) setIn.title = tr('evidenceHub.trimSetIn') + ' — ' + t;
+                if (setOut) setOut.title = tr('evidenceHub.trimSetOut') + ' — ' + t;
+            });
+        }
     }
 
     function openTrimWorkspace(opts) {
@@ -4738,9 +4789,29 @@
         showPanel(panel, opts.force ? { force: true } : { skipRefresh: true });
     }
 
+    /* INV-LIVE-REFRESH-AND-CACHE-V1 — a dock / FTP upload or a sort lands on the server: drop the
+       60 s warm cache for the list panels so the next show re-fetches, and if the Evidence view is
+       on screen right now refresh the visible list once (debounced — uploads arrive in bursts). */
+    var invalidateTimer = null;
+    function invalidateCatalog() {
+        ['overview', 'docks', 'catalog', 'redacted-exports'].forEach(function (name) {
+            delete panelLoadedAt[name];
+        });
+        if (invalidateTimer) return;
+        invalidateTimer = setTimeout(function () {
+            invalidateTimer = null;
+            var view = document.getElementById('app-view-evidence');
+            if (!view || view.hidden || !perms.view) return;
+            if (currentPanel === 'overview' || currentPanel === 'docks' || currentPanel === 'catalog') {
+                try { refreshCurrentPanel(true); } catch (_) { /* ignore */ }
+            }
+        }, 1500);
+    }
+
     global.EvidenceHub = {
         applyPermissions: applyPermissions,
         onShow: onShow,
+        invalidateCatalog: invalidateCatalog,
         showPanel: showPanel,
         refreshCatalog: loadCatalog,
         refreshCurrentPanel: refreshCurrentPanel,
