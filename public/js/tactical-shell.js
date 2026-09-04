@@ -665,9 +665,10 @@
         if (global.MobilityMapTiles && MobilityMapTiles.attachLeaflet) {
             MobilityMapTiles.attachLeaflet(map);
         } else {
-            global.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            /* AIRGAP-MAP-OFFLINE-DEFAULT-V1 — helper missing: blank, never public internet */
+            global.L.tileLayer('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', {
                 maxZoom: 19,
-                attribution: '&copy; OpenStreetMap',
+                attribution: 'Offline map pack not installed',
             }).addTo(map);
         }
 

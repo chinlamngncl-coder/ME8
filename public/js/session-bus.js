@@ -9,10 +9,15 @@
     var settingsCache = null;
     var settingsInflight = null;
 
+    /* AIRGAP-GEOCODE-AND-FETCH-TIMEOUT-V1 — bounded boot fetches; inflight resets in finally. */
+    function fmTimeout(ms) {
+        try { return (global.AbortSignal && AbortSignal.timeout) ? AbortSignal.timeout(ms) : undefined; } catch (_) { return undefined; }
+    }
+
     function getSession() {
         if (sessionCache) return Promise.resolve(sessionCache);
         if (!sessionInflight) {
-            sessionInflight = fetch('/api/auth/session', { credentials: 'same-origin' })
+            sessionInflight = fetch('/api/auth/session', { credentials: 'same-origin', signal: fmTimeout(15000) })
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
                     sessionCache = data;
@@ -32,7 +37,7 @@
     function warmSettings() {
         if (settingsCache) return Promise.resolve(settingsCache);
         if (!settingsInflight) {
-            settingsInflight = fetch('/api/server-settings', { credentials: 'same-origin' })
+            settingsInflight = fetch('/api/server-settings', { credentials: 'same-origin', signal: fmTimeout(15000) })
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
                     settingsCache = data;

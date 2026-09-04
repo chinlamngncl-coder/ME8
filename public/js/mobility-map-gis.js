@@ -41,6 +41,27 @@
     var countryCode = 'sg';
     var toolbarBuilt = false;
     var placeSearchBound = false;
+    /* MAP-OPS-LOCAL-ZOOM-AND-FILL-V1 — same pack ceiling for every country preset */
+    var packMaxZoom = null;
+
+    function clampToPack(z) {
+        var n = Number(z);
+        if (!Number.isFinite(n)) n = 11;
+        if (packMaxZoom != null) n = Math.min(n, packMaxZoom);
+        return n;
+    }
+
+    function setPackMaxZoom(z) {
+        var n = Number(z);
+        packMaxZoom = Number.isFinite(n) && n >= 2 ? Math.floor(n) : null;
+        if (!leafletMap || packMaxZoom == null) return;
+        try {
+            if (typeof leafletMap.setMaxZoom === 'function') leafletMap.setMaxZoom(packMaxZoom + 1);
+        } catch (_) { /* ignore */ }
+        try {
+            if (leafletMap.getZoom() > packMaxZoom + 1) leafletMap.setZoom(packMaxZoom);
+        } catch (_) { /* ignore */ }
+    }
 
     function tr(key, params) {
         if (global.I18n && I18n.t) return I18n.t(key, params);
@@ -116,13 +137,13 @@
 
     function getInitialView() {
         var p = COUNTRY_PRESETS[readStoredCountry()] || COUNTRY_PRESETS.sg;
-        return { pos: p.pos.slice(), zoom: p.zoom };
+        return { pos: p.pos.slice(), zoom: clampToPack(p.zoom) };
     }
 
     function applyCountryPreset(fly) {
         var preset = COUNTRY_PRESETS[countryCode] || COUNTRY_PRESETS.sg;
         if (!leafletMap) return;
-        if (fly !== false) leafletMap.setView(preset.pos, preset.zoom);
+        if (fly !== false) leafletMap.setView(preset.pos, clampToPack(preset.zoom));
         persistPrefs();
         rebuildCountrySelect();
     }
@@ -147,8 +168,8 @@
 
     function flyToPlace(lat, lon, zoom) {
         if (!leafletMap) return;
-        var z = zoom != null ? zoom : Math.max(leafletMap.getZoom(), 14);
-        leafletMap.setView([lat, lon], z);
+        var z = zoom != null ? zoom : Math.max(leafletMap.getZoom(), 11);
+        leafletMap.setView([lat, lon], clampToPack(z));
         hidePlaceResults();
         if (global.MapPopoutSync && MapPopoutSync.publishDebounced) {
             MapPopoutSync.publishDebounced();
@@ -199,13 +220,14 @@
         hidePlaceResults();
         setPlaceSearchStatus(tr('map.placeSearch.searching'));
         if (btn) btn.disabled = true;
-        fetch('/api/gis/geocode?q=' + encodeURIComponent(q), { credentials: 'same-origin', cache: 'no-cache' })
+        fetch('/api/gis/geocode?q=' + encodeURIComponent(q), { credentials: 'same-origin', cache: 'no-cache', signal: fmTimeout(12000) })
             .then(function (res) {
                 return res.json().then(function (data) { return { res: res, data: data }; });
             })
             .then(function (pack) {
                 if (!pack.res.ok || !pack.data.ok) {
                     var key = (pack.data && pack.data.errorKey) || 'map.placeSearch.failed';
+                    if (key === 'map.placeSearch.offline') hidePlaceSearchUi();
                     throw new Error(tr(key));
                 }
                 var results = pack.data.results || [];
@@ -225,12 +247,35 @@
             });
     }
 
+    /* AIRGAP-GEOCODE-AND-FETCH-TIMEOUT-V1 */
+    function fmTimeout(ms) {
+        try { return (global.AbortSignal && AbortSignal.timeout) ? AbortSignal.timeout(ms) : undefined; } catch (_) { return undefined; }
+    }
+
+    function hidePlaceSearchUi() {
+        var wrap = document.getElementById('map-place-search-wrap');
+        var hint = document.getElementById('map-place-search-hint');
+        if (wrap) wrap.hidden = true;
+        if (hint) hint.hidden = true;
+    }
+
+    /* Server decides (FM_MAP_GEOCODE_ONLINE / FM_MAP_GEOCODE_URL); off → no search box at all. */
+    function probeGeocodeAvailability() {
+        fetch('/api/gis/geocode/status', { credentials: 'same-origin', cache: 'no-cache', signal: fmTimeout(8000) })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (data && data.ok && data.enabled === false) hidePlaceSearchUi();
+            })
+            .catch(function () { /* keep box; a real search will report offline and hide */ });
+    }
+
     function bindPlaceSearch() {
         if (placeSearchBound || !placeSearchEnabled()) return;
         var input = document.getElementById('map-place-search-input');
         var btn = document.getElementById('map-place-search-btn');
         if (!input || !btn) return;
         placeSearchBound = true;
+        probeGeocodeAvailability();
         btn.addEventListener('click', runPlaceSearch);
         input.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') {
@@ -300,6 +345,7 @@
     global.MobilityMapGis = {
         init: init,
         getInitialView: getInitialView,
+        setPackMaxZoom: setPackMaxZoom,
         flyTo: function (lat, lon, zoom) {
             flyToPlace(lat, lon, zoom);
         },

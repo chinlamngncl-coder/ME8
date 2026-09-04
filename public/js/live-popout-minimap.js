@@ -219,10 +219,15 @@
             zoomControl: true,
             attributionControl: false,
         }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
-        global.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: 'OSM',
-        }).addTo(state.map);
+        /* AIRGAP-MAP-OFFLINE-DEFAULT-V1 — offline pack first, no public tiles without opt-in */
+        if (global.MobilityMapTiles && MobilityMapTiles.attachLeaflet) {
+            MobilityMapTiles.attachLeaflet(state.map, { maxNativeZoom: 19, maxZoom: 19 });
+        } else {
+            global.L.tileLayer(
+                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+                { maxZoom: 19, attribution: 'Offline map pack not installed' }
+            ).addTo(state.map);
+        }
         setTimeout(function () {
             try { state.map.invalidateSize(); } catch (_) { /* ignore */ }
         }, 80);

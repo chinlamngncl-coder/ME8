@@ -54,7 +54,19 @@
             vidEl.setAttribute('controls', '');
             vidEl.style.pointerEvents = 'auto';
         }
-        try { v.play().catch(function () { /* ignore autoplay */ }); } catch (_) { /* ignore */ }
+        /* VMS-PLAY-GESTURE-HYGIENE-V1 — play once metadata is ready (not on a bare src swap);
+           blocked → muted retry; still blocked → controls are already on, one tap plays. */
+        var onReady = function () {
+            v.removeEventListener('loadedmetadata', onReady);
+            if (v.src !== previewUrl) return;
+            try {
+                v.play().catch(function () {
+                    try { v.muted = true; v.play().catch(function () {}); } catch (_) { /* ignore */ }
+                });
+            } catch (_) { /* ignore */ }
+        };
+        if (v.readyState >= 1) onReady();
+        else v.addEventListener('loadedmetadata', onReady);
     }
 
     function setStatus(text, cls) {

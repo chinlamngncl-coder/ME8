@@ -6,7 +6,7 @@
 
     const VENDOR = '/vendor/livekit-client.umd.min.js?v=20260701-vc-bwc-remove';
     const LAYOUT = '/js/conference-layout.js?v=20260901-vc-focus-ptz-v1';
-    const HUB = '/js/conference-hub.js?v=20260901-vc-sos-evidence-bind-v1';
+    const HUB = '/js/conference-hub.js?v=20260902-inv-tab-onhide-teardown-v1';
 
     let loadPromise = null;
 

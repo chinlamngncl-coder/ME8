@@ -16,11 +16,7 @@ from PIL import Image
 
 HOST_HINT = "127.0.0.1"
 PORT_HINT = int(os.environ.get("FM_WEAPON_SIDECAR_PORT", "8769") or "8769")
-WEIGHTS_URL = os.environ.get(
-    "FM_WEAPON_WEIGHTS_URL",
-    "https://huggingface.co/Subh775/Threat-Detection-RFDETR/resolve/main/checkpoint_best_total.pth",
-)
-WEIGHTS_NAME = "checkpoint_best_total.pth"
+WEIGHTS_NAME = "checkpoint_best_total.pth"  # AIRGAP-SIDECAR-NO-DOWNLOAD-V1: no WEIGHTS_URL, local only
 SMOKE_WEIGHTS_NAME = "checkpoint_pistol_smoke.pth"
 COLAB_B_NAME = "weapon_rfdetr_best.pt"  # WEAPON-B-COLAB-WIRE-SIDECAR-V1
 COLAB_B_SLIM_NAME = "checkpoint_colab_b.pth"
@@ -73,24 +69,26 @@ def _weights_path() -> str:
 
 
 def _ensure_weights() -> str:
+    """AIRGAP-SIDECAR-NO-DOWNLOAD-V1 — local weights only, fail closed.
+
+    No HuggingFace fetch at runtime. Weights ship in the pack (weapon-sidecar/models or
+    ai_engine/weights). Missing → clear error; /health reports it; Fleet stays up.
+    """
     path = _weights_path()
     if os.path.isfile(path) and os.path.getsize(path) > 100000:
         return path
-    # Only auto-download public Threat weights — never invent smoke/colab
     path = os.path.join(_models_dir(), WEIGHTS_NAME)
     if os.path.isfile(path) and os.path.getsize(path) > 100000:
         return path
-    import requests
-
-    tmp = path + ".part"
-    r = requests.get(WEIGHTS_URL, stream=True, timeout=120)
-    r.raise_for_status()
-    with open(tmp, "wb") as f:
-        for chunk in r.iter_content(chunk_size=1024 * 256):
-            if chunk:
-                f.write(chunk)
-    os.replace(tmp, path)
-    return path
+    raise RuntimeError(
+        "weights_missing: place "
+        + WEIGHTS_NAME
+        + " (or "
+        + COLAB_B_NAME
+        + " / "
+        + SMOKE_WEIGHTS_NAME
+        + ") in weapon-sidecar/models — air-gap: no download. See Installation Guide (Weapon models)."
+    )
 
 
 def _colab_product_label(raw_name: str) -> Optional[str]:

@@ -174,6 +174,30 @@
         if (c && c.state === 'suspended') {
             try { c.resume(); } catch (_) { /* ignore */ }
         }
+        hideUnlockBanner();
+    }
+
+    /* VMS-PLAY-GESTURE-HYGIENE-V1 — a fresh console has no gesture yet: the first SOS / analytics
+       tone would be silently refused. Show one persistent line until the operator clicks anywhere
+       (document click → unlock()). Never shown once unlocked; never shown when alerts are off. */
+    function showUnlockBanner() {
+        if (unlocked || !document.body) return;
+        var el = document.getElementById('hq-alert-audio-unlock');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'hq-alert-audio-unlock';
+            el.setAttribute('role', 'status');
+            el.setAttribute('aria-live', 'polite');
+            el.textContent = 'Alert sounds are waiting for your first click — click anywhere to enable them';
+            el.addEventListener('click', unlock);
+            document.body.appendChild(el);
+        }
+        el.hidden = false;
+    }
+
+    function hideUnlockBanner() {
+        var el = document.getElementById('hq-alert-audio-unlock');
+        if (el) el.hidden = true;
     }
 
     function tone(freq, dur, gainPeak) {
@@ -278,7 +302,7 @@
                 a.onerror = function () { resolve(false); };
                 var p = a.play();
                 if (p && typeof p.then === 'function') {
-                    p.catch(function () { resolve(false); });
+                    p.catch(function () { showUnlockBanner(); resolve(false); });
                 }
             } catch (_) {
                 resolve(false);
@@ -311,6 +335,7 @@
         loadPrefs();
         if (sessionMuted()) return false;
         if (!kindEnabled(kind)) return false;
+        if (!unlocked) showUnlockBanner(); /* VMS-PLAY-GESTURE-HYGIENE-V1 */
         stopHold();
         var my = holdToken;
         var form = prefs;
@@ -324,7 +349,7 @@
                 holdAudio = new Audio(src);
                 holdAudio.loop = true;
                 holdAudio.volume = Math.min(1, Math.max(0.05, prefs.volume));
-                holdAudio.play().catch(function () { /* ignore */ });
+                holdAudio.play().catch(function () { showUnlockBanner(); });
             } catch (_) { /* ignore */ }
             holdStopTimer = setTimeout(function () {
                 if (my === holdToken) stopHold();
@@ -370,6 +395,7 @@
         if (!kindEnabled(kind)) return false;
         var tier = String(opts.tier || 'strong').toLowerCase();
         if (tier === 'silent' || tier === 'low') return false;
+        if (!unlocked) showUnlockBanner(); /* VMS-PLAY-GESTURE-HYGIENE-V1 */
         var key = String(kind) + ':' + String(opts.key || tier);
         var now = Date.now();
         if (lastPlay[key] && now - lastPlay[key] < DEDUPE_MS) return false;

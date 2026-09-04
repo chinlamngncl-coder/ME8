@@ -471,6 +471,12 @@
             if (global.VmsInvestigationTimeline && global.VmsInvestigationTimeline.onShow) {
                 global.VmsInvestigationTimeline.onShow({ force: loadData });
             }
+        } else if (global.VmsInvestigationTimeline && global.VmsInvestigationTimeline.onHide) {
+            /* INV-TAB-ONHIDE-TEARDOWN-V1 — was never called: hidden Sync kept RAF + videos + key/wheel capture */
+            try { global.VmsInvestigationTimeline.onHide(); } catch (_) { /* ignore */ }
+        }
+        if (tab !== 'conference' && global.ConferenceHub && global.ConferenceHub.onHide) {
+            try { global.ConferenceHub.onHide(); } catch (_) { /* ignore */ }
         }
         if (tab === 'server' && global.SettingsHub && SettingsHub.onShow) {
             SettingsHub.onShow({ force: loadData });
@@ -566,10 +572,19 @@
         if (global.AuditTrailHub && AuditTrailHub.bindUi) AuditTrailHub.bindUi();
         if (global.SettingsHub && SettingsHub.init) SettingsHub.init();
         if (global.ServerSetup && ServerSetup.init) ServerSetup.init();
-        if (global.socket) {
-            global.socket.on('ftp-upload', function () {
-                if (onEvidenceView) loadCatalog();
-            });
+        /* INV-LIVE-REFRESH-AND-CACHE-V1 — dock/FTP arrivals and sort results invalidate the
+           EvidenceHub warm cache (was: legacy loadCatalog only, hub panels stayed stale ≤ 60 s). */
+        const evSock = global.socket || global.__mobilityDashboardSocket;
+        if (evSock) {
+            const onEvidenceChanged = function () {
+                if (global.EvidenceHub && EvidenceHub.invalidateCatalog) {
+                    try { EvidenceHub.invalidateCatalog(); } catch (_) { /* ignore */ }
+                } else if (onEvidenceView) {
+                    loadCatalog();
+                }
+            };
+            evSock.on('ftp-upload', onEvidenceChanged);
+            evSock.on('evidence-sorted', onEvidenceChanged);
         }
         if (document.documentElement.classList.contains('analytics-popout-mode')) {
             function bootPopoutAnalytics() {

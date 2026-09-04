@@ -185,6 +185,39 @@
         try { session.video.pause(); } catch (_) { /* ignore */ }
     }
 
+    /* VMS-PLAY-GESTURE-HYGIENE-V1 — non-gesture play path: muted first; if the browser still
+       refuses, mark the element (data-fm-needs-gesture="1") and let the operator's next click on
+       it start playback. Live tiles are muted anyway, so this is state + retry, not audio policy. */
+    function playMutedOrArmGesture(videoElement) {
+        if (!videoElement) return;
+        try {
+            videoElement.muted = true;
+            var mp = videoElement.play();
+            if (mp && mp.then) {
+                mp.then(function () {
+                    try { videoElement.removeAttribute('data-fm-needs-gesture'); } catch (_) { /* ignore */ }
+                }).catch(function () { armGesturePlay(videoElement); });
+            }
+        } catch (_) { armGesturePlay(videoElement); }
+    }
+
+    function armGesturePlay(videoElement) {
+        if (!videoElement || videoElement._fmGestureArmed) return;
+        videoElement._fmGestureArmed = true;
+        try { videoElement.setAttribute('data-fm-needs-gesture', '1'); } catch (_) { /* ignore */ }
+        var target = videoElement.parentElement || videoElement;
+        var onClick = function () {
+            target.removeEventListener('click', onClick);
+            videoElement._fmGestureArmed = false;
+            try { videoElement.removeAttribute('data-fm-needs-gesture'); } catch (_) { /* ignore */ }
+            try {
+                var p = videoElement.play();
+                if (p && p.catch) p.catch(function () {});
+            } catch (_) { /* ignore */ }
+        };
+        target.addEventListener('click', onClick);
+    }
+
     function resumeFromVisibility(session) {
         if (!session || session.destroyed || !session.pausedForVisibility) return;
         session.pausedForVisibility = false;
@@ -194,7 +227,7 @@
         } catch (_) { /* ignore */ }
         try {
             var vp = session.video.play();
-            if (vp && vp.catch) vp.catch(function () {});
+            if (vp && vp.catch) vp.catch(function () { playMutedOrArmGesture(session.video); });
         } catch (_) { /* ignore */ }
         softChaseTick(session, 'focus');
     }
@@ -306,10 +339,7 @@
             var playP = player.play();
             if (playP && playP.catch) {
                 playP.catch(function () {
-                    try {
-                        videoElement.muted = true;
-                        videoElement.play().catch(function () {});
-                    } catch (_) { /* ignore */ }
+                    playMutedOrArmGesture(videoElement);
                 });
             }
         } catch (_) { /* ignore */ }

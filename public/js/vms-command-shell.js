@@ -156,9 +156,15 @@
             zoomControl: true,
             attributionControl: false,
         });
-        global.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-        }).addTo(gisMap);
+        /* AIRGAP-MAP-OFFLINE-DEFAULT-V1 — offline pack first, no public tiles without opt-in */
+        if (global.MobilityMapTiles && MobilityMapTiles.attachLeaflet) {
+            MobilityMapTiles.attachLeaflet(gisMap, { maxNativeZoom: 19, maxZoom: 19 });
+        } else {
+            global.L.tileLayer(
+                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+                { maxZoom: 19, attribution: 'Offline map pack not installed' }
+            ).addTo(gisMap);
+        }
         var v = vmsSpatialState.gisView;
         gisMap.setView([v.lat, v.lng], v.zoom);
         gisMap.on('moveend', function () {
@@ -575,7 +581,10 @@
                 }
                 railPlayers.set(id, { video: video, player: handle, stageEl: stageEl, gen: gen });
                 if (labelEl) labelEl.textContent = 'Live';
-                try { video.play(); } catch (_) { /* ignore */ }
+                /* VMS-PLAY-GESTURE-HYGIENE-V1 — attach() already plays; bare play() = unhandled rejection */
+                if (!handle) {
+                    try { var p0 = video.play(); if (p0 && p0.catch) p0.catch(function () {}); } catch (_) { /* ignore */ }
+                }
             })
             .catch(function () {
                 if (gen !== railMountGen) return;

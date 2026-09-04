@@ -200,9 +200,10 @@
                 tileLayer = r && r.layer ? r.layer : null;
             });
         } else {
-            tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            /* AIRGAP-MAP-OFFLINE-DEFAULT-V1 — helper missing: blank, never public internet */
+            tileLayer = L.tileLayer('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', {
                 maxZoom: 19,
-                attribution: '© OpenStreetMap contributors',
+                attribution: 'Offline map pack not installed',
             }).addTo(map);
         }
         routeLayer = L.layerGroup().addTo(map);

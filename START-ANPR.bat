@@ -46,16 +46,15 @@ if "%NEED_INSTALL%"=="1" (
   )
 )
 
-REM Ensure Stage-2 ultralytics is present even if venv predates requirements pin
+REM AIRGAP-SIDECAR-NO-DOWNLOAD-V1 — no runtime pip. ultralytics must already be in the venv
+REM (INSTALL.ps1 / shipped venv). Missing = readable stop, not a network call.
 "%ANPR_PY%" -c "import ultralytics" >nul 2>&1
 if errorlevel 1 (
-  echo  Installing ultralytics for Stage-2 ph_id_plates_best.pt ...
-  "%ANPR_PY%" -m pip install "ultralytics>=8.1,<9"
-  if errorlevel 1 (
-    echo  ERROR: ultralytics install failed — Stage 2 cannot start.
-    pause
-    exit /b 1
-  )
+  echo  ERROR: ultralytics is not installed in anpr-sidecar\.venv — Stage 2 cannot start.
+  echo  Air-gap: no download. Re-run anpr-sidecar\INSTALL.ps1 with the offline wheel pack
+  echo  ^(see Installation Guide, ANPR^).
+  pause
+  exit /b 1
 )
 
 echo  Starting ANPR on 127.0.0.1:8768 ...

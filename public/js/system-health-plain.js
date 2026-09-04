@@ -10,6 +10,7 @@
     var gate = null;
     var timer = null;
     var lockedOffline = false;
+    var deadStreak = 0;
     var inFlight = false;
     var blockersBound = false;
     var redirecting = false;
@@ -179,10 +180,15 @@
     }
 
     function onDead() {
+        /* LOGIN-FORCE-RELOGIN-NO-BOUNCE-V1 — one slow Ops parse / one failed fetch is not an outage */
+        if (document.readyState !== 'complete') return;
+        deadStreak += 1;
+        if (deadStreak < 2) return;
         lockGate();
     }
 
     function onAlive(data) {
+        deadStreak = 0;
         if (lockedOffline || mustForceRelogin()) {
             goLogin();
             return;
@@ -246,8 +252,6 @@
         if (!orig || orig.__axServerGate) return;
         function wrapped() {
             return orig.apply(this, arguments).catch(function (err) {
-                var msg = String((err && err.message) || err || '');
-                if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) onDead();
                 throw err;
             });
         }

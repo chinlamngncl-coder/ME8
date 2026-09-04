@@ -87,8 +87,6 @@ if ($Variant -eq 'Cn') {
     $cnMeta = @(
         '<meta name="fm-locales" content="en,zh">'
         '<meta name="fm-map-countries" content="cn">'
-        '<meta name="fm-map-offline" content="1">'
-        '<meta name="fm-map-offline-only" content="1">'
     ) -join "`n    "
     foreach ($html in @('index.html', 'login.html')) {
         $p = Join-Path $appDir "public\$html"
@@ -98,10 +96,23 @@ if ($Variant -eq 'Cn') {
             Set-Content $p $raw -Encoding UTF8 -NoNewline
         }
     }
-    $gisSrc = Join-Path $AppRoot 'data\gis\offline'
-    if (Test-Path $gisSrc) {
-        Copy-Tree $gisSrc (Join-Path $appDir 'data\gis\offline')
-    }
+}
+
+# MAP-SOURCE-SETTINGS-TOGGLE-V1 — do not stamp fm-map-offline-only on every zip.
+# Unstamped / internet SKU defaults to Online OSM. Air-gap sites set Local Pack in Settings.
+# GIS tile pack still copies so Local Pack has tiles. Sidecar weights travel in <sidecar>\models.
+Write-Step 'GIS offline tile pack (no forced offline-only meta)...'
+$gisSrc = Join-Path $AppRoot 'data\gis\offline'
+if (Test-Path $gisSrc) {
+    Copy-Tree $gisSrc (Join-Path $appDir 'data\gis\offline')
+} else {
+    Write-Warning 'data\gis\offline missing — pack will show blank map tiles with "pack not installed" message.'
+}
+foreach ($w in @(
+    'anpr-sidecar\models\plate_yolo11n.onnx',
+    'weapon-sidecar\models\checkpoint_best_total.pth'
+)) {
+    if (-not (Test-Path (Join-Path $appDir $w))) { Write-Warning "Air-gap weights missing in pack: $w" }
 }
 
 Write-Step 'Stage docker + vendor helpers...'

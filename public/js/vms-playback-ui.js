@@ -300,8 +300,18 @@
         video.load();
         video.addEventListener('canplay', function once() {
             video.removeEventListener('canplay', once);
+            if (state.activeSegment !== seg) return;   /* VMS-PLAY-GESTURE-HYGIENE-V1 — a newer clip won */
             if (seekSec > 0) video.currentTime = seekSec;
-            video.play().catch(() => {});
+            video.play().catch(() => {
+                /* blocked → muted retry; still blocked → tell the operator, native controls play on tap */
+                try {
+                    video.muted = true;
+                    video.play().catch(() => {
+                        video.controls = true;
+                        setStatus('Click the video to play', false);
+                    });
+                } catch (_) { /* ignore */ }
+            });
         }, { once: true });
         setStatus('Clip loaded' + (seekSec ? (' @' + msToHms(seekSec * 1000)) : ''), false);
         updateRefinePanel();

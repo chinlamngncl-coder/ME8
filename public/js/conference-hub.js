@@ -2175,9 +2175,21 @@
         }
     }
 
+    /* INV-TAB-ONHIDE-TEARDOWN-V1 — leaving the tab: stop the lobby poll, drop a lingering toast.
+       Does NOT leave the room — an active call keeps running while the operator checks Ops. */
+    function onHide() {
+        stopLobbyPresenceWatch();
+        const el = document.getElementById('vc-ingress-toast');
+        if (el) {
+            if (el._timer) { clearTimeout(el._timer); el._timer = null; }
+            el.classList.remove('visible');
+        }
+    }
+
     global.ConferenceHub = {
         applyPermissions: applyPermissions,
         onShow: onShow,
+        onHide: onHide,
         bindUi: bindUi,
         leaveRoom: leaveRoom,
     };

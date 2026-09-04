@@ -84,11 +84,16 @@
                     channel.postMessage({ type: 'hello', at: Date.now() });
                 } catch (_) { /* ignore */ }
             }, 400);
-            setInterval(function () {
+            /* INV-TAB-ONHIDE-TEARDOWN-V1 — clear the hello beacon + close the channel on pagehide */
+            var helloTimer = setInterval(function () {
                 try {
                     channel.postMessage({ type: 'hello', at: Date.now() });
                 } catch (_) { /* ignore */ }
             }, 8000);
+            window.addEventListener('pagehide', function () {
+                clearInterval(helloTimer);
+                try { channel.close(); } catch (_) { /* ignore */ }
+            });
         } else if (opts.map) {
             opts.map.on('moveend', publishDebounced);
             opts.map.on('zoomend', publishDebounced);

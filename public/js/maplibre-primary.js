@@ -45,11 +45,9 @@
 
     function pickStyle(cfg) {
         cfg = cfg || {};
-        var wantOffline = !!(cfg.tilesExists && (
-            cfg.forceOfflineOnly
-            || hasMetaFlag('fm-map-offline-only', '1')
-            || hasMetaFlag('fm-map-offline', '1')
-        ));
+        /* AIRGAP-MAP-OFFLINE-DEFAULT-V1 — offline first; online style only by explicit opt-in */
+        var onlineOptIn = !hasMetaFlag('fm-map-offline-only', '1') && hasMetaFlag('fm-map-online', '1');
+        var wantOffline = !!cfg.tilesExists || !onlineOptIn;
         if (wantOffline) {
             return {
                 mode: 'offline',
@@ -177,6 +175,8 @@
 
                 mlMap.on('error', function (e) {
                     if (failed || mapMode !== 'offline') return;
+                    /* no silent hop to public internet unless the page opted in */
+                    if (!hasMetaFlag('fm-map-online', '1') || hasMetaFlag('fm-map-offline-only', '1')) return;
                     failed = true;
                     mapMode = 'online';
                     maxZoom = 18;

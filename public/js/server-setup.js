@@ -1570,6 +1570,14 @@
         updateSidebarDeployment(mode);
         const portEl = document.getElementById('ss-runtime-http-port');
         if (portEl && lastRuntime && lastRuntime.httpPort) portEl.textContent = String(lastRuntime.httpPort);
+        const mapSrcEl = document.getElementById('ss-map-source');
+        if (mapSrcEl) {
+            const ms = String(s.mapSource || 'auto').toLowerCase();
+            mapSrcEl.value = (ms === 'online' || ms === 'local') ? ms : 'auto';
+            mapSrcEl.disabled = !canManageServer;
+        }
+        const mapSrcBtn = document.getElementById('ss-map-source-apply');
+        if (mapSrcBtn) mapSrcBtn.disabled = !canManageServer;
     }
 
     function readForm() {
@@ -1621,6 +1629,11 @@
                     ? document.getElementById('ss-ftp-upload-path').value.trim()
                     : '',
             },
+            mapSource: (function () {
+                const el = document.getElementById('ss-map-source');
+                const v = el ? String(el.value || 'auto').toLowerCase() : 'auto';
+                return (v === 'online' || v === 'local') ? v : 'auto';
+            })(),
         };
     }
 
@@ -2518,6 +2531,43 @@
         if (subSite) subSite.addEventListener('click', () => setDashSubTab('site'));
         if (subMe) subMe.addEventListener('click', () => setDashSubTab('me'));
         if (subGroups) subGroups.addEventListener('click', () => setDashSubTab('groups'));
+        const mapSrcApply = document.getElementById('ss-map-source-apply');
+        if (mapSrcApply) {
+            mapSrcApply.addEventListener('click', async function () {
+                if (!canManageServer) return;
+                const el = document.getElementById('ss-map-source');
+                const status = document.getElementById('ss-map-source-status');
+                const raw = el ? String(el.value || 'auto').toLowerCase() : 'auto';
+                const mapSource = (raw === 'online' || raw === 'local') ? raw : 'auto';
+                try {
+                    const formBody = { mapSource: mapSource };
+                    const payload = global.AuthReverify && AuthReverify.withReverify
+                        ? await AuthReverify.withReverify(formBody)
+                        : formBody;
+                    const res = await fetch('/api/gis/map-source', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                    const data = await res.json();
+                    if (!data.ok) throwOpErr(data);
+                    if (el && data.mapSource) el.value = data.mapSource;
+                    try { document.dispatchEvent(new CustomEvent('fm-map-source-changed')); } catch (_) { /* ignore */ }
+                    if (global.MobilityMapTiles && MobilityMapTiles.refreshAll) {
+                        await MobilityMapTiles.refreshAll();
+                    }
+                    if (status) {
+                        status.hidden = false;
+                        status.textContent = tr('groups.mapSourceApplied');
+                    }
+                } catch (err) {
+                    if (status) {
+                        status.hidden = false;
+                        status.textContent = opMsg(err.opPayload || err.catalogPayload, err);
+                    }
+                }
+            });
+        }
         if (subLab) subLab.addEventListener('click', () => setDashSubTab('lab'));
         const fleetWireless = document.getElementById('ss-fleet-sub-wireless');
         const fleetFixed = document.getElementById('ss-fleet-sub-fixed');
@@ -2885,6 +2935,8 @@
                 updateSiteTimePreview(lastSiteTimePreview);
                 fillBwcChecklist(data.bwc, lastBwcDeviceSummary);
                 cachedSettingsData = null;
+                try { document.dispatchEvent(new CustomEvent('fm-map-source-changed')); } catch (_) { /* ignore */ }
+                if (global.MobilityMapTiles && MobilityMapTiles.refreshAll) MobilityMapTiles.refreshAll();
                 if (global.SessionBus && SessionBus.invalidateSettings) SessionBus.invalidateSettings();
                 clearTabExtrasCache();
                 loadProductionAccess();

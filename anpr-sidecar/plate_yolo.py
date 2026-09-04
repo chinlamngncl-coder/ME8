@@ -28,39 +28,21 @@ def crop_plate_fallback_weights_path() -> str:
 
 
 def download_crop_plate_model() -> Optional[str]:
-    """keremberke yolov8n-license-plate — plate-in-crop weights when ph_id stays weak."""
+    """keremberke yolov8n-license-plate — plate-in-crop weights when ph_id stays weak.
+
+    AIRGAP-SIDECAR-NO-DOWNLOAD-V1: local file only. No HuggingFace / urllib at runtime —
+    weights ship in the pack (models/yolov8n-license-plate-keremberke.pt). Missing → None,
+    caller keeps the ph_id weights and logs once.
+    """
     dest = crop_plate_fallback_weights_path()
     if os.path.isfile(dest) and os.path.getsize(dest) > 1_000_000:
         return dest
-    os.makedirs(models_dir(), exist_ok=True)
-    urls = [
-        # Public YOLOv8n plate (trained on keremberke license-plate dataset)
-        "https://huggingface.co/joker5914/yolov8n-license-plate/resolve/main/best.pt",
-        "https://huggingface.co/joker5914/yolov8n-license-plate/resolve/main/best.onnx",
-    ]
-    import urllib.request
-
-    for url in urls:
-        tmp = dest + ".tmp"
-        try:
-            print("[anpr-stage2] downloading crop-plate model:", url, flush=True)
-            urllib.request.urlretrieve(url, tmp)
-            if os.path.isfile(tmp) and os.path.getsize(tmp) > 500_000:
-                if os.path.isfile(dest):
-                    try:
-                        os.remove(dest)
-                    except OSError:
-                        pass
-                os.replace(tmp, dest)
-                print("[anpr-stage2] crop-plate model saved:", dest, flush=True)
-                return dest
-        except Exception as exc:  # noqa: BLE001
-            print("[anpr-stage2] download fail:", url, str(exc)[:120], flush=True)
-            try:
-                if os.path.isfile(tmp):
-                    os.remove(tmp)
-            except OSError:
-                pass
+    print(
+        "[anpr-stage2] crop-plate weights not installed (models/"
+        + os.path.basename(dest)
+        + ") — air-gap: no download; keeping ph_id weights. See Installation Guide (ANPR models).",
+        flush=True,
+    )
     return None
 
 

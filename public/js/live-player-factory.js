@@ -247,13 +247,21 @@
         var proveTimer = null;
         var failTimer = null;
         var lastFrameTime = 0;
+        var onTimeUpdate = null;
+        var onEnded = null;
 
         function cleanup() {
             if (proveTimer) { clearTimeout(proveTimer); proveTimer = null; }
             if (failTimer) { clearTimeout(failTimer); failTimer = null; }
+            /* INV-LIVE-REFRESH-AND-CACHE-V1 — listeners off, then detach → pause → unload → remove */
+            try { video.removeEventListener('playing', armProve); } catch (_) { /* ignore */ }
+            try { if (onTimeUpdate) video.removeEventListener('timeupdate', onTimeUpdate); } catch (_) { /* ignore */ }
+            try { if (onEnded) video.removeEventListener('ended', onEnded); } catch (_) { /* ignore */ }
             try {
                 if (global.AxiomFlvManager) global.AxiomFlvManager.detach(video);
             } catch (_) { /* ignore */ }
+            try { video.pause(); } catch (_) { /* ignore */ }
+            try { video.removeAttribute('src'); video.load(); } catch (_) { /* ignore */ }
             try {
                 if (video.parentNode) video.parentNode.removeChild(video);
             } catch (_) { /* ignore */ }
@@ -329,8 +337,9 @@
             return null;
         }
 
-        video.addEventListener('playing', armProve);
-        video.addEventListener('timeupdate', function () {
+        /* INV-LIVE-REFRESH-AND-CACHE-V1 — named handlers so cleanup() can remove them; an
+           anonymous timeupdate closure kept firing onVideoFrame on a destroyed tile. */
+        onTimeUpdate = function () {
             if (!settled && video.currentTime > 0.05) armProve();
             if (settled && typeof onVideoFrame === 'function') {
                 var t = video.currentTime;
@@ -339,13 +348,16 @@
                     onVideoFrame();
                 }
             }
-        });
-        video.addEventListener('ended', function () {
+        };
+        onEnded = function () {
             if (!settled) return;
             if (typeof onStreamLost === 'function') {
                 try { onStreamLost('zlm_ended'); } catch (_) { /* ignore */ }
             }
-        });
+        };
+        video.addEventListener('playing', armProve);
+        video.addEventListener('timeupdate', onTimeUpdate);
+        video.addEventListener('ended', onEnded);
 
         failTimer = setTimeout(function () {
             fail('zlm_prove_timeout');

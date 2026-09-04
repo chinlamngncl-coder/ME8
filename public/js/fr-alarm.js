@@ -2003,7 +2003,14 @@
                     } else if (tSec > 0) {
                         video.currentTime = Math.min(tSec, Math.max(0, (video.duration || tSec) - 0.1));
                     }
-                    video.play().catch(function () { /* autoplay may block */ });
+                    /* VMS-PLAY-GESTURE-HYGIENE-V1 — async after the click: if the gesture token is
+                       gone, retry muted; if still blocked leave native controls so one tap plays. */
+                    video.play().catch(function () {
+                        try {
+                            video.muted = true;
+                            video.play().catch(function () { video.controls = true; });
+                        } catch (_) { video.controls = true; }
+                    });
                 } catch (_) { /* ignore */ }
             };
         }

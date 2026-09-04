@@ -45,6 +45,19 @@ if "%NEED_INSTALL%"=="1" (
   )
 )
 
+REM AIRGAP-SIDECAR-NO-DOWNLOAD-V1 — weights pre-flight: fail closed in < 2 s, never download.
+set "WD_HAVE_WEIGHTS=0"
+if exist "%~dp0weapon-sidecar\models\checkpoint_best_total.pth" set "WD_HAVE_WEIGHTS=1"
+if exist "%~dp0weapon-sidecar\models\checkpoint_pistol_smoke.pth" set "WD_HAVE_WEIGHTS=1"
+if exist "%~dp0ai_engine\weights\weapon_rfdetr_best.pt" set "WD_HAVE_WEIGHTS=1"
+if "%WD_HAVE_WEIGHTS%"=="0" (
+  echo  ERROR: Weapon model weights not installed.
+  echo  Place checkpoint_best_total.pth in weapon-sidecar\models ^(ships in the pack^).
+  echo  Air-gap: no download. See Installation Guide, Weapon models.
+  pause
+  exit /b 1
+)
+
 echo  Starting Weapon engine on 127.0.0.1:8769 ...
 echo  Prefers Colab B weights if present (ai_engine\weights\weapon_rfdetr_best.pt)
 echo  Fallback: pistol smoke A, then Threat. Leave THIS window open.

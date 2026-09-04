@@ -179,10 +179,8 @@
         const status = hit.acknowledged ? tr('caseFiles.sosAcked') : tr('caseFiles.statusOpen');
         let locHtml = '';
         if (hit.lat != null && hit.lon != null && hit.lat !== '' && hit.lon !== '') {
-            const q = encodeURIComponent(String(hit.lat) + ',' + String(hit.lon));
-            locHtml = esc(String(hit.lat) + ', ' + String(hit.lon))
-                + ' <a href="https://maps.google.com/?q=' + q + '" target="_blank" rel="noopener">'
-                + esc(tr('caseFiles.openMap')) + '</a>';
+            /* AIRGAP-OUTBOUND-LINKS-V1 — coordinates only; no public map host. */
+            locHtml = esc(String(hit.lat) + ', ' + String(hit.lon));
         }
         function openHref(url) {
             if (!url) return '';
@@ -196,10 +194,10 @@
             factRow(tr('caseFiles.sosFactTime'), esc(fmtSosTime(hit.alarmTime || hit.at))),
             factRow(tr('caseFiles.sosFactLocation'), locHtml),
             factRow(tr('caseFiles.sosFactAck'), hit.note ? esc(String(hit.note)) : ''),
-            factRow(tr('caseFiles.sosFactSnapshot'), openHref(hit.snapshot)),
-            factRow(tr('caseFiles.sosFactHqRec'), openHref(hit.serverRecordingPreviewUrl)),
-            factRow(tr('caseFiles.sosFactDockRec'), openHref(hit.deviceRecordingPreviewUrl)),
-            factRow(tr('caseFiles.sosOwningSa', 'Owning SA'), hit.owningDisplayName || hit.owningUsername
+            factRow(tr('caseFiles.sosFactSnapshot', 'Snapshot Link'), openHref(hit.snapshot)),
+            factRow(tr('caseFiles.sosFactHqRec', 'HQ Recording Link'), openHref(hit.serverRecordingPreviewUrl)),
+            factRow(tr('caseFiles.sosFactDockRec', 'Dock Recording Link'), openHref(hit.deviceRecordingPreviewUrl)),
+            factRow(tr('caseFiles.sosOwningSa', 'Case Owner'), hit.owningDisplayName || hit.owningUsername
                 ? esc(hit.owningDisplayName || hit.owningUsername) : ''),
             factRow(tr('caseFiles.sosCompileReady', 'Compile Ready'), hit.compileReadyAt
                 ? esc(fmtSosTime(hit.compileReadyAt)) : ''),
@@ -223,7 +221,7 @@
         return '<div class="cf-handoff-panel" data-sos="' + esc(cf.sosIncidentId) + '">'
             + '<h4>' + esc(tr('caseFiles.teamHandoff', 'Team Handoff')) + '</h4>'
             + (owner
-                ? ('<p class="hint">' + esc(tr('caseFiles.handoffOwner', 'Owning SA')) + ': ' + esc(owner) + '</p>')
+                ? ('<p class="hint">' + esc(tr('caseFiles.handoffOwner', 'Case Owner')) + ': ' + esc(owner) + '</p>')
                 : '')
             + ready
             + '<label class="cf-form-field cf-form-field-full"><span class="cf-form-label">'
@@ -375,20 +373,29 @@
         var tiles = [];
         if (sosHit) {
             if (sosHit.snapshot) {
-                tiles.push({ kind: 'img', src: sosHit.snapshot, cap: tr('caseFiles.sosFactSnapshot') });
+                tiles.push({ kind: 'img', src: sosHit.snapshot, cap: tr('caseFiles.sosFactSnapshot', 'Snapshot Link') });
             }
             if (sosHit.serverRecordingPreviewUrl) {
-                tiles.push({ kind: 'video', src: sosHit.serverRecordingPreviewUrl, cap: tr('caseFiles.sosFactHqRec') });
+                tiles.push({ kind: 'video', src: sosHit.serverRecordingPreviewUrl, cap: tr('caseFiles.sosFactHqRec', 'HQ Recording Link') });
             }
             if (sosHit.deviceRecordingPreviewUrl) {
-                tiles.push({ kind: 'video', src: sosHit.deviceRecordingPreviewUrl, cap: tr('caseFiles.sosFactDockRec') });
+                tiles.push({ kind: 'video', src: sosHit.deviceRecordingPreviewUrl, cap: tr('caseFiles.sosFactDockRec', 'Dock Recording Link') });
             }
+            /* SOS-DESK-PTT-AUDIO-PLAY-V1 — later HQ segments + PTT WAV as <audio> */
+            (sosHit.serverRecordingSegments || []).forEach(function (r, i) {
+                if (r && r.previewUrl) tiles.push({ kind: 'video', src: r.previewUrl, cap: tr('caseFiles.sosFactHqRec', 'HQ Recording Link') + ' ' + (i + 2) });
+            });
+            (sosHit.pttAudioRecordings || []).forEach(function (r) {
+                if (r && r.previewUrl) tiles.push({ kind: 'audio', src: r.previewUrl, cap: tr('caseFiles.sosFactPttAudio', 'PTT Audio') });
+            });
         }
         (evidence || []).forEach(function (ev) {
             if (!ev || ev.missing || !ev.evidenceFileId) return;
             var src = '/api/evidence/preview/' + ev.evidenceFileId;
             if (isVideoEvidenceName(ev.fileName)) {
                 tiles.push({ kind: 'video', src: src, cap: ev.fileName || tr('caseFiles.linkedEvidence') });
+            } else if (/\.(wav|mp3|ogg|m4a|aac)$/i.test(String(ev.fileName || ''))) {
+                tiles.push({ kind: 'audio', src: src, cap: ev.fileName || tr('caseFiles.linkedEvidence') });
             } else if (isImageEvidenceName(ev.fileName)) {
                 tiles.push({ kind: 'img', src: src, cap: ev.fileName || tr('caseFiles.linkedEvidence') });
             }
@@ -399,7 +406,9 @@
             + tiles.map(function (t) {
                 var body = t.kind === 'img'
                     ? '<img src="' + esc(t.src) + '" alt="">'
-                    : '<video controls playsinline src="' + esc(t.src) + '"></video>';
+                    : (t.kind === 'audio'
+                        ? '<audio controls preload="none" src="' + esc(t.src) + '"></audio>'
+                        : '<video controls playsinline src="' + esc(t.src) + '"></video>');
                 return '<div class="cf-media-tile">' + body
                     + '<p class="hint">' + esc(t.cap) + '</p></div>';
             }).join('')
@@ -411,8 +420,12 @@
         if (type === 'fr_hit') return tr('caseFiles.exhibitFr', 'FR hit');
         if (type === 'anpr_hit') return tr('caseFiles.exhibitAnpr', 'ANPR hit');
         if (type === 'team_handoff') return tr('caseFiles.exhibitHandoff', 'Team handoff');
-        if (type === 'sos_ownership') return tr('caseFiles.exhibitOwnership', 'Owning SA');
+        if (type === 'sos_ownership') return tr('caseFiles.exhibitOwnership', 'Case Owner');
         return tr('caseFiles.exhibitMedia', 'Media');
+    }
+
+    function displayExhibitTitle(title) {
+        return String(title || '').replace(/Owning SA/g, 'Case Owner');
     }
 
     function displayExhibitContent(content) {
@@ -441,7 +454,7 @@
                 + '<span class="cf-exhibit-badge">' + esc(exhibitTypeLabel(ex.exhibitType)) + '</span>'
                 + '<span class="cf-exhibit-time mono">' + esc(fmtTime(ex.createdAt)) + '</span>'
                 + '</div>'
-                + '<div class="cf-exhibit-title">' + esc(ex.title || '') + '</div>'
+                + '<div class="cf-exhibit-title">' + esc(displayExhibitTitle(ex.title)) + '</div>'
                 + (body ? '<p class="cf-exhibit-body">' + esc(body) + '</p>' : '')
                 + (media ? '<div class="cf-exhibit-media">' + media + '</div>' : '')
                 + '</li>';

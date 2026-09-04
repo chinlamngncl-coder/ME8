@@ -58,7 +58,10 @@
     }
 
     function fetchLocale(lang) {
-        return fetch('/locales/' + lang + '.json', { cache: 'no-cache' })
+        /* AIRGAP-GEOCODE-AND-FETCH-TIMEOUT-V1 — bounded; caller already falls back to embedded copy */
+        var signal;
+        try { signal = (window.AbortSignal && AbortSignal.timeout) ? AbortSignal.timeout(15000) : undefined; } catch (_) { signal = undefined; }
+        return fetch('/locales/' + lang + '.json', { cache: 'no-cache', signal: signal })
             .then(function (r) {
                 if (!r.ok) throw new Error('locale ' + lang);
                 return r.json();

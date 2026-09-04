@@ -205,11 +205,17 @@
     showOidcError();
 
     // Factory password hint: hidden by default; show only when install account still mustChange.
+    /* AIRGAP-GEOCODE-AND-FETCH-TIMEOUT-V1 — bounded fetches: a stalled server surfaces as the
+       existing error copy instead of a spinner forever. No-op on browsers without AbortSignal.timeout. */
+    function fmTimeout(ms) {
+        try { return (window.AbortSignal && AbortSignal.timeout) ? AbortSignal.timeout(ms) : undefined; } catch (_) { return undefined; }
+    }
+
     (function loadFactoryPasswordHint() {
         var hintEl = document.getElementById('login-password-hint');
         if (!hintEl) return;
         hintEl.hidden = true;
-        fetch('/api/auth/login-ui', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        fetch('/api/auth/login-ui', { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: fmTimeout(10000) })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (data && data.ok && data.showFactoryPasswordHint === true) {
@@ -219,7 +225,7 @@
             .catch(function () { /* stay hidden */ });
     })();
 
-    fetch('/api/auth/oidc/config').then(function (r) { return r.json(); }).then(function (data) {
+    fetch('/api/auth/oidc/config', { signal: fmTimeout(10000) }).then(function (r) { return r.json(); }).then(function (data) {
         if (data && data.ok && data.oidc) {
             oidcConfig = data.oidc;
             applyOidcUi();
@@ -233,16 +239,9 @@
         });
     }
 
-    fetch('/api/auth/session').then(function (r) { return r.json(); }).then(function (data) {
-        if (data && data.ok && data.mustChangePassword) {
-            window.location.replace('/must-change-password.html');
-            return;
-        }
-        if (data && data.ok && data.mustEnrollTotp) {
-            window.location.replace('/enroll-totp.html');
-            return;
-        }
-        if (data && data.ok) window.location.replace(homeOrReturn());
+    fetch('/api/auth/session', { signal: fmTimeout(10000) }).then(function (r) { return r.json(); }).then(function (data) {
+        /* LOGIN-FORCE-RELOGIN-NO-BOUNCE-V1 — never bounce Login↔Ops on a stale force flag */
+        if (data && data.ok) redirectAfterLogin(data);
     }).catch(function () { /* ignore */ });
 
     if (totpBackBtn) {
@@ -267,6 +266,7 @@
 
             fetch('/api/auth/login/totp', {
                 method: 'POST',
+                signal: fmTimeout(15000),
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     challenge: totpChallenge,
@@ -305,6 +305,7 @@
 
         fetch('/api/auth/login', {
             method: 'POST',
+            signal: fmTimeout(15000),
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 username: userInput ? userInput.value.trim() : '',
