@@ -1,6 +1,7 @@
 const path = require('path');
 const APP_ROOT = process.pkg ? path.dirname(process.execPath) : __dirname;
 require('dotenv').config({ path: path.join(APP_ROOT, '.env') });
+require('./lib/bootCurrentLanHost').apply();
 
 // Register fatal handlers at the earliest possible point — before any heavy module loads.
 const log = require('./lib/fleetLog');
@@ -1279,8 +1280,8 @@ msgWss.on('connection', (ws, req) => {
                 deviceAlarm.raiseDeviceAlarm({
                     cameraId: actualCamId,
                     alarmKind: msgAlarmKind,
-                    lat: lastGpsByCam[actualCamId] ? lastGpsByCam[actualCamId].lat : null,
-                    lon: lastGpsByCam[actualCamId] ? lastGpsByCam[actualCamId].lon : null,
+                    lat: (sessionGpsByCam.get(actualCamId) || {}).lat,
+                    lon: (sessionGpsByCam.get(actualCamId) || {}).lon,
                     source: 'message',
                 });
             }
@@ -2415,14 +2416,13 @@ app.post('/api/bwc-companion/telemetry', requireBwcCompanionToken, handleBwcComp
             raiseDeviceAlarm: function (opts) { return deviceAlarm.raiseDeviceAlarm(opts); },
             emitPttRxState: emitPttRxState,
             touchDeviceOnline: touchDeviceOnline,
-            getLastGps: function (camId) { return lastGpsByCam[camId] || null; },
+            getLastGps: function (camId) { return sessionGpsByCam.get(String(camId)) || null; },
             emitHeartbeat: function (camId) {
                 touchDeviceOnline(camId);
                 emitToDashboardSockets('heartbeat', { cameraId: camId }, camId);
             },
             emitGpsUpdate: function (camId, lat, lon) {
-                rememberGps(camId, lat, lon);
-                emitToDashboardSockets('gps-update', { cameraId: camId, lat: lat, lon: lon }, camId);
+                emitGpsIfValid(camId, lat, lon);
             },
             emitDeviceStatusFromAcl: function (norm) {
                 const camId = norm.cameraId;
@@ -3336,7 +3336,7 @@ function handleBwcCompanionSosTrigger(req, res) {
     try {
         const body = req.body || {};
         const camId = companionCamId(body);
-        const gps = lastGpsByCam[camId] || {};
+        const gps = sessionGpsByCam.get(camId) || {};
         const lat = body.lat != null ? body.lat : gps.lat;
         const lon = body.lon != null ? body.lon : gps.lon;
         touchDeviceOnline(camId);
@@ -3690,7 +3690,7 @@ app.get('/api/last-gps', (req, res) => {
     const online = !!(id && ((deviceOnline && connectedCameraId === id) || (fleetRec && fleetRec.online)));
     if (!id) return res.json({ cameraId: null, online: false });
     if (online) {
-        const g = lastGpsByCam[id];
+        const g = sessionGpsByCam.get(id);
         if (!gpsHasCoords(g)) return res.json({ cameraId: id, online: true });
         return res.json({ cameraId: id, lat: g.lat, lon: g.lon, online: true });
     }
@@ -6631,7 +6631,7 @@ function buildMapPositionsPayload(session) {
         let lat = null;
         let lon = null;
         if (online) {
-            const g = lastGpsByCam[d.id];
+            const g = sessionGpsByCam.get(d.id);
             if (!gpsHasCoords(g)) return;
             lat = g.lat;
             lon = g.lon;
@@ -6662,7 +6662,7 @@ function buildMapPositionsPayload(session) {
         let lat = null;
         let lon = null;
         if (online) {
-            const g = lastGpsByCam[id];
+            const g = sessionGpsByCam.get(id);
             if (!gpsHasCoords(g)) return;
             lat = g.lat;
             lon = g.lon;
@@ -14618,6 +14618,9 @@ let offlineWatchTimer = null;
 const DEVICE_OFFLINE_MS = 90000;
 
 const lastGpsByCam = {};
+/** This online period only — never paint last-gps.json while the camera is green. */
+const sessionGpsByCam = new Map();
+const lastGpsSubscribeAt = new Map();
 /** Cams that went offline during this server process — only these may show last-location map pins. */
 const offlineMapPinSession = new Set();
 const OFFLINE_MAP_PIN_TTL_MS = Math.max(
@@ -14885,11 +14888,16 @@ function resolveCoords(camId, notify, rawXml) {
         if (fromXml.lon != null) coords.lon = fromXml.lon;
     }
     if (coords.lat != null && coords.lon != null) rememberGps(camId, coords.lat, coords.lon);
-    const cached = lastGpsByCam[camId];
-    return {
-        lat: coords.lat != null ? coords.lat : (cached ? cached.lat : null),
-        lon: coords.lon != null ? coords.lon : (cached ? cached.lon : null),
-    };
+    const la = parseGpsCoord(coords.lat);
+    const lo = parseGpsCoord(coords.lon);
+    if (Number.isFinite(la) && Number.isFinite(lo) && la !== 0 && lo !== 0) {
+        return { lat: la, lon: lo };
+    }
+    const cached = sessionGpsByCam.get(String(camId));
+    if (gpsHasCoords(cached) && Number(cached.lat) !== 0 && Number(cached.lon) !== 0) {
+        return { lat: cached.lat, lon: cached.lon };
+    }
+    return { lat: null, lon: null };
 }
 
 function parseGpsCoord(val) {
@@ -14905,6 +14913,7 @@ function rememberGps(camId, lat, lon) {
     const lo = parseGpsCoord(lon);
     if (!camId || Number.isNaN(la) || Number.isNaN(lo)) return;
     if (la < -90 || la > 90 || lo < -180 || lo > 180) return;
+    if (la === 0 || lo === 0) return;
     const fix = { lat: la, lon: lo, at: Date.now() };
     lastGpsByCam[camId] = fix;
     saveGpsCache();
@@ -14934,9 +14943,11 @@ function emitGpsIfValid(camId, lat, lon) {
     const la = parseGpsCoord(lat);
     const lo = parseGpsCoord(lon);
     if (!camId || Number.isNaN(la) || Number.isNaN(lo)) return;
+    if (la === 0 || lo === 0) return;
     const prev = lastGpsByCam[camId];
     const maxJumpM = parseInt(process.env.FM_GPS_MAX_JUMP_M || '400', 10);
-    if (prev && maxJumpM > 0) {
+    const sessionPrev = sessionGpsByCam.get(String(camId));
+    if (prev && maxJumpM > 0 && gpsHasCoords(sessionPrev)) {
         const distM = geofence.haversineMeters(prev.lat, prev.lon, la, lo);
         if (distM > maxJumpM) {
             log.sip.warn('gps jump ignored', { camId, distM, maxJumpM, prev, lat: la, lon: lo });
@@ -14944,6 +14955,7 @@ function emitGpsIfValid(camId, lat, lon) {
         }
     }
     rememberGps(camId, la, lo);
+    sessionGpsByCam.set(String(camId), lastGpsByCam[camId]);
     try {
         gpsTrack.recordPoint(camId, la, lo, 'sip');
     } catch (err) {
@@ -15865,8 +15877,8 @@ function replayOnlineDeviceStateToSocket(socket) {
     const onlineFleet = fleetForSession(socket.dashboardUser).filter((d) => d && d.online);
     onlineFleet.forEach((d) => {
         socket.emit('heartbeat', { cameraId: d.id });
-        const g = lastGpsByCam[d.id];
-        if (g) {
+        const g = sessionGpsByCam.get(d.id);
+        if (gpsHasCoords(g)) {
             socket.emit('gps-update', { cameraId: d.id, lat: g.lat, lon: g.lon });
         }
         replayCachedTelemetryToSocket(socket, d.id);
@@ -16169,8 +16181,8 @@ io.on('connection', (socket) => {
             if (fastStatusPollAllowedForCam(dashboardSelectedCamId, 'select-device')) {
                 startFastStatusPolling(dashboardSelectedCamId, 'select-device');
             }
-            const g = lastGpsByCam[dashboardSelectedCamId];
-            if (g) {
+            const g = sessionGpsByCam.get(dashboardSelectedCamId);
+            if (gpsHasCoords(g)) {
                 socket.emit('gps-update', {
                     cameraId: dashboardSelectedCamId,
                     lat: g.lat,
@@ -17319,6 +17331,7 @@ function touchDeviceOnline(camId) {
         siteDb.touchRuntime(id, { online: true, lastSeen: Date.now() });
     }
     scheduleOfflineWatch();
+    subscribeGpsForCam(id);
 }
 
 /** mob-me8-online-notify — DevStatus push counts as live even when SIP REGISTER lags. */
@@ -17340,6 +17353,7 @@ function touchDevicePresenceFromTelemetry(camId, source) {
             siteDb.touchRuntime(camId, { online: true, lastSeen: Date.now() });
         }
         log.sip.info('device online from telemetry', { camId, source });
+        subscribeGpsForCam(camId, { force: true });
         emitFleetRoster({ force: true });
         pushFleetRoster(camId, '66', true);
     } else {
@@ -17356,6 +17370,8 @@ function markDeviceOffline(camId, reason) {
     log.sip.info('device offline', { camId, reason });
     lastStatusQueryAtByCam.delete(String(camId));
     lastGpsQueryAtByCam.delete(String(camId));
+    sessionGpsByCam.delete(String(camId));
+    lastGpsSubscribeAt.delete(String(camId));
     fleetRegistry.markOffline(camId);
     if (siteDb.isReady()) {
         siteDb.touchRuntime(camId, { online: false, lastSeen: Date.now() });
@@ -17748,6 +17764,57 @@ function sendMobilePositionQuery(camId, intervalSec) {
     }, () => {
         log.sip.info('mobile position query sent', { camId, interval: interval || null });
     });
+}
+
+function subscribeGpsForCam(camId, opts) {
+    const id = String(camId || '').trim();
+    if (!id || !isBwcCameraId(id)) return;
+    const force = !!(opts && opts.force);
+    const now = Date.now();
+    const last = lastGpsSubscribeAt.get(id) || 0;
+    if (!force && now - last < 10 * 60 * 1000) return;
+    lastGpsSubscribeAt.set(id, now);
+    const contact = getContactUriForCam(id);
+    const interval = 5;
+    if (contact) {
+        const xml = '<?xml version="1.0" encoding="GB2312"?>\n<Query>\n<CmdType>MobilePosition</CmdType>\n<SN>'
+            + createGbSequenceNumber() + '</SN>\n<DeviceID>' + id + '</DeviceID>\n<Interval>'
+            + interval + '</Interval>\n</Query>';
+        try {
+            sip.send({
+                method: 'SUBSCRIBE',
+                uri: contact,
+                headers: {
+                    to: { uri: 'sip:' + id + '@' + REALM },
+                    from: { uri: 'sip:' + SERVER_ID + '@' + REALM, params: { tag: createSipTag() } },
+                    'call-id': createSipCallId(),
+                    cseq: { method: 'SUBSCRIBE', seq: 1 },
+                    event: 'presence',
+                    expires: '3600',
+                    contact: [{ uri: 'sip:' + SERVER_ID + '@' + HOST + ':' + SIP_PORT }],
+                    'content-type': 'Application/MANSCDP+xml',
+                    'content-length': xml.length,
+                },
+                content: xml,
+            }, () => {
+                log.sip.info('mobile position subscribe sent', { camId: id, path: 'geo-session-pin-subscribe-v1' });
+            });
+        } catch (err) {
+            log.sip.warn('mobile position subscribe fail', { camId: id, message: (err && err.message) ? String(err.message).slice(0, 80) : 'fail' });
+        }
+        sendMobilePositionQuery(id, interval);
+    }
+    try {
+        const wvpLab = require('./lib/wvpLabClient');
+        if (wvpLab.isEnabled() && typeof wvpLab.subscribeMobilePosition === 'function') {
+            wvpLab.subscribeMobilePosition(id, interval).catch(function (err) {
+                log.media.warn('wvp mobile position subscribe', {
+                    camId: id,
+                    message: (err && err.message) ? String(err.message).slice(0, 80) : 'fail',
+                });
+            });
+        }
+    } catch (_) { /* WVP optional */ }
 }
 
 smartGpsTrack.configure({
@@ -18144,12 +18211,7 @@ sip.start({ address: BIND_HOST, port: SIP_PORT }, (request, remote) => {
 
             emitToDashboardSockets('heartbeat', { cameraId: camId }, camId);
 
-            const lastGps = lastGpsByCam[camId];
-            if (lastGps) {
-                emitToDashboardSockets('gps-update', { cameraId: camId, lat: lastGps.lat, lon: lastGps.lon }, camId);
-            } else {
-                maybeQueryGpsForDevice(camId);
-            }
+            subscribeGpsForCam(camId, { force: true });
 
             pushFleetRoster(camId, '66', true, { forceRoster: true });
             pushMsgServerHints(camId);
@@ -18753,13 +18815,7 @@ process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
                     connectedCameraId = camId;
                 }
                 log.sip.info('device online from wvp presence', { camId });
-                /* WVP-PRESENCE-REPLAY-GPS-ON-ONLINE-V1 — same as REGISTER: remount pin from cache */
-                const lastGps = lastGpsByCam[camId];
-                if (lastGps) {
-                    emitToDashboardSockets('gps-update', { cameraId: camId, lat: lastGps.lat, lon: lastGps.lon }, camId);
-                } else {
-                    maybeQueryGpsForDevice(camId);
-                }
+                subscribeGpsForCam(camId, { force: true });
                 pushFleetRoster(camId, '66', true);
             },
             emitRoster: function () {

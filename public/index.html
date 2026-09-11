@@ -14936,8 +14936,8 @@
     <script src="/js/video-wall.js?v=20260902-sos-helper-shut-wall-and-pin-v1"></script>
     <script src="/js/video-matrix.js?v=20260721-ops10-v1"></script>
     <script src="/js/global.js?v=20260901-auto-login-v1"></script>
-    <script src="/js/global-device-presence.js?v=20260801-global-presence-v1"></script>
-    <script src="/js/fleet-ui.js?v=20260816-map-state-user-v1"></script>
+    <script src="/js/global-device-presence.js?v=20260911-geo-session-pin-subscribe-v1"></script>
+    <script src="/js/fleet-ui.js?v=20260911-geo-session-pin-subscribe-v1"></script>
     <script src="/js/map-popout-sync.js?v=20260902-inv-tab-onhide-teardown-v1"></script>
     <script src="/js/voice-alerts.js?v=20260810-hq-alert-tone-presets-hold-v1"></script>
     <script src="/vendor/leaflet/leaflet.js?v=20260701-vendor-local"></script>
@@ -19537,18 +19537,6 @@
                             }
                             return;
                         }
-                        if (mk && ll) {
-                            upsertDeviceMarker(id, ll.lat, ll.lng, isCamSosActive(id), false, true);
-                            if (typeof MapPinLayer !== 'undefined' && MapPinLayer.attachMarker) {
-                                MapPinLayer.attachMarker(
-                                    deviceMarkers[id],
-                                    isCamSosActive(id),
-                                    getCamAlarmKind(id),
-                                    id
-                                );
-                            }
-                            return;
-                        }
                         removeDeviceMarker(id);
                     });
                     refreshAllDeviceMarkerStyles();
@@ -20028,9 +20016,15 @@
             fetch('/api/last-gps?camId=' + encodeURIComponent(camId))
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
-                    if (data.lat == null || data.lon == null || !data.cameraId) return;
+                    if (!data || !data.cameraId) return;
+                    if (data.lat == null || data.lon == null) {
+                        if (data.online && typeof removeDeviceMarker === 'function') {
+                            removeDeviceMarker(data.cameraId);
+                        }
+                        return;
+                    }
 
-                    var isSos = window.isSosIncidentActive && window.isSosIncidentActive();
+                    var isSos = (typeof isCamSosActive === 'function') ? isCamSosActive(data.cameraId) : false;
 
                     placeCameraMarker(
                         parseFloat(data.lat),
@@ -20051,10 +20045,7 @@
         socket.on('heartbeat', function (data) {
             FleetUi.onHeartbeat(data);
             VideoWall.onHeartbeat(data);
-            if (data.cameraId && lastMapPos && lastMapCamId
-                && normalizeCamId(data.cameraId) === normalizeCamId(lastMapCamId)) {
-                placeCameraMarker(lastMapPos.lat, lastMapPos.lon, data.cameraId, sosIncidentActive, false);
-            }
+            /* Heartbeat is not a GPS fix — do not re-paint lastMapPos (Singapore ghost). */
         });
 
         function showOfflineLastLocationPin(camId, lat, lon) {

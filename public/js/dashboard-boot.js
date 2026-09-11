@@ -3303,15 +3303,7 @@
                             return;
                         }
                         if (isCamOnlineOnFleet(id) && mk && ll) {
-                            upsertDeviceMarker(id, ll.lat, ll.lng, isCamSosActive(id), false, true);
-                            if (typeof MapPinLayer !== 'undefined' && MapPinLayer.attachMarker) {
-                                MapPinLayer.attachMarker(
-                                    deviceMarkers[id],
-                                    isCamSosActive(id),
-                                    getCamAlarmKind(id),
-                                    id
-                                );
-                            }
+                            removeDeviceMarker(id);
                             return;
                         }
                         removeDeviceMarker(id);
@@ -3799,9 +3791,15 @@
             fetch('/api/last-gps?camId=' + encodeURIComponent(camId))
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
-                    if (data.lat == null || data.lon == null || !data.cameraId) return;
+                    if (!data || !data.cameraId) return;
+                    if (data.lat == null || data.lon == null) {
+                        if (data.online && typeof removeDeviceMarker === 'function') {
+                            removeDeviceMarker(data.cameraId);
+                        }
+                        return;
+                    }
 
-                    var isSos = window.isSosIncidentActive && window.isSosIncidentActive();
+                    var isSos = (typeof isCamSosActive === 'function') ? isCamSosActive(data.cameraId) : false;
 
                     placeCameraMarker(
                         parseFloat(data.lat),
@@ -3827,10 +3825,6 @@
         socket.on('heartbeat', function (data) {
             FleetUi.onHeartbeat(data);
             VideoWall.onHeartbeat(data);
-            if (data.cameraId && lastMapPos && lastMapCamId
-                && normalizeCamId(data.cameraId) === normalizeCamId(lastMapCamId)) {
-                placeCameraMarker(lastMapPos.lat, lastMapPos.lon, data.cameraId, sosIncidentActive, false);
-            }
         });
 
         function showOfflineLastLocationPin(camId, lat, lon) {
