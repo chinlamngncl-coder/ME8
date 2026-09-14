@@ -292,6 +292,22 @@ Write-Step 'Partner scrub (root deliverables)...'
 node (Join-Path $AppRoot 'scripts\scrub-partner-pack.js') $OutRoot
 if ($LASTEXITCODE -ne 0) { throw 'scrub-partner-pack failed on OutRoot' }
 
+Write-Step 'Customer .env.example gate...'
+$envExample = Join-Path $appDir '.env.example'
+if (-not (Test-Path -LiteralPath $envExample)) {
+    Write-Host 'FAIL: .env.example missing' -ForegroundColor Red
+    exit 1
+}
+$envExampleBody = Get-Content -LiteralPath $envExample -Raw -ErrorAction Stop
+if ($envExampleBody -match '(?m)^(?!\s*#)\s*FM_WVP_FLEET_PRESENCE\s*=\s*0(\s|$)') {
+    Write-Host 'FAIL: FM_WVP_FLEET_PRESENCE=0 in .env.example' -ForegroundColor Red
+    exit 1
+}
+if ($envExampleBody -notmatch '(?m)^(?!\s*#)\s*FM_WVP_VIDEO_HANDOFF\s*=\s*1(\s|$)') {
+    Write-Host 'FAIL: FM_WVP_VIDEO_HANDOFF=1 missing from .env.example' -ForegroundColor Red
+    exit 1
+}
+
 if (-not $SkipZip) {
     $stamp = Get-Date -Format 'yyyyMMdd-HHmm'
     $zipName = if ($Variant -eq 'Cn') { "CN-Trial-Mobility-$stamp.zip" } else { "Mobility-Axiom-Trial-$stamp.zip" }

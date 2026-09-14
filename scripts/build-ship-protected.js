@@ -337,6 +337,28 @@ function sealProtectedTree(rootDir) {
 }
 sealProtectedTree(outDir);
 
+function assertNoLeakedDotEnv(rootDir) {
+    function walk(dir) {
+        let names = [];
+        try { names = fs.readdirSync(dir); } catch (_) { return; }
+        names.forEach(function (name) {
+            if (name === 'node_modules') return;
+            const p = path.join(dir, name);
+            let st;
+            try { st = fs.statSync(p); } catch (_) { return; }
+            if (st.isDirectory()) {
+                walk(p);
+                return;
+            }
+            if (name !== '.env') return;
+            console.error('[build:ship] FAIL: leaked env file:', path.relative(rootDir, p).replace(/\\/g, '/'));
+            process.exit(1);
+        });
+    }
+    walk(rootDir);
+}
+assertNoLeakedDotEnv(outDir);
+
 const manifest = {
     builtAt: new Date().toISOString(),
     appRoot: appRoot,

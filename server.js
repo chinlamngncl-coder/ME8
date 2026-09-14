@@ -76,6 +76,8 @@ const pttFieldGroupRelay = require('./lib/pttFieldGroupRelay').create({
 });
 const wvpRegisterMirror = require('./lib/wvpRegisterMirror');
 const wvpFleetPresence = require('./lib/wvpFleetPresence');
+const wvpGpsIngest = require('./lib/wvpGpsIngest');
+const gpsMapThrottle = require('./lib/gpsMapThrottle');
 const dashboardConnectWarm = require('./lib/dashboardConnectWarm');
 const wvpSipLanMap = require('./lib/wvpSipLanMap');
 
@@ -6631,7 +6633,7 @@ function buildMapPositionsPayload(session) {
         let lat = null;
         let lon = null;
         if (online) {
-            const g = sessionGpsByCam.get(d.id);
+            const g = gpsMapThrottle.getPublished(d.id);
             if (!gpsHasCoords(g)) return;
             lat = g.lat;
             lon = g.lon;
@@ -6662,7 +6664,7 @@ function buildMapPositionsPayload(session) {
         let lat = null;
         let lon = null;
         if (online) {
-            const g = sessionGpsByCam.get(id);
+            const g = gpsMapThrottle.getPublished(id);
             if (!gpsHasCoords(g)) return;
             lat = g.lat;
             lon = g.lon;
@@ -14731,7 +14733,13 @@ function saveContactCache() { contactCacheWriter.schedule(); }
 let batchGpsEmit = null;
 function initScalePrepGpsEmit() {
     batchGpsEmit = scalePrep.createGpsEmitBatcher(function (camId, la, lo) {
-        emitToDashboardSockets('gps-update', { cameraId: camId, lat: la, lon: lo }, camId);
+        const g = lastGpsByCam[camId] || {};
+        emitToDashboardSockets('gps-update', {
+            cameraId: camId,
+            lat: la,
+            lon: lo,
+            gpsTimeMs: g.at || null,
+        }, camId);
     }, scalePrepCfg.gpsEmitBatchMs);
 }
 initScalePrepGpsEmit();
@@ -14742,8 +14750,14 @@ function flushScalePrepCaches() {
     saveGpsCacheSync();
     saveContactCacheSync();
 }
-process.on('SIGINT', flushScalePrepCaches);
-process.on('SIGTERM', flushScalePrepCaches);
+function onGracefulFlush() {
+    Promise.resolve()
+        .then(function () { return wvpGpsIngest.flushPending(); })
+        .catch(function () {})
+        .then(function () { flushScalePrepCaches(); });
+}
+process.on('SIGINT', onGracefulFlush);
+process.on('SIGTERM', onGracefulFlush);
 
 loadGpsCache();
 
@@ -14907,14 +14921,16 @@ function parseGpsCoord(val) {
     return Number.isFinite(n) ? n : NaN;
 }
 
-function rememberGps(camId, lat, lon) {
+function rememberGps(camId, lat, lon, gpsTimeMs) {
     if (!isBwcCameraId(camId)) return;
     const la = parseGpsCoord(lat);
     const lo = parseGpsCoord(lon);
     if (!camId || Number.isNaN(la) || Number.isNaN(lo)) return;
     if (la < -90 || la > 90 || lo < -180 || lo > 180) return;
     if (la === 0 || lo === 0) return;
-    const fix = { lat: la, lon: lo, at: Date.now() };
+    const rawMs = gpsTimeMs != null ? Number(gpsTimeMs) : NaN;
+    const at = (Number.isFinite(rawMs) && rawMs > 0) ? rawMs : Date.now();
+    const fix = { lat: la, lon: lo, at: at };
     lastGpsByCam[camId] = fix;
     saveGpsCache();
     try {
@@ -14938,31 +14954,29 @@ function ingestGpsFromSipContent(camIdHint, rawXml) {
     emitGpsIfValid(camId, coords.lat, coords.lon);
 }
 
-function emitGpsIfValid(camId, lat, lon) {
+function emitGpsIfValid(camId, lat, lon, opts) {
     if (!isBwcCameraId(camId)) return;
     const la = parseGpsCoord(lat);
     const lo = parseGpsCoord(lon);
     if (!camId || Number.isNaN(la) || Number.isNaN(lo)) return;
     if (la === 0 || lo === 0) return;
+    opts = opts || {};
     const prev = lastGpsByCam[camId];
-    const maxJumpM = parseInt(process.env.FM_GPS_MAX_JUMP_M || '400', 10);
-    const sessionPrev = sessionGpsByCam.get(String(camId));
-    if (prev && maxJumpM > 0 && gpsHasCoords(sessionPrev)) {
-        const distM = geofence.haversineMeters(prev.lat, prev.lon, la, lo);
-        if (distM > maxJumpM) {
-            log.sip.warn('gps jump ignored', { camId, distM, maxJumpM, prev, lat: la, lon: lo });
-            return;
+    rememberGps(camId, la, lo, opts.gpsTimeMs);
+    sessionGpsByCam.set(String(camId), lastGpsByCam[camId]);
+    const publish = gpsMapThrottle.shouldPublish(camId, la, lo);
+    if (publish && !opts.skipWs) {
+        if (batchGpsEmit) batchGpsEmit(camId, la, lo);
+        else {
+            const g = lastGpsByCam[camId] || {};
+            emitToDashboardSockets('gps-update', {
+                cameraId: camId,
+                lat: la,
+                lon: lo,
+                gpsTimeMs: g.at || null,
+            }, camId);
         }
     }
-    rememberGps(camId, la, lo);
-    sessionGpsByCam.set(String(camId), lastGpsByCam[camId]);
-    try {
-        gpsTrack.recordPoint(camId, la, lo, 'sip');
-    } catch (err) {
-        log.sip.warn('gps track append failed', { camId, message: err.message });
-    }
-    if (batchGpsEmit) batchGpsEmit(camId, la, lo);
-    else emitToDashboardSockets('gps-update', { cameraId: camId, lat: la, lon: lo }, camId);
     if (!prev) {
         log.sip.info('gps fix acquired', { camId, lat: la, lon: lo });
     }
@@ -15879,7 +15893,12 @@ function replayOnlineDeviceStateToSocket(socket) {
         socket.emit('heartbeat', { cameraId: d.id });
         const g = sessionGpsByCam.get(d.id);
         if (gpsHasCoords(g)) {
-            socket.emit('gps-update', { cameraId: d.id, lat: g.lat, lon: g.lon });
+            socket.emit('gps-update', {
+                cameraId: d.id,
+                lat: g.lat,
+                lon: g.lon,
+                gpsTimeMs: g.at || null,
+            });
         }
         replayCachedTelemetryToSocket(socket, d.id);
     });
@@ -17769,52 +17788,33 @@ function sendMobilePositionQuery(camId, intervalSec) {
 function subscribeGpsForCam(camId, opts) {
     const id = String(camId || '').trim();
     if (!id || !isBwcCameraId(id)) return;
-    const force = !!(opts && opts.force);
     const now = Date.now();
     const last = lastGpsSubscribeAt.get(id) || 0;
-    if (!force && now - last < 10 * 60 * 1000) return;
+    /* force does not bypass — REGISTER refresh must not spam WVP. Offline clears this map. */
+    if (now - last < 10 * 60 * 1000) return;
     lastGpsSubscribeAt.set(id, now);
-    const contact = getContactUriForCam(id);
     const interval = 5;
-    if (contact) {
-        const xml = '<?xml version="1.0" encoding="GB2312"?>\n<Query>\n<CmdType>MobilePosition</CmdType>\n<SN>'
-            + createGbSequenceNumber() + '</SN>\n<DeviceID>' + id + '</DeviceID>\n<Interval>'
-            + interval + '</Interval>\n</Query>';
-        try {
-            sip.send({
-                method: 'SUBSCRIBE',
-                uri: contact,
-                headers: {
-                    to: { uri: 'sip:' + id + '@' + REALM },
-                    from: { uri: 'sip:' + SERVER_ID + '@' + REALM, params: { tag: createSipTag() } },
-                    'call-id': createSipCallId(),
-                    cseq: { method: 'SUBSCRIBE', seq: 1 },
-                    event: 'presence',
-                    expires: '3600',
-                    contact: [{ uri: 'sip:' + SERVER_ID + '@' + HOST + ':' + SIP_PORT }],
-                    'content-type': 'Application/MANSCDP+xml',
-                    'content-length': xml.length,
-                },
-                content: xml,
-            }, () => {
-                log.sip.info('mobile position subscribe sent', { camId: id, path: 'geo-session-pin-subscribe-v1' });
-            });
-        } catch (err) {
-            log.sip.warn('mobile position subscribe fail', { camId: id, message: (err && err.message) ? String(err.message).slice(0, 80) : 'fail' });
-        }
-        sendMobilePositionQuery(id, interval);
-    }
     try {
         const wvpLab = require('./lib/wvpLabClient');
         if (wvpLab.isEnabled() && typeof wvpLab.subscribeMobilePosition === 'function') {
-            wvpLab.subscribeMobilePosition(id, interval).catch(function (err) {
+            wvpLab.subscribeMobilePosition(id, interval).then(function (out) {
+                log.media.info('wvp mobile position subscribe', {
+                    camId: id,
+                    path: (out && out.path) || 'position-subscribe',
+                });
+            }).catch(function (err) {
+                lastGpsSubscribeAt.delete(id);
                 log.media.warn('wvp mobile position subscribe', {
                     camId: id,
                     message: (err && err.message) ? String(err.message).slice(0, 80) : 'fail',
                 });
             });
+        } else {
+            lastGpsSubscribeAt.delete(id);
         }
-    } catch (_) { /* WVP optional */ }
+    } catch (_) {
+        lastGpsSubscribeAt.delete(id);
+    }
 }
 
 smartGpsTrack.configure({
@@ -17926,6 +17926,10 @@ function stopFastStatusPolling(camId, reason) {
 }
 
 function maybeQueryGpsForDevice(camId, opts) {
+    try {
+        const wvpLab = require('./lib/wvpLabClient');
+        if (wvpLab.isEnabled()) return false;
+    } catch (_) { /* Fleet SIP GPS only when WVP off */ }
     if (!getContactUriForCam(camId) || !camId || !deviceNeedsGpsPoll(camId)) return false;
     const force = !!(opts && opts.force);
     if (!force && !queryCooldownOk(lastGpsQueryAtByCam, camId, GPS_QUERY_COOLDOWN_MS)) {
@@ -18800,6 +18804,16 @@ process.once('beforeExit', () => { closeCatalogForShutdown('beforeExit'); });
     /* mob-fleet-presence-from-wvp-v1 — one-row BWC on WVP :5060 → Axiom fleet online */
     try {
         const wvpLabPresence = require('./lib/wvpLabClient');
+        wvpGpsIngest.start({
+            wvpLab: wvpLabPresence,
+            fleetRegistry: fleetRegistry,
+            isBwcCameraId: isBwcCameraId,
+            emitGpsIfValid: emitGpsIfValid,
+            siteDb: siteDb,
+            emitGpsBatch: function (rows) {
+                io.to('org:default').emit('gps-batch', rows);
+            },
+        });
         wvpFleetPresence.start({
             wvpLab: wvpLabPresence,
             fleetRegistry: fleetRegistry,

@@ -8891,7 +8891,7 @@
             font-weight: 600;
             pointer-events: auto;
         }
-        #server-setup-panel #cd-save {
+        #server-setup-panel #cd-save:not([hidden]) {
             width: auto !important;
             max-width: none;
             display: inline-block;
@@ -14936,7 +14936,7 @@
     <script src="/js/video-wall.js?v=20260902-sos-helper-shut-wall-and-pin-v1"></script>
     <script src="/js/video-matrix.js?v=20260721-ops10-v1"></script>
     <script src="/js/global.js?v=20260901-auto-login-v1"></script>
-    <script src="/js/global-device-presence.js?v=20260911-geo-session-pin-subscribe-v1"></script>
+    <script src="/js/global-device-presence.js?v=20260913-enterprise-gps-ingest-v1"></script>
     <script src="/js/fleet-ui.js?v=20260911-geo-session-pin-subscribe-v1"></script>
     <script src="/js/map-popout-sync.js?v=20260902-inv-tab-onhide-teardown-v1"></script>
     <script src="/js/voice-alerts.js?v=20260810-hq-alert-tone-presets-hold-v1"></script>
@@ -14950,7 +14950,7 @@
     <script src="/js/tactical-blueprint-ui.js?v=20260816-blueprint-manage-v1"></script>
     <script src="/js/tactical-ar.js?v=20260826-ar-case-v1"></script>
     <script src="/js/tactical-overwatch.js?v=20260825-ascii-safe-v1"></script>
-    <script src="/js/map-pin-layer.js?v=20260722-cluster-bubble-restore"></script>
+    <script src="/js/map-pin-layer.js?v=20260914-cull-on-v1"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/cw-display-room.js?v=20260821-screen-cards-v1"></script>
     <script src="/js/live-surface-hint.js?v=20260709-duplicate-surface-warn"></script>
@@ -18709,7 +18709,13 @@
                 var focused = normalizeCamId(camId) === selNorm
                     || (sosFocus && normalizeCamId(camId) === sosFocus);
                 var frHit = frFocus && normalizeCamId(camId) === frFocus;
-                m.setIcon(buildPinIcon(pinMetaForCam(camId, alarmKind, isCamOnlineOnFleet(camId)), pinned || focused, frHit));
+                var meta = pinMetaForCam(camId, alarmKind, isCamOnlineOnFleet(camId));
+                var popupOpen = !!(m.isPopupOpen && m.isPopupOpen());
+                var sig = [meta.color, meta.offline ? 1 : 0, meta.alarmKind || '', meta.geofenceOutside ? 1 : 0, meta.label].join('|');
+                if (!popupOpen && m._pinStyleSig !== sig) {
+                    m._pinStyleSig = sig;
+                    m.setIcon(buildPinIcon(meta, pinned || focused, frHit));
+                }
                 if (m.setZIndexOffset) {
                     m.setZIndexOffset(frHit ? 1500 : (focused ? 1400 : (pinned ? 1200 : (isSos ? 1100 : 0))));
                 }
@@ -18771,7 +18777,9 @@
                 if (!pinMapHandsOffIdle() || colocatedMapClusterForCam(camId).length < 2) {
                     m.setLatLng(latlng);
                 }
-                m.setIcon(buildPinIcon(meta, selected, frHitFocus));
+                if (!popupWasOpen) {
+                    m.setIcon(buildPinIcon(meta, selected, frHitFocus));
+                }
                 if (!pinPopupShouldKeepVideo(camId, isSos)) {
                     m.setPopupContent(html);
                 } else {
@@ -18787,10 +18795,7 @@
                             badge.textContent = ak === 'fall' ? dashboardTr('map.pin.fall') : (ak ? dashboardTr('map.pin.sos') : dashboardTr('map.pin.patrol'));
                         }
                         ensureMapPopupTelemetry(camId);
-                        if (!isPinVideoStoppedByUser(camId)
-                            && (window.mapPinPopupAllowMulti
-                            || !window.mapPinPopupFocusCamId
-                            || normalizeCamId(window.mapPinPopupFocusCamId) === normalizeCamId(camId))) {
+                        if (!isPinVideoStoppedByUser(camId)) {
                             syncPinVideoFromWall(camId);
                         }
                     }
@@ -18823,7 +18828,6 @@
                     if (geofenceDrawActive) return;
                     if (L && L.DomEvent && L.DomEvent.stopPropagation) L.DomEvent.stopPropagation(e);
                     clearMapPinPopupSuppression(camId);
-                    window.mapPinPopupFocusCamId = normalizeCamId(camId);
                     clearPinVideoUserStop(camId);
                     suppressPttChromeForLivePinOpen(camId);
                     if (typeof expandMapPinVideo === 'function') expandMapPinVideo(camId);
@@ -18832,14 +18836,8 @@
                     if (!m.isPopupOpen || !m.isPopupOpen()) m.openPopup();
                     assignColocatedPinPopupDocks('single-pin-click');
                     scheduleActivePinSetZoomOut();
-                    if (typeof VideoWall !== 'undefined' && VideoWall.playConfiguredPanelForPin) {
-                        VideoWall.playConfiguredPanelForPin(camId);
-                    }
-                    if (typeof VideoWall !== 'undefined' && VideoWall.wallHasPlayerForCam && VideoWall.wallHasPlayerForCam(camId)) {
-                        syncPinVideoFromWall(camId);
-                    }
-                    scheduleSyncOpenPinVideosFromWall(camId);
                     enforceMaxOpenPinPopups(camId);
+                    scheduleSyncOpenPinVideosFromWall();
                     afterMarkerPopupReady(camId, isCamSosActive(camId));
                     if (typeof selectFleetDevice === 'function') {
                         var pinIds = (typeof FleetUi !== 'undefined' && FleetUi.getSelectedCamIds)
@@ -19301,7 +19299,7 @@
             Object.keys(deviceMarkers).forEach(function (camId) {
                 var meta = pinMetaForCam(camId, getCamAlarmKind(camId), isCamOnlineOnFleet(camId));
                 if (meta.alarmKind) return;
-                if (meta.offline) return;
+                if (meta.offline || meta.gpsStale) return;
                 var legName = meta.mapGroup || meta.label;
                 if (!groups[legName]) groups[legName] = meta.color;
             });
@@ -19651,22 +19649,12 @@
             return !!(canvas && canvas.width > 8 && canvas.height > 8);
         }
 
-        function scheduleSyncOpenPinVideosFromWall(preferredCamId) {
+        function scheduleSyncOpenPinVideosFromWall() {
             if (pinVideoDockSyncTimer) clearTimeout(pinVideoDockSyncTimer);
             pinVideoDockSyncTimer = setTimeout(function () {
                 pinVideoDockSyncTimer = null;
                 if (window.mapPopoutMirrorActive) return;
-                var ids;
-                if (preferredCamId) {
-                    ids = [normalizeCamId(preferredCamId)];
-                } else if (window.mapPinPopupAllowMulti) {
-                    ids = getOpenPinCamIds();
-                } else if (window.mapPinPopupFocusCamId) {
-                    ids = [normalizeCamId(window.mapPinPopupFocusCamId)];
-                } else {
-                    ids = getOpenPinCamIds();
-                }
-                ids.forEach(function (id) {
+                getOpenPinCamIds().forEach(function (id) {
                     if (shouldLazyPinLive(id) && !pinPopupHasVisibleVideo(id)) {
                         if (VideoWall.updateMapPinStopButton) VideoWall.updateMapPinStopButton(id);
                         return;
@@ -20153,7 +20141,7 @@
             }
         }
 
-        socket.on('gps-update', function (data) {
+        function applyGpsSocketRow(data) {
             if (!data || data.lat == null || data.lon == null) return;
             if (!isKnownFleetCam(data.cameraId)) {
                 pendingGpsUpdates[normalizeCamId(data.cameraId)] = data;
@@ -20170,6 +20158,11 @@
             } else {
                 applyGpsMapUpdate(data.cameraId, lat, lon, isSos, online);
             }
+        }
+        socket.on('gps-update', applyGpsSocketRow);
+        socket.on('gps-batch', function (rows) {
+            if (!Array.isArray(rows)) return;
+            for (var gi = 0; gi < rows.length; gi++) applyGpsSocketRow(rows[gi]);
         });
 
         var pendingSosAck = null;
