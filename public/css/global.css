@@ -11586,5 +11586,11 @@ body:has(> #app-view-command-wall) {
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
 }
 #hq-alert-audio-unlock[hidden] { display: none; }
+
+/* SETTINGS-FOOTER-SAVE-PER-TAB-V1 — [hidden] beats #cd-save { display: inline-block } */
+#server-setup-panel .server-setup-actions button[hidden] {
+    display: none !important;
+}
+
 /* live tile waiting for a click after autoplay refusal (shared-flv-player armGesturePlay) */
 video[data-fm-needs-gesture="1"] { cursor: pointer; outline: 2px solid var(--accent-blue); outline-offset: -2px; }

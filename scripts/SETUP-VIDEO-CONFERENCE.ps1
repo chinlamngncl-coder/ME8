@@ -16,15 +16,16 @@ $root = Split-Path -Parent $PSScriptRoot
 $envFile = Join-Path $root '.env'
 $storageDir = Join-Path $root 'storage'
 
-if (-not $SiteHost -and (Test-Path $envFile)) {
-    foreach ($line in Get-Content $envFile) {
-        if ($line -match '^\s*HOST=(.+)$') {
-            $SiteHost = $Matches[1].Trim().Trim('"').Trim("'")
-            break
-        }
+if (-not $SiteHost) {
+    $detectPs1 = Join-Path $root 'scripts\Get-UbitronPreferredLanIPv4.ps1'
+    if (Test-Path $detectPs1) {
+        $SiteHost = (& $detectPs1 -Print | Select-Object -Last 1)
+        if ($SiteHost) { $SiteHost = [string]$SiteHost.Trim() }
     }
 }
-if (-not $SiteHost) { $SiteHost = '192.168.1.38' }
+if (-not $SiteHost -or $SiteHost -eq '192.168.1.38' -or $SiteHost -eq 'YOUR_LAN_IP' -or $SiteHost -match '^(127\.|169\.254\.|172\.(1[7-9]|2[0-9]|3[0-1])\.)') {
+    throw 'No current Wi-Fi/Ethernet IPv4. Do not use a desk IP.'
+}
 
 if (-not $ApiUrl) {
     if ($DeployMode -eq 'lan-docker') { $ApiUrl = 'http://127.0.0.1:7880' }

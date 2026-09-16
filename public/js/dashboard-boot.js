@@ -1450,7 +1450,7 @@
             }
             var geofenceOutside = !alarmKind && isCamGeofenceOutside(camId);
             if (geofenceOutside) {
-                color = '#f97316';
+                color = '#06b6d4';
                 var outLbl = dashboardTr('map.pin.geofenceOut');
                 if (label.indexOf(outLbl) !== 0) label = outLbl + ' \u00B7 ' + label;
             }
@@ -3185,7 +3185,7 @@
                 });
             });
             rows += '<div class="leg-row"><span class="leg-dot" style="background:#FF3333;box-shadow:0 0 8px #FF3333"></span><span>' + dashboardTr('map.legend.sosAlarm') + '</span></div>';
-            rows += '<div class="leg-row"><span class="leg-dot" style="background:#f97316;box-shadow:0 0 8px #f97316"></span><span>' + dashboardTr('map.legend.geofenceOut') + '</span></div>';
+            rows += '<div class="leg-row"><span class="leg-dot" style="background:#06b6d4;box-shadow:0 0 8px #06b6d4"></span><span>' + dashboardTr('map.legend.geofenceOut') + '</span></div>';
             rows += '<div class="leg-row"><span class="leg-dot" style="background:#94a3b8;box-shadow:none;opacity:0.9"></span><span>' + dashboardTr('map.legend.offlineLast') + '</span></div>';
             el.innerHTML = '<h5>' + dashboardTr('map.legend.groups') + '</h5>' + rows;
             el.hidden = keys.length === 0 && Object.keys(deviceMarkers).length === 0;
@@ -3929,7 +3929,7 @@
             }
         }
 
-        socket.on('gps-update', function (data) {
+        function applyGpsSocketRow(data) {
             if (!data || data.lat == null || data.lon == null) return;
             if (!isKnownFleetCam(data.cameraId)) {
                 pendingGpsUpdates[normalizeCamId(data.cameraId)] = data;
@@ -3946,6 +3946,11 @@
             } else {
                 applyGpsMapUpdate(data.cameraId, lat, lon, isSos, online);
             }
+        }
+        socket.on('gps-update', applyGpsSocketRow);
+        socket.on('gps-batch', function (rows) {
+            if (!Array.isArray(rows)) return;
+            for (var gi = 0; gi < rows.length; gi++) applyGpsSocketRow(rows[gi]);
         });
 
         var pendingSosAck = null;

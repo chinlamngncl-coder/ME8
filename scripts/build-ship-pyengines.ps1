@@ -37,7 +37,13 @@ function Build-PyEngine($sideRel, $exeName, $addData) {
         '--hidden-import', 'uvicorn.protocols.http.auto',
         '--hidden-import', 'fastapi'
     )
-    if ($addData) { $args += @('--add-data', $addData) }
+    if ($addData) {
+        $pair = $addData.Split(';', 2)
+        $src = $pair[0]
+        $dest = if ($pair.Count -ge 2) { $pair[1] } else { $pair[0] }
+        if (-not [IO.Path]::IsPathRooted($src)) { $src = Join-Path $sideDir $src }
+        $args += @('--add-data', ($src + ';' + $dest))
+    }
     $args += 'app.py'
     Write-Host "[pyengines] $exeName from $sideRel" -ForegroundColor Cyan
     Push-Location $sideDir

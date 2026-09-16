@@ -19,8 +19,8 @@ spring:
 
 # GB28181 SIP â€” cameras register here (not Fleet sipServer)
 sip:
-  # START-WVP-LAB.ps1 rewrites this to LAN IP from .env HOST
-  ip: 192.168.1.38
+  # Fossil only. Modern stack uses WVP_HOST from this-boot detect. Never a desk IP.
+  ip: 0.0.0.0
   port: 5061
   domain: me8.local
   id: 34020000002000000001

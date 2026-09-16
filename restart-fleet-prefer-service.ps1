@@ -88,7 +88,7 @@ function Get-LabLanIPv4 {
     } catch {
         # fall through
     }
-    return '192.168.1.38'
+    return $null
 }
 
 function Write-DashboardOpenUrls {

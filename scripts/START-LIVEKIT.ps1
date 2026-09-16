@@ -15,7 +15,15 @@ function Read-DotEnvValue([string]$Key) {
 }
 
 $hostIp = Read-DotEnvValue 'HOST'
-if (-not $hostIp) { $hostIp = '127.0.0.1' }
+if (-not $hostIp -or $hostIp -eq 'YOUR_LAN_IP' -or $hostIp -eq '192.168.1.38') { $hostIp = $null }
+$detectPs1 = Join-Path $root 'scripts\Get-UbitronPreferredLanIPv4.ps1'
+if (-not $hostIp -and (Test-Path $detectPs1)) {
+    $hostIp = (& $detectPs1 -Print | Select-Object -Last 1)
+    if ($hostIp) { $hostIp = [string]$hostIp.Trim() }
+}
+if (-not $hostIp -or $hostIp -match '^(127\.|169\.254\.|172\.(1[7-9]|2[0-9]|3[0-1])\.)') {
+    throw 'No current Wi-Fi/Ethernet IPv4 for LiveKit. Do not use a desk IP.'
+}
 
 # Lab fallback keeps bench working; ship/customer must set strong FM_LIVEKIT_* in .env
 $lkKey = Read-DotEnvValue 'FM_LIVEKIT_API_KEY'

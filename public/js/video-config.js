@@ -181,7 +181,8 @@
     function slotLabel(slot) {
         const ch = getChannel(slot);
         const n = slot + 1;
-        const activeId = getActiveDeviceForSlot(slot) || (ch && ch.deviceId);
+        if (ch && ch.sourceMode === 'none') return tr('video.panel', { n: n });
+        const activeId = getActiveDeviceForSlot(slot);
         let op = '';
         if (isFixedCameraId(activeId)) {
             const fixed = fixedCameraBySourceId(activeId);
@@ -261,7 +262,11 @@
         });
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || 'Save failed');
+        if (Array.isArray(data.channels)) {
+            channels = data.channels.map(function (ch, i) { return normalizeChannel(ch, i); });
+        }
         applyLabelsToWall();
+        updatePanelHints();
         updatePollUi();
         if (global.VideoWall && VideoWall.restartRotation) VideoWall.restartRotation();
         if (global.refreshAllDeviceMarkerStyles) global.refreshAllDeviceMarkerStyles();
@@ -279,7 +284,10 @@
         document.querySelectorAll('.video-panel-hint').forEach(function (el) {
             const slot = parseInt(el.dataset.slot, 10);
             const ch = getChannel(slot);
-            if (!ch) return;
+            if (!ch || ch.sourceMode === 'none') {
+                el.textContent = tr('video.wall.hintNoDevice');
+                return;
+            }
             if (isRotatingMode(ch.sourceMode)) {
                 const q = buildQueueForChannel(ch);
                 el.textContent = tr('video.wall.hintRotate', { n: q.length, sec: ch.rotateSec || 30 });
@@ -563,6 +571,14 @@
                 deviceIds: deviceIds,
                 rotateSec: secEl ? secEl.value : 30,
             }, i);
+            /* WALL-NONE-CLEAR-DEVICE-V1 — None must not keep a leftover BWC id */
+            if (next[i].sourceMode === 'none') {
+                next[i].deviceId = '';
+                next[i].deviceIds = [];
+                next[i].mapGroup = '';
+                next[i].operatorName = '';
+                if (deviceEl) deviceEl.value = '';
+            }
             if ((selectedMode === 'bwc-fixed' || selectedMode === 'fixed-camera') && !next[i].deviceId) {
                 throw new Error('Choose a registered camera for Panel ' + (i + 1));
             }

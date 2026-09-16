@@ -13334,12 +13334,21 @@ app.post('/api/video-channels', (req, res) => {
         else if (row.deviceIds) {
             deviceIds = String(row.deviceIds).split(/[\r\n,;]+/).map((s) => s.trim()).filter(Boolean);
         }
+        let deviceId = String(row.deviceId || '').trim();
+        let mapGroup = String(row.mapGroup || '').trim();
+        let operatorName = String(row.operatorName || '').trim();
+        if (sourceMode === 'none') {
+            deviceId = '';
+            deviceIds = [];
+            mapGroup = '';
+            operatorName = '';
+        }
         return {
             slot: i,
             sourceMode,
-            operatorName: String(row.operatorName || '').trim(),
-            deviceId: String(row.deviceId || '').trim(),
-            mapGroup: String(row.mapGroup || '').trim(),
+            operatorName,
+            deviceId,
+            mapGroup,
             deviceIds,
             rotateSec: Math.max(5, parseInt(row.rotateSec, 10) || 30),
             userName: String(row.userName || '').trim(),
@@ -16561,14 +16570,33 @@ io.on('connection', (socket) => {
             }
             log.media.trace('start-video viewer ref', { camId, socketId: socket.id, surface, viewers });
             if (alreadyOwned && wvpHandoffStart) {
-                log.media.info('wvp duplicate start-video suppressed', {
+                const flvUrl = require('./lib/wvpVideoHandoff').getCachedFlv(camId);
+                if (flvUrl) {
+                    log.media.info('wvp duplicate start-video suppressed', {
+                        camId,
+                        socketId: socket.id,
+                        surface,
+                        reason: 'viewer_surface_already_owned',
+                        path: 'wvp-dup-emit-cached-flv-v1',
+                    });
+                    if (socket.connected) {
+                        socket.emit('video-stream-ready', {
+                            camId,
+                            surface,
+                            flvUrl,
+                            reused: true,
+                            wvpVideoHandoff: true,
+                        });
+                    }
+                    return;
+                }
+                /* WVP-DUP-EMPTY-CACHE-START-V1 — owned but no FLV: ensurePlay once. */
+                log.media.info('wvp duplicate start-video empty cache — ensurePlay once', {
                     camId,
                     socketId: socket.id,
                     surface,
-                    reason: 'viewer_surface_already_owned',
-                    path: 'pin-wvp-single-start-lock-v1',
+                    path: 'wvp-dup-empty-cache-start-v1',
                 });
-                return;
             }
             if (!wvpHandoffStart) startFastStatusPolling(camId, 'start-video');
             else stopFastStatusPolling(camId, 'wvp_stream'); /* WVP-FLV-UPSTREAM-EOF-12S-V1 */

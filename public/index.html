@@ -7620,10 +7620,10 @@
         }
         .bwc-pin-wrap.fall .bwc-pin-label { color: #b45309; border-color: #fcd34d; }
         .bwc-pin-wrap.geofence-out .bwc-pin-dot {
-            animation: pulse-geofence-out 2s infinite;
-            border: 2px solid #fdba74;
+            animation: pulse-geofence-out 1.2s infinite;
+            border: 4px solid #a5f3fc;
         }
-        .bwc-pin-wrap.geofence-out .bwc-pin-label { color: #c2410c; border-color: #fdba74; }
+        .bwc-pin-wrap.geofence-out .bwc-pin-label { color: #0e7490; border-color: #67e8f9; }
         /* FR hit map focus - fuchsia (gold reserved for PTT) */
         .bwc-pin-wrap.fr-hit-focus .bwc-pin-dot {
             width: 30px; height: 30px; border-width: 4px; border-color: #fdf4ff;
@@ -7634,8 +7634,8 @@
             color: #86198f; border-color: #f0abfc; font-weight: 700;
         }
         @keyframes pulse-geofence-out {
-            0%, 100% { box-shadow: 0 0 12px #f97316, 0 2px 8px rgba(0,0,0,0.5); }
-            50% { box-shadow: 0 0 18px #fb923c, 0 2px 8px rgba(0,0,0,0.5); }
+            0%, 100% { box-shadow: 0 0 12px #06b6d4, 0 2px 8px rgba(0,0,0,0.5); }
+            50% { box-shadow: 0 0 20px #22d3ee, 0 2px 8px rgba(0,0,0,0.5); }
         }
         @keyframes pulse-fall { 0%, 100% { box-shadow: 0 0 12px #f59e0b, 0 2px 8px rgba(0,0,0,0.5); } 50% { box-shadow: 0 0 18px #fbbf24, 0 2px 8px rgba(0,0,0,0.5); } }
         #map-geofence-toast {
@@ -14896,7 +14896,7 @@
     <script src="/js/lab-security.js?v=20260816-settings-pillars-v1"></script>
     <script src="/js/cloud-deployment.js?v=20260816-settings-pillars-v1"></script>
     <script src="/js/bwc-devices.js?v=20260809-bwc-serial-asset-registry-v1"></script>
-    <script src="/js/video-config.js?v=20260721-panel9-10-source-modes-search-v1"></script>
+    <script src="/js/video-config.js?v=20260915-wall-none-clear-device-v1"></script>
     <script src="/js/ptt-mic.js"></script>
     <script src="/js/call-mic.js?v=20260721-sos-group-call-v1"></script>
     <script src="/js/ptt-rx.js?v=20260629-live-toast"></script>
@@ -14933,11 +14933,11 @@
     <script src="/js/missed-activity.js?v=20260824-ma-nudge-click-copy-v1"></script>
     <script src="/js/evidence-manager.js?v=20260903-inv-live-refresh-and-cache-v1"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260902-sos-helper-shut-wall-and-pin-v1"></script>
+    <script src="/js/video-wall.js?v=20260916-bwc-stop-overlay-bye-only-v1"></script>
     <script src="/js/video-matrix.js?v=20260721-ops10-v1"></script>
     <script src="/js/global.js?v=20260901-auto-login-v1"></script>
     <script src="/js/global-device-presence.js?v=20260913-enterprise-gps-ingest-v1"></script>
-    <script src="/js/fleet-ui.js?v=20260911-geo-session-pin-subscribe-v1"></script>
+    <script src="/js/fleet-ui.js?v=20260916-pin-no-fly-gps-spread-v1"></script>
     <script src="/js/map-popout-sync.js?v=20260902-inv-tab-onhide-teardown-v1"></script>
     <script src="/js/voice-alerts.js?v=20260810-hq-alert-tone-presets-hold-v1"></script>
     <script src="/vendor/leaflet/leaflet.js?v=20260701-vendor-local"></script>
@@ -15392,6 +15392,34 @@
             '#2563EB', '#10B981', '#EF4444', '#D946EF', '#0EA5E9', '#84CC16',
         ];
         const socket = io();
+        /* REVERT-SESSION-PERSIST-AND-DEAD-TO-LOGIN-V1 — Fleet dead/restart: leave fake ops, go login. */
+        (function bindFleetDeadToLogin(sock) {
+            var deadTimer = null;
+            function goLogin() {
+                if (window.__me8GoingLogin) return;
+                window.__me8GoingLogin = true;
+                window.location.replace('/login.html');
+            }
+            function sessionOrLogin() {
+                fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (j) { if (!j || j.ok !== true) goLogin(); })
+                    .catch(function () { goLogin(); });
+            }
+            var seenConnect = false;
+            sock.on('disconnect', function () {
+                if (deadTimer) clearTimeout(deadTimer);
+                deadTimer = setTimeout(sessionOrLogin, 4000);
+            });
+            sock.on('connect', function () {
+                if (deadTimer) { clearTimeout(deadTimer); deadTimer = null; }
+                if (!seenConnect) { seenConnect = true; return; }
+                sessionOrLogin();
+            });
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible') sessionOrLogin();
+            });
+        })(socket);
         var pendingSosAlarmEvents = [];
         socket.on('sos-alarm', function (data) {
             if (typeof onDashboardSosAlarm === 'function') onDashboardSosAlarm(data);
@@ -16979,7 +17007,7 @@
             }
             var geofenceOutside = !alarmKind && isCamGeofenceOutside(camId);
             if (geofenceOutside) {
-                color = '#f97316';
+                color = '#06b6d4';
                 var outLbl = dashboardTr('map.pin.geofenceOut');
                 if (label.indexOf(outLbl) !== 0) label = outLbl + ' \u00B7 ' + label;
             }
@@ -17282,6 +17310,8 @@
 
         function mergeOpenPinClustersForScreen(clusters, open) {
             if (!map || !open || open.length < 2) return clusters;
+            /* Gold (Jul 6): jam-on-screen → one L/R/T dock group. Far on screen → stay on own pins.
+               Do NOT abort on GPS metres (OPEN-ALL-PIN-COLOC-METERS broke table split). */
             var pts = open.map(function (id) {
                 var m = deviceMarkers[id];
                 if (!m) return null;
@@ -17369,21 +17399,42 @@
         }
 
         function spreadStableColocatedMarkers() {
-            if (pinDockLayoutBusy) return;
-            if (!getOpenPinCamIds().length && !window.__me8PinBatchOpening) return;
+            /* Gold: spread while dock layout runs. Do not bail on pinDockLayoutBusy. */
             var spreadIds = Object.create(null);
             var processed = Object.create(null);
-            clusterAllPinCamIdsByGps().forEach(function (gpsCluster) {
-                var seed = gpsCluster[0] && gpsCluster[0].id;
-                if (!seed) return;
-                var cluster = colocatedMapClusterForCam(seed);
-                if (cluster.length < 2) return;
+            var openSpread = getOpenPinCamIds();
+            clusterOpenPinCamIds(openSpread).forEach(function (cluster) {
+                if (!cluster || cluster.length < 2) return;
                 var key = cluster.map(function (id) { return normalizeCamId(id); }).sort().join('|');
                 if (processed[key]) return;
                 processed[key] = true;
-                if (!colocatedClusterHasOpenPopup(cluster)) return;
-                var centerPt = clusterCenterLayerPoint(cluster);
-                if (!centerPt) return;
+                var sx = 0;
+                var sy = 0;
+                var nPt = 0;
+                cluster.forEach(function (camId) {
+                    var mk0 = deviceMarkers[camId];
+                    var ll0 = mk0 && (mk0._gpsLatLng || null);
+                    if (!ll0 || !map) return;
+                    var lp = map.latLngToLayerPoint(ll0);
+                    if (!lp) return;
+                    sx += lp.x;
+                    sy += lp.y;
+                    nPt += 1;
+                });
+                if (nPt < 2 || nPt !== cluster.length) return;
+                var gpsSpan = 0;
+                var gi, gj, la, lb;
+                for (gi = 0; gi < cluster.length; gi++) {
+                    la = deviceMarkers[cluster[gi]] && deviceMarkers[cluster[gi]]._gpsLatLng;
+                    if (!la) continue;
+                    for (gj = gi + 1; gj < cluster.length; gj++) {
+                        lb = deviceMarkers[cluster[gj]] && deviceMarkers[cluster[gj]]._gpsLatLng;
+                        if (!lb) continue;
+                        gpsSpan = Math.max(gpsSpan, pinDistanceMeters(la.lat, la.lng, lb.lat, lb.lng));
+                    }
+                }
+                if (gpsSpan > PIN_COLOC_CLUSTER_M) return;
+                var centerPt = L.point(sx / nPt, sy / nPt);
                 var distPx = Math.max(58, 38 + cluster.length * 14);
                 assignClusterDockPlans(cluster).forEach(function (plan) {
                     var mk = deviceMarkers[plan.camId];
@@ -18127,6 +18178,7 @@
                 }
                 var clusterFan = (this._pinClusterSize || 0) >= 2;
                 var localCluster = clusterFan;
+                /* MOB-APPLY-PIN-STACK-DOCK-GOLD-MARKER-V1 — L/R/T from each pin (Gold), not pile centre. */
                 var pt = this._map.latLngToLayerPoint(this._source.getLatLng());
                 var w = el && el.offsetWidth >= 40 ? el.offsetWidth : 300;
                 var h = el && el.offsetHeight >= 40 ? el.offsetHeight : 280;
@@ -18370,6 +18422,7 @@
         }
 
         function runColocatedPinPopupDockLayout(caller) {
+            spreadStableColocatedMarkers();
             pinDockLayoutBusy = true;
             try {
             var open = getOpenPinCamIds();
@@ -18401,6 +18454,8 @@
                 });
             });
             open.forEach(function (camId) {
+                var nid = normalizeCamId(camId);
+                if (clusteredOpen[nid]) return;
                 var mapCluster = colocatedMapClusterForCam(camId);
                 if (mapCluster.length < 2) return;
                 var plan = null;
@@ -18417,6 +18472,7 @@
                 var popup = deviceMarkers[plan.camId].getPopup && deviceMarkers[plan.camId].getPopup();
                 if (popup) popup._pinDockCaller = caller;
             });
+            spreadStableColocatedMarkers();
             refreshSpreadPinIcons(open);
             applyPinPopupDensity(open, clusters);
             repositionAllOpenPinPopupsMeasured();
@@ -19318,7 +19374,7 @@
                 rows += '<div class="leg-row"><span class="leg-fixed-camera">\u25A3</span><span>Fixed camera</span></div>';
             }
             rows += '<div class="leg-row"><span class="leg-dot" style="background:#FF3333;box-shadow:0 0 8px #FF3333"></span><span>' + dashboardTr('map.legend.sosAlarm') + '</span></div>';
-            rows += '<div class="leg-row"><span class="leg-dot" style="background:#f97316;box-shadow:0 0 8px #f97316"></span><span>' + dashboardTr('map.legend.geofenceOut') + '</span></div>';
+            rows += '<div class="leg-row"><span class="leg-dot" style="background:#06b6d4;box-shadow:0 0 8px #06b6d4"></span><span>' + dashboardTr('map.legend.geofenceOut') + '</span></div>';
             rows += '<div class="leg-row"><span class="leg-dot" style="background:#94a3b8;box-shadow:none;opacity:0.9"></span><span>' + dashboardTr('map.legend.offlineLast') + '</span></div>';
             el.innerHTML = '<h5>' + dashboardTr('map.legend.groups') + '</h5>' + rows;
             el.hidden = keys.length === 0 && Object.keys(deviceMarkers).length === 0
@@ -20001,6 +20057,25 @@
 
             syncCameraId(camId);
 
+            /* OPEN-ALL-PIN-POP-EXISTING-MARKER-V1 — Open All must pop from the marker
+               already on the map. Do not wait on last-gps. Keep existing dock layout.
+               skipPan so batch open does not jump the map. Generic camId. */
+            var skipPan = !!(opts.openPopup && (window.mapPinPopupAllowMulti || window.__me8PinBatchOpening));
+            var existing = window.deviceMarkers && window.deviceMarkers[camId];
+            if (opts.openPopup && existing && typeof existing.getLatLng === 'function') {
+                var llNow = existing.getLatLng();
+                if (llNow && llNow.lat != null && llNow.lng != null) {
+                    placeCameraMarker(
+                        llNow.lat,
+                        llNow.lng,
+                        camId,
+                        (typeof isCamSosActive === 'function') ? isCamSosActive(camId) : false,
+                        true,
+                        { skipPan: skipPan, pttCommPin: !!opts.pttCommPin }
+                    );
+                }
+            }
+
             fetch('/api/last-gps?camId=' + encodeURIComponent(camId))
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
@@ -20020,7 +20095,7 @@
                         data.cameraId,
                         isSos,
                         opts.openPopup === true,
-                        { pttCommPin: !!opts.pttCommPin }
+                        { pttCommPin: !!opts.pttCommPin, skipPan: skipPan }
                     );
 
                 })

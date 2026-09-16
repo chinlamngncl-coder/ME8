@@ -80,7 +80,7 @@ services:
         condition: service_started
     environment:
       TZ: Asia/Singapore
-      # Cameras register to this LAN IP (from START-WVP-LAB.ps1 → .env HOST)
+      # This-boot Wi-Fi/Ethernet IPv4 (START-WVP-LAB / Fleet boot). Not .env HOST.
       WVP_HOST: ${WVP_HOST_IP:-127.0.0.1}
       WVP_PORT: "5060"
       # Universal overseas default — not a Chinese province lab ID (override via .env)

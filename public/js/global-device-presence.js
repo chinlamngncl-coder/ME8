@@ -287,6 +287,10 @@
             socket.on('device-offline', onDeviceOffline);
             socket.on('heartbeat', onHeartbeat);
             socket.on('gps-update', onGpsUpdate);
+            socket.on('gps-batch', function (rows) {
+                if (!Array.isArray(rows)) return;
+                for (var i = 0; i < rows.length; i++) onGpsUpdate(rows[i]);
+            });
             socket.on('device-status', onDeviceStatus);
             socket.on('connect', function () {
                 pollOnce();

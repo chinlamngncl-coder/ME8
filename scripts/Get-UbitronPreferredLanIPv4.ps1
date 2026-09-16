@@ -5,7 +5,7 @@ param([switch]$Print)
 
 function Test-UbitronBadLanInterface([string]$alias) {
     $a = [string]$alias
-    if ($a -match '(?i)WSL|Hyper-V|vEthernet|Docker|vgate|Bluetooth|Loopback|Local Area Connection') { return $true }
+    if ($a -match '(?i)WSL|Hyper-V|vEthernet|Docker|vgate|Bluetooth|Loopback|Local Area Connection|VPN|TAP|Tun|OpenVPN|WireGuard|ZeroTier|Tailscale') { return $true }
     return $false
 }
 
@@ -38,6 +38,11 @@ function Get-UbitronPreferredLanIPv4 {
         elseif ($alias -match '(?i)^Ethernet') { $score = 90 }
         if ($r.IPAddress -like '192.168.*') { $score += 20 }
         elseif ($r.IPAddress -like '10.*') { $score += 10 }
+        try {
+            $gw = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -InterfaceIndex $r.InterfaceIndex -ErrorAction SilentlyContinue |
+                Sort-Object RouteMetric | Select-Object -First 1
+            if ($gw) { $score += 40 }
+        } catch { }
 
         [pscustomobject]@{ Ip = $r.IPAddress; Alias = $alias; Score = $score }
     }

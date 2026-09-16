@@ -403,12 +403,6 @@
                 CloudDeployment.loadOverview().catch(function () { /* ignore */ });
             }
         }
-        const saveServer = document.getElementById('server-setup-save');
-        const saveBwc = document.getElementById('ss-save-bwc-list');
-        if (saveServer) saveServer.hidden = next !== 'infrastructure';
-        const saveCloud = document.getElementById('cd-save');
-        if (saveCloud) saveCloud.hidden = next !== 'infrastructure';
-        if (saveBwc) saveBwc.hidden = next !== 'fleet' || activeFleetSubTab !== 'wireless' || !canManageServer;
         const ftpPathInput = document.getElementById('ss-ftp-upload-path');
         if (ftpPathInput) ftpPathInput.disabled = !canManageServer;
         if (next === 'fleet' && activeFleetSubTab === 'wireless' && global.BwcDevices && BwcDevices.buildEmbeddedTable) {
@@ -424,6 +418,7 @@
         if (workspace && !workspace.hidden) {
             loadTabExtras(activeMainTab).catch(function () { /* ignore */ });
         }
+        syncFooterSaves();
     }
 
     function fillDockPanel() {
@@ -531,13 +526,31 @@
         dl.innerHTML = html;
     }
 
+    function setFooterBtnHidden(el, hide) {
+        if (!el) return;
+        el.hidden = !!hide;
+        if (hide) el.setAttribute('hidden', '');
+        else el.removeAttribute('hidden');
+    }
+
+    function syncFooterSaves() {
+        const pillar = resolvePillar(activeMainTab);
+        const saveServer = document.getElementById('server-setup-save');
+        const saveCloud = document.getElementById('cd-save');
+        const saveBwc = document.getElementById('ss-save-bwc-list');
+        const onInfra = pillar === 'infrastructure';
+        const onCloudNotes = onInfra && activeInfraSubTab === 'advanced';
+        const onBwc = pillar === 'fleet' && activeFleetSubTab === 'wireless';
+        setFooterBtnHidden(saveServer, !onInfra || onCloudNotes);
+        setFooterBtnHidden(saveCloud, !onCloudNotes);
+        setFooterBtnHidden(saveBwc, !onBwc);
+    }
+
     function applyReadOnlyMode() {
         const panel = document.getElementById('server-setup-panel');
         const banner = document.getElementById('ss-readonly-banner');
-        const saveBtn = document.getElementById('server-setup-save');
         if (panel) panel.dataset.ssReadonly = canManageServer ? '0' : '1';
         if (banner) banner.hidden = canManageServer;
-        if (saveBtn) saveBtn.hidden = !canManageServer;
         const saveResilience = document.getElementById('ss-save-resilience');
         if (saveResilience) saveResilience.hidden = !canManageServer;
         const saveProd = document.getElementById('ss-save-production-access');
@@ -554,8 +567,12 @@
         if (siteTzEl) siteTzEl.disabled = !canManageServer;
         const ftpPathInput = document.getElementById('ss-ftp-upload-path');
         if (ftpPathInput) ftpPathInput.disabled = !canManageServer;
+        const saveServer = document.getElementById('server-setup-save');
+        const saveCloud = document.getElementById('cd-save');
         const saveBwc = document.getElementById('ss-save-bwc-list');
-        if (saveBwc) saveBwc.hidden = resolvePillar(activeMainTab) !== 'fleet' || !canManageServer;
+        if (saveServer) saveServer.disabled = !canManageServer;
+        if (saveCloud) saveCloud.disabled = !canManageServer;
+        if (saveBwc) saveBwc.disabled = !canManageServer;
         const tabDiagnostics = document.getElementById('ss-main-tab-diagnostics');
         if (tabDiagnostics) tabDiagnostics.hidden = !canManageServer;
         if (!canManageServer && resolvePillar(activeMainTab) === 'diagnostics') {
@@ -568,6 +585,7 @@
         }
         syncSidebarNav();
         applyDashboardAuthLayout();
+        syncFooterSaves();
     }
 
     function setDashSubTab(tab) {
@@ -630,8 +648,6 @@
         } else if (global.SettingsNvr && SettingsNvr.hideInPanel) {
             SettingsNvr.hideInPanel();
         }
-        const saveBwc = document.getElementById('ss-save-bwc-list');
-        if (saveBwc) saveBwc.hidden = resolvePillar(activeMainTab) !== 'fleet' || tab !== 'wireless' || !canManageServer;
     }
 
     function applyFleetSubTabLayout() {
@@ -661,12 +677,11 @@
         const usbBtn = document.getElementById('ss-fleet-sub-usb');
         if (fwBtn) fwBtn.hidden = !canManageServer;
         if (usbBtn) usbBtn.hidden = !canManageServer;
-        const saveBwc = document.getElementById('ss-save-bwc-list');
-        if (saveBwc) saveBwc.hidden = !onFleet || activeFleetSubTab !== 'wireless' || !canManageServer;
         if (!onFleet) {
             if (global.FixedCamsUi && FixedCamsUi.hideInPanel) FixedCamsUi.hideInPanel();
             if (global.SettingsNvr && SettingsNvr.hideInPanel) SettingsNvr.hideInPanel();
         }
+        syncFooterSaves();
     }
 
     const INFRA_TAB_SECTIONS = {
@@ -747,6 +762,7 @@
                 if (ph) ph.hidden = false;
             });
         }
+        syncFooterSaves();
     }
 
     function openFleetDocks() {
@@ -829,6 +845,7 @@
             if (listSection) listSection.hidden = true;
             if (mySection) mySection.hidden = !onDash;
         }
+        syncFooterSaves();
     }
 
     function permYesNo(val) {
@@ -1654,6 +1671,7 @@
         if (open) {
             loadLayoutPref();
             applyPanelLayout(activeMainTab);
+            syncFooterSaves();
         } else {
             if (global.SettingsHub && SettingsHub.onShow) SettingsHub.onShow();
         }

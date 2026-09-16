@@ -29,10 +29,30 @@ function Read-DotEnvValue([string]$Key) {
 
 Write-Host "=== WVP lab bringup (modern ZLM + WVP 2.7.3 split) ===" -ForegroundColor Cyan
 
-$hostIp = Read-DotEnvValue 'HOST'
-if (-not $hostIp) { $hostIp = Read-DotEnvValue 'FM_GB28181_PUBLIC_HOST' }
-if (-not $hostIp -or $hostIp -eq 'YOUR_LAN_IP') { $hostIp = '192.168.1.38' }
+$detectPs1 = Join-Path $AppRoot 'scripts\Get-UbitronPreferredLanIPv4.ps1'
+$hostIp = $null
+if (Test-Path $detectPs1) {
+    $hostIp = (& $detectPs1 -Print | Select-Object -Last 1)
+    if ($hostIp) { $hostIp = [string]$hostIp.Trim() }
+}
+if (-not $hostIp -or $hostIp -eq 'YOUR_LAN_IP' -or $hostIp -match '^(127\.|169\.254\.|172\.(1[7-9]|2[0-9]|3[0-1])\.)') {
+    Write-Host "ERROR: no current Wi-Fi/Ethernet IPv4. Camera SIP/WVP cannot use .env HOST." -ForegroundColor Red
+    exit 1
+}
 $env:WVP_HOST_IP = $hostIp
+$wvpEnv = Join-Path $AppRoot 'docker\wvp\.env'
+$wvpLine = "WVP_HOST_IP=$hostIp"
+if (Test-Path $wvpEnv) {
+    $txt = Get-Content $wvpEnv -Raw
+    if ($txt -match '(?m)^WVP_HOST_IP=') {
+        $txt = [regex]::Replace($txt, '(?m)^WVP_HOST_IP=.*$', $wvpLine)
+    } else {
+        $txt = $txt.TrimEnd() + "`n$wvpLine`n"
+    }
+    Set-Content -Path $wvpEnv -Value $txt -Encoding ASCII
+} else {
+    Set-Content -Path $wvpEnv -Value ($wvpLine + "`n") -Encoding ASCII
+}
 
 # LAB-DEFAULT-CREDS-AND-IMAGE-PIN-V1 — secrets from .env (lab fallbacks match prior bench)
 $wvpPwd = Read-DotEnvValue 'WVP_PWD'

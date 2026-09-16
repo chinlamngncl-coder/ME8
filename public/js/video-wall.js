@@ -318,6 +318,8 @@
 
     function releaseServerStreamIfIdle(camId) {
         if (!camId || !socket) return;
+        /* RELEASE-IDLE-RESPECT-PENDING-V1 — Open All / pin pending is a viewer. Do not BYE. */
+        if (typeof opsWallClaimsCam === 'function' && opsWallClaimsCam(camId)) return;
         if (wallHasPlayerForCam(camId)) return;
         if (mapPlayers.has(camId)) return;
         if (commandWallWatchingCam(camId)) return;
@@ -2177,6 +2179,11 @@
     const lastVideoFrameAt = Object.create(null);
     const bwcStallWatchTimers = Object.create(null);
     const bwcStallDecodedOnce = new Set();
+    /* MOB-APPLY-BWC-STOP-OVERLAY-BYE-ONLY-V1 — browser stall/FLV error is not BYE. */
+    const FLV_RECOVER_MIN_MS = 3000;
+    const FLV_RECOVER_MAX_TRIES = 8;
+    const flvRecoverBusy = new Set();
+    const flvRecoverState = Object.create(null);
 
     function isBwcStallWatchPaused() {
         return !!(typeof document !== 'undefined' && document.hidden);
@@ -2271,8 +2278,8 @@
             }
             const last = lastVideoFrameAt[camId];
             if (!last || (Date.now() - last) < BWC_VIDEO_STALL_MS) return;
-            clearBwcStallWatch(camId);
-            markBwcStoppedOverlay(camId);
+            lastVideoFrameAt[camId] = Date.now();
+            recoverWvpFlvPlayback(camId, 'stall_clock');
         }, 700);
     }
 
@@ -2625,15 +2632,28 @@
         return streamCamForSlotKey(slotIndex) || el.dataset.camId || resolveCamIdForSlot(el) || null;
     }
 
+    /* PIN-CLICK-GOLD-RESERVE-SLOT-V1 — occupied = pending / player / FLV <video> / live class.
+       Stale dataset or Video Config leftover is not a lock. */
     function wallSlotTaken(slotIndex, camId) {
-        if (players.has(slotIndex)) {
-            const bound = slotBoundCam(slotIndex);
-            return !bound || bound !== camId;
-        }
-        const bound = slotBoundCam(slotIndex);
-        if (bound && bound !== camId) return true;
+        const el = getSlots()[slotIndex];
+        if (!el) return true;
         const pending = pendingWallSlots[slotIndex];
-        return !!(pending && pending !== camId);
+        if (pending && pending !== camId) return true;
+        const streamCam = streamCamForSlotKey(slotIndex) || activeStreams.get(slotIndex) || null;
+        if (streamCam && streamCam !== camId) return true;
+        if (players.has(slotIndex)) {
+            if (!streamCam || streamCam !== camId) return true;
+        }
+        const video = el.querySelector('.video-slot-stage video');
+        if (video && (video.currentSrc || video.readyState > 0 || video.videoWidth > 8)) {
+            const bound = streamCam || el.dataset.camId || null;
+            if (!bound || bound !== camId) return true;
+        }
+        if (el.classList.contains('video-slot-has-live')) {
+            const bound = streamCam || el.dataset.camId || null;
+            if (bound && bound !== camId) return true;
+        }
+        return false;
     }
 
     /** First free pin-capable panel; manual Panels 9\u201310 are never allocated by pins. */
@@ -2668,7 +2688,7 @@
      */
     function reserveWallSlotForCam(camId, opts) {
         opts = opts || {};
-        const pick = pickFrBlacklistWallSlot(camId);
+        const pick = pickFrBlacklistWallSlot(camId, { noSteal: !!opts.noSteal });
         if (pick.slot == null || pick.slot < 0) return null;
         pendingWallSlots[pick.slot] = camId;
         if (opts.out) {
@@ -2800,7 +2820,9 @@
         if (sosSlot != null) return sosSlot;
         if (global.VideoConfig && VideoConfig.findChannelByDeviceId) {
             const ch = VideoConfig.findChannelByDeviceId(camId);
-            if (ch != null && typeof ch.slot === 'number' && ch.slot >= 0 && ch.slot < PIN_SLOT_COUNT) {
+            if (ch && ch.sourceMode === 'fixed'
+                && String(ch.deviceId || '').trim() === camId
+                && typeof ch.slot === 'number' && ch.slot >= 0 && ch.slot < PIN_SLOT_COUNT) {
                 if (!wallSlotTaken(ch.slot, camId)) return ch.slot;
             }
         }
@@ -2911,6 +2933,51 @@ function handoffPlayerAttaching(player) {
         return wvpHandoffFlvByCam.get(String(camId).trim()) || null;
     }
 
+    function resetFlvRecoverTries(camId) {
+        if (!camId) return;
+        camId = String(camId).trim();
+        if (flvRecoverState[camId]) flvRecoverState[camId].tries = 0;
+    }
+
+    function recoverWvpFlvPlayback(camId, why) {
+        if (!camId) return;
+        camId = String(camId).trim();
+        if (localDashboardStopCams.has(camId) || pinStoppedByUser(camId) || bwcStoppedCams.has(camId)) return;
+        const flvUrl = getWvpHandoffFlvUrl(camId);
+        if (!flvUrl) return;
+        const now = Date.now();
+        let st = flvRecoverState[camId];
+        if (!st) st = flvRecoverState[camId] = { lastAt: 0, tries: 0 };
+        if (flvRecoverBusy.has(camId)) return;
+        if ((now - st.lastAt) < FLV_RECOVER_MIN_MS) return;
+        if (st.tries >= FLV_RECOVER_MAX_TRIES) return;
+        const targets = [];
+        getSlots().forEach(function (slotEl) {
+            const idx = findSlotIndex(slotEl);
+            if (Number.isNaN(idx)) return;
+            const bound = slotEl.dataset.camId || activeStreams.get(idx)
+                || pendingWallSlots[idx] || resolveCamIdForSlot(slotEl);
+            if (bound !== camId) return;
+            targets.push({ idx: idx, slotEl: slotEl });
+        });
+        if (!targets.length) return;
+        st.lastAt = now;
+        st.tries += 1;
+        flvRecoverBusy.add(camId);
+        lastVideoFrameAt[camId] = now;
+        console.log('[me8-flv] recover playback', { camId: camId, why: why || 'flv', try: st.tries });
+        try {
+            targets.forEach(function (t) {
+                wvpHandoffSlotInflight.delete(t.idx);
+                destroyPlayer(t.idx, { keepPending: true, forceHandoffDestroy: true });
+                pendingWallSlots[t.idx] = camId;
+                attachWvpHandoffFlvToWallSlot(t.idx, camId, t.slotEl, flvUrl);
+            });
+        } finally {
+            flvRecoverBusy.delete(camId);
+        }
+    }
+
     function attachWvpHandoffFlvToWallSlot(slotKey, camId, slotEl, flvUrl) {
         if (typeof slotKey !== 'number' || !camId || !slotEl || !flvUrl) return false;
         camId = String(camId).trim();
@@ -2962,6 +3029,7 @@ function handoffPlayerAttaching(player) {
                 removeStreamingOverlay(stage);
                 if (statusEl) statusEl.textContent = 'Live';
                 if (camId) {
+                    resetFlvRecoverTries(camId);
                     noteVideoFrame(camId);
                     ensureBwcStallWatch(camId);
                 }
@@ -2984,14 +3052,15 @@ function handoffPlayerAttaching(player) {
                 if (isAlarm) ensureAlarmStreamingOverlay(slotEl);
                 else ensureLiveStreamingOverlay(slotEl);
                 if (statusEl) statusEl.textContent = tr('video.playerError');
+                setTimeout(function () { recoverWvpFlvPlayback(camId, 'flv_attach_fail'); }, FLV_RECOVER_MIN_MS);
             },
-            /* After Live prove — BWC stop / ZLM die → Stopped by BWC chrome (not frozen Live). */
+            /* Hitch — reattach same FLV. Stopped by BWC only on server device_bye. */
             onStreamLost: function () {
                 wvpHandoffSlotInflight.delete(slotKey);
                 if (activeStreams.get(slotKey) !== camId) return;
                 if (localDashboardStopCams.has(camId)) return;
                 if (bwcStoppedCams.has(camId)) return;
-                markBwcStoppedOverlay(camId);
+                recoverWvpFlvPlayback(camId, 'flv_stream_lost');
             },
         });
         if (!handle) {
@@ -3024,19 +3093,29 @@ function handoffPlayerAttaching(player) {
         });
     }
 
+    /* FLV-READY-CLAIMED-SLOT-ONLY-RESTORE-V1 — one FLV payload attaches to
+       exactly one active/pending claim; stale DOM/config bindings never qualify. */
     function attachWvpHandoffFlvForCam(camId, flvUrl) {
         if (!camId || !flvUrl) return;
         camId = String(camId).trim();
         wvpHandoffFlvByCam.set(camId, flvUrl);
         cancelSlotRenderTimersForCam(camId);
+        let bestRank = 99;
+        let bestIdx = null;
+        let bestEl = null;
         getSlots().forEach(function (slotEl) {
             const slotIndex = findSlotIndex(slotEl);
             if (Number.isNaN(slotIndex)) return;
-            const bound = slotEl.dataset.camId || pendingWallSlots[slotIndex]
-                || streamCamForSlotKey(slotIndex) || resolveCamIdForSlot(slotEl);
-            if (bound !== camId) return;
-            attachWvpHandoffFlvToWallSlot(slotIndex, camId, slotEl, flvUrl);
+            let rank = null;
+            if (activeStreams.get(slotIndex) === camId) rank = 0;
+            else if (pendingWallSlots[slotIndex] === camId) rank = 1;
+            if (rank == null || rank >= bestRank) return;
+            bestRank = rank;
+            bestIdx = slotIndex;
+            bestEl = slotEl;
         });
+        if (bestEl == null) return;
+        attachWvpHandoffFlvToWallSlot(bestIdx, camId, bestEl, flvUrl);
     }
 
     function destroyZlmWallOverlay(slotKey) {
@@ -3859,7 +3938,8 @@ function handoffPlayerAttaching(player) {
     }
 
     function slotHasLiveWallPlayer(slotEl, idx) {
-        return !!(players.has(idx) && slotEl.classList.contains('video-slot-has-live'));
+        const hasPlayer = players.has(idx) || !!(slotEl && slotEl.querySelector('.video-slot-stage video'));
+        return !!(hasPlayer && slotEl.classList.contains('video-slot-has-live'));
     }
 
     function wallSlotHasLivePlayer(slotIndex, camId) {
@@ -4480,7 +4560,10 @@ function handoffPlayerAttaching(player) {
         if (slotIndex < PIN_SLOT_COUNT) focusMapPinQuiet(camId);
     }
 
-    function playConfiguredPanelForPin(camId) {
+    /* PIN-CLICK-FREE-SLOT-FALLBACK-V1 — Video Config panel only when this cam is Fixed on it
+       and that panel is not taken by another cam. Otherwise: first free panel via playOnMapPopup
+       (same claim → FLV-attach path as Open All). Generic by camId; no hardcoded names. */
+    function playConfiguredPanelForPin(camId, host) {
         camId = String(camId || '').trim();
         if (!camId || isFixedCameraSourceId(camId)) return false;
         const liveSlot = findSlotByCamId(camId);
@@ -4492,16 +4575,26 @@ function handoffPlayerAttaching(player) {
         const configuredChannel = global.VideoConfig && VideoConfig.findChannelByDeviceId
             ? VideoConfig.findChannelByDeviceId(camId)
             : null;
-        const slotIndex = configuredChannel && typeof configuredChannel.slot === 'number'
+        const fixedOwn = !!(configuredChannel && configuredChannel.sourceMode === 'fixed'
+            && String(configuredChannel.deviceId || '').trim() === camId);
+        const slotIndex = fixedOwn && typeof configuredChannel.slot === 'number'
             && configuredChannel.slot >= 0 && configuredChannel.slot < PIN_SLOT_COUNT
+            && !wallSlotTaken(configuredChannel.slot, camId)
             ? configuredChannel.slot
             : null;
         const panelEl = slotIndex != null ? getSlots()[slotIndex] : null;
         console.log('[PIN-TRACE] 2. Configured panel lookup:', {
             camId: camId,
+            fixedOwn: fixedOwn,
             panelFound: !!panelEl,
         });
         if (!panelEl) {
+            if (host) {
+                console.log('[PIN-TRACE] 2b. No fixed panel — free-slot fallback', { camId: camId });
+                playOnMapPopup(camId, host, null, { forceLive: true, userPlay: true });
+                requestMasterPinLayout('single-pin-free-slot');
+                return true;
+            }
             console.warn('[PIN-TRACE] configured panel not found', { camId: camId });
             return false;
         }
@@ -4821,37 +4914,22 @@ function handoffPlayerAttaching(player) {
         element.onclick = null;
         element.style.padding = '0';
         element.classList.remove('vid-box-live');
-        if (isWallPlayingCam(camId)) {
-            const claimMeta = {};
-            const wallSlot = (forcedWallSlot != null && forcedWallSlot >= 0)
-                ? forcedWallSlot
-                : (function () {
-                    const onWall = findSlotByCamId(camId);
-                    if (onWall) return findSlotIndex(onWall);
-                    return reserveWallSlotForCam(camId, { out: claimMeta });
-                }());
-            if (wallHasPlayerForCam(camId)) {
+        /* PIN-CLICK-MIRROR-IF-CLAIMED-V1 — wall already owns this cam: pin canvas only.
+           No assignCamToSlot. SOS alarm still uses the steal path below. */
+        if (!wallAlarm && !isAlarmCamId(camId)) {
+            let claimedSlot = findLiveOrPendingWallSlotForCam(camId);
+            if (claimedSlot == null) claimedSlot = openAllWallSlotForCam(camId);
+            if (claimedSlot != null && claimedSlot >= 0) {
+                if (wvpVideoHandoffUi) {
+                    destroyMapPlayer(camId);
+                    ensureWvpPinCanvas(element);
+                }
                 attachMapPopupPlayer(camId, element);
                 updateMapPinStopButton(camId);
                 unmuteAudioForSosCam(camId);
+                syncAllPttRxUi();
                 return;
             }
-            if (wallSlot != null && wallSlot >= 0 && !wallSlotHasLivePlayer(wallSlot, camId)) {
-                pendingWallSlots[wallSlot] = camId;
-                assignCamToSlot(camId, wallSlot, {
-                    skipInvite: !claimMeta.stole,
-                    forceInvite: !!claimMeta.stole,
-                    forceReassign: !!claimMeta.stole,
-                    userPlay: true,
-                    keepAlarm: true,
-                    wallSlotReserved: true,
-                    alarm: wallAlarm,
-                });
-            }
-            attachMapPopupPlayer(camId, element);
-            updateMapPinStopButton(camId);
-            unmuteAudioForSosCam(camId);
-            return;
         }
         if (guardFieldPttCommInsteadOfPinAutoPlay(camId, 0, opts)) return;
         requestStreamForCam(camId, !!opts.forceLive);
@@ -4859,7 +4937,7 @@ function handoffPlayerAttaching(player) {
         const claimMeta = {};
         const slotIndex = (forcedWallSlot != null && forcedWallSlot >= 0)
             ? forcedWallSlot
-            : reserveWallSlotForCam(camId, { out: claimMeta });
+            : reserveWallSlotForCam(camId, { out: claimMeta, noSteal: !wallAlarm && !isAlarmCamId(camId) });
         if (slotIndex == null || slotIndex < 0) {
             attachMapPopupPlayer(camId, element);
             updateMapPinStopButton(camId);
@@ -5141,11 +5219,11 @@ function handoffPlayerAttaching(player) {
                 if (typeof global.clearPinVideoUserStop === 'function') {
                     global.clearPinVideoUserStop(camId);
                 }
-                if (wvpVideoHandoffUi) playConfiguredPanelForPin(camId);
-                else playOnMapPopup(camId, host, null, { forceLive: true, userPlay: true });
+                playOnMapPopup(camId, host, null, { forceLive: true, userPlay: true });
                 return;
             }
-            if (!box || box.querySelector('canvas')) return;
+            if (!box) return;
+            /* PIN-CLICK-IGNORE-WVP-CANVAS-GUARD-V1 — WVP canvas is not a JSMpeg live lock. */
             if (e.target.closest('.map-pin-stop')) return;
             const camId = resolveMapPinCamId(box, null);
             if (!camId) return;
@@ -5154,8 +5232,7 @@ function handoffPlayerAttaching(player) {
             if (typeof global.clearPinVideoUserStop === 'function') {
                 global.clearPinVideoUserStop(camId);
             }
-            if (wvpVideoHandoffUi) playConfiguredPanelForPin(camId);
-            else playOnMapPopup(camId, box, null, { forceLive: true, userPlay: true });
+            playOnMapPopup(camId, box, null, { forceLive: true, userPlay: true });
         }, true);
     }
 
@@ -5738,18 +5815,42 @@ function handoffPlayerAttaching(player) {
     }
 
     /**
-     * FR-BLACKLIST-MAP-PIN-TAKEOVER-V1 + SOS-OPS-PIN-WALL-TAKEOVER-V1
-     * Pick wall pin-slot (0..PIN_SLOT_COUNT-1): reuse / free / steal unpinned then any non-alarm.
-     * Does not edit pin-mirror cores.
+     * PIN-RESERVE-LIVE-SLOT-NOT-DATASET-V1 — reuse only a live/pending claim for this camId.
+     * Generic: any BWC, any of PIN_SLOT_COUNT panels. Never dataset / Video Config leftover.
      */
-    function pickFrBlacklistWallSlot(camId) {
-        const existing = findSlotByCamId(camId);
-        if (existing) {
-            return { slot: findSlotIndex(existing), stole: false, reused: true };
+    function findLiveOrPendingWallSlotForCam(camId) {
+        if (!camId) return null;
+        camId = String(camId).trim();
+        const slots = getSlots();
+        for (let i = 0; i < PIN_SLOT_COUNT; i += 1) {
+            if (pendingWallSlots[i] === camId) return i;
+            if (activeStreams.get(i) === camId) return i;
+            const el = slots[i];
+            if (!el) continue;
+            const bound = streamCamForSlotKey(i);
+            if (bound !== camId) continue;
+            if (players.has(i) || el.querySelector('.video-slot-stage video')) return i;
+        }
+        return null;
+    }
+
+    /**
+     * FR-BLACKLIST-MAP-PIN-TAKEOVER-V1 + SOS-OPS-PIN-WALL-TAKEOVER-V1
+     * Pick wall pin-slot (0..PIN_SLOT_COUNT-1): reuse live/pending / free / steal unpinned then any non-alarm.
+     * Does not edit pin-mirror cores. opts.noSteal: pin userPlay must not steal (SOS steal stays).
+     */
+    function pickFrBlacklistWallSlot(camId, opts) {
+        opts = opts || {};
+        const liveSlot = findLiveOrPendingWallSlotForCam(camId);
+        if (liveSlot != null) {
+            return { slot: liveSlot, stole: false, reused: true };
         }
         const free = freeWallSlotForCam(camId);
         if (free != null && free >= 0) {
             return { slot: free, stole: false, reused: false };
+        }
+        if (opts.noSteal) {
+            return { slot: null, stole: false, reused: false };
         }
         const pinned = Object.create(null);
         try {

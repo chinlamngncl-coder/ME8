@@ -1612,6 +1612,7 @@
   "map.pin.fall": "Fall",
   "map.pin.geofenceOut": "OUT",
   "map.pin.livePlaceholder": "▶ Live video",
+  "map.pin.liveViewsFull": "Live views are full. End one stream to show this camera.",
   "map.pin.minimize": "Minimize",
   "map.pin.offline": "Offline",
   "map.pin.online": "Online",

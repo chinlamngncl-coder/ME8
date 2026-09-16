@@ -121,45 +121,72 @@ function publishEventToFleet(payload) {
     req.end();
 }
 
+function camIdFromPositionXml(xml, fallback) {
+    const itemM = String(xml || '').match(/<Item>[\s\S]*?<DeviceID[^>]*>([^<]+)</i);
+    if (itemM && itemM[1]) return String(itemM[1]).trim();
+    const topM = String(xml || '').match(/<DeviceID[^>]*>([^<]+)</i);
+    if (topM && topM[1]) return String(topM[1]).trim();
+    return fallback || null;
+}
+
 function maybePublishMessageAcl(parsed, msgBuf) {
-    if (!parsed || !parsed.isReq || parsed.method !== 'MESSAGE') return;
+    if (!parsed || !parsed.isReq) return;
+    const method = parsed.method;
+    if (method !== 'MESSAGE' && method !== 'NOTIFY') return;
     const text = parsed.text || (msgBuf && msgBuf.toString('utf8')) || '';
     const bodyStart = text.search(/\r?\n\r?\n/);
     const xml = bodyStart >= 0 ? text.slice(bodyStart).replace(/^\r?\n\r?\n/, '') : '';
     const cmdM = xml.match(/<CmdType>([^<]+)<\/CmdType>/i);
     const cmd = cmdM ? String(cmdM[1]).trim() : '';
     const did = parsed.fromUser || parsed.toUser || null;
-    if (!did) return;
+    if (!did && !xml) return;
     const cmdL = cmd.toLowerCase();
-    if (cmdL === 'alarm') {
-        publishEventToFleet({
-            type: 'alarm',
-            cameraId: did,
-            deviceId: did,
-            xml,
-            source: 'wvp_sip_proxy',
-            cmdType: cmd,
-        });
-        log('acl publish alarm', did);
-        return;
+    if (method === 'MESSAGE') {
+        if (cmdL === 'alarm') {
+            publishEventToFleet({
+                type: 'alarm',
+                cameraId: did,
+                deviceId: did,
+                xml,
+                source: 'wvp_sip_proxy',
+                cmdType: cmd,
+            });
+            log('acl publish alarm', did);
+            return;
+        }
+        if (cmdL === 'devstatus' || cmdL === 'devicestatus') {
+            publishEventToFleet({
+                type: 'device-status',
+                cameraId: did,
+                deviceId: did,
+                xml,
+                source: 'wvp_sip_proxy',
+                cmdType: cmd,
+            });
+            log('acl publish device-status', did);
+            return;
+        }
+        if (cmdL === 'keepalive') {
+            publishEventToFleet({
+                type: 'keepalive',
+                cameraId: did,
+                deviceId: did,
+                source: 'wvp_sip_proxy',
+                cmdType: cmd,
+            });
+            return;
+        }
     }
-    if (cmdL === 'devstatus' || cmdL === 'devicestatus') {
+    /* GPS-NOTIFY-ACL-V1 — GB reports MobilePosition on NOTIFY (MESSAGE also accepted).
+       Last-point ingest on Fleet; map valve 5 m / 30 s; no breadcrumb dump here. */
+    if (cmdL === 'mobileposition' || cmdL === 'locationinfo') {
+        const camId = camIdFromPositionXml(xml, did);
+        if (!camId) return;
         publishEventToFleet({
-            type: 'device-status',
-            cameraId: did,
-            deviceId: did,
+            type: 'gps',
+            cameraId: camId,
+            deviceId: camId,
             xml,
-            source: 'wvp_sip_proxy',
-            cmdType: cmd,
-        });
-        log('acl publish device-status', did);
-        return;
-    }
-    if (cmdL === 'keepalive') {
-        publishEventToFleet({
-            type: 'keepalive',
-            cameraId: did,
-            deviceId: did,
             source: 'wvp_sip_proxy',
             cmdType: cmd,
         });

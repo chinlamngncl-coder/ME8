@@ -28,11 +28,17 @@ function resolvePkgBin() {
 
 fs.mkdirSync(path.dirname(outExe), { recursive: true });
 const pkg = resolvePkgBin();
+function winQuote(p) {
+    const s = String(p);
+    if (process.platform !== 'win32') return s;
+    if (s.charAt(0) === '"') return s;
+    return '"' + s.replace(/"/g, '\\"') + '"';
+}
 const args = pkg.argsPrefix.concat([
-    runJs,
+    winQuote(runJs),
     '--targets', target,
-    '--output', outExe,
-    '--config', pkgConfig,
+    '--output', winQuote(outExe),
+    '--config', winQuote(pkgConfig),
 ]);
 console.log('[pkg-ship]', pkg.cmd, args.join(' '));
 const r = spawnSync(pkg.cmd, args, { cwd: root, stdio: 'inherit', windowsHide: true, shell: process.platform === 'win32' });

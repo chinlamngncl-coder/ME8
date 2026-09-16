@@ -250,7 +250,7 @@ if (!hasLicenseGate) {
 
 const exeName = process.platform === 'win32' ? 'me8-server.exe' : 'me8-server';
 const exeOut = path.join(outDir, exeName);
-const pkgTarget = process.platform === 'win32' ? 'node18-win-x64' : 'node18-linux-x64';
+const pkgTarget = process.platform === 'win32' ? 'node22-win-x64' : 'node18-linux-x64';
 console.log('[build:ship] pkg', exeName);
 const pkgR = spawnSync(process.execPath, [
     path.join(appRoot, 'scripts', 'pkg-ship-run.js'),

@@ -195,6 +195,10 @@
         if (!isFinite(lat) || !isFinite(lon)) return;
         setPin(lat, lon, { animate: true });
     }
+    function onGpsBatch(rows) {
+        if (!Array.isArray(rows)) return;
+        for (var i = 0; i < rows.length; i++) onGps(rows[i]);
+    }
 
     function bootstrapGps() {
         var id = encodeURIComponent(state.camId);
@@ -241,6 +245,7 @@
         saveGeom();
         if (state.socket && state._onGps) {
             try { state.socket.off('gps-update', state._onGps); } catch (_) { /* ignore */ }
+            try { state.socket.off('gps-batch', state._onGpsBatch); } catch (_) { /* ignore */ }
         }
         if (state.map) {
             try { state.map.remove(); } catch (_) { /* ignore */ }
@@ -258,8 +263,10 @@
         ensurePanel();
         initMap();
         state._onGps = onGps;
+        state._onGpsBatch = onGpsBatch;
         if (state.socket) {
             state.socket.on('gps-update', onGps);
+            state.socket.on('gps-batch', onGpsBatch);
             if (state.socket.connected) bootstrapGps();
             else state.socket.on('connect', bootstrapGps);
         } else {

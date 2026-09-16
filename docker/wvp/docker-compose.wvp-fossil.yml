@@ -17,8 +17,8 @@ services:
     restart: unless-stopped
     environment:
       TZ: Asia/Singapore
-      # LAN IP cameras use to reach this PC (from .env HOST via START-WVP-LAB.ps1)
-      WVP_IP: ${WVP_HOST_IP:-192.168.1.38}
+      # This-boot Wi-Fi/Ethernet IPv4 (START-WVP-LAB / Fleet boot). Not .env HOST.
+      WVP_IP: ${WVP_HOST_IP:-127.0.0.1}
     ports:
       - "18080:18080"           # WVP web UI
       - "5061:5060/udp"         # GB28181 SIP on host 5061 (Fleet PTT keeps 5060)

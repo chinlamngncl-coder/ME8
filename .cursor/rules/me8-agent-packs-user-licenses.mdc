@@ -9,7 +9,7 @@ alwaysApply: true
 
 ## Locked
 
-- The operator does **not** pack. The agent packs **only** when the user says pack / ship / 1-pack / enterprise release / send to client. At that moment print pack-gather (`MOB-DISC-SHIP-PACK-GATHER-REMINDER`) + leak inspect. Do not wait to be reminded.
+- The operator does **not** pack. The agent packs **only** when the user says pack / ship / 1-pack / enterprise release / send to client. At that moment print pack-gather (`MOB-DISC-SHIP-PACK-GATHER-REMINDER`) — **PRIORITY 0 first** (no Docker Desktop; one Install / one Start; catalog + video with the service) — then leak inspect. Do not wait to be reminded. Do not ship a fool pack the client cannot start after reboot.
 - **HWID is automatic:** Setup page shows Hardware ID (`/api/setup/status`). Installer copies it and sends it to Ubitron. No npm. `license:print-hwid` is lab/support only.
 - Ubitron signs `.lic` (that HWID + expiry + modules). File comes back. Installer **uploads on Setup** (or engineer drops `storage/license.lic`). Same loop for temp, migration, hardware change.
 - **Client never issues licenses.** Manuals will split sales / tech / installer. License-ui stays internal. Agent never tells an installer to run npm for HWID.

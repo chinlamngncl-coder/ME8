@@ -5,7 +5,7 @@
     window.__AXIOM_SERVER_HB = true;
 
     var FORCE_KEY = 'ax_force_relogin';
-    var POLL_MS = 1500;
+    var POLL_MS = 3000;
     var el = null;
     var gate = null;
     var timer = null;
@@ -31,43 +31,11 @@
         return out;
     }
 
-    function markForceRelogin() {
-        try { localStorage.setItem(FORCE_KEY, '1'); } catch (e) { /* ignore */ }
-    }
-
     function mustForceRelogin() {
         try { return localStorage.getItem(FORCE_KEY) === '1'; } catch (e) { return false; }
     }
 
-    function goLogin() {
-        if (redirecting) return;
-        redirecting = true;
-        markForceRelogin();
-        try { window.__AXIOM_ALLOW_NAV = true; } catch (e0) { /* ignore */ }
-        try {
-            if (gate) {
-                var msgEl = gate.querySelector('.ax-server-dead-gate-msg');
-                if (msgEl) {
-                    msgEl.textContent = tr(
-                        'healthPlain.serverBackBody',
-                        'Server is back. Opening Login…'
-                    );
-                }
-            }
-        } catch (e1) { /* ignore */ }
-        try { window.location.replace('/login.html'); } catch (e2) {
-            try { window.location.href = '/login.html'; } catch (e3) { /* ignore */ }
-        }
-    }
-
-    /* Enterprise: after any outage lock, never reopen ops until fresh login */
-    (function bootForceRelogin() {
-        if (!mustForceRelogin()) return;
-        var path = String(location.pathname || '');
-        if (path.indexOf('login') >= 0) return;
-        if (path.indexOf('must-change') >= 0 || path.indexOf('enroll-totp') >= 0 || path.indexOf('recovery-email') >= 0) return;
-        goLogin();
-    })();
+    /* HEALTH-GATE-NO-FALSE-LOGIN-V1 — leftover ax_force_relogin must not dump Ops to login */
 
     function ensureGate() {
         gate = document.getElementById('ax-server-dead-gate');
@@ -96,8 +64,7 @@
             btn.addEventListener('click', function (ev) {
                 ev.preventDefault();
                 ev.stopPropagation();
-                /* Always login — never reload into a zombie ops session */
-                goLogin();
+                unlockGate();
             });
         }
         return gate;
@@ -144,9 +111,6 @@
             var t = e.target;
             if (t && t.closest && t.closest('#ax-server-dead-reload')) return;
             if (e.type === 'keydown' && allowReloadChord(e)) {
-                e.preventDefault();
-                e.stopPropagation();
-                goLogin();
                 return;
             }
             e.preventDefault();
@@ -162,7 +126,6 @@
     function lockGate() {
         if (redirecting) return;
         lockedOffline = true;
-        markForceRelogin();
         bindBlockers();
         ensureGate();
         paintGate();
@@ -173,25 +136,30 @@
             document.documentElement.style.pointerEvents = 'none';
             if (gate) gate.style.pointerEvents = 'auto';
         } catch (e) { /* ignore */ }
-        /* Best-effort kill cookie while server still briefly reachable */
-        try {
-            fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin', cache: 'no-store' }).catch(function () {});
-        } catch (e2) { /* ignore */ }
+    }
+
+    function unlockGate() {
+        lockedOffline = false;
+        redirecting = false;
+        try { localStorage.removeItem(FORCE_KEY); } catch (e) { /* ignore */ }
+        if (gate) gate.hidden = true;
+        document.documentElement.classList.remove('ax-server-offline');
+        if (document.body) document.body.classList.remove('ax-server-offline');
+        try { document.documentElement.style.pointerEvents = ''; } catch (e2) { /* ignore */ }
     }
 
     function onDead() {
-        /* LOGIN-FORCE-RELOGIN-NO-BOUNCE-V1 — one slow Ops parse / one failed fetch is not an outage */
+        /* HEALTH-GATE-NO-FALSE-LOGIN-V1 — 4 misses (~12s+) before lock; no login kick */
         if (document.readyState !== 'complete') return;
         deadStreak += 1;
-        if (deadStreak < 2) return;
+        if (deadStreak < 4) return;
         lockGate();
     }
 
     function onAlive(data) {
         deadStreak = 0;
         if (lockedOffline || mustForceRelogin()) {
-            goLogin();
-            return;
+            unlockGate();
         }
         el = el || document.getElementById('header-system-health');
         if (!el) return;
@@ -209,17 +177,13 @@
 
     function ping() {
         if (inFlight || redirecting) return;
-        if (mustForceRelogin() && !lockedOffline) {
-            goLogin();
-            return;
-        }
         inFlight = true;
         var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
         var abortTimer = setTimeout(function () {
             try { if (ctrl) ctrl.abort(); } catch (e) { /* ignore */ }
             inFlight = false;
             onDead();
-        }, 1800);
+        }, 5000);
         fetch('/api/health?_=' + String(Date.now()), {
             credentials: 'same-origin',
             headers: { Accept: 'application/json' },
@@ -272,7 +236,7 @@
         timer = setInterval(ping, POLL_MS);
         window.addEventListener('offline', onDead);
         window.addEventListener('pageshow', function () {
-            if (mustForceRelogin()) goLogin();
+            if (!document.hidden) ping();
         });
         document.addEventListener('visibilitychange', function () {
             if (!document.hidden) ping();

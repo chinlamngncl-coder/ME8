@@ -13,7 +13,7 @@ alwaysApply: true
 
 ## When user asks to ship
 
-1. First print **PACK GATHER** from `docs/MOB-DISC-SHIP-PACK-GATHER-REMINDER-20260725.md` (Section A) — licensing, `build:ship`, Packaging Robot smoke, then classic gate. Operator must not have to remember these.
+1. First print **PACK GATHER** from `docs/MOB-DISC-SHIP-PACK-GATHER-REMINDER-20260725.md` (Section A) — **PRIORITY 0 first** (no Docker Desktop; one Install / one Start; catalog + video auto with the Windows service; `SHIP-AUTOSTART-NO-DOCKER-DESKTOP`). Then licensing, `build:ship`, Packaging Robot smoke, classic gate. Operator must not have to remember these. **Do not declare ready** if the client must open Docker or start Postgres/WVP by hand.
 2. Read and enforce:  
    `C:\Users\user\Desktop\Enterprise Mobility\ME8-INTERNAL\ship-desk\PRE-SHIP-GATE-CHECKLIST.md`
 3. Immediately print **Section A — One-screen summary** from that file (the PRE-SHIP GATE block).

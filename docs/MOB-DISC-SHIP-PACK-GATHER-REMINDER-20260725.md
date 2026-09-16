@@ -33,6 +33,15 @@ Copy this block into the reply (plain English):
 ```
 PACK GATHER (Phase 3 + release) — do with me, then ship:
 
+0) PRIORITY — do not ship a fool product (2026-09-16)
+   - Lab Docker Desktop sleep killed Postgres → Fleet paused. That is NOT a customer step.
+   - Refuse to zip / declare ready if the client must: install Docker Desktop, open Docker,
+     remember 5432 / 3988, or start catalog / WVP / ZLM by hand after reboot.
+   - Locked shape: ONE Install, ONE Start. Windows service comes back after reboot.
+     Catalog (Postgres) + video stack start WITH that. No extra apps. No memory list.
+   - Named later MOB (do not skip at pack): SHIP-AUTOSTART-NO-DOCKER-DESKTOP
+   - GPS / pins / stall are product tests — they are not “tell the client to open Docker.”
+
 1) Licensing
    - On the TARGET PC, Setup page already shows Hardware ID (no npm).
    - Installer sends that HWID back to Ubitron (new site, temp, migration, or hardware change).
@@ -106,4 +115,4 @@ When packing, zip **`ship-build/protected/`** and put **Install + Start** on the
 
 ## Lock phrase
 
-**On ship/pack keywords: AI gathers licensing + source protection + packaging robot + pre-ship gate. Operator confirms smokes; AI does not wait for operator to remember.**
+**On ship/pack keywords: AI prints PRIORITY 0 (no Docker Desktop / one Install one Start) first, then licensing + source protection + packaging robot + pre-ship gate. Operator confirms smokes; AI does not wait for operator to remember. Do not ship a pack the client cannot start after reboot.**

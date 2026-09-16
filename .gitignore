@@ -11,6 +11,7 @@ secrets/
 certs/lab-dashboard/
 # LAB-DEFAULT-CREDS-AND-IMAGE-PIN-V1 — generated LiveKit config with real keys
 docker/livekit.runtime.yaml
+docker/wvp/.env
 ship-build-test/customer-pack/docker/livekit.runtime.yaml
 redaction-track/models/
 redaction-track/.venv/
