@@ -144,7 +144,7 @@
     /** Pending assignCamToSlot canvas timers \u2014 cleared when the same slot re-assigns. */
     const slotRenderTimers = new Map();
 
-    const OPEN_ALL_DEVICE_STAGGER_MS = 300;
+    const OPEN_ALL_DEVICE_STAGGER_MS = 80;
 
     let openAllLivePinsSyncTimer = null;
     let isBatchOpening = false;
@@ -2598,6 +2598,9 @@
 
     function configuredSlotCamId(slot) {
         if (typeof slot !== 'number' || !global.VideoConfig) return '';
+        if (typeof VideoConfig.assignedDeviceForSlot === 'function') {
+            return VideoConfig.assignedDeviceForSlot(slot) || '';
+        }
         return VideoConfig.getActiveDeviceForSlot(slot) || '';
     }
 
@@ -2900,7 +2903,10 @@
         streamingCams.add(camId);
         streamingCamId = camId;
         activeCamId = camId;
-        emitOpsStartVideo(camId, { forceRestart: !!force });
+        emitOpsStartVideo(camId, {
+            forceRestart: !!force,
+            openAll: !!(opts && opts.openAll),
+        });
         return true;
     }
 
@@ -4205,6 +4211,19 @@ function handoffPlayerAttaching(player) {
             console.log('Binding Cam:', camId, 'to Canvas:', keptCanvas, 'DOM Presence:', document.body.contains(keptCanvas));
             return;
         }
+        /* WAIT-READY-OPENALL-ONLY-V1 — wait for stream-ready only on Open All.
+           Pin click / Play keep the existing attach path. No cam names. */
+        if (wvpVideoHandoffUi && opts && opts.openAll) {
+            if (stage) {
+                stage.querySelectorAll('.video-slot-empty').forEach(function (n) { n.remove(); });
+                ensureStreamingOverlay(stage, {
+                    className: 'video-slot-streaming-label',
+                    label: streamWaitLabel(!!(opts && opts.alarm)),
+                    isAlarm: !!(opts && opts.alarm),
+                });
+            }
+            return;
+        }
         if (wvpHandoffFlvReady(camId)) {
             attachWvpHandoffFlvToWallSlot(slotIndex, camId, slotEl, getWvpHandoffFlvUrl(camId));
             return;
@@ -4311,11 +4330,13 @@ function handoffPlayerAttaching(player) {
 
     function stopSlot(slotEl) {
         const idx = findSlotIndex(slotEl);
-        let camId = streamCamForSlotKey(idx);
+        let camId = '';
+        if (typeof idx === 'number' && pendingWallSlots[idx]) camId = String(pendingWallSlots[idx] || '').trim();
+        if (!camId) camId = String(slotEl.dataset.camId || '').trim();
+        if (!camId) camId = String(streamCamForSlotKey(idx) || '').trim();
         if (!camId && typeof idx === 'number' && activeStreams.has(idx)) {
-            camId = activeStreams.get(idx);
+            camId = String(activeStreams.get(idx) || '').trim();
         }
-        if (!camId) camId = slotEl.dataset.camId || '';
         if (camId) clearVideoSignalLostForCam(camId);
         if (camId) clearBwcDeviceStoppedForCam(camId);
         slotEl.classList.remove('video-slot-signal-lost');
@@ -4336,7 +4357,10 @@ function handoffPlayerAttaching(player) {
         slotEl.classList.remove('alarm');
         slotEl.classList.remove('video-slot-has-live');
         destroyPlayer(idx, { forceHandoffDestroy: true });
-        if (typeof idx === 'number') delete pendingWallSlots[idx];
+        if (typeof idx === 'number') {
+            delete pendingWallSlots[idx];
+            openAllOccupiedSlots.delete(idx);
+        }
         const cfgCam = configuredSlotCamId(idx);
         if (cfgCam) {
             slotEl.dataset.camId = cfgCam;
@@ -4760,6 +4784,7 @@ function handoffPlayerAttaching(player) {
                     keepAlarm: true,
                     wallSlotReserved: true,
                     alarm: isAlarmCamId(camId),
+                    openAll: !!opts.openAll,
                 });
             }
             updateMapPinStopButton(camId);
@@ -4781,11 +4806,13 @@ function handoffPlayerAttaching(player) {
                     keepAlarm: true,
                     wallSlotReserved: true,
                     alarm: false,
+                    openAll: !!opts.openAll,
                 } : {
                     skipInvite: true,
                     keepAlarm: true,
                     wallSlotReserved: true,
                     alarm: false,
+                    openAll: !!opts.openAll,
                 });
             }
             normalizeMapPinVideoBox(host);
@@ -4815,6 +4842,7 @@ function handoffPlayerAttaching(player) {
                 global.clearPinVideoUserStop(camId);
             }
             clearBwcDeviceStoppedForCam(camId);
+            clearWvpHandoffFlv(camId);
         });
         clearPttRxLingerForCamIds(ids, true);
         openAllReservedIds = ids.slice();
@@ -4959,7 +4987,7 @@ function handoffPlayerAttaching(player) {
             }
         }
         if (guardFieldPttCommInsteadOfPinAutoPlay(camId, 0, opts)) return;
-        requestStreamForCam(camId, !!opts.forceLive);
+        requestStreamForCam(camId, !!opts.forceLive, opts);
         // SOS-OPS-PIN-WALL-TAKEOVER-V1 — claim/steal pin-capable wall slot; pin mirrors wall.
         const claimMeta = {};
         const slotIndex = (forcedWallSlot != null && forcedWallSlot >= 0)
@@ -4980,6 +5008,7 @@ function handoffPlayerAttaching(player) {
             keepAlarm: true,
             wallSlotReserved: true,
             alarm: wallAlarm,
+            openAll: !!opts.openAll,
         });
         if (wvpVideoHandoffUi) {
             /*

@@ -1,0 +1,16 @@
+{
+  "intro": "sos-alert.wav",
+  "d_lt100": "under-100m.wav",
+  "d_lt300": "under-300m.wav",
+  "d_lt1000": "under-1km.wav",
+  "d_ge1000": "over-1km.wav",
+  "dir_N": "north.wav",
+  "dir_NE": "north-east.wav",
+  "dir_E": "east.wav",
+  "dir_SE": "south-east.wav",
+  "dir_S": "south.wav",
+  "dir_SW": "south-west.wav",
+  "dir_W": "west.wav",
+  "dir_NW": "north-west.wav",
+  "ack": "backup-dispatched.wav"
+}

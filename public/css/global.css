@@ -11625,9 +11625,25 @@ video[data-fm-needs-gesture="1"] { cursor: pointer; outline: 2px solid var(--acc
 #map-pin-legend.map-pin-legend-minimized .map-pin-legend-body { display: none; }
 
 #map-pin-stack-hud.map-pin-stack-hud-minimized {
-    max-width: none;
-    gap: 6px;
-    padding: 6px 8px;
+    width: max-content;
+    max-width: 120px;
+    gap: 4px;
+    padding: 6px;
 }
 #map-pin-stack-hud.map-pin-stack-hud-minimized .map-pin-stack-hud-chips,
 #map-pin-stack-hud.map-pin-stack-hud-minimized .map-pin-stack-hud-reset { display: none; }
+#map-pin-stack-hud .map-pin-legend-min-btn,
+#map-pin-stack-hud-min {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #fff;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+#map-pin-stack-hud-min:hover { background: rgba(255, 255, 255, 0.12); }

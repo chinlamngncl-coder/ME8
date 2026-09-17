@@ -15,6 +15,9 @@
     var CHASE_HARD_PAD = 0.25;
     var CHASE_TICK_MS = 1000;
     var DENSE_GRID = 16;
+    /* FLV-RETRY-UNTIL-FIRST-FRAME-V1 — first-open wait until a decoded picture */
+    var FLV_RETRY_MS = 1500;
+    var FLV_RETRY_MAX_MS = 15000;
 
     /** videoElement → session */
     var byVideo = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
@@ -149,6 +152,23 @@
         try { player.destroy(); } catch (_) { /* ignore */ }
     }
 
+    function makeLivePlayer(url, withCred) {
+        return mpegts.createPlayer({
+            type: 'flv',
+            isLive: true,
+            url: url,
+            hasAudio: false,
+            hasVideo: true,
+            withCredentials: withCred !== false,
+        }, {
+            enableWorker: false,
+            lazyLoad: false,
+            enableStashBuffer: false,
+            stashInitialSize: 128,
+            liveBufferLatencyChasing: false,
+        });
+    }
+
     function getSession(video) {
         if (!video) return null;
         if (byVideo) return byVideo.get(video) || null;
@@ -267,6 +287,96 @@
         }
     }
 
+    function clearFlvRetry(session) {
+        if (!session) return;
+        if (session.retryTimer) {
+            try { clearTimeout(session.retryTimer); } catch (_) { /* ignore */ }
+            session.retryTimer = null;
+        }
+        session.retrying = false;
+    }
+
+    function flvHasPicture(session) {
+        try {
+            var v = session && session.video;
+            if (!v) return false;
+            if ((v.videoWidth || 0) > 0) return true;
+        } catch (_) { /* ignore */ }
+        return false;
+    }
+
+    function bindFlvRetryError(session) {
+        if (!session || !session.player) return;
+        try {
+            session.player.on(mpegts.Events.ERROR, function (t, d) {
+                if (!session || session.destroyed) return;
+                if (flvHasPicture(session)) return;
+                if (Date.now() < session.retryUntil) {
+                    scheduleFlvRetry(session);
+                    return;
+                }
+                if (typeof session._onFlvError === 'function') {
+                    try { session._onFlvError(t, d); } catch (_) { /* ignore */ }
+                }
+            });
+        } catch (_) { /* ignore */ }
+    }
+
+    function reloadSamePlayer(session) {
+        if (!session || session.destroyed || !session.player) return;
+        try { session.player.unload(); } catch (_) { /* ignore */ }
+        try { session.player.load(); } catch (_) { /* ignore */ }
+        try {
+            var p = session.player.play();
+            if (p && p.catch) p.catch(function () { playMutedOrArmGesture(session.video); });
+        } catch (_) { /* ignore */ }
+    }
+
+    function scheduleFlvRetry(session) {
+        if (!session || session.destroyed) return;
+        if (flvHasPicture(session)) {
+            clearFlvRetry(session);
+            return;
+        }
+        if (!session.retryUntil || Date.now() >= session.retryUntil) return;
+        if (session.retryTimer) return;
+        session.retrying = true;
+        session.retryTimer = setTimeout(function () {
+            session.retryTimer = null;
+            if (!session || session.destroyed) return;
+            if (Date.now() >= session.retryUntil) {
+                session.retrying = false;
+                return;
+            }
+            if (flvHasPicture(session)) {
+                clearFlvRetry(session);
+                return;
+            }
+            reloadSamePlayer(session);
+            scheduleFlvRetry(session);
+        }, FLV_RETRY_MS);
+    }
+
+    function armFlvStartupRetry(session, onError) {
+        if (!session) return;
+        session.retryUntil = Date.now() + FLV_RETRY_MAX_MS;
+        session._onFlvError = onError;
+        bindFlvRetryError(session);
+        if (!session._picBound && session.video) {
+            session._picBound = true;
+            var onPic = function () {
+                if (!flvHasPicture(session)) return;
+                try { session.video.removeEventListener('loadeddata', onPic); } catch (_) { /* ignore */ }
+                try { session.video.removeEventListener('playing', onPic); } catch (_) { /* ignore */ }
+                try { session.video.removeEventListener('resize', onPic); } catch (_) { /* ignore */ }
+                clearFlvRetry(session);
+            };
+            try { session.video.addEventListener('loadeddata', onPic); } catch (_) { /* ignore */ }
+            try { session.video.addEventListener('playing', onPic); } catch (_) { /* ignore */ }
+            try { session.video.addEventListener('resize', onPic); } catch (_) { /* ignore */ }
+        }
+    }
+
     /**
      * @param {HTMLVideoElement} videoElement
      * @param {string} streamUrl
@@ -289,20 +399,7 @@
         if (existing) detach(videoElement);
 
         var withCred = options.withCredentials !== false;
-        var player = mpegts.createPlayer({
-            type: 'flv',
-            isLive: true,
-            url: url,
-            hasAudio: false,
-            hasVideo: true,
-            withCredentials: withCred,
-        }, {
-            enableWorker: false,
-            lazyLoad: false,
-            enableStashBuffer: false,
-            stashInitialSize: 128,
-            liveBufferLatencyChasing: false,
-        });
+        var player = makeLivePlayer(url, withCred);
 
         var session = {
             video: videoElement,
@@ -314,6 +411,9 @@
             chaseIv: null,
             io: null,
             _onVis: null,
+            retryTimer: null,
+            retryUntil: 0,
+            retrying: false,
             options: options,
         };
 
@@ -326,13 +426,7 @@
         bumpUrl(url, 1);
         setSession(videoElement, session);
 
-        if (typeof options.onError === 'function') {
-            try {
-                player.on(mpegts.Events.ERROR, function (t, d) {
-                    try { options.onError(t, d); } catch (_) { /* ignore */ }
-                });
-            } catch (_) { /* ignore */ }
-        }
+        armFlvStartupRetry(session, options.onError);
 
         try { player.load(); } catch (_) { /* ignore */ }
         try {
@@ -383,6 +477,7 @@
         var session = getSession(videoElement);
         if (!session || session.destroyed) return;
         session.destroyed = true;
+        clearFlvRetry(session);
         disarmChase(session);
         disarmVisibility(session);
         bumpUrl(session.url, -1);

@@ -133,6 +133,15 @@
         return [];
     }
 
+    /** Assign Panels row only — not the live Open All cam on that tile. */
+    function assignedDeviceForSlot(slot) {
+        const ch = getChannel(slot);
+        if (!ch || ch.sourceMode === 'none') return '';
+        if (ch.sourceMode === 'fixed') return String(ch.deviceId || '').trim();
+        const q = buildQueueForChannel(ch);
+        return (q[0] && String(q[0]).trim()) || '';
+    }
+
     function getActiveDeviceForSlot(slot) {
         const el = document.querySelector('.video-slot[data-slot="' + slot + '"]');
         const liveId = (el && el.dataset.camId) ? String(el.dataset.camId).trim() : '';
@@ -824,6 +833,7 @@
         slotLabel,
         slotDeviceId,
         getActiveDeviceForSlot,
+        assignedDeviceForSlot,
         buildQueueForChannel,
         advanceRotationIndex,
         isRotatingMode,

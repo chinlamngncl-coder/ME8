@@ -8297,30 +8297,44 @@
             font-size: 10px; font-weight: 600; color: #bfdbfe; user-select: none;
         }
         #map-pin-stack-hud {
-            /* MAP-STACK-HUD-BELOW-GEO-TOOLS-V1 â€” under zoom; Geo Tools keep the top-right row */
-            position: absolute; top: 54px; left: 52px; z-index: 2200;
-            display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-start;
-            max-width: min(420px, calc(100% - 420px)); padding: 8px 12px; border-radius: 10px;
-            background: rgba(15, 23, 42, 0.94); border: 1px solid rgba(96, 165, 250, 0.55);
+            /* STACK-BAR-LEFT-ZOOM-ALIGN-V1 — slim column under Leaflet zoom */
+            position: absolute; top: 78px; left: 10px; z-index: 2200;
+            display: grid; grid-template-columns: max-content 22px; align-items: center;
+            width: max-content; max-width: 120px; gap: 4px; padding: 6px;
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.94); border: 1px solid rgba(96, 165, 250, 0.35);
             box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45); pointer-events: auto;
             font-size: 11px; font-weight: 600; color: #dbeafe;
         }
         #map-pin-stack-hud[hidden] { display: none !important; }
-        .map-pin-stack-hud-label { white-space: nowrap; }
-        .map-pin-stack-hud-label::before { content: '\283F '; opacity: 0.85; }
-        .map-pin-stack-hud-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+        .map-pin-stack-hud-label {
+            grid-column: 1; white-space: nowrap; overflow: visible; text-overflow: clip;
+            font-size: 11px; line-height: 1.2; text-transform: none;
+        }
+        .map-pin-stack-hud-label::before { content: none; }
+        #map-pin-stack-hud-min {
+            grid-column: 2; grid-row: 1; justify-self: end;
+            width: 22px; height: 22px; padding: 0; border: 0; border-radius: 4px;
+            background: transparent; color: #fff; font-size: 16px; line-height: 1; cursor: pointer;
+        }
+        #map-pin-stack-hud-min:hover { background: rgba(255, 255, 255, 0.12); }
+        .map-pin-stack-hud-chips {
+            grid-column: 1 / -1; display: flex; flex-direction: column; flex-wrap: nowrap; gap: 4px;
+        }
         .map-pin-stack-hud-chip {
-            padding: 4px 8px; border-radius: 6px; border: 1px solid #475569; background: #1e293b;
-            color: #e2e8f0; font-size: 10px; font-weight: 700; cursor: pointer; max-width: 120px;
+            display: block; width: 100%; max-width: 100%; box-sizing: border-box;
+            padding: 3px 6px; border-radius: 6px; border: 1px solid #475569; background: #1e293b;
+            color: #e2e8f0; font-size: 10px; font-weight: 700; cursor: pointer; text-align: left;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         .map-pin-stack-hud-chip:hover { border-color: #60a5fa; background: #334155; }
         .map-pin-stack-hud-chip.active { border-color: #3b82f6; background: rgba(59, 130, 246, 0.22); }
         .map-pin-stack-hud-reset {
-            flex-shrink: 0; min-width: 28px; height: 26px; padding: 0 8px; border-radius: 6px;
-            border: 1px solid #475569; background: #1e293b; color: #e2e8f0; font-size: 12px; cursor: pointer;
+            grid-column: 1 / -1; flex-shrink: 0; width: 100%; height: 22px; padding: 0;
+            border-radius: 4px; border: 0; background: transparent; color: #fff;
+            font-size: 12px; cursor: pointer;
         }
-        .map-pin-stack-hud-reset:hover { background: #334155; border-color: #64748b; }
+        .map-pin-stack-hud-reset:hover { background: rgba(255, 255, 255, 0.12); }
         .map-pin-stack-grip {
             flex: 1; cursor: grab; line-height: 1.3; letter-spacing: 0.02em;
         }
@@ -10582,7 +10596,7 @@
                         <div id="fleet-roster-popout-resize" title="Drag to resize"></div>
                     </div>
                     <div id="map-pin-stack-hud" hidden>
-                        <span class="map-pin-stack-hud-label" data-i18n="map.pinStackHint">Stacked</span>
+                        <span class="map-pin-stack-hud-label" data-i18n="map.pinStackHint">Pin Drag</span>
                         <div class="map-pin-stack-hud-chips"></div>
                         <button type="button" class="map-pin-stack-hud-reset" data-i18n-title="map.resetLayout" title="Reset layout">&#8634;</button>
                         <button type="button" class="map-pin-legend-min-btn" id="map-pin-stack-hud-min" data-i18n-title="map.legend.minimize" title="Minimize" aria-label="Minimize" aria-expanded="true">&#8722;</button>
@@ -14867,7 +14881,7 @@
     <script src="/vendor/jsmpeg.min.js"></script>
     <script src="/vendor/mpegts.min.js"></script>
     <script src="/js/axiom-tz-fetch.js?v=20260828-tz-v1"></script>
-    <script src="/js/shared-flv-player.js?v=20260903-vms-play-gesture-hygiene-v1"></script>
+    <script src="/js/shared-flv-player.js?v=20260917-no-bye-reverted-v1"></script>
     <script src="/js/ax-select-wrap.js?v=20260731-select-caret-unify-all-ui-v1"></script>
     <script src="/js/live-player-factory.js?v=20260903-inv-live-refresh-and-cache-v1"></script>
     <script src="/js/dashboard-ws-url.js?v=20260723-wss-video-audio-sockets-v1"></script>
@@ -14897,7 +14911,7 @@
     <script src="/js/lab-security.js?v=20260816-settings-pillars-v1"></script>
     <script src="/js/cloud-deployment.js?v=20260816-settings-pillars-v1"></script>
     <script src="/js/bwc-devices.js?v=20260809-bwc-serial-asset-registry-v1"></script>
-    <script src="/js/video-config.js?v=20260916-wall-slot-live-cam-name-v1"></script>
+    <script src="/js/video-config.js?v=20260917-unassign-clear-on-stop-v1"></script>
     <script src="/js/ptt-mic.js"></script>
     <script src="/js/call-mic.js?v=20260721-sos-group-call-v1"></script>
     <script src="/js/ptt-rx.js?v=20260629-live-toast"></script>
@@ -14934,7 +14948,7 @@
     <script src="/js/missed-activity.js?v=20260824-ma-nudge-click-copy-v1"></script>
     <script src="/js/evidence-manager.js?v=20260903-inv-live-refresh-and-cache-v1"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260916-defer-socket-kill-v1"></script>
+    <script src="/js/video-wall.js?v=20260917-open-all-fresh-flv-v1"></script>
     <script src="/js/video-matrix.js?v=20260721-ops10-v1"></script>
     <script src="/js/global.js?v=20260901-auto-login-v1"></script>
     <script src="/js/global-device-presence.js?v=20260913-enterprise-gps-ingest-v1"></script>
@@ -15393,35 +15407,57 @@
             '#2563EB', '#10B981', '#EF4444', '#D946EF', '#0EA5E9', '#84CC16',
         ];
         const socket = io();
-        /* DEFER-SOCKET-KILL-AND-FIX-LOGIN-V1 — login only logout / 401 session / Fleet down. */
+        /* RESTART-DEAD-TAB-TO-LOGIN-V1 — Sign In on dead session after wake/reconnect, not on SOS blip. */
         (function bindFleetDeadToLogin(sock) {
-            var deadTimer = null;
+            var wakePoll = null;
             function goLogin() {
                 if (window.__me8GoingLogin) return;
                 window.__me8GoingLogin = true;
+                if (wakePoll) { clearInterval(wakePoll); wakePoll = null; }
                 window.location.replace('/login.html');
             }
-            sock.on('disconnect', function () {
-                if (deadTimer) clearTimeout(deadTimer);
-                deadTimer = setTimeout(function () {
-                    deadTimer = null;
-                    if (sock.connected) return;
-                    fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' })
-                        .then(function (r) {
-                            if (r.status === 401) { goLogin(); return null; }
-                            return r.json();
-                        })
-                        .then(function (j) {
-                            if (j && j.ok !== true) goLogin();
-                        })
-                        .catch(function () {
-                            if (!sock.connected) goLogin();
-                        });
+            function checkSession() {
+                fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' })
+                    .then(function (r) {
+                        if (r.status === 401) { goLogin(); return null; }
+                        return r.json();
+                    })
+                    .then(function (j) {
+                        if (j && j.ok !== true) goLogin();
+                    })
+                    .catch(function () { /* server still down / blip: stay on Ops */ });
+            }
+            function startWakePoll() {
+                if (wakePoll || document.hidden) return;
+                wakePoll = setInterval(function () {
+                    if (sock.connected) {
+                        clearInterval(wakePoll);
+                        wakePoll = null;
+                        return;
+                    }
+                    checkSession();
                 }, 4000);
+            }
+            function stopWakePoll() {
+                if (wakePoll) { clearInterval(wakePoll); wakePoll = null; }
+            }
+            sock.on('disconnect', function () {
+                startWakePoll();
             });
             sock.on('connect', function () {
-                if (deadTimer) { clearTimeout(deadTimer); deadTimer = null; }
+                stopWakePoll();
+                checkSession();
             });
+            window.addEventListener('pageshow', function () {
+                checkSession();
+                if (!sock.connected) startWakePoll();
+            });
+            document.addEventListener('visibilitychange', function () {
+                if (document.hidden) return;
+                checkSession();
+                if (!sock.connected) startWakePoll();
+            });
+            if (!sock.connected) startWakePoll();
         })(socket);
         var pendingSosAlarmEvents = [];
         socket.on('sos-alarm', function (data) {
@@ -17829,26 +17865,19 @@
             hud.setAttribute('data-cluster', clusterId);
             var label = hud.querySelector('.map-pin-stack-hud-label');
             if (label) {
-                var stackHint = dashboardTr('map.pinStackSelectDrag');
-                if (!stackHint || stackHint === 'map.pinStackSelectDrag') {
-                    stackHint = 'Select a name, then drag only that popup';
-                }
-                var nStack = stackedCluster.length;
-                label.textContent = hud.classList.contains('map-pin-stack-hud-minimized')
-                    ? ('Stacked (' + nStack + ')')
-                    : (overlapping
-                        ? ('Overlapping (' + nStack + ') \u2014 ' + stackHint)
-                        : ('Stacked nearby (' + nStack + ') \u2014 ' + stackHint));
+                var stackTitle = dashboardTr('map.pinStackHint');
+                label.textContent = (!stackTitle || stackTitle === 'map.pinStackHint') ? 'Pin Drag' : stackTitle;
             }
             var chipsEl = hud.querySelector('.map-pin-stack-hud-chips');
             if (chipsEl) {
                 chipsEl.innerHTML = stackedCluster.map(function (camId) {
                     var name = friendlyPinName(camId);
+                    var shortName = String(name || '').trim().slice(0, 6);
                     var nid = normalizeCamId(camId);
                     var active = nid === focusNorm ? ' active' : '';
                     return '<button type="button" class="map-pin-stack-hud-chip' + active +
-                        '" data-cam-id="' + escapePinText(nid) + '" title="' + escapePinText(dashboardTr('map.bringToFront')) + '">' +
-                        escapePinText(name) + '</button>';
+                        '" data-cam-id="' + escapePinText(nid) + '" title="' + escapePinText(name) + '">' +
+                        escapePinText(shortName) + '</button>';
                 }).join('');
             }
         }

@@ -14626,7 +14626,8 @@ let connectedCameraId = null;
 let deviceOnline = false;
 let lastDeviceSeenAt = 0;
 let offlineWatchTimer = null;
-const DEVICE_OFFLINE_MS = 90000;
+const DEVICE_OFFLINE_MS = 180000; /* DEVICE-OFFLINE-KEEPALIVE-GRACE-V1 — 4G keep miss ≠ dead */
+const offlineStaleStrikes = new Map();
 
 const lastGpsByCam = {};
 /** This online period only — never paint last-gps.json while the camera is green. */
@@ -14848,7 +14849,45 @@ function seedGeofenceStateFromCache() {
 seedGeofenceStateFromCache();
 
 setInterval(() => {
-    fleetRegistry.findStale(DEVICE_OFFLINE_MS).forEach((camId) => {
+    const stale = fleetRegistry.findStale(DEVICE_OFFLINE_MS);
+    const staleSet = {};
+    stale.forEach(function (id) { staleSet[id] = true; });
+    offlineStaleStrikes.forEach(function (_n, id) {
+        if (!staleSet[id]) offlineStaleStrikes.delete(id);
+    });
+    stale.forEach((camId) => {
+        try {
+            if (liveViewers.countForCam(camId) > 0) {
+                fleetRegistry.touch(camId);
+                offlineStaleStrikes.delete(camId);
+                log.sip.info('offline skip — live session', {
+                    camId: camId,
+                    path: 'DEVICE-OFFLINE-KEEPALIVE-GRACE-V1',
+                });
+                return;
+            }
+        } catch (_) { /* still apply grace */ }
+        try {
+            if (mediaSession.isVoiceCallActiveForCam(camId)) {
+                fleetRegistry.touch(camId);
+                offlineStaleStrikes.delete(camId);
+                log.sip.info('offline skip — voice call', {
+                    camId: camId,
+                    path: 'DEVICE-OFFLINE-KEEPALIVE-GRACE-V1',
+                });
+                return;
+            }
+        } catch (_) { /* still apply grace */ }
+        const n = (offlineStaleStrikes.get(camId) || 0) + 1;
+        offlineStaleStrikes.set(camId, n);
+        if (n < 2) {
+            log.sip.info('offline grace — one miss', {
+                camId: camId,
+                path: 'DEVICE-OFFLINE-KEEPALIVE-GRACE-V1',
+            });
+            return;
+        }
+        offlineStaleStrikes.delete(camId);
         markDeviceOffline(camId, 'keepalive_timeout');
     });
 }, 20000);
@@ -15176,7 +15215,10 @@ function startMediaFromDashboard(payload, requestSocket) {
         });
         const surface = liveViewers.normalizeSurface(parsed.surface || (payload && payload.surface));
         const handoff = require('./lib/wvpVideoHandoff');
-        handoff.ensurePlay(camId, { publicHost: HOST }).then(function (out) {
+        handoff.ensurePlay(camId, {
+            publicHost: HOST,
+            openAll: !!(payload && payload.openAll),
+        }).then(function (out) {
             if (requestSocket && requestSocket.connected) {
                 if (out && out.ok) {
                     schedulePttGroupRefreshForCam(camId, 'wvp-video-handoff');
@@ -15933,12 +15975,28 @@ function replayOnlineDeviceStateToSocket(socket) {
 const stopVideoInProgress = new Set();
 /* DEFER-SOCKET-KILL-AND-FIX-LOGIN-V1 — disconnect: decrement now, WVP stop after recount. */
 const LAST_VIEWER_DEFER_MS = 3750;
+const FLV_STARTUP_GRACE_MS = 16000;
+const flvStartupUntil = new Map();
 const lastViewerDeferTimers = new Map();
+
+function markFlvStartup(camId) {
+    const id = String(camId || '').trim();
+    if (!id) return;
+    flvStartupUntil.set(id, Date.now() + FLV_STARTUP_GRACE_MS);
+}
+
+function lastViewerDelayMs(camId) {
+    const until = flvStartupUntil.get(String(camId || '').trim()) || 0;
+    const left = until - Date.now();
+    if (left > LAST_VIEWER_DEFER_MS) return left;
+    return LAST_VIEWER_DEFER_MS;
+}
 
 function scheduleLastViewerHardStop(camId) {
     const id = String(camId || '').trim();
     if (!id) return;
     if (lastViewerDeferTimers.has(id)) clearTimeout(lastViewerDeferTimers.get(id));
+    const delay = lastViewerDelayMs(id);
     const t = setTimeout(function () {
         lastViewerDeferTimers.delete(id);
         if (liveViewers.countForCam(id) > 0) {
@@ -15948,8 +16006,27 @@ function scheduleLastViewerHardStop(camId) {
             });
             return;
         }
+        try {
+            if (sosIncidents.hasOpenAlarm(id)) {
+                log.media.info('last-viewer defer skipped — SOS open', {
+                    camId: id,
+                    path: 'FIX-LOGOUT-AND-SOS-V1',
+                });
+                return;
+            }
+        } catch (_) { /* never skip stop on SOS lookup fail */ }
+        const until = flvStartupUntil.get(id) || 0;
+        if (until > Date.now()) {
+            log.media.info('last-viewer defer skipped — FLV startup grace', {
+                camId: id,
+                leftMs: until - Date.now(),
+                path: 'FLV-RETRY-CAMERA-LATENCY-V1',
+            });
+            scheduleLastViewerHardStop(id);
+            return;
+        }
         releaseCamStreamWhenUnwatched(id);
-    }, LAST_VIEWER_DEFER_MS);
+    }, delay);
     lastViewerDeferTimers.set(id, t);
 }
 
@@ -16010,10 +16087,34 @@ function stopWvpSoftOpenBridge(camId, opts) {
 /** Stop BWC/SIP stream only when no dashboard socket still holds a viewer ref (VMS pattern). */
 /** Stop BWC/SIP stream only when no dashboard socket still holds a viewer ref (VMS pattern). */
 function releaseCamStreamWhenUnwatched(camId, opts) {
-    if (!camId || liveViewers.countForCam(camId) > 0) return Promise.resolve(false);
+    if (!camId) return Promise.resolve(false);
     if (stopVideoInProgress.has(camId)) return Promise.resolve(false);
+    try {
+        if (sosIncidents.hasOpenAlarm(camId)) {
+            log.media.info('last-viewer stop bypass — SOS open', {
+                camId: camId,
+                path: 'FIX-LOGOUT-AND-SOS-V1',
+            });
+            return Promise.resolve(false);
+        }
+    } catch (_) { /* never skip stop on SOS lookup fail */ }
 
     const force = !!(opts && opts.force);
+    /* PANEL-STOP-FORCE-BYE-V1 — operator Stop hangs up even if a pin still holds a viewer */
+    if (!force && liveViewers.countForCam(camId) > 0) return Promise.resolve(false);
+    if (force) {
+        try { flvStartupUntil.delete(String(camId).trim()); } catch (_) { /* ignore */ }
+    } else {
+        const until = flvStartupUntil.get(String(camId).trim()) || 0;
+        if (until > Date.now()) {
+            log.media.info('last-viewer stop bypass — FLV startup grace', {
+                camId: camId,
+                leftMs: until - Date.now(),
+                path: 'FLV-RETRY-CAMERA-LATENCY-V1',
+            });
+            return Promise.resolve(false);
+        }
+    }
     // --- PROTECT AGAINST UI GLITCHES (INVITE DEFERRAL) ---
     if (!force && dashboardVideo.isInviteInFlight(camId) && !dashboardVideo.isStreamingForCam(camId)) {
         log.media.info('pool stop deferred', { camId, reason: 'invite_in_flight' });
@@ -16583,6 +16684,7 @@ io.on('connection', (socket) => {
                             : (surface === 'live-popout' ? beforeSurfaces.livePopout
                                     : (surface === 'tactical' ? beforeSurfaces.tactical : beforeSurfaces.ops))))));
             const viewers = liveViewers.addView(socket.id, camId, surface);
+            if (viewers === 1) markFlvStartup(camId);
             const afterSurfaces = liveViewers.socketSurfacesForCam(socket.id, camId);
             if ((!beforeSurfaces.ops || !beforeSurfaces.commandWall)
                 && afterSurfaces.ops && afterSurfaces.commandWall
@@ -16592,7 +16694,8 @@ io.on('connection', (socket) => {
             log.media.trace('start-video viewer ref', { camId, socketId: socket.id, surface, viewers });
             if (alreadyOwned && wvpHandoffStart) {
                 const flvUrl = require('./lib/wvpVideoHandoff').getCachedFlv(camId);
-                if (flvUrl) {
+                const openAllFresh = !!(payload && payload.openAll);
+                if (flvUrl && !openAllFresh) {
                     log.media.info('wvp duplicate start-video suppressed', {
                         camId,
                         socketId: socket.id,
@@ -16610,6 +16713,13 @@ io.on('connection', (socket) => {
                         });
                     }
                     return;
+                }
+                if (flvUrl && openAllFresh) {
+                    log.media.info('wvp Open All skip cached flv', {
+                        camId,
+                        socketId: socket.id,
+                        path: 'OPEN-ALL-FRESH-FLV-V1',
+                    });
                 }
                 /* WVP-DUP-EMPTY-CACHE-START-V1 — owned but no FLV: ensurePlay once. */
                 log.media.info('wvp duplicate start-video empty cache — ensurePlay once', {
@@ -16644,6 +16754,7 @@ io.on('connection', (socket) => {
         const streamWasDead = countBefore === 0;
         const holdOnly = !!(payload && (payload.holdOnly || payload.noWake));
         const viewers = liveViewers.addView(socket.id, camId, surface);
+        if (streamWasDead) markFlvStartup(camId);
         const refs = liveViewers.refBreakdownForCam(camId);
         log.media.info('register-viewer-only', {
             camId,
@@ -16758,7 +16869,15 @@ io.on('connection', (socket) => {
                 countForCam: refs.countForCam,
                 socketsWithRefs: refs.socketsWithRefs,
             });
-            releaseCamStreamWhenUnwatched(camId);
+            if (stopReason === 'operator') {
+                log.media.info('panel stop force hang-up', {
+                    camId,
+                    path: 'PANEL-STOP-FORCE-BYE-V1',
+                });
+                releaseCamStreamWhenUnwatched(camId, { force: true });
+            } else {
+                releaseCamStreamWhenUnwatched(camId);
+            }
             return;
         }
         
@@ -18502,7 +18621,16 @@ sip.start({ address: BIND_HOST, port: SIP_PORT }, (request, remote) => {
                         preview: (request.content || '').replace(/\s+/g, ' ').trim().slice(0, 200),
                     });
                     const alarmMeta = alarmFromXml.classifyAlarmNotify(result.Notify, request.content);
-                    const alarmKind = alarmMeta.alarmKind || 'sos';
+                    if (alarmMeta.alarmKind !== 'sos' && alarmMeta.alarmKind !== 'fall') {
+                        log.sip.info('sip alarm ignored (not SOS/fall)', {
+                            camId,
+                            alarmMethod: alarmMeta.alarmMethod,
+                            alarmType: alarmMeta.alarmType,
+                            path: 'SDK-USIP-UNDO-PTT-INVENTION-V1',
+                        });
+                        return;
+                    }
+                    const alarmKind = alarmMeta.alarmKind;
                     let alarmTime = siteTime.formatEvidenceShort(new Date());
                     if (result.Notify.AlarmTime) alarmTime = result.Notify.AlarmTime[0].replace('T', ' ');
                     const coords = resolveCoords(camId, result.Notify, request.content);

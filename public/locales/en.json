@@ -1625,7 +1625,7 @@
   "map.pin.sos": "SOS",
   "map.pin.wallBadge": "PIN Closed",
   "map.pin.wallStillLive": "Pin closed - video still live on wall",
-  "map.pinStackHint": "Stacked",
+  "map.pinStackHint": "Pin Drag",
   "map.popoutBarTitle": "Mobility Axiom - Map",
   "map.popoutMirrorHint": "Display only",
   "map.popoutMirrorVideoHint": "Live video on main console",
