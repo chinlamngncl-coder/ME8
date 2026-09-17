@@ -10034,7 +10034,7 @@
         .sos-detail-actions button { flex: 1; min-width: 100px; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; background: #334155; color: #e2e8f0; }
         .sos-detail-actions .sos-detail-secondary { flex: 0 1 auto; background: transparent; color: #94a3b8; font-weight: 500; font-size: 11px; }
     </style>
-    <link rel="stylesheet" href="/css/global.css?v=20260905-sos-desk-snap-v13">
+    <link rel="stylesheet" href="/css/global.css?v=20260916-map-stack-hud-min-v1">
     <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260821-fc-toolbar-pad-v1">
 </head>
 <body>
@@ -10585,6 +10585,7 @@
                         <span class="map-pin-stack-hud-label" data-i18n="map.pinStackHint">Stacked</span>
                         <div class="map-pin-stack-hud-chips"></div>
                         <button type="button" class="map-pin-stack-hud-reset" data-i18n-title="map.resetLayout" title="Reset layout">&#8634;</button>
+                        <button type="button" class="map-pin-legend-min-btn" id="map-pin-stack-hud-min" data-i18n-title="map.legend.minimize" title="Minimize" aria-label="Minimize" aria-expanded="true">&#8722;</button>
                     </div>
                     <div id="map-geofence-toast" role="status" aria-live="polite"></div>
                     <div id="geofence-draw-bar" hidden>
@@ -14896,7 +14897,7 @@
     <script src="/js/lab-security.js?v=20260816-settings-pillars-v1"></script>
     <script src="/js/cloud-deployment.js?v=20260816-settings-pillars-v1"></script>
     <script src="/js/bwc-devices.js?v=20260809-bwc-serial-asset-registry-v1"></script>
-    <script src="/js/video-config.js?v=20260915-wall-none-clear-device-v1"></script>
+    <script src="/js/video-config.js?v=20260916-wall-slot-live-cam-name-v1"></script>
     <script src="/js/ptt-mic.js"></script>
     <script src="/js/call-mic.js?v=20260721-sos-group-call-v1"></script>
     <script src="/js/ptt-rx.js?v=20260629-live-toast"></script>
@@ -14933,11 +14934,11 @@
     <script src="/js/missed-activity.js?v=20260824-ma-nudge-click-copy-v1"></script>
     <script src="/js/evidence-manager.js?v=20260903-inv-live-refresh-and-cache-v1"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260916-bwc-stop-overlay-bye-only-v1"></script>
+    <script src="/js/video-wall.js?v=20260916-defer-socket-kill-v1"></script>
     <script src="/js/video-matrix.js?v=20260721-ops10-v1"></script>
     <script src="/js/global.js?v=20260901-auto-login-v1"></script>
     <script src="/js/global-device-presence.js?v=20260913-enterprise-gps-ingest-v1"></script>
-    <script src="/js/fleet-ui.js?v=20260916-pin-no-fly-gps-spread-v1"></script>
+    <script src="/js/fleet-ui.js?v=20260916-pin-click-add-wall-slot-v1"></script>
     <script src="/js/map-popout-sync.js?v=20260902-inv-tab-onhide-teardown-v1"></script>
     <script src="/js/voice-alerts.js?v=20260810-hq-alert-tone-presets-hold-v1"></script>
     <script src="/vendor/leaflet/leaflet.js?v=20260701-vendor-local"></script>
@@ -15392,7 +15393,7 @@
             '#2563EB', '#10B981', '#EF4444', '#D946EF', '#0EA5E9', '#84CC16',
         ];
         const socket = io();
-        /* REVERT-SESSION-PERSIST-AND-DEAD-TO-LOGIN-V1 — Fleet dead/restart: leave fake ops, go login. */
+        /* DEFER-SOCKET-KILL-AND-FIX-LOGIN-V1 — login only logout / 401 session / Fleet down. */
         (function bindFleetDeadToLogin(sock) {
             var deadTimer = null;
             function goLogin() {
@@ -15400,24 +15401,26 @@
                 window.__me8GoingLogin = true;
                 window.location.replace('/login.html');
             }
-            function sessionOrLogin() {
-                fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' })
-                    .then(function (r) { return r.json(); })
-                    .then(function (j) { if (!j || j.ok !== true) goLogin(); })
-                    .catch(function () { goLogin(); });
-            }
-            var seenConnect = false;
             sock.on('disconnect', function () {
                 if (deadTimer) clearTimeout(deadTimer);
-                deadTimer = setTimeout(sessionOrLogin, 4000);
+                deadTimer = setTimeout(function () {
+                    deadTimer = null;
+                    if (sock.connected) return;
+                    fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' })
+                        .then(function (r) {
+                            if (r.status === 401) { goLogin(); return null; }
+                            return r.json();
+                        })
+                        .then(function (j) {
+                            if (j && j.ok !== true) goLogin();
+                        })
+                        .catch(function () {
+                            if (!sock.connected) goLogin();
+                        });
+                }, 4000);
             });
             sock.on('connect', function () {
                 if (deadTimer) { clearTimeout(deadTimer); deadTimer = null; }
-                if (!seenConnect) { seenConnect = true; return; }
-                sessionOrLogin();
-            });
-            document.addEventListener('visibilitychange', function () {
-                if (document.visibilityState === 'visible') sessionOrLogin();
             });
         })(socket);
         var pendingSosAlarmEvents = [];
@@ -17830,9 +17833,12 @@
                 if (!stackHint || stackHint === 'map.pinStackSelectDrag') {
                     stackHint = 'Select a name, then drag only that popup';
                 }
-                label.textContent = overlapping
-                    ? ('Overlapping (' + stackedCluster.length + ') \u2014 ' + stackHint)
-                    : ('Stacked nearby (' + stackedCluster.length + ') \u2014 ' + stackHint);
+                var nStack = stackedCluster.length;
+                label.textContent = hud.classList.contains('map-pin-stack-hud-minimized')
+                    ? ('Stacked (' + nStack + ')')
+                    : (overlapping
+                        ? ('Overlapping (' + nStack + ') \u2014 ' + stackHint)
+                        : ('Stacked nearby (' + nStack + ') \u2014 ' + stackHint));
             }
             var chipsEl = hud.querySelector('.map-pin-stack-hud-chips');
             if (chipsEl) {
@@ -18005,6 +18011,23 @@
                         e.stopPropagation();
                         resetStackedPinPopupLayout(clusterId);
                     }
+                    return;
+                }
+                var hudMin = e.target.closest('#map-pin-stack-hud-min');
+                if (hudMin) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var hudEl = document.getElementById('map-pin-stack-hud');
+                    if (!hudEl) return;
+                    hudEl.classList.toggle('map-pin-stack-hud-minimized');
+                    var nowMin = hudEl.classList.contains('map-pin-stack-hud-minimized');
+                    var minLabel = dashboardTr('map.legend.minimize');
+                    var expLabel = dashboardTr('map.legend.expand');
+                    hudMin.textContent = nowMin ? '+' : '\u2212';
+                    hudMin.setAttribute('aria-expanded', nowMin ? 'false' : 'true');
+                    hudMin.setAttribute('title', nowMin ? expLabel : minLabel);
+                    hudMin.setAttribute('aria-label', nowMin ? expLabel : minLabel);
+                    updateMapPinStackHud();
                 }
             }, true);
             document.addEventListener('pointerdown', function (e) {
@@ -18896,12 +18919,9 @@
                     scheduleSyncOpenPinVideosFromWall();
                     afterMarkerPopupReady(camId, isCamSosActive(camId));
                     if (typeof selectFleetDevice === 'function') {
-                        var pinIds = (typeof FleetUi !== 'undefined' && FleetUi.getSelectedCamIds)
-                            ? FleetUi.getSelectedCamIds().map(function (id) { return normalizeCamId(id); }) : [];
-                        var cidNorm = normalizeCamId(camId);
                         selectFleetDevice(camId, {
                             skipMapPopup: true,
-                            skipVideo: pinIds.indexOf(cidNorm) < 0 && pinIds.length >= 1,
+                            skipVideo: false,
                             addToMulti: true,
                             keepMulti: true,
                         });
@@ -19376,7 +19396,30 @@
             rows += '<div class="leg-row"><span class="leg-dot" style="background:#FF3333;box-shadow:0 0 8px #FF3333"></span><span>' + dashboardTr('map.legend.sosAlarm') + '</span></div>';
             rows += '<div class="leg-row"><span class="leg-dot" style="background:#06b6d4;box-shadow:0 0 8px #06b6d4"></span><span>' + dashboardTr('map.legend.geofenceOut') + '</span></div>';
             rows += '<div class="leg-row"><span class="leg-dot" style="background:#94a3b8;box-shadow:none;opacity:0.9"></span><span>' + dashboardTr('map.legend.offlineLast') + '</span></div>';
-            el.innerHTML = '<h5>' + dashboardTr('map.legend.groups') + '</h5>' + rows;
+            var minLabel = dashboardTr('map.legend.minimize');
+            var expLabel = dashboardTr('map.legend.expand');
+            var minimized = el.classList.contains('map-pin-legend-minimized');
+            el.innerHTML = '<div class="map-pin-legend-head">' +
+                '<h5>' + dashboardTr('map.legend.groups') + '</h5>' +
+                '<button type="button" class="map-pin-legend-min-btn" id="map-pin-legend-min" aria-expanded="' + (minimized ? 'false' : 'true') + '" title="' + escapePinText(minimized ? expLabel : minLabel) + '" aria-label="' + escapePinText(minimized ? expLabel : minLabel) + '">' + (minimized ? '+' : '\u2212') + '</button>' +
+                '</div><div class="map-pin-legend-body">' + rows + '</div>';
+            el.querySelectorAll('.leg-row-click').forEach(function (row) {
+                row.addEventListener('click', function () {
+                    showMapGroupMembers(row.getAttribute('data-group-name'));
+                });
+            });
+            var minBtn = document.getElementById('map-pin-legend-min');
+            if (minBtn) {
+                minBtn.addEventListener('click', function (ev) {
+                    if (ev && ev.stopPropagation) ev.stopPropagation();
+                    el.classList.toggle('map-pin-legend-minimized');
+                    var nowMin = el.classList.contains('map-pin-legend-minimized');
+                    minBtn.textContent = nowMin ? '+' : '\u2212';
+                    minBtn.setAttribute('aria-expanded', nowMin ? 'false' : 'true');
+                    minBtn.setAttribute('title', nowMin ? expLabel : minLabel);
+                    minBtn.setAttribute('aria-label', nowMin ? expLabel : minLabel);
+                });
+            }
             el.hidden = keys.length === 0 && Object.keys(deviceMarkers).length === 0
                 && fixedCameraMapMarkers.size === 0;
         }

@@ -801,7 +801,14 @@
             const alreadyLive = global.VideoWall.isCameraLive && VideoWall.isCameraLive(camId);
             const online = isDeviceOnline(camId);
             if (!alreadyLive) {
-                VideoWall.assignCamToSlot(camId, slotIndex);
+                if (keepMulti && VideoWall.assignCamToNextFreeWallSlot) {
+                    VideoWall.assignCamToNextFreeWallSlot(camId);
+                } else {
+                    VideoWall.assignCamToSlot(camId, slotIndex);
+                }
+                if (keepMulti && typeof global.scheduleSyncOpenPinVideosFromWall === 'function') {
+                    global.scheduleSyncOpenPinVideosFromWall();
+                }
             } else if (!online && VideoWall.onDeviceWentOffline) {
                 VideoWall.onDeviceWentOffline(camId);
             }

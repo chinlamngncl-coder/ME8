@@ -2045,11 +2045,12 @@
         const stEl = slotEl.querySelector('.video-slot-status');
         const slot = findSlotIndex(slotEl);
         const labelEl = slotEl.querySelector('.video-slot-label');
+        if (camId) slotEl.dataset.camId = camId;
+        else if (!slotEl.classList.contains('video-slot-has-live')) delete slotEl.dataset.camId;
         if (labelEl && global.VideoConfig) {
             labelEl.textContent = VideoConfig.slotLabel(slot);
         }
         if (stEl) stEl.textContent = statusText || 'Idle';
-        if (camId) slotEl.dataset.camId = camId;
     }
 
     function streamWaitLabel(isAlarm) {
@@ -2662,6 +2663,30 @@
             if (!wallSlotTaken(i, camId)) return i;
         }
         return null;
+    }
+
+    /** PIN-CLICK-ADD-WALL-SLOT-V1 — next free panel. Never steal Open All / live occupant. */
+    function assignCamToNextFreeWallSlot(camId, opts) {
+        camId = String(camId || '').trim();
+        if (!camId) return;
+        opts = Object.assign({ wallSlotReserved: true, keepAlarm: true, pinClick: true }, opts || {});
+        if (wallHasPlayerForCam(camId) || wallSlotDecodedForCam(camId)) return;
+        const openSlot = openAllWallSlotForCam(camId);
+        if (openSlot != null) {
+            assignCamToSlot(camId, openSlot, opts);
+            return;
+        }
+        const existing = findSlotByCamId(camId);
+        if (existing) {
+            const idx = findSlotIndex(existing);
+            if (idx != null && idx >= 0 && !wallSlotTaken(idx, camId)) {
+                assignCamToSlot(camId, idx, opts);
+                return;
+            }
+        }
+        const free = freeWallSlotForCam(camId);
+        if (free == null) return;
+        assignCamToSlot(camId, free, opts);
     }
 
     function findWallSlotForCam(camId) {
@@ -4121,6 +4146,8 @@ function handoffPlayerAttaching(player) {
                 if (openSlot != null && openSlot !== slotIndex) {
                     return assignCamToSlot(camId, openSlot, opts);
                 }
+                /* PIN-CLICK-ADD-WALL-SLOT-V1 — never steal Open All occupant on pin click. */
+                if (opts && opts.pinClick) return;
                 /* SOS-OPS-PIN-WALL-TAKEOVER-V1 — pin/user steal may replace Open All occupant */
                 if (!(opts && (opts.forceReassign || opts.userPlay || (opts.alarm && occupant === camId)))) return;
             }
@@ -5626,6 +5653,26 @@ function handoffPlayerAttaching(player) {
         syncAllPttUi();
     }
 
+    /** DEFER-SOCKET-KILL-AND-FIX-LOGIN-V1 — same-page reconnect: new socket.id re-claims live panels. */
+    function reclaimLiveWallStartVideo() {
+        if (!socket) return;
+        const seen = Object.create(null);
+        getSlots().forEach(function (slotEl) {
+            const idx = findSlotIndex(slotEl);
+            const camId = String(
+                slotBoundCam(idx) || (slotEl && slotEl.dataset.camId) || pendingWallSlots[idx] || ''
+            ).trim();
+            if (!camId || seen[camId]) return;
+            const live = !!(slotEl.classList.contains('video-slot-has-live')
+                || (typeof wallSlotHasLivePlayer === 'function' && wallSlotHasLivePlayer(idx, camId))
+                || players.has(idx)
+                || pendingWallSlots[idx] === camId);
+            if (!live) return;
+            seen[camId] = true;
+            emitOpsStartVideo(camId);
+        });
+    }
+
     function init(ioSocket) {
         socket = ioSocket;
         socket.on('video-stream-ready', function (data) {
@@ -5701,6 +5748,10 @@ function handoffPlayerAttaching(player) {
         socket.on('live-voice-hint', onLiveVoiceHint);
 
         bindMapPinStopClick();
+
+        socket.on('connect', function () {
+            reclaimLiveWallStartVideo();
+        });
 
         bindRosterClick((camId) => {
             let slotIndex = 0;
@@ -5979,6 +6030,7 @@ function handoffPlayerAttaching(player) {
         onSosAlarm,
         onDeviceWentOffline,
         assignCamToSlot,
+        assignCamToNextFreeWallSlot,
         playOnMapPopup,
         playMapPinVideoIfPopupOpen,
         openAllLivePins,

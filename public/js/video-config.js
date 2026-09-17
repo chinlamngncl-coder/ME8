@@ -134,7 +134,15 @@
     }
 
     function getActiveDeviceForSlot(slot) {
+        const el = document.querySelector('.video-slot[data-slot="' + slot + '"]');
+        const liveId = (el && el.dataset.camId) ? String(el.dataset.camId).trim() : '';
         const ch = getChannel(slot);
+        if (ch && ch.sourceMode === 'fixed' && ch.deviceId) {
+            const cfg = String(ch.deviceId).trim();
+            if (liveId && liveId !== cfg) return liveId;
+            return cfg;
+        }
+        if (liveId) return liveId;
         if (!ch) return '';
         if (ch.sourceMode === 'fixed') return ch.deviceId || '';
         if (!isRotatingMode(ch.sourceMode)) return '';
@@ -181,7 +189,6 @@
     function slotLabel(slot) {
         const ch = getChannel(slot);
         const n = slot + 1;
-        if (ch && ch.sourceMode === 'none') return tr('video.panel', { n: n });
         const activeId = getActiveDeviceForSlot(slot);
         let op = '';
         if (isFixedCameraId(activeId)) {
@@ -192,7 +199,11 @@
             const rec = BwcDevices.findByDeviceId(activeId);
             if (rec && rec.operatorName) op = rec.operatorName;
         }
-        if (ch && isRotatingMode(ch.sourceMode)) {
+        if (!op && activeId && global.FleetDisplay && typeof FleetDisplay.friendlyDeviceName === 'function') {
+            const fn = String(FleetDisplay.friendlyDeviceName(activeId) || '').trim();
+            if (fn && fn !== activeId) op = fn;
+        }
+        if (ch && isRotatingMode(ch.sourceMode) && !activeId) {
             if (ch.sourceMode === 'group' && ch.mapGroup) {
                 return tr('video.panelLabelRotateGroup', { n: n, group: ch.mapGroup });
             }

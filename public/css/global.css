@@ -11594,3 +11594,40 @@ body:has(> #app-view-command-wall) {
 
 /* live tile waiting for a click after autoplay refusal (shared-flv-player armGesturePlay) */
 video[data-fm-needs-gesture="1"] { cursor: pointer; outline: 2px solid var(--accent-blue); outline-offset: -2px; }
+
+/* MAP-LEGEND-MINIMIZE-V1 */
+#map-pin-legend .map-pin-legend-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+#map-pin-legend .map-pin-legend-head h5 { margin: 0; }
+#map-pin-legend .map-pin-legend-min-btn {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #fff;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+#map-pin-legend .map-pin-legend-min-btn:hover { background: rgba(255, 255, 255, 0.12); }
+#map-pin-legend.map-pin-legend-minimized {
+    width: auto;
+    max-width: 160px;
+    padding: 6px 8px;
+}
+#map-pin-legend.map-pin-legend-minimized .map-pin-legend-body { display: none; }
+
+#map-pin-stack-hud.map-pin-stack-hud-minimized {
+    max-width: none;
+    gap: 6px;
+    padding: 6px 8px;
+}
+#map-pin-stack-hud.map-pin-stack-hud-minimized .map-pin-stack-hud-chips,
+#map-pin-stack-hud.map-pin-stack-hud-minimized .map-pin-stack-hud-reset { display: none; }

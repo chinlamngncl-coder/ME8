@@ -15931,6 +15931,27 @@ function replayOnlineDeviceStateToSocket(socket) {
 
 /** Coalesce rapid stop-video for the same cam (command wall + ops wall fighting). */
 const stopVideoInProgress = new Set();
+/* DEFER-SOCKET-KILL-AND-FIX-LOGIN-V1 — disconnect: decrement now, WVP stop after recount. */
+const LAST_VIEWER_DEFER_MS = 3750;
+const lastViewerDeferTimers = new Map();
+
+function scheduleLastViewerHardStop(camId) {
+    const id = String(camId || '').trim();
+    if (!id) return;
+    if (lastViewerDeferTimers.has(id)) clearTimeout(lastViewerDeferTimers.get(id));
+    const t = setTimeout(function () {
+        lastViewerDeferTimers.delete(id);
+        if (liveViewers.countForCam(id) > 0) {
+            log.media.info('last-viewer defer cancelled — watcher returned', {
+                camId: id,
+                path: 'DEFER-SOCKET-KILL-AND-FIX-LOGIN-V1',
+            });
+            return;
+        }
+        releaseCamStreamWhenUnwatched(id);
+    }, LAST_VIEWER_DEFER_MS);
+    lastViewerDeferTimers.set(id, t);
+}
 
 /**
  * mob-wvp-softopen-stop-bridge-v1
@@ -17317,8 +17338,12 @@ io.on('connection', (socket) => {
         try { weaponLivePoller.clearSocket(socket.id); } catch (_) { /* ignore */ }
         const toStop = liveViewers.releaseSocket(socket.id);
         if (!toStop.length) return;
-        log.media.info('dashboard disconnect — release live refs', { socketId: socket.id, cams: toStop });
-        toStop.forEach((id) => { releaseCamStreamWhenUnwatched(id); });
+        log.media.info('dashboard disconnect — release live refs', {
+            socketId: socket.id,
+            cams: toStop,
+            path: 'DEFER-SOCKET-KILL-AND-FIX-LOGIN-V1',
+        });
+        toStop.forEach((id) => { scheduleLastViewerHardStop(id); });
     });
 
 
