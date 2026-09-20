@@ -140,7 +140,7 @@
         }
         .ubitron-logo {
             height: 20px; width: auto; display: block; flex-shrink: 0; object-fit: contain;
-            filter: contrast(1.18) brightness(0.97);
+            filter: invert(1) hue-rotate(180deg) brightness(1.15);
         }
         .header-brand-divider {
             flex-shrink: 0; width: 1px; height: 30px;
@@ -829,9 +829,10 @@
         #ax-fr-watch-list .ax-fr-roster-summary {
             color: #e2e8f0;
         }
+        /* FR-ROSTER-4-VISIBLE-V1 — toolbar tighter; roster viewport = head + 4 members */
         .ax-fr-watch-bar {
-            display: flex; flex-wrap: nowrap; align-items: center; gap: 6px 8px;
-            margin-bottom: 6px; flex-shrink: 0; min-width: 0;
+            display: flex; flex-wrap: nowrap; align-items: center; gap: 4px 6px;
+            margin-bottom: 4px; flex-shrink: 0; min-width: 0;
         }
         .ax-fr-roster-actions { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; flex-shrink: 0; }
         .ax-fr-roster-summary {
@@ -850,7 +851,8 @@
             border: 1px solid #334155; background: #0b1220; color: #cbd5e1;
         }
         .ax-fr-roster-wrap {
-            --fr-roster-level-h: calc(26px + 22px * 5);
+            /* head (~26) + 4 member rows (~24) — was *5 at 22px but toggles ~28 → only ~3 visible */
+            --fr-roster-level-h: calc(26px + 24px * 4);
             flex: 0 0 auto;
             height: var(--fr-roster-level-h);
             max-height: var(--fr-roster-level-h);
@@ -890,11 +892,14 @@
         }
         .ax-fr-roster-group-card.is-empty-col { visibility: hidden; }
         .ax-fr-roster-card-head {
-            padding: 4px 2px; background: transparent; border-bottom: none;
+            /* FR-ROSTER-GROUP-DENSE-DIVIDER-V1 — tight header + hairline under team */
+            padding: 2px 2px 1px; background: transparent;
+            border-bottom: 1px solid rgba(71, 85, 105, 0.55);
         }
         .ax-fr-roster-card-table { width: 100%; table-layout: fixed; font-size: 10px; }
-        .ax-fr-roster-card-table .ax-fr-roster-row { height: 22px; }
+        .ax-fr-roster-card-table .ax-fr-roster-row { height: 20px; }
         .ax-fr-roster-card-table .ax-fr-roster-cell-name.is-member { padding-left: 4px; }
+        .ax-fr-roster-card-table td { padding-top: 1px; padding-bottom: 1px; }
         .ax-fr-roster-card-table .ax-fr-roster-col-cb { width: 24px; }
         .ax-fr-roster-card-table td:nth-child(1) { width: 24px; }
         .ax-fr-roster-card-table td:nth-child(2) { width: 24px; }
@@ -938,19 +943,58 @@
         .ax-fr-roster-row.is-on-tile { background: rgba(37, 99, 235, 0.1); }
         .ax-fr-roster-row.is-pinned { box-shadow: inset 3px 0 0 #ca8a04; }
         .ax-fr-roster-row.is-offline { opacity: 0.55; }
-        .ax-fr-roster-group td { padding: 3px 5px; background: #151d2e; border-bottom: 1px solid #334155; height: 26px; }
-        .ax-fr-roster-group-label { display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; color: #94a3b8; min-width: 0; }
+        .ax-fr-roster-group td { padding: 2px 5px; background: #151d2e; border-bottom: 1px solid #334155; height: 24px; }
+        .ax-fr-roster-group-label { display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; color: #94a3b8; min-width: 0; min-height: 26px; }
         .ax-fr-roster-group-check { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; cursor: pointer; margin: 0; }
         .ax-fr-roster-group-expand {
-            width: 22px; height: 22px; flex-shrink: 0; padding: 0; border: 1px solid #334155;
-            border-radius: 4px; background: #1e293b; color: #94a3b8; font-size: 9px; line-height: 1;
-            cursor: pointer;
+            /* FR-ROSTER-GROUP-CHEVRON-V1 — readable chevron (v1c) */
+            width: 28px; min-height: 28px; flex-shrink: 0; padding: 0; margin: 0 2px 0 0;
+            border: none; background: transparent; color: #cbd5e1;
+            font-size: 18px; line-height: 1; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
         }
-        .ax-fr-roster-group-expand:hover { border-color: #475569; color: #e2e8f0; }
+        .ax-fr-roster-group-expand:hover { color: #f8fafc; background: transparent; border: none; }
         .ax-fr-roster-group-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
         .ax-fr-roster-group-name { color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
         .ax-fr-roster-group-meta { font-size: 9px; font-weight: 500; color: #64748b; white-space: nowrap; flex-shrink: 0; padding-left: 6px; }
-        .ax-fr-roster-cell-cb input, .ax-fr-roster-group-cb { width: 13px; height: 13px; cursor: pointer; flex-shrink: 0; }
+        .ax-fr-roster-cell-cb { width: 44px; vertical-align: middle; }
+        .ax-fr-roster-toggle {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 40px; min-height: 28px; cursor: pointer; margin: 0;
+        }
+        .ax-fr-roster-watch-cb,
+        .ax-fr-roster-group-cb {
+            position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none;
+        }
+        .ax-fr-roster-toggle-ui {
+            display: inline-block; width: 34px; height: 18px; border-radius: 999px;
+            background: #475569; border: 1px solid #64748b; position: relative; flex-shrink: 0;
+            transition: background 0.12s ease, border-color 0.12s ease;
+        }
+        .ax-fr-roster-toggle-ui::after {
+            content: ''; position: absolute; top: 1px; left: 1px;
+            width: 14px; height: 14px; border-radius: 50%; background: #f8fafc;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.35);
+            transition: left 0.12s ease;
+        }
+        .ax-fr-roster-watch-cb:checked + .ax-fr-roster-toggle-ui,
+        .ax-fr-roster-group-cb:checked + .ax-fr-roster-toggle-ui {
+            background: #2563eb; border-color: #3b82f6;
+        }
+        .ax-fr-roster-watch-cb:checked + .ax-fr-roster-toggle-ui::after,
+        .ax-fr-roster-group-cb:checked + .ax-fr-roster-toggle-ui::after { left: 17px; }
+        .ax-fr-roster-group-cb:indeterminate + .ax-fr-roster-toggle-ui {
+            background: #1d4ed8; border-color: #60a5fa;
+        }
+        .ax-fr-roster-group-cb:indeterminate + .ax-fr-roster-toggle-ui::after { left: 9px; }
+        .ax-fr-roster-watch-cb:disabled + .ax-fr-roster-toggle-ui,
+        .ax-fr-roster-group-cb:disabled + .ax-fr-roster-toggle-ui {
+            opacity: 0.45; cursor: not-allowed;
+        }
+        .ax-fr-roster-group-check {
+            display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+            min-height: 28px; flex: 1; min-width: 0;
+        }
         .ax-fr-roster-cell-status { white-space: nowrap; }
         .ax-fr-roster-status { display: inline-block; width: 7px; height: 7px; border-radius: 50%; vertical-align: middle; margin-right: 3px; }
         .ax-fr-roster-status.is-on { background: #22c55e; }
@@ -971,13 +1015,15 @@
             display: inline-flex; align-items: center; justify-content: center;
         }
         .ax-fr-roster-pin-icon::before {
-            /* FR-ROSTER-PIN-ICON-ASCII-V1 - no emoji (encoding-safe) */
-            content: "PIN";
-            font-size: 8px;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            line-height: 1;
-            color: inherit;
+            /* FR-ROSTER-PIN-NO-WORD-V1 — icon only, no PIN letters */
+            content: "";
+            width: 9px;
+            height: 9px;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            background: currentColor;
+            display: block;
+            margin-top: -1px;
         }
         .ax-fr-roster-pin.is-active { border-color: #ca8a04; color: #fde68a; background: rgba(202, 138, 4, 0.15); }
         .ax-fr-roster-badge { font-size: 9px; font-weight: 600; white-space: nowrap; }
@@ -7110,25 +7156,29 @@
             white-space: nowrap;
         }
         /* FLEET-DROP-GPS-COL-V1 - Pin PTT Call | Device | Status */
-        .fleet-col-pin, .fleet-col-ptt, .fleet-col-call, .fleet-col-track { width: 32px; }
-        .fleet-col-status { width: 56px; }
+        /* OPS-ROSTER-ICON-BREATHE-V1 — icons + gaps breathe; Device still wide enough for dBm */
+        .fleet-col-pin, .fleet-col-ptt, .fleet-col-call, .fleet-col-track { width: 34px; }
+        .fleet-col-status { width: 40px; }
         .fleet-table thead th:nth-child(1),
         .fleet-table thead th:nth-child(2),
-        .fleet-table thead th:nth-child(3) {
+        .fleet-table thead th:nth-child(3),
+        .fleet-table thead th:nth-child(4) {
             text-align: center; padding-left: 0; padding-right: 0; letter-spacing: 0.02em;
         }
-        .fleet-table thead th:nth-child(4) {
-            text-align: left; padding-left: 12px; padding-right: 6px;
-        }
+        /* Device (5) gets leftover width — Status (6) stays tight */
         .fleet-table thead th:nth-child(5) {
-            text-align: center; width: 56px; white-space: nowrap;
+            text-align: left; padding-left: 10px; padding-right: 6px; width: auto;
+        }
+        .fleet-table thead th:nth-child(6) {
+            text-align: center; width: 40px; white-space: nowrap;
             letter-spacing: 0.03em; padding-left: 2px; padding-right: 2px;
         }
         .fleet-table td { padding: 6px 2px; border-bottom: 1px solid rgba(51, 65, 85, 0.45); vertical-align: middle; }
         .fleet-pin-cell,
         .fleet-ptt-cell,
-        .fleet-voice-cell {
-            width: 32px; padding-left: 0; padding-right: 0; text-align: center;
+        .fleet-voice-cell,
+        .fleet-track-cell {
+            width: 34px; padding-left: 3px; padding-right: 3px; text-align: center;
         }
         .fleet-row-ptt-btn,
         .fleet-row-voice-btn,
@@ -7311,11 +7361,50 @@
             border-color: #fff;
             box-shadow: 0 0 8px #4ade80, 0 0 14px rgba(74, 222, 128, 0.45);
         }
-        .fleet-status-cell { width: 56px; text-align: center; padding-left: 2px; padding-right: 2px; }
-        .fleet-name-cell { padding-left: 12px !important; padding-right: 6px !important; }
+        .fleet-status-cell .status-dot.stale {
+            background: #f59e0b;
+            border-color: #fff;
+            box-shadow: 0 0 8px #fbbf24, 0 0 14px rgba(245, 158, 11, 0.45);
+        }
+        .fleet-status-cell { width: 40px; text-align: center; padding-left: 4px; padding-right: 4px; }
+        .fleet-name-cell { padding-left: 10px !important; padding-right: 8px !important; min-width: 0; }
         .fleet-name { display: block; color: var(--text); font-weight: 500; }
-        .fleet-id-sub { display: block; font-size: 9px; color: #64748b; font-family: ui-monospace, Consolas, monospace; margin-top: 1px; }
-        .fleet-id-sub .fleet-id-tail { opacity: 0.7; }
+        /* OPS-ROSTER-TELEM-2LINE-V1 + DBM-VISIBLE — never ellipsis-kill dBm */
+        .fleet-id-sub {
+            display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+            font-size: 9px; color: #64748b;
+            font-family: ui-monospace, Consolas, monospace; margin-top: 1px;
+            max-width: 100%; overflow: visible; white-space: normal;
+            line-height: 1.2;
+        }
+        .fleet-id-sub .fleet-id-tail {
+            display: block; max-width: 100%; opacity: 0.75;
+            overflow: visible; text-overflow: clip; white-space: nowrap;
+        }
+        .fleet-id-sub .fleet-id-nonick { opacity: 0.7; }
+        .fleet-tel-sub {
+            display: block; max-width: 100%; margin: 0; font-size: 9px; color: #94a3b8;
+            font-family: ui-monospace, Consolas, monospace;
+            overflow: visible; text-overflow: clip; white-space: nowrap;
+        }
+        .fleet-tel-sub .fleet-batt-low { color: #f87171; font-weight: 600; }
+        .fleet-tel-sub .fleet-rec-badge { color: #fecaca; font-weight: 700; letter-spacing: 0.04em; }
+        .fleet-low-batt-alerts {
+            margin: 0 0 6px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            background: rgba(127, 29, 29, 0.45);
+            border: 1px solid rgba(248, 113, 113, 0.45);
+            font-size: 11px;
+            color: #fecaca;
+            line-height: 1.35;
+        }
+        .fleet-low-batt-line { display: flex; align-items: center; gap: 6px; }
+        .fleet-low-batt-line + .fleet-low-batt-line { margin-top: 4px; }
+        .fleet-low-batt-dot {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+            background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.8);
+        }
         .fleet-status-on { color: var(--ok); font-weight: 500; font-size: 10px; }
         .fleet-status-off { color: #64748b; font-size: 10px; }
         .fleet-empty { text-align: center; color: #64748b; padding: 12px !important; }
@@ -7331,10 +7420,10 @@
         }
         .fleet-group-name { vertical-align: middle; }
         .fleet-pin-color {
-            display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px;
+            display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px !important;
             vertical-align: middle; border: 1px solid rgba(255,255,255,0.55); flex-shrink: 0;
         }
-        .fleet-name-with-pin { display: flex; align-items: center; min-width: 0; }
+        .fleet-name-with-pin { display: flex; align-items: center; gap: 2px; min-width: 0; }
         .fleet-name-with-pin .fleet-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .ss-bwc-group-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
         .ss-bwc-group-color {
@@ -7605,18 +7694,28 @@
         .bwc-pin-wrap.sos .bwc-pin-dot { animation: pulse-red 1.5s infinite; }
         .bwc-pin-wrap.sos .bwc-pin-label { color: #b91c1c; border-color: #fca5a5; }
         .bwc-pin-wrap.fall .bwc-pin-dot { animation: pulse-fall 1.5s infinite; }
+        /* PRESENCE-OFFLINE-TELEM-PIN-CLUSTER-UNGROUPED-V1 — grey offline (not charcoal) */
         .bwc-pin-wrap.offline .bwc-pin-dot {
             background: #94a3b8 !important;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-            opacity: 0.9;
+            box-shadow: 0 0 0 2px #e2e8f0, 0 2px 6px rgba(0, 0, 0, 0.35);
+            opacity: 1;
         }
         .bwc-pin-wrap.offline .bwc-pin-label {
-            color: #475569;
-            background: rgba(226, 232, 240, 0.94);
-            border-color: rgba(100, 116, 139, 0.4);
+            color: #64748b;
+            background: rgba(241, 245, 249, 0.96);
+            border-color: rgba(148, 163, 184, 0.55);
         }
         .bwc-pin-wrap.offline .bwc-pin-label::after {
-            border-top-color: rgba(226, 232, 240, 0.94);
+            border-top-color: rgba(241, 245, 249, 0.96);
+        }
+        .marker-cluster-bwc {
+            background: transparent !important;
+        }
+        .marker-cluster-bwc .bwc-cluster-inner {
+            width: 100%; height: 100%; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-weight: 700; font-size: 13px;
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.85), 0 2px 8px rgba(0, 0, 0, 0.35);
         }
         .bwc-pin-wrap.fall .bwc-pin-label { color: #b45309; border-color: #fcd34d; }
         .bwc-pin-wrap.geofence-out .bwc-pin-dot {
@@ -10048,7 +10147,7 @@
         .sos-detail-actions button { flex: 1; min-width: 100px; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; background: #334155; color: #e2e8f0; }
         .sos-detail-actions .sos-detail-secondary { flex: 0 1 auto; background: transparent; color: #94a3b8; font-weight: 500; font-size: 11px; }
     </style>
-    <link rel="stylesheet" href="/css/global.css?v=20260916-map-stack-hud-min-v1">
+    <link rel="stylesheet" href="/css/global.css?v=20260920-presence-offline-ungrouped-v1">
     <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260821-fc-toolbar-pad-v1">
 </head>
 <body>
@@ -10396,6 +10495,7 @@
                     <button type="button" id="fleet-roster-popout-btn" class="fleet-roster-popout-btn" aria-expanded="false" aria-controls="fleet-roster-popout" data-i18n-title="fleet.rosterPopout" title="Pop out roster">&#10697;</button>
                 </div>
                 <p id="fleet-summary" class="hint">0 online &middot; 0 devices</p>
+                <div id="fleet-low-batt-alerts" class="fleet-low-batt-alerts" hidden role="status" aria-live="polite"></div>
                 <div class="fleet-toolbar">
                     <input type="search" id="fleet-search" data-i18n-placeholder="fleet.searchPlaceholder" placeholder="Search name or ID&hellip;" autocomplete="off">
                     <select id="fleet-filter" data-i18n-aria="fleet.filterAria" aria-label="Filter devices">
@@ -11496,8 +11596,8 @@
                         <p class="setup-hint" style="margin:8px 0 4px;font-size:10px;" data-i18n="groups.color">Pin colour</p>
                         <div class="ss-group-color-field">
                             <span class="ss-group-color-preview" id="ss-group-color-preview" style="background:#22c55e"></span>
-                            <input type="color" id="ss-group-edit-color" value="#22c55e" title="Custom colour">
-                            <span class="ss-group-color-hint" data-i18n="groups.colorHint">Click a swatch or the colour square. Pins update when you press Save group.</span>
+                            <input type="color" id="ss-group-edit-color" value="#22c55e" hidden>
+                            <span class="ss-group-color-hint" data-i18n="groups.colorHint">Click a swatch. Pins update when you save.</span>
                         </div>
                         <div class="ss-group-color-presets" id="ss-group-color-presets" aria-label="Pin colour presets"></div>
                         <div class="ss-group-members-wrap">
@@ -14592,6 +14692,30 @@
                     </div>
                 </section>
 
+                <section class="ev-storage-card enterprise-card ev-storage-span-full" id="ev-aes-unlock-card">
+                    <h4 data-i18n="evidence.aesUnlockTitle">AES File Unlock</h4>
+                    <p class="setup-hint" style="margin-top:0" data-i18n="evidence.aesUnlockHint" hidden></p>
+                    <div class="ev-ftp-form-grid enterprise-form-grid">
+                        <label>
+                            <span data-i18n="evidence.aesUnlockStatus">Status</span>
+                            <span class="ev-ftp-service-cell" id="ev-aes-unlock-status"><span class="ev-st-badge ev-st-muted">&mdash;</span></span>
+                        </label>
+                        <label class="full">
+                            <span data-i18n="evidence.aesUnlockKey">AES File Unlock Key</span>
+                            <input type="password" oncopy="return false" onpaste="return false" oncut="return false" id="ev-aes-unlock-key" class="enterprise-form-control" autocomplete="new-password" maxlength="128" data-i18n-placeholder="evidence.aesUnlockKeyPh" placeholder="Unlock code">
+                        </label>
+                        <label class="full">
+                            <span data-i18n="evidence.aesUnlockAdminPass">Your Password (to Confirm)</span>
+                            <input type="password" oncopy="return false" onpaste="return false" oncut="return false" id="ev-aes-unlock-admin-pass" class="enterprise-form-control" autocomplete="current-password" data-i18n-placeholder="evidence.aesUnlockAdminPassPh" placeholder="Your login password">
+                        </label>
+                    </div>
+                    <div class="ev-ftp-save-row">
+                        <span id="ev-aes-unlock-msg" class="hint"></span>
+                        <button type="button" class="btn btn-ghost btn-sm" id="ev-aes-unlock-clear" data-i18n="evidence.aesUnlockClear">Clear Unlock</button>
+                        <button type="button" class="btn btn-action btn-sm" id="ev-aes-unlock-save" data-i18n="evidence.aesUnlockSave">Save AES Unlock</button>
+                    </div>
+                </section>
+
                 <section class="ev-storage-section" id="ev-storage-bwc-live">
                     <h4 data-i18n="evidence.sosServerRecordTitle">BWC (SOS Recording on Server)</h4>
                     <label class="evidence-live-capture-toggle">
@@ -14893,7 +15017,7 @@
     <script src="/js/mobility-map-gis.js?v=20260903-ops-local-zoom-fill-v1"></script>
     <script src="/js/map-offline-tiles.js?v=20260903-map-source-toggle-v1"></script>
     <script src="/js/display-names.js"></script>
-    <script src="/js/dispatch-groups-admin.js?v=20260609-groups-ux"></script>
+    <script src="/js/dispatch-groups-admin.js?v=20260920-presence-offline-ungrouped-v1"></script>
     <script src="/js/firmware-ota-admin.js?v=20260817-ss-fleet-chrome-v1"></script>
     <script src="/js/auth-form-busy.js?v=20260702-admin-action-bus"></script>
     <script src="/js/admin-action-bus.js?v=20260725-sos-open-folder-no-blocking-alert-v1"></script>
@@ -14918,7 +15042,7 @@
     <script src="/js/audit-trail-hub.js?v=20260819-date-dmy-v1"></script>
     <script src="/js/license-features.js?v=20260818-commercial-lock-v1"></script>
     <script src="/js/cad-hub.js?v=20260816-cad-upsell-v1"></script>
-    <script src="/js/fr-live-watch.js?v=20260825-operator-voice-v1"></script>
+    <script src="/js/fr-live-watch.js?v=20260919-fr-roster-4-visible-v1"></script>
     <script src="/js/fr-offline-video.js?v=20260903-vms-play-gesture-hygiene-v1"></script>
     <script src="/js/fr-enroll-cropper.js?v=20260710-fr-cropper"></script>
     <script src="/js/anpr-plate-cropper.js?v=20260729-anpr-snapshot-v1"></script>
@@ -14935,7 +15059,7 @@
     <script src="/js/operator-error-voice.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/operator-ui.js?v=20260709-zero-raw-errors"></script>
     <script src="/js/ev-context-rail.js?v=20260817-path-mask-rt-grid-v1"></script>
-    <script src="/js/evidence-storage-ui.js?v=20260816-storage-path-redact-v1"></script>
+    <script src="/js/evidence-storage-ui.js?v=20260920-aes-unlock-confirm-pass-v1"></script>
     <script src="/js/route-trace.js?v=20260902-airgap-map-offline-default-v1"></script>
     <script src="/js/case-files-ui.js?v=20260905-owning-sa-display-v1"></script>
     <script src="/js/evidence-delete-queue-ui.js?v=20260826-evidence-lifecycle-v1"></script>
@@ -14943,16 +15067,16 @@
     <script src="/js/fr-kept-ui.js?v=20260819-date-dmy-v1"></script>
     <script src="/js/dock-identity-setup.js?v=20260816-settings-pillars-v1"></script>
     <script src="/js/ftp-inbox-ui.js?v=20260902-airgap-map-offline-default-v1"></script>
-    <script src="/js/evidence-hub.js?v=20260905-evidence-show-ptt-audio-v1"></script>
-    <script src="/js/system-health-plain.js?v=20260903-force-relogin-no-bounce-v1"></script>
+    <script src="/js/evidence-hub.js?v=20260920-aes-unlock-copy-c-v1"></script>
+    <script src="/js/system-health-plain.js?v=20260917-health-gate-no-stale-flash-v1"></script>
     <script src="/js/missed-activity.js?v=20260824-ma-nudge-click-copy-v1"></script>
     <script src="/js/evidence-manager.js?v=20260903-inv-live-refresh-and-cache-v1"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260917-open-all-fresh-flv-v1"></script>
+    <script src="/js/video-wall.js?v=20260918-flv-honest-ui-reconnect-banner-v1"></script>
     <script src="/js/video-matrix.js?v=20260721-ops10-v1"></script>
-    <script src="/js/global.js?v=20260901-auto-login-v1"></script>
-    <script src="/js/global-device-presence.js?v=20260913-enterprise-gps-ingest-v1"></script>
-    <script src="/js/fleet-ui.js?v=20260916-pin-click-add-wall-slot-v1"></script>
+    <script src="/js/global.js?v=20260917-health-gate-no-stale-flash-v1"></script>
+    <script src="/js/global-device-presence.js?v=20260918-presence-green-amber-grey-v1"></script>
+    <script src="/js/fleet-ui.js?v=20260920-presence-offline-ungrouped-v1"></script>
     <script src="/js/map-popout-sync.js?v=20260902-inv-tab-onhide-teardown-v1"></script>
     <script src="/js/voice-alerts.js?v=20260810-hq-alert-tone-presets-hold-v1"></script>
     <script src="/vendor/leaflet/leaflet.js?v=20260701-vendor-local"></script>
@@ -14965,7 +15089,7 @@
     <script src="/js/tactical-blueprint-ui.js?v=20260816-blueprint-manage-v1"></script>
     <script src="/js/tactical-ar.js?v=20260826-ar-case-v1"></script>
     <script src="/js/tactical-overwatch.js?v=20260825-ascii-safe-v1"></script>
-    <script src="/js/map-pin-layer.js?v=20260914-cull-on-v1"></script>
+    <script src="/js/map-pin-layer.js?v=20260920-presence-cluster-v1"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/cw-display-room.js?v=20260821-screen-cards-v1"></script>
     <script src="/js/live-surface-hint.js?v=20260709-duplicate-surface-warn"></script>
@@ -15789,6 +15913,13 @@
             var deviceTime = pinDeviceTimeFromData(camId, data);
             var timeMuted = !data || data.deviceTimeSource === 'server';
             pinTelSet(root, '.pin-tel-device-time', deviceTime || '\u2014', deviceTime && !timeMuted ? '' : 'pin-tel-muted');
+            /* Offline → — (never show cached live battery) */
+            if (online === false) {
+                pinTelSet(root, '.pin-tel-battery', '\u2014', 'pin-tel-muted');
+                pinTelSet(root, '.pin-tel-record', '\u2014', 'pin-tel-muted');
+                pinTelSet(root, '.pin-tel-audio', '\u2014', 'pin-tel-muted');
+                return;
+            }
             if (!data) return;
             setTelemetryUi(Object.assign({ cameraId: camId }, data));
         }
@@ -16182,7 +16313,7 @@
         }
 
         function isCamOnlineOnFleet(camId) {
-            /* Soft Open wall live on WVP => treat pin as online (Fleet YDT may still say offline). */
+            /* Soft Open wall live on WVP => treat pin as online (Fleet USIP may still say offline). */
             if (typeof VideoWall !== 'undefined' && VideoWall.wallSlotDecodedForCam
                 && VideoWall.wallSlotDecodedForCam(camId)) {
                 return true;
@@ -16239,15 +16370,43 @@
 
         window.dispatchGroupLookup = { byDevice: {}, byName: {}, groups: [] };
 
+        function isBlockedTeamColor(hex) {
+            var n = parseInt(String(hex || '').slice(1), 16);
+            if (!isFinite(n)) return true;
+            var r = (n >> 16) & 255;
+            var g = (n >> 8) & 255;
+            var b = n & 255;
+            var max = Math.max(r, g, b) / 255;
+            var min = Math.min(r, g, b) / 255;
+            var l = (max + min) / 2;
+            var sat = max === min ? 0 : (l > 0.5 ? (max - min) / (2 - max - min) : (max - min) / (max + min));
+            if (sat < 0.28) return true;
+            if (l < 0.18 || l > 0.88) return true;
+            function dist(rr, gg, bb) {
+                return Math.sqrt((r - rr) * (r - rr) + (g - gg) * (g - gg) + (b - bb) * (b - bb));
+            }
+            if (dist(148, 163, 184) < 58) return true;
+            if (dist(30, 41, 59) < 58) return true;
+            if (dist(100, 116, 139) < 50) return true;
+            /* Reserved: Ungrouped system accent (#c026d3) */
+            if (dist(192, 38, 211) < 48) return true;
+            return false;
+        }
+
+        var UNGROUPED_PIN_COLOR = '#c026d3';
+
         function dispatchColorForCam(camId, mapGroup) {
             var lk = window.dispatchGroupLookup || {};
+            var raw = null;
             if (camId && lk.byDevice && lk.byDevice[camId] && lk.byDevice[camId].color) {
-                return lk.byDevice[camId].color;
+                raw = lk.byDevice[camId].color;
+            } else {
+                var gk = String(mapGroup || '').toLowerCase();
+                if (gk && lk.byName && lk.byName[gk] && lk.byName[gk].color) {
+                    raw = lk.byName[gk].color;
+                }
             }
-            var gk = String(mapGroup || '').toLowerCase();
-            if (gk && lk.byName && lk.byName[gk] && lk.byName[gk].color) {
-                return lk.byName[gk].color;
-            }
+            if (raw && !isBlockedTeamColor(raw)) return raw;
             return null;
         }
 
@@ -16288,12 +16447,42 @@
 
         function pttGroupPickSourceKeyFn() {
             var sel = document.getElementById('ptt-group-select');
-            var groupId = sel && sel.value;
-            var pinned = getPinnedPttCamIds();
-            var parts = [];
-            if (groupId) parts.push('group:' + groupId);
-            if (pinned.length) parts.push('pinned:' + pinned.slice().sort().join('|'));
-            return parts.join('+');
+            return (sel && sel.value) || '';
+        }
+
+        function selectedGroupMemberIds() {
+            var groupId = pttGroupPickSourceKeyFn();
+            var catalog = window.pttGroupCatalog || [];
+            if (!groupId) return [];
+            var g = catalog.find(function (x) { return x.id === groupId; });
+            return membersForSavedGroup(g).map(function (m) { return m.camId; });
+        }
+
+        function idsOnAnySavedPttTeam() {
+            var set = Object.create(null);
+            (window.pttGroupCatalog || []).forEach(function (g) {
+                (g.members || []).forEach(function (m) {
+                    if (m && m.deviceId) set[String(m.deviceId)] = true;
+                });
+            });
+            return set;
+        }
+
+        function ungroupedPttCandidatesMeta() {
+            var onTeam = idsOnAnySavedPttTeam();
+            var out = [];
+            var rows = [];
+            try {
+                if (typeof BwcDevices !== 'undefined' && BwcDevices.listDevices) {
+                    rows = BwcDevices.listDevices() || [];
+                }
+            } catch (_) { rows = []; }
+            rows.forEach(function (d) {
+                var id = d && d.deviceId ? String(d.deviceId).trim() : '';
+                if (!id || onTeam[id]) return;
+                out.push(pttMemberChipMeta(id, '#64748b', d.nickname || d.operatorName || id));
+            });
+            return out;
         }
 
         function fullPttCandidatesMeta() {
@@ -16307,26 +16496,26 @@
                 byId[m.camId] = true;
                 out.push(m);
             }
-            /* PTT-GROUP-NET-MESH-AND-TALK-V1 \u2014 map group preset \u222A fleet ticks (cross-group); Join needs 2+ */
+            /* PTT-GROUP-ADD-UNGROUPED-V1 — current group + other-team picks + ungrouped as +. No auto-glue. */
             if (groupId) {
                 var g = catalog.find(function (x) { return x.id === groupId; });
                 membersForSavedGroup(g).forEach(addMeta);
             }
-            getPinnedPttCamIds().forEach(function (id) {
+            pttGroupPickCamIds.forEach(function (id) {
                 addMeta(pttMemberChipMeta(id));
             });
+            ungroupedPttCandidatesMeta().forEach(addMeta);
             return out;
         }
 
         function syncPttGroupPickFromSource() {
-            var key = pttGroupPickSourceKeyFn();
-            var all = fullPttCandidatesMeta().map(function (m) { return m.camId; });
-            if (key !== pttGroupPickSourceKey) {
-                pttGroupPickSourceKey = key;
-                pttGroupPickCamIds = all.slice();
-                return;
+            var groupId = pttGroupPickSourceKeyFn();
+            if (groupId && groupId !== pttGroupPickSourceKey) {
+                selectedGroupMemberIds().forEach(function (id) {
+                    if (id && pttGroupPickCamIds.indexOf(id) < 0) pttGroupPickCamIds.push(id);
+                });
             }
-            pttGroupPickCamIds = pttGroupPickCamIds.filter(function (id) { return all.indexOf(id) >= 0; });
+            pttGroupPickSourceKey = groupId;
         }
 
         function renderPttGroupMemberChips(members, opts) {
@@ -16368,7 +16557,7 @@
         function updatePttGroupJoinButton() {
             var btn = document.getElementById('ptt-group-join');
             var pickHint = document.getElementById('ptt-group-pick-hint');
-            var editable = !!pttGroupPickSourceKeyFn();
+            var editable = !!(pttGroupPickSourceKeyFn() || pttGroupPickCamIds.length || ungroupedPttCandidatesMeta().length);
             var n = pttGroupPickCamIds.length;
             if (btn) btn.disabled = !editable || n < 2;
             if (pickHint) {
@@ -16453,9 +16642,8 @@
             var groupId = sel && sel.value;
             var catalog = window.pttGroupCatalog || [];
             var g = groupId ? catalog.find(function (x) { return x.id === groupId; }) : null;
-            var pinned = getPinnedPttCamIds();
             var candidates = fullPttCandidatesMeta();
-            var editable = !!(g || pinned.length >= 1);
+            var editable = !!(g || pttGroupPickCamIds.length || ungroupedPttCandidatesMeta().length);
 
             if (dot) {
                 if (g && g.color) {
@@ -16468,18 +16656,13 @@
             }
 
             if (pinnedHint) {
-                if (!groupId && pinned.length >= 1) {
-                    pinnedHint.hidden = false;
-                    pinnedHint.textContent = dashboardTr('ptt.groupBox.pinnedReady', { n: pinned.length });
-                } else {
-                    pinnedHint.hidden = true;
-                    pinnedHint.textContent = '';
-                }
+                pinnedHint.hidden = true;
+                pinnedHint.textContent = '';
             }
 
-            if (editable && candidates.length) {
+            if (editable) {
                 syncPttGroupPickFromSource();
-                renderPttGroupMemberChips(candidates, { editable: true });
+                renderPttGroupMemberChips(fullPttCandidatesMeta(), { editable: true });
             } else if (global.activeDispatchPttTeam && global.activeDispatchPttTeam.length) {
                 renderPttGroupMemberChips(membersForActiveTeam(), { editable: false });
             } else {
@@ -16539,7 +16722,7 @@
         }
         window.refreshPttGroupSelect = refreshPttGroupSelect;
 
-        /* \u2014\u2014 CALL-GROUP-DISPATCH-V1 \u2014 pick UI mirrors PTT Groups \u2014\u2014 */
+        /* CALL-GROUP-PICK-PARITY-PTT-V1 — same pick rules as PTT Groups (seed group, +/−, keep free picks, ungrouped +) */
         var callGroupPickSourceKey = '';
         var callGroupPickCamIds = [];
         var callGroupMembersBound = false;
@@ -16547,12 +16730,15 @@
 
         function callGroupPickSourceKeyFn() {
             var sel = document.getElementById('call-group-select');
-            var groupId = sel && sel.value;
-            var pinned = getPinnedPttCamIds();
-            var parts = [];
-            if (groupId) parts.push('group:' + groupId);
-            if (pinned.length) parts.push('pinned:' + pinned.slice().sort().join('|'));
-            return parts.join('+');
+            return (sel && sel.value) || '';
+        }
+
+        function selectedCallGroupMemberIds() {
+            var groupId = callGroupPickSourceKeyFn();
+            var catalog = window.pttGroupCatalog || [];
+            if (!groupId) return [];
+            var g = catalog.find(function (x) { return x.id === groupId; });
+            return membersForSavedGroup(g).map(function (m) { return m.camId; });
         }
 
         function fullCallGroupCandidatesMeta() {
@@ -16570,21 +16756,26 @@
                 var g = catalog.find(function (x) { return x.id === groupId; });
                 membersForSavedGroup(g).forEach(addMeta);
             }
-            getPinnedPttCamIds().forEach(function (id) {
+            callGroupPickCamIds.forEach(function (id) {
                 addMeta(pttMemberChipMeta(id));
+            });
+            /* Same chip freedom as PTT: ungrouped + other map-group units as + (not glued until operator taps) */
+            ungroupedPttCandidatesMeta().forEach(addMeta);
+            catalog.forEach(function (og) {
+                if (!og || !og.id || (groupId && og.id === groupId)) return;
+                membersForSavedGroup(og).forEach(addMeta);
             });
             return out;
         }
 
         function syncCallGroupPickFromSource() {
-            var key = callGroupPickSourceKeyFn();
-            var all = fullCallGroupCandidatesMeta().map(function (m) { return m.camId; });
-            if (key !== callGroupPickSourceKey) {
-                callGroupPickSourceKey = key;
-                callGroupPickCamIds = all.slice();
-                return;
+            var groupId = callGroupPickSourceKeyFn();
+            if (groupId && groupId !== callGroupPickSourceKey) {
+                selectedCallGroupMemberIds().forEach(function (id) {
+                    if (id && callGroupPickCamIds.indexOf(id) < 0) callGroupPickCamIds.push(id);
+                });
             }
-            callGroupPickCamIds = callGroupPickCamIds.filter(function (id) { return all.indexOf(id) >= 0; });
+            callGroupPickSourceKey = groupId;
         }
 
         function renderCallGroupMemberChips(members, opts) {
@@ -16625,7 +16816,7 @@
             var pickHint = document.getElementById('call-group-pick-hint');
             var live = !!(dispatchCallGroupState && dispatchCallGroupState.active
                 && dispatchCallGroupState.kind === 'dispatch');
-            var editable = !!callGroupPickSourceKeyFn();
+            var editable = !!(callGroupPickSourceKeyFn() || callGroupPickCamIds.length || ungroupedPttCandidatesMeta().length);
             var n = callGroupPickCamIds.length;
             if (btn) btn.disabled = live || !editable || n < 2;
             if (endBtn) {
@@ -16685,9 +16876,8 @@
             var groupId = sel && sel.value;
             var catalog = window.pttGroupCatalog || [];
             var g = groupId ? catalog.find(function (x) { return x.id === groupId; }) : null;
-            var pinned = getPinnedPttCamIds();
             var candidates = fullCallGroupCandidatesMeta();
-            var editable = !!(g || pinned.length >= 1);
+            var editable = !!(g || callGroupPickCamIds.length || ungroupedPttCandidatesMeta().length);
             var live = !!(dispatchCallGroupState && dispatchCallGroupState.active
                 && dispatchCallGroupState.kind === 'dispatch');
 
@@ -16701,22 +16891,17 @@
                 }
             }
             if (pinnedHint) {
-                if (!groupId && pinned.length >= 1) {
-                    pinnedHint.hidden = false;
-                    pinnedHint.textContent = dashboardTr('call.groupBox.pinnedReady', { n: pinned.length });
-                } else {
-                    pinnedHint.hidden = true;
-                    pinnedHint.textContent = '';
-                }
+                pinnedHint.hidden = true;
+                pinnedHint.textContent = '';
             }
             if (live) {
                 var parts = (dispatchCallGroupState.participants || [])
                     .filter(function (p) { return p && (p.state === 'connected' || p.state === 'dialing'); })
                     .map(function (p) { return pttMemberChipMeta(p.camId); });
                 renderCallGroupMemberChips(parts.length ? parts : candidates, { editable: false });
-            } else if (editable && candidates.length) {
+            } else if (editable) {
                 syncCallGroupPickFromSource();
-                renderCallGroupMemberChips(candidates, { editable: true });
+                renderCallGroupMemberChips(fullCallGroupCandidatesMeta(), { editable: true });
             } else {
                 callGroupPickSourceKey = '';
                 callGroupPickCamIds = [];
@@ -17041,8 +17226,21 @@
             } else if (offline) {
                 color = '#94a3b8';
             } else {
-                var dgColor = dispatchColorForCam(camId, mapGroup);
-                color = dgColor || brightColorForKey(mapGroup || operator || camId);
+                var stale = false;
+                try {
+                    if (global.GlobalDevicePresence && GlobalDevicePresence.getById) {
+                        stale = !!(GlobalDevicePresence.getById(camId) || {}).stale;
+                    }
+                    if (!stale && typeof FleetUi !== 'undefined' && FleetUi.isDeviceStale) {
+                        stale = !!FleetUi.isDeviceStale(camId);
+                    }
+                } catch (_) { stale = false; }
+                if (stale) {
+                    color = '#f59e0b';
+                } else {
+                    var dgColor = dispatchColorForCam(camId, mapGroup);
+                    color = dgColor || UNGROUPED_PIN_COLOR;
+                }
             }
             var geofenceOutside = !alarmKind && isCamGeofenceOutside(camId);
             if (geofenceOutside) {
@@ -17050,7 +17248,14 @@
                 var outLbl = dashboardTr('map.pin.geofenceOut');
                 if (label.indexOf(outLbl) !== 0) label = outLbl + ' \u00B7 ' + label;
             }
-            return { label: label, color: color, mapGroup: mapGroup, alarmKind: alarmKind || null, offline: offline, geofenceOutside: geofenceOutside };
+            var lastKnown = false;
+            try {
+                if (offline && global.GlobalDevicePresence && GlobalDevicePresence.getById) {
+                    var pr = GlobalDevicePresence.getById(camId);
+                    lastKnown = !!(pr && pr.lastKnown);
+                }
+            } catch (_) { lastKnown = false; }
+            return { label: label, color: color, mapGroup: mapGroup, alarmKind: alarmKind || null, offline: offline, lastKnown: lastKnown, geofenceOutside: geofenceOutside };
         }
 
         function isCamGeofenceOutside(camId) {
@@ -18449,10 +18654,7 @@
                 var sel = (typeof FleetUi !== 'undefined' && FleetUi.getSelectedCamId) ? FleetUi.getSelectedCamId() : null;
                 var selected = selSet.indexOf(normalizeCamId(camId)) >= 0
                     || normalizeCamId(camId) === normalizeCamId(sel);
-                m.setIcon(buildPinIcon(
-                    pinMetaForCam(camId, getCamAlarmKind(camId), isCamOnlineOnFleet(camId)),
-                    selected
-                ));
+                applyDevicePinIcon(m, pinMetaForCam(camId, getCamAlarmKind(camId), isCamOnlineOnFleet(camId)), selected);
             });
         }
 
@@ -18711,6 +18913,7 @@
             var wrapKind = meta.alarmKind === 'fall' ? ' fall' : (meta.alarmKind === 'sos' ? ' sos' : '');
             if (meta.geofenceOutside && !meta.alarmKind) wrapKind += ' geofence-out';
             if (meta.offline) wrapKind += ' offline';
+            if (meta.lastKnown) wrapKind += ' pin-last-known';
             var cls = 'bwc-pin-wrap' + wrapKind + (selected ? ' selected' : '') + (frHitFocus ? ' fr-hit-focus' : '');
             var glow = meta.alarmKind ? meta.color : meta.color;
             var html = '<div class="' + cls + '">' +
@@ -18723,6 +18926,12 @@
                 iconAnchor: [55, 46],
                 popupAnchor: [0, 0],
             });
+        }
+
+        function applyDevicePinIcon(marker, meta, selected, frHitFocus) {
+            if (!marker) return;
+            marker._bwcOffline = !!(meta && meta.offline);
+            marker.setIcon(buildPinIcon(meta, selected, frHitFocus));
         }
 
         function closeMapPinPopup(camId) {
@@ -18818,11 +19027,12 @@
                     || (sosFocus && normalizeCamId(camId) === sosFocus);
                 var frHit = frFocus && normalizeCamId(camId) === frFocus;
                 var meta = pinMetaForCam(camId, alarmKind, isCamOnlineOnFleet(camId));
+                m._bwcOffline = !!meta.offline;
                 var popupOpen = !!(m.isPopupOpen && m.isPopupOpen());
                 var sig = [meta.color, meta.offline ? 1 : 0, meta.alarmKind || '', meta.geofenceOutside ? 1 : 0, meta.label].join('|');
                 if (!popupOpen && m._pinStyleSig !== sig) {
                     m._pinStyleSig = sig;
-                    m.setIcon(buildPinIcon(meta, pinned || focused, frHit));
+                    applyDevicePinIcon(m, meta, pinned || focused, frHit);
                 }
                 if (m.setZIndexOffset) {
                     m.setZIndexOffset(frHit ? 1500 : (focused ? 1400 : (pinned ? 1200 : (isSos ? 1100 : 0))));
@@ -18835,6 +19045,7 @@
             var clearBtn = document.getElementById('fleet-clear-pins');
             if (clearBtn) clearBtn.hidden = selSet.length === 0;
             updateMapPinLegend();
+            if (typeof MapPinLayer !== 'undefined' && MapPinLayer.refreshClusters) MapPinLayer.refreshClusters();
         }
         window.refreshAllDeviceMarkerStyles = refreshAllDeviceMarkerStyles;
 
@@ -18885,8 +19096,9 @@
                 if (!pinMapHandsOffIdle() || colocatedMapClusterForCam(camId).length < 2) {
                     m.setLatLng(latlng);
                 }
+                m._bwcOffline = !!meta.offline;
                 if (!popupWasOpen) {
-                    m.setIcon(buildPinIcon(meta, selected, frHitFocus));
+                    applyDevicePinIcon(m, meta, selected, frHitFocus);
                 }
                 if (!pinPopupShouldKeepVideo(camId, isSos)) {
                     m.setPopupContent(html);
@@ -18911,6 +19123,7 @@
                 if (m.isPopupOpen && m.isPopupOpen()) schedulePinPopupReposition();
             } else {
                 m = L.marker(latlng, { icon: buildPinIcon(meta, selected, frHitFocus) });
+                m._bwcOffline = !!meta.offline;
                 m._gpsLatLng = L.latLng(lat, lon);
                 m.bindPopup(html, {
                     maxWidth: 320,
@@ -19405,8 +19618,9 @@
                 var meta = pinMetaForCam(camId, getCamAlarmKind(camId), isCamOnlineOnFleet(camId));
                 if (meta.alarmKind) return;
                 if (meta.offline || meta.gpsStale) return;
-                var legName = meta.mapGroup || meta.label;
-                if (!groups[legName]) groups[legName] = meta.color;
+                var legName = String(meta.mapGroup || '').trim()
+                    || ((typeof I18n !== 'undefined' && I18n.t) ? I18n.t('fleet.groupUngrouped') : 'Ungrouped');
+                if (!groups[legName]) groups[legName] = meta.color || UNGROUPED_PIN_COLOR;
             });
             var rows = '';
             var keys = Object.keys(groups).sort();
@@ -20210,6 +20424,14 @@
                 if (typeof VideoWall !== 'undefined' && VideoWall.onDeviceWentOffline) {
                     VideoWall.onDeviceWentOffline(data.cameraId);
                 }
+            }
+        });
+
+        socket.on('device-stale', function (data) {
+            if (FleetUi.onDeviceStale) FleetUi.onDeviceStale(data);
+            if (data && data.cameraId) {
+                refreshAllDeviceMarkerStyles();
+                updateMapPinLegend();
             }
         });
 
@@ -24151,7 +24373,7 @@
         })();
     </script>
     <script defer src="/js/vc-lazy.js?v=20260901-vc-focus-ptz-v1"></script>
-    <script defer src="/js/fixed-cams-ui.js?v=20260821-fc-layout-fix-v2"></script>
+    <script defer src="/js/fixed-cams-ui.js?v=20260919-oem-ban-scrub-v1"></script>
     <script defer src="/js/settings-nvr.js?v=20260828-consolidation-v1"></script>
     <script defer src="/js/vms-sos-payload.js?v=20260825-sos-site-ack-a3-v1"></script>
     <script defer src="/js/vms-command-shell.js?v=20260903-vms-play-gesture-hygiene-v1"></script>

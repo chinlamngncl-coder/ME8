@@ -217,6 +217,7 @@
             'ss-fr-storage-root',
             'ss-ftp-enabled', 'ss-ftp-port', 'ss-ftp-user', 'ss-ftp-pass',
             'ss-ftp-pasv-min', 'ss-ftp-pasv-max', 'ev-ftp-save',
+            'ev-aes-unlock-key', 'ev-aes-unlock-save', 'ev-aes-unlock-clear',
             'ev-storage-save', 'ev-storage-test', 'ev-storage-apply', 'ev-storage-scan',
         ];
         ids.forEach(function (id) {
@@ -281,6 +282,7 @@
             fillFtpForm(data.ftp, data.runtime);
             toggleNetworkPanel();
             renderPathStatuses(data);
+            await refreshAesUnlock();
         } catch (err) {
             const el = $('ev-storage-msg');
             if (el) el.textContent = catalogMsg(err.opPayload || err.catalogPayload, err);
@@ -579,7 +581,99 @@
         if (liveEnabledEl) liveEnabledEl.addEventListener('change', syncLiveAutoSosToggle);
         const ftpSaveBtn = $('ev-ftp-save');
         if (ftpSaveBtn) ftpSaveBtn.addEventListener('click', function () { saveFtpSettings(); });
+        const aesSaveBtn = $('ev-aes-unlock-save');
+        if (aesSaveBtn) aesSaveBtn.addEventListener('click', function () { saveAesUnlock(); });
+        const aesClearBtn = $('ev-aes-unlock-clear');
+        if (aesClearBtn) aesClearBtn.addEventListener('click', function () { clearAesUnlock(); });
         bindPathPickerUi();
+    }
+
+    function renderAesUnlockStatus(configured) {
+        const el = $('ev-aes-unlock-status');
+        if (!el) return;
+        el.innerHTML = configured
+            ? '<span class="ev-st-badge ev-st-ok">' + esc(tr('evidence.aesUnlockReady')) + '</span>'
+            : '<span class="ev-st-badge ev-st-bad">' + esc(tr('evidence.aesUnlockNotConfigured')) + '</span>';
+    }
+
+    async function refreshAesUnlock() {
+        const msg = $('ev-aes-unlock-msg');
+        if (!canManage) {
+            renderAesUnlockStatus(false);
+            return;
+        }
+        try {
+            const res = await fetch('/api/evidence/aes-file-unlock', { credentials: 'same-origin' });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throwCatalogErr(data);
+            renderAesUnlockStatus(!!data.configured);
+            if ($('ev-aes-unlock-key')) $('ev-aes-unlock-key').value = '';
+            if ($('ev-aes-unlock-admin-pass')) $('ev-aes-unlock-admin-pass').value = '';
+        } catch (err) {
+            renderAesUnlockStatus(false);
+            if (msg) msg.textContent = catalogMsg(err.opPayload || err.catalogPayload, err, 'errors.generic');
+        }
+    }
+
+    async function saveAesUnlock() {
+        const msg = $('ev-aes-unlock-msg');
+        const keyEl = $('ev-aes-unlock-key');
+        const passEl = $('ev-aes-unlock-admin-pass');
+        const key = keyEl ? String(keyEl.value || '').trim() : '';
+        const adminPassword = passEl ? String(passEl.value || '') : '';
+        if (!key) {
+            if (msg) msg.textContent = tr('evidence.aesUnlockNeedKey');
+            return;
+        }
+        if (!adminPassword) {
+            if (msg) msg.textContent = tr('evidence.aesUnlockNeedPass');
+            return;
+        }
+        if (msg) msg.textContent = tr('common.saving');
+        try {
+            const res = await fetch('/api/evidence/aes-file-unlock', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ masterKey: key, adminPassword: adminPassword }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throwCatalogErr(data);
+            if (keyEl) keyEl.value = '';
+            if (passEl) passEl.value = '';
+            renderAesUnlockStatus(!!data.configured);
+            if (msg) msg.textContent = tr('evidence.aesUnlockSaved');
+        } catch (err) {
+            if (msg) msg.textContent = catalogMsg(err.opPayload || err.catalogPayload, err, 'evidence.aesUnlockSaveFailed');
+        }
+    }
+
+    async function clearAesUnlock() {
+        if (!window.confirm(tr('evidence.aesUnlockClearConfirm'))) return;
+        const msg = $('ev-aes-unlock-msg');
+        const passEl = $('ev-aes-unlock-admin-pass');
+        const adminPassword = passEl ? String(passEl.value || '') : '';
+        if (!adminPassword) {
+            if (msg) msg.textContent = tr('evidence.aesUnlockNeedPass');
+            return;
+        }
+        if (msg) msg.textContent = tr('common.saving');
+        try {
+            const res = await fetch('/api/evidence/aes-file-unlock', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clear: true, adminPassword: adminPassword }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throwCatalogErr(data);
+            if ($('ev-aes-unlock-key')) $('ev-aes-unlock-key').value = '';
+            if (passEl) passEl.value = '';
+            renderAesUnlockStatus(!!data.configured);
+            if (msg) msg.textContent = tr('evidence.aesUnlockCleared');
+        } catch (err) {
+            if (msg) msg.textContent = catalogMsg(err.opPayload || err.catalogPayload, err, 'errors.generic');
+        }
     }
 
     global.EvidenceStorageUi = {
@@ -588,5 +682,6 @@
         loadEvidencePaths: refresh,
         fillFtpForm: fillFtpForm,
         renderFtpServiceState: renderFtpServiceState,
+        refreshAesUnlock: refreshAesUnlock,
     };
 }(window));

@@ -17,13 +17,13 @@
         var redirecting = false;
         var gate = null;
 
-        function goLogin() {
-            if (redirecting) return;
-            redirecting = true;
-            try { window.__AXIOM_ALLOW_NAV = true; } catch (e0) { /* ignore */ }
-            try { window.location.replace('/login.html'); } catch (e) {
-                window.location.href = '/login.html';
-            }
+        function dismissGate() {
+            locked = false;
+            redirecting = false;
+            try { localStorage.removeItem('ax_force_relogin'); } catch (e) {}
+            if (gate) gate.hidden = true;
+            document.documentElement.classList.remove('ax-server-offline');
+            try { document.documentElement.style.pointerEvents = ''; } catch (e2) {}
         }
 
         function ensureGate() {
@@ -36,16 +36,15 @@
             gate.innerHTML =
                 '<div class="ax-server-dead-gate-card">' +
                 '<h2 class="ax-server-dead-gate-title">Server Connection Lost</h2>' +
-                '<p class="ax-server-dead-gate-msg">The Ubitron Axiom server is down or restarting. This page will open Login when the server is back. Contact your administrator if it does not.</p>' +
-                '<button type="button" class="btn-primary ax-server-dead-gate-reload" id="ax-server-dead-reload">Go to Login</button>' +
+                '<p class="ax-server-dead-gate-msg">The Ubitron Axiom server is not responding. Stay on this page. Use Continue when it is back.</p>' +
+                '<button type="button" class="btn-primary ax-server-dead-gate-reload" id="ax-server-dead-reload">Continue</button>' +
                 '</div>';
             (document.body || document.documentElement).appendChild(gate);
             var btn = gate.querySelector('#ax-server-dead-reload');
             if (btn) {
                 btn.onclick = function (ev) {
                     ev.preventDefault();
-                    try { localStorage.setItem('ax_force_relogin', '1'); } catch (e) {}
-                    goLogin();
+                    dismissGate();
                 };
             }
             return gate;
@@ -53,7 +52,6 @@
 
         function lock() {
             locked = true;
-            try { localStorage.setItem('ax_force_relogin', '1'); } catch (e) {}
             ensureGate();
             gate.hidden = false;
             document.documentElement.classList.add('ax-server-offline');
@@ -74,29 +72,21 @@
             if (inFlight || redirecting) return;
             inFlight = true;
             var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-            var t = setTimeout(function () { try { if (ctrl) ctrl.abort(); } catch (e) {} inFlight = false; }, 2000);
+            var t = setTimeout(function () { try { if (ctrl) ctrl.abort(); } catch (e) {} }, 22000);
             fetch('/api/health', { credentials: 'same-origin', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
                 .then(function (r) {
-                    if (!r || r.status === 502 || r.status === 504) { lock(); return; }
-                    if (r.status === 503) {
-                        return r.json().then(function () {
-                            if (locked) goLogin();
-                        }).catch(function () { lock(); });
+                    if (!r || typeof r.status !== 'number') return;
+                    if (r.status === 503 || (r.status >= 200 && r.status < 300)) {
+                        if (locked) dismissGate();
                     }
-                    if (r.status >= 200 && r.status < 300) {
-                        if (locked) goLogin();
-                        return;
-                    }
-                    lock();
                 })
-                .catch(function () { lock(); })
+                .catch(function () { /* abort / network — do not login */ })
                 .finally(function () { clearTimeout(t); inFlight = false; });
         }
 
         ensureGate();
         ping();
         setInterval(ping, 2000);
-        window.addEventListener('offline', lock);
     }
 
     setTimeout(startHardGateFallback, 50);

@@ -1383,11 +1383,12 @@ input[type="file"]:focus {
     height: 100%;
 }
 
+/* FR-ROSTER-4-VISIBLE-V1 — less card chrome so 4 members fit before scroll */
 #ax-panel-face.enterprise-scope .ax-fr-watch.enterprise-card {
     flex: 0 0 auto;
     min-height: 0;
     margin: 0;
-    padding: var(--space-md);
+    padding: 8px 10px;
     background: transparent;
     border: 1px solid #475569;
     border-radius: var(--radius-lg);
@@ -2298,7 +2299,7 @@ body.enterprise-auth * { box-sizing: border-box; }
     width: auto;
     display: block;
     flex-shrink: 0;
-    filter: contrast(1.18) brightness(0.97);
+    filter: invert(1) hue-rotate(180deg) brightness(1.15);
 }
 
 .enterprise-auth .login-brand-divider {
@@ -11647,3 +11648,199 @@ video[data-fm-needs-gesture="1"] { cursor: pointer; outline: 2px solid var(--acc
     cursor: pointer;
 }
 #map-pin-stack-hud-min:hover { background: rgba(255, 255, 255, 0.12); }
+
+/* PRESENCE-OFFLINE-TELEM-PIN-CLUSTER-UNGROUPED-V1 — grey offline (not charcoal) */
+.bwc-pin-wrap.offline .bwc-pin-dot {
+    background: #94a3b8 !important;
+    box-shadow: 0 0 0 2px #e2e8f0, 0 2px 6px rgba(0, 0, 0, 0.35);
+    opacity: 1;
+}
+.bwc-pin-wrap.offline.pin-last-known {
+    opacity: 0.7;
+    filter: none;
+}
+.marker-cluster-bwc {
+    background: transparent !important;
+}
+.marker-cluster-bwc .bwc-cluster-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.85), 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+/* SDK-USIP-ROSTER-REC-BADGE-V1 — recording mark on roster telemetry line */
+.fleet-tel-sub .fleet-rec-badge {
+    display: inline-block;
+    color: #fecaca;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+.fleet-tel-rec .fleet-rec-badge {
+    text-shadow: 0 0 8px rgba(248, 113, 113, 0.45);
+}
+
+/* FR-PICKER-TOGGLE-SIZE-V1 — medium watch toggles (not tiny ticks) */
+#ax-fr-watch-list .ax-fr-roster-cell-cb { width: 44px; vertical-align: middle; }
+#ax-fr-watch-list .ax-fr-roster-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    min-height: 28px;
+    cursor: pointer;
+    margin: 0;
+}
+#ax-fr-watch-list .ax-fr-roster-watch-cb,
+#ax-fr-watch-list .ax-fr-roster-group-cb {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    pointer-events: none;
+}
+#ax-fr-watch-list .ax-fr-roster-toggle-ui {
+    display: inline-block;
+    width: 34px;
+    height: 18px;
+    border-radius: 999px;
+    background: #475569;
+    border: 1px solid #64748b;
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.12s ease, border-color 0.12s ease;
+}
+#ax-fr-watch-list .ax-fr-roster-toggle-ui::after {
+    content: '';
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #f8fafc;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    transition: left 0.12s ease;
+}
+#ax-fr-watch-list .ax-fr-roster-watch-cb:checked + .ax-fr-roster-toggle-ui,
+#ax-fr-watch-list .ax-fr-roster-group-cb:checked + .ax-fr-roster-toggle-ui {
+    background: #2563eb;
+    border-color: #3b82f6;
+}
+#ax-fr-watch-list .ax-fr-roster-watch-cb:checked + .ax-fr-roster-toggle-ui::after,
+#ax-fr-watch-list .ax-fr-roster-group-cb:checked + .ax-fr-roster-toggle-ui::after {
+    left: 17px;
+}
+#ax-fr-watch-list .ax-fr-roster-group-cb:indeterminate + .ax-fr-roster-toggle-ui {
+    background: #1d4ed8;
+    border-color: #60a5fa;
+}
+#ax-fr-watch-list .ax-fr-roster-group-cb:indeterminate + .ax-fr-roster-toggle-ui::after {
+    left: 9px;
+}
+#ax-fr-watch-list .ax-fr-roster-watch-cb:disabled + .ax-fr-roster-toggle-ui,
+#ax-fr-watch-list .ax-fr-roster-group-cb:disabled + .ax-fr-roster-toggle-ui {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+#ax-fr-watch-list .ax-fr-roster-group-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    min-height: 28px;
+    flex: 1;
+    min-width: 0;
+}
+
+/* FR-ROSTER-GROUP-CHEVRON-V1 — quiet expand chevron aligned with toggles */
+#ax-fr-watch-list .ax-fr-roster-group-expand {
+    width: 28px;
+    min-height: 28px;
+    flex-shrink: 0;
+    padding: 0;
+    margin: 0 2px 0 0;
+    border: none;
+    background: transparent;
+    color: #cbd5e1;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+#ax-fr-watch-list .ax-fr-roster-group-expand:hover {
+    color: #e2e8f0;
+    background: transparent;
+    border: none;
+}
+
+/* FR-ROSTER-GROUP-DENSE-DIVIDER-V1 + FR-ROSTER-4-VISIBLE-V1 — 4 members before scroll */
+#ax-fr-watch-list .ax-fr-roster-card-head {
+    padding: 1px 2px;
+    background: transparent;
+    border-bottom: 1px solid rgba(71, 85, 105, 0.55);
+}
+#ax-fr-watch-list .ax-fr-roster-group-label {
+    min-height: 24px;
+    gap: 4px;
+}
+#ax-fr-watch-list .ax-fr-roster-card-table .ax-fr-roster-row {
+    height: 24px;
+}
+#ax-fr-watch-list .ax-fr-roster-card-table td {
+    padding-top: 0;
+    padding-bottom: 0;
+}
+#ax-fr-watch-list .ax-fr-roster-group-card + .ax-fr-roster-group-card {
+    margin-top: 2px;
+}
+#ax-fr-watch-list .ax-fr-roster-toggle,
+#ax-fr-watch-list .ax-fr-roster-group-expand {
+    min-height: 22px;
+}
+#ax-fr-watch-list .ax-fr-roster-toggle-ui {
+    width: 34px;
+    height: 18px;
+}
+#ax-fr-watch-list .ax-fr-roster-toggle-ui::after {
+    width: 14px;
+    height: 14px;
+}
+
+/* FLV-HONEST-UI-RECONNECT-BANNER-V1 — UI paint only; keep last frame visible under banner */
+.video-honest-banner {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 16;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 8px;
+    pointer-events: none;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #e2e8f0;
+    background: rgba(15, 23, 42, 0.72);
+}
+.video-honest-banner[hidden] { display: none !important; }
+.video-honest-banner--reconnecting { color: #fbbf24; }
+.video-honest-banner--no-video-yet { color: #93c5fd; }
+.video-honest-banner--sos {
+    background: rgba(15, 23, 42, 0.45);
+}
+/* AES-EVIDENCE-PLAY-WIRE-V1 */
+.ev-crypto-chip.usip-aes-locked { opacity: 0.75; }
+.ev-crypto-chip.usip-aes-ready { border-color: var(--accent-blue, #3b82f6); }

@@ -1,4 +1,4 @@
-// Server-dead hard gate: banner + System not OK; after outage → login only
+// HEALTH-GATE-NO-STALE-FLASH-V1 — no lock while hidden / ping in flight; ping first on return
 (function () {
     'use strict';
 
@@ -6,14 +6,17 @@
 
     var FORCE_KEY = 'ax_force_relogin';
     var POLL_MS = 3000;
+    var LOCK_AFTER_MS = 30000;
+    var ABORT_MS = 22000;
+    var SOS_BYPASS_MS = 60000;
     var el = null;
     var gate = null;
     var timer = null;
     var lockedOffline = false;
-    var deadStreak = 0;
     var inFlight = false;
     var blockersBound = false;
-    var redirecting = false;
+    var lastSuccess = Date.now();
+    var sosBypassUntil = 0;
 
     function tr(key, fallback, params) {
         try {
@@ -35,7 +38,24 @@
         try { return localStorage.getItem(FORCE_KEY) === '1'; } catch (e) { return false; }
     }
 
-    /* HEALTH-GATE-NO-FALSE-LOGIN-V1 — leftover ax_force_relogin must not dump Ops to login */
+    function onSosAlarm() {
+        sosBypassUntil = Date.now() + SOS_BYPASS_MS;
+    }
+
+    function bindSosAlarmSocket() {
+        try {
+            if (typeof io === 'undefined') return;
+            var managers = io.managers;
+            if (!managers || typeof managers.forEach !== 'function') return;
+            managers.forEach(function (manager) {
+                var sock = manager && manager.nsps && manager.nsps['/'];
+                if (sock && !sock.__axSosHealthBypass) {
+                    sock.__axSosHealthBypass = true;
+                    sock.on('sos-alarm', onSosAlarm);
+                }
+            });
+        } catch (e) { /* ignore */ }
+    }
 
     function ensureGate() {
         gate = document.getElementById('ax-server-dead-gate');
@@ -80,10 +100,10 @@
         if (msgEl) {
             msgEl.textContent = tr(
                 'healthPlain.serverLostBody',
-                'The Ubitron Axiom server is down or restarting. This page will open Login when the server is back. Contact your administrator if it does not.'
+                'The Ubitron Axiom server is not responding. Stay on this page. Use Continue when it is back.'
             );
         }
-        if (btn) btn.textContent = tr('healthPlain.reloadPage', 'Go to Login');
+        if (btn) btn.textContent = tr('healthPlain.reloadPage', 'Continue');
         gate.hidden = !lockedOffline;
     }
 
@@ -124,7 +144,6 @@
     }
 
     function lockGate() {
-        if (redirecting) return;
         lockedOffline = true;
         bindBlockers();
         ensureGate();
@@ -140,7 +159,6 @@
 
     function unlockGate() {
         lockedOffline = false;
-        redirecting = false;
         try { localStorage.removeItem(FORCE_KEY); } catch (e) { /* ignore */ }
         if (gate) gate.hidden = true;
         document.documentElement.classList.remove('ax-server-offline');
@@ -148,19 +166,26 @@
         try { document.documentElement.style.pointerEvents = ''; } catch (e2) { /* ignore */ }
     }
 
-    function onDead() {
-        /* HEALTH-GATE-NO-FALSE-LOGIN-V1 — 4 misses (~12s+) before lock; no login kick */
-        if (document.readyState !== 'complete') return;
-        deadStreak += 1;
-        if (deadStreak < 4) return;
+    function watchdogTick() {
+        bindSosAlarmSocket();
+        if (typeof document !== 'undefined' && document.hidden) return;
+        if (inFlight) return;
+        if (Date.now() < sosBypassUntil) return;
+        if (Date.now() - lastSuccess < LOCK_AFTER_MS) return;
         lockGate();
     }
 
-    function onAlive(data) {
-        deadStreak = 0;
-        if (lockedOffline || mustForceRelogin()) {
-            unlockGate();
-        }
+    function pingAfterVisible() {
+        lastSuccess = Date.now();
+        ping();
+    }
+
+    function markAlive() {
+        lastSuccess = Date.now();
+        if (lockedOffline || mustForceRelogin()) unlockGate();
+    }
+
+    function paintHeaderFromHealth(data) {
         el = el || document.getElementById('header-system-health');
         if (!el) return;
         el.hidden = false;
@@ -175,15 +200,18 @@
         el.textContent = tr('healthPlain.notOk', 'System not OK');
     }
 
+    function onAlive(data) {
+        markAlive();
+        paintHeaderFromHealth(data);
+    }
+
     function ping() {
-        if (inFlight || redirecting) return;
+        if (inFlight) return;
         inFlight = true;
         var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
         var abortTimer = setTimeout(function () {
             try { if (ctrl) ctrl.abort(); } catch (e) { /* ignore */ }
-            inFlight = false;
-            onDead();
-        }, 5000);
+        }, ABORT_MS);
         fetch('/api/health?_=' + String(Date.now()), {
             credentials: 'same-origin',
             headers: { Accept: 'application/json' },
@@ -191,20 +219,18 @@
             cache: 'no-store',
         })
             .then(function (r) {
-                if (!r || typeof r.status !== 'number') { onDead(); return; }
-                if (r.status === 502 || r.status === 504) { onDead(); return; }
+                if (!r || typeof r.status !== 'number') return;
                 if (r.status === 503) {
                     return r.json().then(function (data) {
                         onAlive(data || { ok: false, degraded: true });
-                    }).catch(function () { onDead(); });
+                    }).catch(function () { markAlive(); });
                 }
                 if (r.status >= 200 && r.status < 300) {
                     return r.json().then(function (data) { onAlive(data); })
-                        .catch(function () { onAlive({ ok: true }); });
+                        .catch(function () { markAlive(); paintHeaderFromHealth({ ok: true }); });
                 }
-                onDead();
             })
-            .catch(function () { onDead(); })
+            .catch(function () { /* abort / network — watchdog only */ })
             .finally(function () {
                 clearTimeout(abortTimer);
                 inFlight = false;
@@ -224,26 +250,30 @@
     }
 
     function start() {
-        if (redirecting) return;
+        lastSuccess = Date.now();
         el = document.getElementById('header-system-health');
         if (el) el.hidden = false;
         ensureGate();
         wrapFetch();
         var legacy = document.getElementById('ax-global-server-banner');
         if (legacy) legacy.hidden = true;
+        bindSosAlarmSocket();
         ping();
         if (timer) clearInterval(timer);
-        timer = setInterval(ping, POLL_MS);
-        window.addEventListener('offline', onDead);
+        timer = setInterval(function () {
+            ping();
+            watchdogTick();
+        }, POLL_MS);
         window.addEventListener('pageshow', function () {
-            if (!document.hidden) ping();
+            if (!document.hidden) pingAfterVisible();
         });
         document.addEventListener('visibilitychange', function () {
-            if (!document.hidden) ping();
+            if (!document.hidden) pingAfterVisible();
         });
         document.addEventListener('fm-i18n-changed', function () {
             if (lockedOffline) { paintGate(); paintHeaderDead(); }
         });
+        document.addEventListener('sos-alarm', onSosAlarm);
     }
 
     if (document.readyState === 'loading') {

@@ -33,7 +33,8 @@
 
     var ROSTER_EXPAND_INLINE_MAX = 6;
     var ROSTER_COLS = 5;
-    var ROSTER_ROWS = 6;
+    /* FR-ROSTER-4-VISIBLE-V1 — column slice matches viewport (head + 4 members) */
+    var ROSTER_ROWS = 5;
     var ROSTER_MEMBERS_PER_COL = ROSTER_ROWS - 1;
     var TILE_SIGNAL_LOST_MS = 15000;
 
@@ -1064,10 +1065,14 @@
             (!d.online ? ' is-offline' : '');
         return '<tr class="' + rowCls + '" data-cam="' + esc(id) + '">' +
             '<td class="ax-fr-roster-cell-cb">' +
+            '<label class="ax-fr-roster-toggle">' +
             '<input type="checkbox" class="ax-fr-roster-watch-cb" data-cam="' + esc(id) + '"' +
             (checked ? ' checked' : '') +
             (disableMore ? ' disabled' : '') +
-            (!d.online && !checked ? ' disabled' : '') + '></td>' +
+            (!d.online && !checked ? ' disabled' : '') +
+            ' aria-label="' + esc(tr('analytics.fr.watchSelect', 'Select for watch')) + '">' +
+            '<span class="ax-fr-roster-toggle-ui" aria-hidden="true"></span>' +
+            '</label></td>' +
             '<td class="ax-fr-roster-cell-pin">' +
             (checked
                 ? ('<button type="button" class="ax-fr-roster-pin ax-fr-roster-pin-icon' + (isPin ? ' is-active' : '') +
@@ -1122,7 +1127,7 @@
         var inWatch = groupSelectedCount(devices);
         var gState = groupWatchState(devices);
         var gName = entry.groupName;
-        var chev = expanded ? '▼' : '▶';
+        var chev = expanded ? '\u25BE' : '\u25B8';
         var expandTitle = expanded
             ? tr('analytics.fr.rosterCollapseGroup', 'Collapse group')
             : tr('analytics.fr.rosterExpandGroup', 'Expand group');
@@ -1140,7 +1145,9 @@
             '<label class="ax-fr-roster-group-check">' +
             '<input type="checkbox" class="ax-fr-roster-group-cb" data-group="' + esc(gName) + '"' +
             (gState === 'checked' ? ' checked' : '') +
-            (gState === 'disabled' ? ' disabled' : '') + '>' +
+            (gState === 'disabled' ? ' disabled' : '') +
+            ' aria-label="' + esc(tr('analytics.fr.groupSelect', 'Select group for watch')) + '">' +
+            '<span class="ax-fr-roster-toggle-ui" aria-hidden="true"></span>' +
             '<span class="ax-fr-roster-group-dot" style="background:' + esc(entry.color) + '"></span>' +
             '<span class="ax-fr-roster-group-name">' + esc(gName) + '</span>' +
             '<span class="ax-fr-roster-group-meta">' + esc(meta) + '</span>' +

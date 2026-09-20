@@ -117,19 +117,34 @@
         return isRadioAudioFile(f) ? radioAudioLabel(f) : String(f.fileName || '');
     }
 
-    function renderControlledPreview(file) {
-        const isImage = isImageEvidenceName(file.fileName);
-        const isAudio = isAudioEvidenceName(file.fileName);
+    function renderControlledPreview(file, detailOpts) {
+        const o = detailOpts || {};
+        const fileName = file && file.fileName;
+        const isImage = isImageEvidenceName(fileName);
+        const isAudio = isAudioEvidenceName(fileName);
         const kind = isImage
             ? tr('evidenceHub.previewKindImage')
             : (isAudio ? tr('evidenceHub.previewKindAudio') : tr('evidenceHub.previewKindVideo'));
+        const usipAes = !!(o.usipAes || /-AES\.[^.]+$/i.test(String(fileName || '')));
+        const unlockOk = !usipAes || o.aesUnlockConfigured === true;
+        const aesBadge = usipAes
+            ? (' <span class="ev-crypto-chip ' + (unlockOk ? 'usip-aes-ready' : 'usip-aes-locked') + '">'
+                + esc(tr('evidenceHub.aesBadge')) + '</span>')
+            : '';
+        const unlockHint = (usipAes && !unlockOk)
+            ? ('<p class="hint" id="ev-aes-unlock-hint">' + esc(tr('evidenceHub.aesUnlockMissing')) + '</p>')
+            : '';
+        const playDisabled = usipAes && !unlockOk;
         return '<div class="ev-preview-shell">'
             + '<div class="ev-preview-note">'
-            + '<h4>' + tr('evidenceHub.previewLockedTitle') + '</h4>'
+            + '<h4>' + tr('evidenceHub.previewLockedTitle') + aesBadge + '</h4>'
             + '<p>' + tr('evidenceHub.previewLockedBody', { kind: kind }) + '</p>'
+            + unlockHint
             + '</div>'
             + '<div class="ev-preview-actions">'
-            + '<button type="button" class="btn btn-action btn-sm" id="ev-detail-open-preview">' + tr('evidenceHub.openPreview') + '</button>'
+            + '<button type="button" class="btn btn-action btn-sm" id="ev-detail-open-preview"'
+            + (playDisabled ? ' disabled' : '') + '>'
+            + esc(usipAes ? tr('evidenceHub.aesPlay') : tr('evidenceHub.openPreview')) + '</button>'
             + '</div>'
             + '<div class="ev-preview-stage" id="ev-preview-stage" hidden></div>'
             + '</div>';
@@ -144,7 +159,8 @@
             + '</div>';
     }
 
-    function mountPreview(fileName, previewUrl) {
+    function mountPreview(fileName, previewUrl, mountOpts) {
+        const mo = mountOpts || {};
         const host = document.getElementById('ev-preview-stage');
         if (!host) return;
         const isImage = isImageEvidenceName(fileName);
@@ -160,6 +176,9 @@
         if (openBtn) openBtn.hidden = true;
         const hideBtn = document.getElementById('ev-detail-hide-preview');
         if (hideBtn) hideBtn.addEventListener('click', function () {
+            if (mo.revokeUrl) {
+                try { URL.revokeObjectURL(mo.revokeUrl); } catch (_) { /* ignore */ }
+            }
             host.hidden = true;
             host.innerHTML = '';
             if (openBtn) openBtn.hidden = false;
@@ -993,9 +1012,14 @@
     }
 
     function cryptoStatusLabel(status) {
+        if (status === 'usip_aes') return tr('evidenceHub.cryptoUsipAes');
         if (status === 'encrypted') return tr('evidenceHub.cryptoEncrypted');
         if (status === 'plaintext') return tr('evidenceHub.cryptoPlaintext');
         return tr('evidenceHub.cryptoMissing');
+    }
+
+    function isUsipAesEvidenceName(name) {
+        return /-AES\.[^.]+$/i.test(String(name || ''));
     }
 
     function renderTagChips(tags) {
@@ -1194,7 +1218,9 @@
                             + '<span></span></label> ')
                         : '')
                     + '<code>' + esc(f.id) + '</code></td>'
-                    + '<td>' + esc(evidenceDisplayName(f)) + ' <span class="hint">· ' + fmtBytes(f.byteSize)
+                    + '<td>' + esc(evidenceDisplayName(f))
+                        + (isUsipAesEvidenceName(f.fileName) ? (' <span class="ev-crypto-chip usip-aes-locked">' + esc(tr('evidenceHub.aesBadge')) + '</span>') : '')
+                        + ' <span class="hint">· ' + fmtBytes(f.byteSize)
                         + (isRadioAudioFile(f) ? ' · ' + esc(f.fileName) : '') + '</span>' + tagsHtml + '</td>'
                     + '<td>' + esc(f.operatorName || '\u2014') + '</td>'
                     + '<td>' + esc(fmtTime(f.uploadedAt)) + '</td>'
@@ -1372,7 +1398,7 @@
             const sosOpts = await fetchSosOptions(f.deviceId);
             const previewBlock = d.storageAvailable === false
                 ? renderMissingPreview(d)
-                : renderControlledPreview(f);
+                : renderControlledPreview(f, { usipAes: !!d.usipAes, aesUnlockConfigured: !!d.aesUnlockConfigured });
             const trimBar = (perms.export && d.storageAvailable !== false && !isImageEvidenceName(f.fileName)) ? (
                 '<div class="ev-trim-bar" id="ev-trim-bar">'
                 + '<span class="ev-trim-bar-title">' + tr('evidenceHub.trimExport') + '</span>'
@@ -1468,7 +1494,10 @@
                 const sel = document.getElementById('ev-detail-sos');
                 if (sel) sel.value = m.sosIncidentId;
             }
-            bindDetailActions(fileId, f, d.previewUrl, d.storageAvailable !== false);
+            bindDetailActions(fileId, f, d.previewUrl, d.storageAvailable !== false, {
+                usipAes: !!d.usipAes,
+                aesUnlockConfigured: !!d.aesUnlockConfigured
+            });
             captureDetailMetaBaseline();
             markPanelLoaded('detail', fileId);
             if (!quiet) {
@@ -1749,12 +1778,36 @@
         return html;
     }
 
-    function bindDetailActions(fileId, file, previewUrl, canPreview) {
+    function bindDetailActions(fileId, file, previewUrl, canPreview, detailFlags) {
+        const flags = detailFlags || {};
         const back = document.getElementById('ev-detail-back');
         if (back) back.addEventListener('click', function () { showPanel('catalog'); });
         const openPreview = document.getElementById('ev-detail-open-preview');
         if (openPreview && canPreview) openPreview.addEventListener('click', function () {
+            if (flags.usipAes && !flags.aesUnlockConfigured) {
+                alert(tr('evidenceHub.aesUnlockMissing'));
+                return;
+            }
             const bust = previewUrl + (previewUrl.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(file.uploadedAt || fileId);
+            if (flags.usipAes) {
+                openPreview.disabled = true;
+                fetch(bust, { credentials: 'same-origin' }).then(function (r) {
+                    if (!r.ok) {
+                        return r.json().catch(function () { return {}; }).then(function (j) {
+                            throw new Error((j && j.error) || tr('evidenceHub.aesDecryptFailed'));
+                        });
+                    }
+                    return r.blob();
+                }).then(function (blob) {
+                    const objUrl = URL.createObjectURL(blob);
+                    mountPreview(file.fileName, objUrl, { revokeUrl: objUrl, usipAes: true });
+                }).catch(function (err) {
+                    alert(err && err.message ? err.message : tr('evidenceHub.aesDecryptFailed'));
+                }).finally(function () {
+                    openPreview.disabled = false;
+                });
+                return;
+            }
             mountPreview(file.fileName, bust);
         });
         const save = document.getElementById('ev-detail-save-meta');

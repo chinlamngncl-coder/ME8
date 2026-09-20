@@ -41,6 +41,8 @@
                 lon: null,
                 gpsAt: null,
                 lastSeenAt: null,
+                lastKnown: false,
+                stale: false,
                 source: 'unknown',
             };
         }
@@ -61,6 +63,8 @@
                 lon: d.lon,
                 gpsAt: d.gpsAt,
                 lastSeenAt: d.lastSeenAt,
+                lastKnown: !!d.lastKnown,
+                stale: !!d.stale,
                 source: d.source,
             };
         }).sort(function (a, b) {
@@ -126,6 +130,10 @@
         row.online = next;
         row.status = next ? '1' : '0';
         row.lastSeenAt = nowIso();
+        if (next) {
+            row.lastKnown = false;
+            if (row.stale) { row.stale = false; changed = true; }
+        }
         if (source) row.source = source;
         return changed;
     }
@@ -181,10 +189,33 @@
         var id = normalizeId(data.cameraId || data.camId || data.id);
         if (!id) return;
         var changed = setOnline(id, false, 'device-offline');
+        var row = byId[id];
+        if (row) {
+            row.lastKnown = !!(data.lastKnown && data.lat != null && data.lon != null);
+            if (row.stale) { row.stale = false; changed = true; }
+        }
         if (data.lat != null && data.lon != null) {
             if (setGps(id, data.lat, data.lon, 'device-offline')) changed = true;
         }
-        if (changed) notify('device-offline');
+        if (changed || (row && row.lastKnown)) notify('device-offline');
+    }
+
+    function onDeviceStale(data) {
+        if (!data) return;
+        var id = normalizeId(data.cameraId || data.camId || data.id);
+        if (!id) return;
+        var row = ensureRow(id);
+        if (!row) return;
+        var wantStale = String(data.presence || '') === 'amber';
+        var changed = false;
+        if (wantStale) {
+            if (!row.online) { row.online = true; row.status = '1'; changed = true; }
+            if (!row.stale) { row.stale = true; changed = true; }
+        } else if (row.stale) {
+            row.stale = false;
+            changed = true;
+        }
+        if (changed) notify('device-stale');
     }
 
     function onHeartbeat(data) {
@@ -285,6 +316,7 @@
             socketBound = true;
             socket.on('fleet-roster', ingestFleetRoster);
             socket.on('device-offline', onDeviceOffline);
+            socket.on('device-stale', onDeviceStale);
             socket.on('heartbeat', onHeartbeat);
             socket.on('gps-update', onGpsUpdate);
             socket.on('gps-batch', function (rows) {
@@ -356,6 +388,7 @@
             lon: d.lon,
             gpsAt: d.gpsAt,
             lastSeenAt: d.lastSeenAt,
+            lastKnown: !!d.lastKnown,
         };
     }
 

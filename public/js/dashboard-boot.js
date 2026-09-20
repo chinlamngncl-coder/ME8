@@ -1058,12 +1058,42 @@
 
         function pttGroupPickSourceKeyFn() {
             var sel = document.getElementById('ptt-group-select');
-            var groupId = sel && sel.value;
-            var pinned = getPinnedPttCamIds();
-            var parts = [];
-            if (groupId) parts.push('group:' + groupId);
-            if (pinned.length) parts.push('pinned:' + pinned.slice().sort().join('|'));
-            return parts.join('+');
+            return (sel && sel.value) || '';
+        }
+
+        function selectedGroupMemberIds() {
+            var groupId = pttGroupPickSourceKeyFn();
+            var catalog = window.pttGroupCatalog || [];
+            if (!groupId) return [];
+            var g = catalog.find(function (x) { return x.id === groupId; });
+            return membersForSavedGroup(g).map(function (m) { return m.camId; });
+        }
+
+        function idsOnAnySavedPttTeam() {
+            var set = Object.create(null);
+            (window.pttGroupCatalog || []).forEach(function (g) {
+                (g.members || []).forEach(function (m) {
+                    if (m && m.deviceId) set[String(m.deviceId)] = true;
+                });
+            });
+            return set;
+        }
+
+        function ungroupedPttCandidatesMeta() {
+            var onTeam = idsOnAnySavedPttTeam();
+            var out = [];
+            var rows = [];
+            try {
+                if (typeof BwcDevices !== 'undefined' && BwcDevices.listDevices) {
+                    rows = BwcDevices.listDevices() || [];
+                }
+            } catch (_) { rows = []; }
+            rows.forEach(function (d) {
+                var id = d && d.deviceId ? String(d.deviceId).trim() : '';
+                if (!id || onTeam[id]) return;
+                out.push(pttMemberChipMeta(id, '#64748b', d.nickname || d.operatorName || id));
+            });
+            return out;
         }
 
         function fullPttCandidatesMeta() {
@@ -1077,26 +1107,26 @@
                 byId[m.camId] = true;
                 out.push(m);
             }
-            /* PTT-GROUP-NET-MESH-AND-TALK-V1 \u2014 map group preset ∪ fleet ticks (cross-group); Join needs 2+ */
+            /* PTT-GROUP-ADD-UNGROUPED-V1 — current group + other-team picks + ungrouped as +. No auto-glue. */
             if (groupId) {
                 var g = catalog.find(function (x) { return x.id === groupId; });
                 membersForSavedGroup(g).forEach(addMeta);
             }
-            getPinnedPttCamIds().forEach(function (id) {
+            pttGroupPickCamIds.forEach(function (id) {
                 addMeta(pttMemberChipMeta(id));
             });
+            ungroupedPttCandidatesMeta().forEach(addMeta);
             return out;
         }
 
         function syncPttGroupPickFromSource() {
-            var key = pttGroupPickSourceKeyFn();
-            var all = fullPttCandidatesMeta().map(function (m) { return m.camId; });
-            if (key !== pttGroupPickSourceKey) {
-                pttGroupPickSourceKey = key;
-                pttGroupPickCamIds = all.slice();
-                return;
+            var groupId = pttGroupPickSourceKeyFn();
+            if (groupId && groupId !== pttGroupPickSourceKey) {
+                selectedGroupMemberIds().forEach(function (id) {
+                    if (id && pttGroupPickCamIds.indexOf(id) < 0) pttGroupPickCamIds.push(id);
+                });
             }
-            pttGroupPickCamIds = pttGroupPickCamIds.filter(function (id) { return all.indexOf(id) >= 0; });
+            pttGroupPickSourceKey = groupId;
         }
 
         function renderPttGroupMemberChips(members, opts) {
@@ -1138,7 +1168,7 @@
         function updatePttGroupJoinButton() {
             var btn = document.getElementById('ptt-group-join');
             var pickHint = document.getElementById('ptt-group-pick-hint');
-            var editable = !!pttGroupPickSourceKeyFn();
+            var editable = !!(pttGroupPickSourceKeyFn() || pttGroupPickCamIds.length || ungroupedPttCandidatesMeta().length);
             var n = pttGroupPickCamIds.length;
             if (btn) btn.disabled = !editable || n < 2;
             if (pickHint) {
@@ -1222,9 +1252,8 @@
             var groupId = sel && sel.value;
             var catalog = window.pttGroupCatalog || [];
             var g = groupId ? catalog.find(function (x) { return x.id === groupId; }) : null;
-            var pinned = getPinnedPttCamIds();
             var candidates = fullPttCandidatesMeta();
-            var editable = !!(g || pinned.length >= 1);
+            var editable = !!(g || pttGroupPickCamIds.length || ungroupedPttCandidatesMeta().length);
 
             if (dot) {
                 if (g && g.color) {
@@ -1237,18 +1266,13 @@
             }
 
             if (pinnedHint) {
-                if (!groupId && pinned.length >= 1) {
-                    pinnedHint.hidden = false;
-                    pinnedHint.textContent = dashboardTr('ptt.groupBox.pinnedReady', { n: pinned.length });
-                } else {
-                    pinnedHint.hidden = true;
-                    pinnedHint.textContent = '';
-                }
+                pinnedHint.hidden = true;
+                pinnedHint.textContent = '';
             }
 
-            if (editable && candidates.length) {
+            if (editable) {
                 syncPttGroupPickFromSource();
-                renderPttGroupMemberChips(candidates, { editable: true });
+                renderPttGroupMemberChips(fullPttCandidatesMeta(), { editable: true });
             } else if (global.activeDispatchPttTeam && global.activeDispatchPttTeam.length) {
                 renderPttGroupMemberChips(membersForActiveTeam(), { editable: false });
             } else {

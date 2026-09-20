@@ -9,7 +9,8 @@
             'fleet.statusPtt': '🎙 PTT',
             'fleet.emptyNone': 'No Devices Yet',
             'fleet.emptyNoMatch': 'No Match',
-            'fleet.addNicknameHint': 'Add nickname in Server Config',
+            'fleet.addNicknameHint': 'No nickname',
+            'fleet.addNicknameHintTitle': 'Add nickname in Server Config → BWCs',
             'fleet.groupUngrouped': 'Ungrouped',
             'fleet.clearMapPinsNoPerm': 'Clear Map Pins requires super admin or permission from Dashboard Authentication.',
             'fleet.clearMapPinsConfirm': 'Clear all map pins? This closes pin popups and removes markers from the map.',
@@ -35,6 +36,10 @@
             'fleet.circle.openedWallFull': 'Opened {opened} of {total} — wall full',
             'fleet.circle.openedOffline': 'Opened {opened} of {total} ({offline} offline skipped)',
             'fleet.circle.openedOk': 'Opened {opened}',
+            'fleet.lowBatteryStatus': 'Low Battery',
+            'fleet.lowBatterySticky': 'Low Battery · {name} · {pct}',
+            'fleet.rosterRec': 'REC',
+            'fleet.rosterRecording': 'Recording',
         };
         let s;
         if (global.I18n && I18n.t) {
@@ -203,6 +208,9 @@
         });
     }
 
+    /* PRESENCE-OFFLINE-TELEM-PIN-CLUSTER-UNGROUPED-V1 — reserved; not grey/offline, not green-online */
+    var UNGROUPED_PIN_COLOR = '#c026d3';
+
     function groupColorForDevice(camId, mapGroup) {
         var lk = global.dispatchGroupLookup || {};
         if (camId && lk.byDevice && lk.byDevice[camId] && lk.byDevice[camId].color) {
@@ -212,7 +220,7 @@
         if (gk && lk.byName && lk.byName[gk] && lk.byName[gk].color) {
             return lk.byName[gk].color;
         }
-        return '#64748b';
+        return UNGROUPED_PIN_COLOR;
     }
 
     function buildGroupedFleetRows(rows) {
@@ -234,15 +242,154 @@
         });
         if (ungrouped.length) {
             if (Object.keys(byGroup).length) {
-                out.push({ type: 'header', groupName: tr('fleet.groupUngrouped'), color: '#64748b', ungrouped: true });
+                out.push({ type: 'header', groupName: tr('fleet.groupUngrouped'), color: UNGROUPED_PIN_COLOR, ungrouped: true });
             }
             ungrouped.forEach(function (m) { out.push({ type: 'row', device: m }); });
         }
         return out;
     }
 
+    /* SDK-USIP-LOW-BATTERY-ALERT-V1 — red <15%; one sticky line per cam; no toast spam */
+    var LOW_BATTERY_PCT = 15;
+    var lowBattSticky = Object.create(null);
+
+    function parseBatteryPct(raw) {
+        var s = String(raw == null ? '' : raw).trim();
+        if (!s || s === '\u2014' || s === '--') return null;
+        var m = s.match(/(\d+(?:\.\d+)?)\s*%?/);
+        if (!m) return null;
+        var n = parseFloat(m[1]);
+        return isFinite(n) ? n : null;
+    }
+
+    function formatRosterSignalDbm(raw) {
+        var s = String(raw == null ? '' : raw).trim();
+        if (!s || s === '\u2014' || s === '--') return '';
+        var m = s.match(/-?\d+(?:\.\d+)?\s*dBm?/i);
+        if (m) {
+            var n0 = parseFloat(String(m[0]).replace(/dBm?/i, ''));
+            return isFinite(n0) ? (n0 + 'dBm') : '';
+        }
+        var slash = s.match(/\/\s*(-?\d+(?:\.\d+)?)\s*$/);
+        if (slash) {
+            var n1 = parseFloat(slash[1]);
+            return isFinite(n1) ? (n1 + 'dBm') : '';
+        }
+        if (/^-?\d+(?:\.\d+)?$/.test(s)) {
+            var n2 = parseFloat(s);
+            return isFinite(n2) ? (n2 + 'dBm') : '';
+        }
+        return '';
+    }
+
+    function formatRosterBattery(raw) {
+        var s = String(raw == null ? '' : raw).trim();
+        if (!s || s === '\u2014' || s === '--') return '';
+        if (/%\s*$/.test(s)) return s;
+        if (/^\d+(?:\.\d+)?$/.test(s)) return s + '%';
+        return s;
+    }
+
+    /* ROSTER-REC-BADGE-TRUTH-V1 — per-cam only; no sticky forever; strict on values */
+    function isRosterRecordingOn(raw) {
+        if (raw === true || raw === 1) return true;
+        var s = String(raw == null ? '' : raw).trim().toUpperCase();
+        return s === '1' || s === 'ON' || s === 'TRUE' || s === 'YES';
+    }
+
+    function formatRosterTelemetryParts(m) {
+        /* Offline → em dash only (never look live) */
+        if (!m || m.status !== '1') {
+            return { plain: '\u2014', html: '\u2014', low: false, pct: null, recording: false };
+        }
+        var t = (m && m.telemetryStored) || {};
+        var bat = formatRosterBattery(t.battery);
+        var sig = formatRosterSignalDbm(t.signal);
+        var rec = isRosterRecordingOn(t.recording);
+        var pct = parseBatteryPct(t.battery);
+        var low = pct != null && pct < LOW_BATTERY_PCT;
+        var plainParts = [];
+        var htmlParts = [];
+        if (bat) {
+            plainParts.push(bat);
+            htmlParts.push(low ? ('<span class="fleet-batt-low">' + esc(bat) + '</span>') : esc(bat));
+        }
+        if (sig) {
+            plainParts.push(sig);
+            htmlParts.push(esc(sig));
+        }
+        if (rec) {
+            var recLabel = tr('fleet.rosterRec');
+            plainParts.push(recLabel);
+            htmlParts.push('<span class="fleet-rec-badge">' + esc(recLabel) + '</span>');
+        }
+        var join = ' \u00B7 ';
+        return {
+            plain: plainParts.join(join),
+            html: htmlParts.join(join),
+            low: low,
+            pct: pct,
+            recording: rec,
+        };
+    }
+
+    function paintLowBattSticky() {
+        var el = document.getElementById('fleet-low-batt-alerts');
+        if (!el) return;
+        var ids = Object.keys(lowBattSticky);
+        if (!ids.length) {
+            el.hidden = true;
+            el.innerHTML = '';
+            return;
+        }
+        el.hidden = false;
+        el.innerHTML = ids.map(function (id) {
+            var row = lowBattSticky[id] || {};
+            var label = row.name || id;
+            var pct = row.pct != null ? (row.pct + '%') : '';
+            return '<div class="fleet-low-batt-line" data-cam-id="' + esc(id) + '">'
+                + '<span class="fleet-low-batt-dot" aria-hidden="true"></span>'
+                + '<span>' + esc(tr('fleet.lowBatterySticky', { name: label, pct: pct })) + '</span>'
+                + '</div>';
+        }).join('');
+    }
+
+    function refreshLowBattStickyFromFleet() {
+        lowBattSticky = Object.create(null);
+        fleetList.forEach(function (m) {
+            if (!m || !m.id || m.status !== '1') return;
+            var pct = parseBatteryPct((m.telemetryStored || {}).battery);
+            if (pct != null && pct < LOW_BATTERY_PCT) {
+                lowBattSticky[m.id] = { pct: pct, name: m.name || m.id };
+            }
+        });
+        paintLowBattSticky();
+    }
+
+    function syncLowBatteryAlert(camId, m) {
+        if (!camId) return;
+        if (!m || m.status !== '1') {
+            delete lowBattSticky[camId];
+            paintLowBattSticky();
+            return;
+        }
+        var t = (m && m.telemetryStored) || {};
+        var pct = parseBatteryPct(t.battery);
+        var low = pct != null && pct < LOW_BATTERY_PCT;
+        if (low) {
+            lowBattSticky[camId] = {
+                pct: pct,
+                name: (m && m.name) || camId,
+            };
+        } else {
+            delete lowBattSticky[camId];
+        }
+        paintLowBattSticky();
+    }
+
     function renderDeviceRow(m) {
         var on = m.status === '1';
+        var stale = !!(on && m.stale);
         var active = selectedCamIds.has(m.id) ? ' fleet-row-active' : '';
         var focus = selectedCamId === m.id ? ' fleet-row-focus' : '';
         var pttRx = !!pttRxActive[m.id];
@@ -251,18 +398,32 @@
         if (pttLinger && !pttRx) pttClass += ' fleet-row-ptt-rx-linger';
         var gpsTrack = !!smartGpsActive[m.id];
         var gpsClass = gpsTrack ? ' fleet-row-gps-track' : '';
-        var statusTitle = pttRx ? tr('fleet.statusPtt') : (pttLinger ? tr('fleet.statusPttLinger') : (gpsTrack ? tr('fleet.statusGpsTrack') : (on ? tr('fleet.statusOnline') : tr('fleet.statusOffline'))));
+        var telParts = formatRosterTelemetryParts(m);
+        var lowBatt = !!telParts.low;
+        var statusTitle = pttRx ? tr('fleet.statusPtt') : (pttLinger ? tr('fleet.statusPttLinger') : (gpsTrack ? tr('fleet.statusGpsTrack') : (stale ? 'Stale link' : (on ? tr('fleet.statusOnline') : tr('fleet.statusOffline')))));
+        if (lowBatt && on) statusTitle = tr('fleet.lowBatteryStatus') + ' · ' + statusTitle;
+        if (telParts.recording && on) statusTitle = tr('fleet.rosterRecording') + ' · ' + statusTitle;
         var pinChecked = selectedCamIds.has(m.id) ? ' checked' : '';
         var atPinMax = selectedCamIds.size >= MAX_PIN_SELECT && !selectedCamIds.has(m.id);
         var pinDisabled = on ? (atPinMax ? ' disabled' : '') : ' disabled';
         var pinColor = groupColorForDevice(m.id, m.mapGroup);
+        /* OPS-ROSTER-TELEM-2LINE-V1 — line1 GB first4…last4; line2 bat% · dBm (never hover-only) */
         var idRaw = String(m.id || '');
-        var idTail = idRaw.length <= 5 ? idRaw : ('...' + idRaw.slice(-5));
-        var sub = global.FleetDisplay && FleetDisplay.hasConfiguredName(m.id)
-            ? ('<span class="fleet-id-tail" title="' + esc(idRaw) + '">' + esc(idTail) + '</span>')
-            : esc(tr('fleet.addNicknameHint'));
+        var idShort = (global.FleetDisplay && typeof FleetDisplay.shortTechnicalId === 'function')
+            ? FleetDisplay.shortTechnicalId(idRaw)
+            : (idRaw.length <= 8 ? idRaw : (idRaw.slice(0, 4) + '\u2026' + idRaw.slice(-4)));
+        var noNick = !(global.FleetDisplay && FleetDisplay.hasConfiguredName(m.id));
+        var idTitle = noNick ? (tr('fleet.addNicknameHintTitle') + ' — ' + idRaw) : idRaw;
+        var sub = '<span class="fleet-id-tail' + (noNick ? ' fleet-id-nonick' : '') + '" title="' + esc(idTitle) + '">'
+            + esc(idShort) + '</span>';
+        if (telParts.html) {
+            sub += '<span class="fleet-tel-sub' + (lowBatt ? ' fleet-tel-low' : '') + (telParts.recording ? ' fleet-tel-rec' : '') + '">'
+                + telParts.html + '</span>';
+        }
         var groupTitle = m.mapGroup ? esc(m.mapGroup) : '';
-        return '<tr class="fleet-row' + active + focus + pttClass + gpsClass + '" data-cam-id="' + esc(m.id) + '" tabindex="0" title="' + esc(statusTitle) + '">' +
+        /* Online/stale/offline dot stays presence-only — low battery is red % + sticky, not the status icon */
+        var dotClass = stale ? ' stale' : (on ? ' on' : '');
+        return '<tr class="fleet-row' + active + focus + pttClass + gpsClass + (lowBatt ? ' fleet-row-low-batt' : '') + '" data-cam-id="' + esc(m.id) + '" tabindex="0" title="' + esc(statusTitle) + '">' +
             '<td class="fleet-pin-cell">' +
             '<input type="checkbox" class="fleet-pin-check" data-cam-id="' + esc(m.id) + '"' + pinChecked + pinDisabled +
             ' title="Show live pin on map (max ' + MAX_PIN_SELECT + ')" aria-label="Pin on map"></td>' +
@@ -282,7 +443,7 @@
             '<span class="fleet-pin-color" style="display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-right:5px;vertical-align:middle;border:1px solid rgba(255,255,255,0.55);background:' + esc(pinColor) + ';"' + (groupTitle ? ' title="' + groupTitle + '"' : '') + '></span>' +
             '<span class="fleet-name">' + esc(m.name) + '</span></div>' +
             '<span class="fleet-id-sub">' + sub + '</span></td>' +
-            '<td class="fleet-status-cell"><span class="status-dot' + (on ? ' on' : '') + '" title="' + esc(statusTitle) + '" aria-label="' + esc(statusTitle) + '"></span></td>' +
+            '<td class="fleet-status-cell"><span class="status-dot' + dotClass + '" title="' + esc(statusTitle) + '" aria-label="' + esc(statusTitle) + '"></span></td>' +
             '</tr>';
     }
 
@@ -300,6 +461,7 @@
         if (!rows.length) {
             var emptyMsg = fleetList.length === 0 ? tr('fleet.emptyNone') : tr('fleet.emptyNoMatch');
             paintFleetTbodies('<tr><td colspan="6" class="fleet-empty">' + esc(emptyMsg) + '</td></tr>');
+            refreshLowBattStickyFromFleet();
             updateSummary();
             scheduleFleetTableResize();
             return;
@@ -315,6 +477,7 @@
             html += renderDeviceRow(entry.device);
         });
         paintFleetTbodies(html);
+        refreshLowBattStickyFromFleet();
         updateSummary();
         scheduleFleetTableResize();
         if (global.VideoWall && VideoWall.syncFleetPttRows) {
@@ -866,7 +1029,8 @@
                     ? nextBattery
                     : prev.battery,
                 signal: data.signal != null ? data.signal : prev.signal,
-                recording: data.recording != null ? data.recording : prev.recording,
+                /* ROSTER-REC-BADGE-TRUTH-V1 — missing/unknown clears REC for this cam only */
+                recording: data.recording != null ? data.recording : '0',
                 audio: data.audio != null ? data.audio : prev.audio,
                 callstate: data.callstate != null ? data.callstate : prev.callstate,
                 volume: data.volume != null ? data.volume : prev.volume,
@@ -875,6 +1039,8 @@
                     ? data.deviceTime
                     : prev.deviceTime,
             };
+            syncLowBatteryAlert(data.cameraId, m);
+            renderTable();
         }
         syncPinTelemetry(data.cameraId);
     }
@@ -894,7 +1060,10 @@
     function onDeviceOffline(data) {
         if (!data || !data.cameraId) return;
         const m = fleetById[data.cameraId];
-        if (m) m.status = '0';
+        if (m) {
+            m.status = '0';
+            m.stale = false;
+        }
         renderTable();
         syncPinTelemetry(data.cameraId);
         if (typeof global.refreshMapToolbarBwcList === 'function') global.refreshMapToolbarBwcList();
@@ -904,6 +1073,27 @@
             && !(global.isSosIncidentActive && global.isSosIncidentActive())) {
             global.syncAllDeviceMarkers();
         }
+    }
+
+    function onDeviceStale(data) {
+        if (!data) return;
+        const id = String(data.cameraId || data.camId || '').trim();
+        if (!id) return;
+        let m = fleetById[id];
+        if (!m) {
+            m = { id: id, name: id, status: '1', mapGroup: '', stale: false };
+            fleetById[id] = m;
+            fleetList.push(m);
+        }
+        const wantAmber = String(data.presence || '') === 'amber';
+        m.stale = wantAmber;
+        if (wantAmber) m.status = '1';
+        renderTable();
+        updateSummary();
+        if (typeof global.refreshAllDeviceMarkerStyles === 'function') {
+            global.refreshAllDeviceMarkerStyles();
+        }
+        if (typeof global.updateMapPinLegend === 'function') global.updateMapPinLegend();
     }
 
     function setPttRxActive(camId, active) {
@@ -1201,6 +1391,11 @@
         return !!(m && m.status === '1');
     }
 
+    function isDeviceStale(camId) {
+        const m = fleetById[camId];
+        return !!(m && m.status === '1' && m.stale);
+    }
+
     function isKnownDevice(camId) {
         return !!fleetById[camId];
     }
@@ -1228,6 +1423,16 @@
             }
             if ((m.status === '1') !== wantOnline) {
                 m.status = wantOnline ? '1' : '0';
+                changed = true;
+            }
+            if (typeof d.stale === 'boolean' && !!m.stale !== !!d.stale) {
+                m.stale = !!d.stale;
+                changed = true;
+            } else if (wantOnline && m.stale && reason !== 'device-stale') {
+                /* keep stale until device-stale green */
+            }
+            if (!wantOnline && m.stale) {
+                m.stale = false;
                 changed = true;
             }
             if (d.name && m.name !== d.name) {
@@ -1260,6 +1465,7 @@
         onDeviceStatus,
         onHeartbeat,
         onDeviceOffline,
+        onDeviceStale,
         getSelectedCamId: function () { return selectedCamId; },
         getSelectedCamIds: function () { return Array.from(selectedCamIds); },
         isPinSelected: function (camId) { return selectedCamIds.has(camId); },
@@ -1284,6 +1490,7 @@
         },
         getDeviceState,
         isDeviceOnline,
+        isDeviceStale,
         isKnownDevice,
         setPttRxActive,
         setPttRxLinger,

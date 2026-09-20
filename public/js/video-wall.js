@@ -1662,12 +1662,10 @@
             return;
         }
         if (voiceCallPending) return;
-        const live = isLiveCamId(camId);
-        const audioOnly = opts.audioOnly === true || (opts.audioOnly !== false && !live);
-        if (!audioOnly && !live) return;
+        /* CALL-AUDIO-ONLY-NO-BWC-VIDEO-V1 — always talk; never Open All / live pull */
         voiceCallPending = true;
         syncAllCallUi();
-        socket.emit('start-bwc-call', { camId: camId, audioOnly: audioOnly });
+        socket.emit('start-bwc-call', { camId: camId, audioOnly: true });
     }
 
     function onBwcCallRx(data) {
@@ -2177,8 +2175,11 @@
     }
 
     const BWC_VIDEO_STALL_MS = 2800;
+    /* FLV-HONEST-UI-RECONNECT-BANNER-V1 — never-started vs mid-stream stall (paint only; no WVP BYE). */
+    const BWC_NO_VIDEO_YET_MS = 18000;
     const lastVideoFrameAt = Object.create(null);
     const bwcStallWatchTimers = Object.create(null);
+    const bwcStallWatchStartedAt = Object.create(null);
     const bwcStallDecodedOnce = new Set();
     /* MOB-APPLY-BWC-STOP-OVERLAY-BYE-ONLY-V1 — browser stall/FLV error is not BYE. */
     const FLV_RECOVER_MIN_MS = 3000;
@@ -2229,6 +2230,7 @@
         camId = String(camId).trim();
         lastVideoFrameAt[camId] = Date.now();
         bwcStallDecodedOnce.add(camId);
+        clearHonestVideoBanner(camId);
     }
 
     function clearBwcStallWatch(camId) {
@@ -2239,7 +2241,69 @@
             delete bwcStallWatchTimers[camId];
         }
         delete lastVideoFrameAt[camId];
+        delete bwcStallWatchStartedAt[camId];
         bwcStallDecodedOnce.delete(camId);
+        clearHonestVideoBanner(camId);
+    }
+
+    function reconnectingLabel() {
+        return tr('video.reconnecting', 'Reconnecting');
+    }
+
+    function noVideoYetLabel() {
+        return tr('video.noVideoYet', 'No video yet');
+    }
+
+    function ensureHonestVideoBanner(container, kind, isSos) {
+        if (!container) return null;
+        let el = container.querySelector('.video-honest-banner');
+        if (!el) {
+            el = document.createElement('div');
+            el.className = 'video-honest-banner';
+            el.setAttribute('aria-live', 'polite');
+            container.appendChild(el);
+        }
+        el.className = 'video-honest-banner'
+            + (kind === 'noVideoYet' ? ' video-honest-banner--no-video-yet' : ' video-honest-banner--reconnecting')
+            + (isSos ? ' video-honest-banner--sos' : '');
+        el.textContent = kind === 'noVideoYet' ? noVideoYetLabel() : reconnectingLabel();
+        el.hidden = false;
+        return el;
+    }
+
+    function clearHonestVideoBannerOnContainer(container) {
+        if (!container) return;
+        const el = container.querySelector('.video-honest-banner');
+        if (el) el.hidden = true;
+    }
+
+    function paintHonestVideoBanner(camId, kind) {
+        if (!camId) return;
+        camId = String(camId).trim();
+        const isSos = isAlarmCamId(camId);
+        const label = kind === 'noVideoYet' ? noVideoYetLabel() : reconnectingLabel();
+        getSlots().forEach(function (slotEl) {
+            const bound = slotEl.dataset.camId || resolveCamIdForSlot(slotEl);
+            if (bound !== camId) return;
+            const stage = slotEl.querySelector('.video-slot-stage');
+            if (!stage) return;
+            ensureHonestVideoBanner(stage, kind, isSos);
+            setSlotMeta(slotEl, camId, label);
+        });
+        const pinHost = mapPinHostForCam(camId);
+        if (pinHost) ensureHonestVideoBanner(pinHost, kind, isSos);
+    }
+
+    function clearHonestVideoBanner(camId) {
+        if (!camId) return;
+        camId = String(camId).trim();
+        getSlots().forEach(function (slotEl) {
+            const bound = slotEl.dataset.camId || resolveCamIdForSlot(slotEl);
+            if (bound !== camId) return;
+            const stage = slotEl.querySelector('.video-slot-stage');
+            clearHonestVideoBannerOnContainer(stage);
+        });
+        clearHonestVideoBannerOnContainer(mapPinHostForCam(camId));
     }
 
     function camHasActiveLiveVideoSurface(camId) {
@@ -2261,6 +2325,7 @@
     function ensureBwcStallWatch(camId) {
         if (!camId) return;
         camId = String(camId).trim();
+        if (!bwcStallWatchStartedAt[camId]) bwcStallWatchStartedAt[camId] = Date.now();
         if (bwcStallWatchTimers[camId]) return;
         bwcStallWatchTimers[camId] = setInterval(function () {
             if (isBwcStallWatchPaused()) return;
@@ -2272,7 +2337,14 @@
             if (pinStoppedByUser(camId)) return;
             /* MOB-APPLY-WVP-HANDOFF-STOP-UI-PARITY-V1 — do NOT skip stall on ops wall under handoff
              * (old guard killed Stopped by BWC / signal-lost chrome whenever wall claimed the cam). */
-            if (!bwcStallDecodedOnce.has(camId)) return;
+            /* FLV-HONEST-UI-RECONNECT-BANNER-V1 — paint only; never WVP BYE from these clocks. */
+            if (!bwcStallDecodedOnce.has(camId)) {
+                const started = bwcStallWatchStartedAt[camId] || 0;
+                if (started && (Date.now() - started) >= BWC_NO_VIDEO_YET_MS) {
+                    paintHonestVideoBanner(camId, 'noVideoYet');
+                }
+                return;
+            }
             if (!camHasActiveLiveVideoSurface(camId)) {
                 clearBwcStallWatch(camId);
                 return;
@@ -2280,6 +2352,7 @@
             const last = lastVideoFrameAt[camId];
             if (!last || (Date.now() - last) < BWC_VIDEO_STALL_MS) return;
             lastVideoFrameAt[camId] = Date.now();
+            paintHonestVideoBanner(camId, 'reconnecting');
             recoverWvpFlvPlayback(camId, 'stall_clock');
         }, 700);
     }
@@ -2366,22 +2439,21 @@
             const bound = slotEl.dataset.camId || resolveCamIdForSlot(slotEl);
             if (bound !== camId) return;
             const idx = findSlotIndex(slotEl);
-            if (!slotHasLiveWallPlayer(slotEl, idx)) return;
+            destroyPlayer(idx, { forceHandoffDestroy: true });
             const stage = slotEl.querySelector('.video-slot-stage');
-            if (!wallStageHasLiveMedia(stage)) return;
-            ensureSignalLostOverlay(stage);
+            if (stage) {
+                stage.innerHTML = '<span class="video-slot-empty video-slot-signal-lost">' + signalLostLabel() + '</span>';
+            }
             slotEl.classList.add('video-slot-signal-lost');
             slotEl.classList.remove('video-slot-has-live');
             setSlotMeta(slotEl, camId, signalLostLabel());
-            removeStreamingOverlay(stage);
-            detachWallPlayerKeepCanvas(idx, camId);
         });
+        destroyMapPlayer(camId);
         const pinHost = mapPinHostForCam(camId);
-        if (pinHost && mapPinHasLiveVideo(camId) && pinHostHasLiveMedia(pinHost, camId)) {
-            ensureSignalLostOverlay(pinHost);
-            pinHost.classList.add('map-pin-signal-lost');
+        if (pinHost) {
             removeStreamingOverlay(pinHost);
-            detachMapPlayerKeepCanvas(camId);
+            pinHost.classList.add('map-pin-signal-lost');
+            pinHost.innerHTML = '<span class="video-slot-empty video-slot-signal-lost">' + signalLostLabel() + '</span>';
         }
         streamingCams.delete(camId);
         if (streamingCamId === camId) {
@@ -2996,7 +3068,13 @@ function handoffPlayerAttaching(player) {
         st.tries += 1;
         flvRecoverBusy.add(camId);
         lastVideoFrameAt[camId] = now;
-        console.log('[me8-flv] recover playback', { camId: camId, why: why || 'flv', try: st.tries });
+        paintHonestVideoBanner(camId, 'reconnecting');
+        console.log('[me8-flv] recover playback', {
+            camId: camId,
+            why: why || 'flv',
+            try: st.tries,
+            path: 'FLV-HONEST-UI-RECONNECT-BANNER-V1',
+        });
         try {
             targets.forEach(function (t) {
                 wvpHandoffSlotInflight.delete(t.idx);
@@ -3049,6 +3127,7 @@ function handoffPlayerAttaching(player) {
         });
         wvpHandoffSlotInflight.set(slotKey, { camId: camId, flvUrl: flvUrl, at: Date.now() });
         console.log('[me8-flv] wall attach once', { slot: slotKey, camId: camId, url: flvUrl });
+        if (camId) ensureBwcStallWatch(camId);
         const handle = global.Me8LivePlayerFactory.attachFlvPrimary(stage, flvUrl, {
             proveMs: 300,
             timeoutMs: 10000,
@@ -4909,16 +4988,17 @@ function handoffPlayerAttaching(player) {
             syncAllOpenPinWallPanels();
             syncAllOpenPinVideoLayout();
             syncAllOpenPinPopupControls();
+            /* OPEN-ALL-NO-HEAL-STORM-V1 — wait for first frame before forceInvite heal */
             setTimeout(function () {
                 healOpenAllWallStreams();
                 syncAllOpenPinVideoLayout();
-            }, 500);
+            }, 15000);
             setTimeout(function () {
                 healOpenAllWallStreams();
                 ensureOpenAllWallIfPinLive();
                 syncAllOpenPinVideoLayout();
                 syncAllPttRxUi();
-            }, 1200);
+            }, 25000);
         }
         openAllLivePinsSyncTimer = setTimeout(finishOpenAllBatch, totalStaggerMs + 50);
     }

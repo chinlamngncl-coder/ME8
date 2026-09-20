@@ -16,6 +16,35 @@
         '#06b6d4', '#ec4899', '#eab308', '#6366f1', '#14b8a6',
     ];
 
+    function isBlockedTeamColor(hex) {
+        var n = parseInt(String(hex || '').slice(1), 16);
+        if (!isFinite(n)) return true;
+        var r = (n >> 16) & 255;
+        var g = (n >> 8) & 255;
+        var b = n & 255;
+        var max = Math.max(r, g, b) / 255;
+        var min = Math.min(r, g, b) / 255;
+        var l = (max + min) / 2;
+        var sat = max === min ? 0 : (l > 0.5 ? (max - min) / (2 - max - min) : (max - min) / (max + min));
+        if (sat < 0.28) return true;
+        if (l < 0.18 || l > 0.88) return true;
+        function dist(rr, gg, bb) {
+            return Math.sqrt((r - rr) * (r - rr) + (g - gg) * (g - gg) + (b - bb) * (b - bb));
+        }
+        if (dist(148, 163, 184) < 58) return true;
+        if (dist(30, 41, 59) < 58) return true;
+        if (dist(100, 116, 139) < 50) return true;
+        /* Reserved: Ungrouped system accent (#c026d3) — operators cannot pick it */
+        if (dist(192, 38, 211) < 48) return true;
+        return false;
+    }
+
+    function clampTeamColor(hex) {
+        var s = String(hex || '').toLowerCase();
+        if (/^#[0-9a-f]{6}$/.test(s) && !isBlockedTeamColor(s)) return s;
+        return '#22c55e';
+    }
+
     let groups = [];
     let editingId = null;
     let uiBound = false;
@@ -77,7 +106,8 @@
     function updateColorPreview() {
         var colorEl = document.getElementById('ss-group-edit-color');
         var preview = document.getElementById('ss-group-color-preview');
-        var color = (colorEl && colorEl.value) ? colorEl.value : '#22c55e';
+        var color = clampTeamColor((colorEl && colorEl.value) ? colorEl.value : '#22c55e');
+        if (colorEl && colorEl.value !== color) colorEl.value = color;
         if (preview) preview.style.background = color;
         document.querySelectorAll('.ss-color-preset').forEach(function (btn) {
             btn.classList.toggle('active', btn.getAttribute('data-color').toLowerCase() === color.toLowerCase());
@@ -165,7 +195,7 @@
 
     function readEditorGroup() {
         const name = (document.getElementById('ss-group-edit-name') || {}).value.trim();
-        const color = (document.getElementById('ss-group-edit-color') || {}).value || '#22c55e';
+        const color = clampTeamColor((document.getElementById('ss-group-edit-color') || {}).value || '#22c55e');
         const id = (document.getElementById('ss-group-edit-id') || {}).value.trim();
         const members = [];
         document.querySelectorAll('#ss-group-members-body tr').forEach(function (row) {
@@ -208,7 +238,7 @@
         editingId = group.id;
         document.getElementById('ss-group-edit-id').value = group.id;
         document.getElementById('ss-group-edit-name').value = group.name;
-        document.getElementById('ss-group-edit-color').value = group.color || '#22c55e';
+        document.getElementById('ss-group-edit-color').value = clampTeamColor(group.color || '#22c55e');
         var members = group.members && group.members.length
             ? group.members.slice()
             : [{ nickname: '', deviceId: '', dashboardUsername: '' }];

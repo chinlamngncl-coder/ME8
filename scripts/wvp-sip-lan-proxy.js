@@ -1,6 +1,6 @@
 /**
  * mob-wvp-sip-lan-source-ip-v1 + mob-wvp-invite-rtp-answer-v1
- * + mob-fleet-sip-port-5062-v1 — host GB video SIP is :5060 (Fleet YDT on :5062)
+ * + mob-fleet-sip-port-5062-v1 — host GB video SIP is :5060 (Fleet USIP/telemetry on :5062)
  * Host SIP proxy: cams → :5060 (real LAN source) → WVP container :15061
  * Play INVITE: WVP → host:5060 (device hostAddress) → real BWC LAN (demux by deviceId)
  *
@@ -164,6 +164,18 @@ function maybePublishMessageAcl(parsed, msgBuf) {
                 cmdType: cmd,
             });
             log('acl publish device-status', did);
+            return;
+        }
+        if (cmdL === 'videotag') {
+            publishEventToFleet({
+                type: 'video-tag',
+                cameraId: did,
+                deviceId: did,
+                xml,
+                source: 'wvp_sip_proxy',
+                cmdType: cmd,
+            });
+            log('acl publish video-tag', did);
             return;
         }
         if (cmdL === 'keepalive') {

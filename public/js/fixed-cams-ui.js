@@ -552,7 +552,7 @@
         }
         csvImport.disabled = true;
         try {
-            const r = await api('POST', '/api/cameras/import-csv', { csv });
+        const r = await api('POST', '/api/cameras/import-csv', { csv });
             if (!r.ok) {
                 showToast(r.error || 'Import failed.', 'err');
                 if (resultEl) resultEl.textContent = r.error || 'Import failed.';
@@ -566,8 +566,8 @@
                 + '. Download receipt for Status / Discover columns.';
             showToast(msg);
             if (resultEl) resultEl.textContent = msg;
-            loadTable();
-            if (window.reloadFixedCameraMapPins) window.reloadFixedCameraMapPins();
+        loadTable();
+        if (window.reloadFixedCameraMapPins) window.reloadFixedCameraMapPins();
         } finally {
             csvImport.disabled = false;
         }
@@ -754,8 +754,17 @@
         if (commit) commit.disabled = false;
     }
 
-    function escapeHtml(s) {
+    function scrubOemBan(s) {
         return String(s == null ? '' : s)
+            .replace(/yu[\s_-]*long/gi, 'OEM')
+            .replace(/\bYULONG\b/gi, 'OEM')
+            .replace(/\bYDT1\b/g, 'VENDOR_AES')
+            .replace(/\bYDT\b/g, 'USIP');
+    }
+
+    function escapeHtml(s) {
+        /* OEM-BAN-SCRUB-LOGS-UI-V1 */
+        return scrubOemBan(s)
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')

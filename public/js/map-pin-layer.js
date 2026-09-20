@@ -79,6 +79,31 @@
             chunkedLoading: true,
             chunkInterval: 200,
             chunkDelay: 50,
+            /* PRESENCE-OFFLINE-TELEM-PIN-CLUSTER-UNGROUPED-V1 — colour follows presence */
+            iconCreateFunction: function (cluster) {
+                var markers = cluster.getAllChildMarkers() || [];
+                var n = markers.length;
+                var off = 0;
+                for (var i = 0; i < n; i++) {
+                    var mk = markers[i];
+                    if (mk && mk._bwcOffline) {
+                        off++;
+                        continue;
+                    }
+                    var html = mk && mk.options && mk.options.icon && mk.options.icon.options
+                        ? mk.options.icon.options.html : '';
+                    if (typeof html === 'string' && html.indexOf(' offline') !== -1) off++;
+                }
+                var bg = '#22c55e';
+                if (n && off === n) bg = '#94a3b8';
+                else if (off > 0) bg = '#f59e0b';
+                var size = n < 10 ? 36 : (n < 100 ? 44 : 52);
+                return L.divIcon({
+                    html: '<div class="bwc-cluster-inner" style="background:' + bg + '"><span>' + n + '</span></div>',
+                    className: 'marker-cluster marker-cluster-bwc',
+                    iconSize: L.point(size, size),
+                });
+            },
         });
         map.addLayer(clusterGroup);
         clusterEnabled = true;

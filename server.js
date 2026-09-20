@@ -175,6 +175,9 @@ const frLivePoller = require('./lib/frLivePoller');
 const frSnapLedger = require('./lib/frSnapLedger');
 const frCaptureHistory = require('./lib/frCaptureHistory');
 const frKeptEvidence = require('./lib/frKeptEvidence');
+const usipFaceUpload = require('./lib/usipFaceUpload');
+const usipAesVideoTag = require('./lib/usipAesVideoTag');
+const usipAesFileDecrypt = require('./lib/usipAesFileDecrypt');
 const frOfflineVideo = require('./lib/frOfflineVideo');
 const frFieldAlert = require('./lib/frFieldAlert');
 const faceRedactRegions = require('./lib/faceRedactRegions');
@@ -415,6 +418,36 @@ dockRegistry.init(STORAGE_DIR);
 frBlacklist.init(FR_STORAGE_ROOT);
 anprPlateList.init(STORAGE_DIR);
 frKeptEvidence.init(FR_STORAGE_ROOT);
+try {
+    usipFaceUpload.init({ root: FR_STORAGE_ROOT, log });
+} catch (faceUpErr) {
+    try {
+        log.media.warn('usip face upload init failed', {
+            message: faceUpErr && faceUpErr.message ? faceUpErr.message : 'init_failed',
+            path: 'SDK-USIP-FACEUPLOAD-INGEST-V1',
+        });
+    } catch (_) { /* ignore */ }
+}
+try {
+    usipAesVideoTag.init({ storageDir: STORAGE_DIR, log });
+} catch (aesTagErr) {
+    try {
+        log.sip.warn('usip aes videotag init failed', {
+            message: aesTagErr && aesTagErr.message ? aesTagErr.message : 'init_failed',
+            path: 'AES-USIP-VIDEOTAG-V1',
+        });
+    } catch (_) { /* ignore */ }
+}
+try {
+    usipAesFileDecrypt.init({ storageDir: STORAGE_DIR, log });
+} catch (aesFileErr) {
+    try {
+        log.sip.warn('usip aes file decrypt init failed', {
+            message: aesFileErr && aesFileErr.message ? aesFileErr.message : 'init_failed',
+            path: 'AES-USIP-FILE-DECRYPT-V1',
+        });
+    } catch (_) { /* ignore */ }
+}
 dispatchGroups.init(STORAGE_DIR);
 firmwareOta.init({
     vendorRoot: path.join(__dirname, 'vendor', 'firmware-ota'),
@@ -2408,6 +2441,37 @@ app.post('/api/bwc-companion/sos-trigger', requireBwcCompanionToken, handleBwcCo
 app.post('/api/bwc-companion/button-event', requireBwcCompanionToken, handleBwcCompanionButtonEvent);
 app.post('/api/bwc-companion/telemetry', requireBwcCompanionToken, handleBwcCompanionTelemetry);
 
+/* SDK-USIP-FACEUPLOAD-INGEST-V1 — BWC FaceUpload store only (no FR match / no AES yet) */
+const usipFaceUploadMulter = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: usipFaceUpload.MAX_IMAGE_BYTES, files: 4 },
+});
+app.post('/image/v1/FaceUpload', requireStorageFreeDiskSpace, (req, res) => {
+    usipFaceUploadMulter.fields([
+        { name: 'image', maxCount: 1 },
+        { name: 'rel_image', maxCount: 1 },
+    ])(req, res, (err) => {
+        if (err) {
+            log.media.warn('usip face upload multer', {
+                message: err && err.message ? err.message : 'multer_error',
+                path: 'SDK-USIP-FACEUPLOAD-INGEST-V1',
+            });
+            return res.status(400).json({ success: false, data: null, msg: 'bad_multipart' });
+        }
+        try {
+            const image = req.files && req.files.image && req.files.image[0] ? req.files.image[0] : null;
+            const rel = req.files && req.files.rel_image && req.files.rel_image[0] ? req.files.rel_image[0] : null;
+            const out = usipFaceUpload.ingest(req.body || {}, image, rel);
+            return res.status(out.status || 200).json(out.body);
+        } catch (e) {
+            log.media.warn('usip face upload failed', {
+                path: 'SDK-USIP-FACEUPLOAD-INGEST-V1',
+            });
+            return res.status(500).json({ success: false, data: null, msg: 'store_failed' });
+        }
+    });
+});
+
 /* MOB-APPLY-BACKEND-ACL-TRANSLATOR-V1 — WVP/proxy → classic sockets; BEFORE JWT; no public/ edits */
 (function mountWvpAclEventBus() {
     try {
@@ -2417,6 +2481,7 @@ app.post('/api/bwc-companion/telemetry', requireBwcCompanionToken, handleBwcComp
             opErr,
             raiseDeviceAlarm: function (opts) { return deviceAlarm.raiseDeviceAlarm(opts); },
             emitPttRxState: emitPttRxState,
+            pulseUsipHardwarePtt: pulseUsipHardwarePtt,
             touchDeviceOnline: touchDeviceOnline,
             getLastGps: function (camId) { return sessionGpsByCam.get(String(camId)) || null; },
             emitHeartbeat: function (camId) {
@@ -2812,7 +2877,20 @@ async function bootstrapSiteDatabase() {
             const data = loadBwcDevices();
             if (bwcDevices.findById(data, key)) return key;
             const bySerial = bwcDevices.findBySerial(data, key);
-            return bySerial && bySerial.deviceId ? bySerial.deviceId : null;
+            if (bySerial && bySerial.deviceId) return bySerial.deviceId;
+            /* AES-EVIDENCE-OFFICER-FOLDER-NICK-V1 — folder nick → Device ID */
+            const byNick = bwcDevices.findByOperatorNick(data, key);
+            return byNick && byNick.deviceId ? byNick.deviceId : null;
+        },
+        /* AES-EVIDENCE-OFFICER-FROM-DEVICE-V1 — Officer column from BWC roster */
+        resolveOperatorName: (deviceId) => {
+            const id = String(deviceId || '').trim();
+            if (!id) return null;
+            let name = resolveOperatorNameForCam(id);
+            if (name) return name;
+            /* Nick still on row (pre-map) — resolve from roster nick */
+            const byNick = bwcDevices.findByOperatorNick(loadBwcDevices(), id);
+            return byNick && byNick.operatorName ? String(byNick.operatorName).trim() : null;
         },
         onAdmitted: (item) => {
             auditLog.record('evidence.ingest_admitted', {
@@ -4849,6 +4927,38 @@ app.post('/api/docking-settings', dashboardAuth.requireSuperAdmin, (req, res) =>
             },
             ftpRestartRequired: true,
         });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+/* AES-EVIDENCE-UNLOCK-SUPERADMIN-UI-V1 — status + write-only save (never echo key / no paths) */
+app.get('/api/evidence/aes-file-unlock', dashboardAuth.requireSuperAdmin, (req, res) => {
+    try {
+        usipAesFileDecrypt.reloadMasterSecret();
+        const st = usipAesFileDecrypt.getUnlockStatus();
+        res.json({ ok: true, configured: !!st.configured, envOverride: !!st.envOverride });
+    } catch (err) {
+        res.status(500).json(opErr(err));
+    }
+});
+
+app.post('/api/evidence/aes-file-unlock', dashboardAuth.requireSuperAdmin, express.json({ limit: '4kb' }), async (req, res) => {
+    try {
+        const body = req.body || {};
+        if (reverifyForbidden(req, res, body)) return;
+        if (body.clear === true) {
+            const out = usipAesFileDecrypt.clearMasterKey();
+            if (!out.ok) return res.status(400).json(opErr('Could not clear AES unlock.'));
+            await auditLog.recordFromRequest(req, 'usip_aes_unlock_clear', { detail: { configured: out.configured } });
+            return res.json({ ok: true, configured: !!out.configured });
+        }
+        const key = String(body.masterKey || '').trim();
+        if (!key) return res.status(400).json(opErr('Enter the AES file unlock key.'));
+        const out = usipAesFileDecrypt.saveMasterKey(key);
+        if (!out.ok) return res.status(400).json(opErr('Could not save AES unlock.'));
+        await auditLog.recordFromRequest(req, 'usip_aes_unlock_save', { detail: { configured: out.configured } });
+        res.json({ ok: true, configured: !!out.configured });
     } catch (err) {
         res.status(500).json(opErr(err));
     }
@@ -7281,6 +7391,22 @@ app.get('/api/evidence/stream/:downloadId', requireEvidenceDownload, async (req,
         await evidenceRegistry.markConsumed(dl.downloadId);
         res.setHeader('X-Evidence-Download-Id', dl.downloadId);
         res.setHeader('Content-Disposition', 'attachment; filename="' + String(file.fileName).replace(/"/g, '') + '"');
+        /* AES-EVIDENCE-PLAY-WIRE-V1 — Export Packed: leave vendor AES sealed */
+        try {
+            if (usipAesFileDecrypt.isUsipAesFile(fullPath) || usipAesFileDecrypt.isUsipAesFileName(file.fileName)) {
+                await auditLog.recordFromRequest(req, 'usip_aes_export', {
+                    target: file.id,
+                    detail: { fileName: file.fileName || null, downloadId: dl.downloadId },
+                });
+                res.setHeader('Content-Type', 'application/octet-stream');
+                res.setHeader('X-Usip-Aes-Packed', '1');
+                return pipeline(fs.createReadStream(fullPath), res, (err) => {
+                    if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+                        log.web.warn('Evidence packed AES stream error', { error: err.message });
+                    }
+                });
+            }
+        } catch (_) { /* fall through */ }
         return evidenceCrypto.pipeDecrypted(fullPath, res);
     } catch (err) {
         res.status(500).json(opErr(err));
@@ -10088,7 +10214,21 @@ app.get('/api/evidence/preview/:fileId', requireEvidenceView, async (req, res) =
         }
         const fullPath = evidenceRegistry.resolveFilePath(file);
         if (!fullPath) return res.status(404).json(opErr("File is missing from server storage."));
-        await auditLog.recordFromRequest(req, 'evidence.preview', { target: req.params.fileId });
+        /* AES-EVIDENCE-PLAY-WIRE-V1 — vendor AES play needs master unlock */
+        let usipPlay = false;
+        try {
+            if (usipAesFileDecrypt.isUsipAesFile(fullPath) || usipAesFileDecrypt.isUsipAesFileName(file.fileName)) {
+                usipPlay = true;
+                usipAesFileDecrypt.reloadMasterSecret();
+                if (!usipAesFileDecrypt.isConfigured()) {
+                    return res.status(503).json(opErr('Encrypted evidence cannot be opened until AES unlock is configured.'));
+                }
+            }
+        } catch (_) { /* optional module */ }
+        await auditLog.recordFromRequest(req, usipPlay ? 'usip_aes_play' : 'evidence.preview', {
+            target: req.params.fileId,
+            detail: { fileName: file.fileName || null },
+        });
         res.setHeader('Cache-Control', 'no-store, private');
         const ext = String(file.fileName || '').toLowerCase();
         if (/\.(jpe?g)$/i.test(ext)) res.setHeader('Content-Type', 'image/jpeg');
@@ -14626,8 +14766,10 @@ let connectedCameraId = null;
 let deviceOnline = false;
 let lastDeviceSeenAt = 0;
 let offlineWatchTimer = null;
-const DEVICE_OFFLINE_MS = 180000; /* DEVICE-OFFLINE-KEEPALIVE-GRACE-V1 — 4G keep miss ≠ dead */
+const DEVICE_STALE_AMBER_MS = 180000; /* PRESENCE-GREEN-AMBER-GREY-V1 — amber after 3 min */
+const DEVICE_OFFLINE_MS = 900000; /* PRESENCE-GREEN-AMBER-GREY-V1 — hard grey after 15 min */
 const offlineStaleStrikes = new Map();
+const deviceStaleAmber = new Set(); /* camIds currently in amber (online but radio nap) */
 
 const lastGpsByCam = {};
 /** This online period only — never paint last-gps.json while the camera is green. */
@@ -14849,45 +14991,87 @@ function seedGeofenceStateFromCache() {
 seedGeofenceStateFromCache();
 
 setInterval(() => {
-    const stale = fleetRegistry.findStale(DEVICE_OFFLINE_MS);
-    const staleSet = {};
-    stale.forEach(function (id) { staleSet[id] = true; });
+    /* PRESENCE-GREEN-AMBER-GREY-V1 — green <3m, amber 3–15m (no WVP kill), grey >15m + teardown */
+    const amberCandidates = fleetRegistry.findStale(DEVICE_STALE_AMBER_MS);
+    const amberSet = {};
+    amberCandidates.forEach(function (id) { amberSet[id] = true; });
     offlineStaleStrikes.forEach(function (_n, id) {
-        if (!staleSet[id]) offlineStaleStrikes.delete(id);
+        if (!amberSet[id]) offlineStaleStrikes.delete(id);
     });
-    stale.forEach((camId) => {
-        try {
-            if (liveViewers.countForCam(camId) > 0) {
-                fleetRegistry.touch(camId);
-                offlineStaleStrikes.delete(camId);
-                log.sip.info('offline skip — live session', {
-                    camId: camId,
-                    path: 'DEVICE-OFFLINE-KEEPALIVE-GRACE-V1',
-                });
-                return;
+    deviceStaleAmber.forEach(function (id) {
+        if (!amberSet[id]) {
+            deviceStaleAmber.delete(id);
+            emitToDashboardSockets('device-stale', {
+                cameraId: id,
+                presence: 'green',
+                ageSec: 0,
+            }, id);
+        }
+    });
+    amberCandidates.forEach((camId) => {
+        const recNow = fleetRegistry.ensure(camId);
+        const lastSeen = recNow && recNow.lastSeen ? recNow.lastSeen : 0;
+        const age = lastSeen ? (Date.now() - lastSeen) : 0;
+        if (!lastSeen || age <= DEVICE_STALE_AMBER_MS) {
+            offlineStaleStrikes.delete(camId);
+            if (deviceStaleAmber.has(camId)) {
+                deviceStaleAmber.delete(camId);
+                emitToDashboardSockets('device-stale', {
+                    cameraId: camId,
+                    presence: 'green',
+                    ageSec: 0,
+                }, camId);
             }
-        } catch (_) { /* still apply grace */ }
+            return;
+        }
         try {
             if (mediaSession.isVoiceCallActiveForCam(camId)) {
                 fleetRegistry.touch(camId);
                 offlineStaleStrikes.delete(camId);
+                if (deviceStaleAmber.has(camId)) {
+                    deviceStaleAmber.delete(camId);
+                    emitToDashboardSockets('device-stale', {
+                        cameraId: camId,
+                        presence: 'green',
+                        ageSec: 0,
+                    }, camId);
+                }
                 log.sip.info('offline skip — voice call', {
                     camId: camId,
                     path: 'DEVICE-OFFLINE-KEEPALIVE-GRACE-V1',
                 });
                 return;
             }
-        } catch (_) { /* still apply grace */ }
+        } catch (_) { /* still apply presence tiers */ }
+        if (age <= DEVICE_OFFLINE_MS) {
+            offlineStaleStrikes.delete(camId);
+            if (!deviceStaleAmber.has(camId)) {
+                deviceStaleAmber.add(camId);
+                log.sip.info('device_stale_amber', {
+                    camId: camId,
+                    ageSec: Math.round(age / 1000),
+                    path: 'PRESENCE-GREEN-AMBER-GREY-V1',
+                });
+                emitToDashboardSockets('device-stale', {
+                    cameraId: camId,
+                    presence: 'amber',
+                    ageSec: Math.round(age / 1000),
+                }, camId);
+            }
+            return;
+        }
         const n = (offlineStaleStrikes.get(camId) || 0) + 1;
         offlineStaleStrikes.set(camId, n);
         if (n < 2) {
             log.sip.info('offline grace — one miss', {
                 camId: camId,
-                path: 'DEVICE-OFFLINE-KEEPALIVE-GRACE-V1',
+                ageSec: Math.round(age / 1000),
+                path: 'PRESENCE-GREEN-AMBER-GREY-V1',
             });
             return;
         }
         offlineStaleStrikes.delete(camId);
+        deviceStaleAmber.delete(camId);
         markDeviceOffline(camId, 'keepalive_timeout');
     });
 }, 20000);
@@ -15008,6 +15192,8 @@ function emitGpsIfValid(camId, lat, lon, opts) {
     const lo = parseGpsCoord(lon);
     if (!camId || Number.isNaN(la) || Number.isNaN(lo)) return;
     if (la === 0 || lo === 0) return;
+    /* GPS-STRICT-GEO-FENCE-V1 — drop cellular-hub / off-region defaults (not Singapore) */
+    if (la < 1.10 || la > 1.50 || lo < 103.50 || lo > 104.10) return;
     opts = opts || {};
     const prev = lastGpsByCam[camId];
     rememberGps(camId, la, lo, opts.gpsTimeMs);
@@ -15445,6 +15631,11 @@ function emitPttDeviceState(camId, online) {
     if (online && camId) {
         io.emit('ptt-downlink-policy', buildPttDownlinkPolicyForClient());
     }
+    /* PTT-29201-ERROR-DROP-SESSION-V1 — BWC still up → wake 29201 (July classic bundle) */
+    if (!online && camId && PTT_ENABLED) {
+        const rec = fleetRegistry.ensure(camId);
+        if (rec && rec.online) schedulePttGroupRefreshForCam(camId, 'ptt-tcp-drop');
+    }
 }
 
 function emitPttTalkState(socket, camId, active, error) {
@@ -15566,7 +15757,24 @@ function getMissedPttItems() {
         .map((e) => ({ id: e.id, kind: 'ptt', camId: e.camId, at: e.at }));
 }
 
+const usipPttClearTimers = new Map();
+function pulseUsipHardwarePtt(camId) {
+    const id = String(camId || '').trim();
+    if (!id) return;
+    emitPttRxState(id, true);
+    if (usipPttClearTimers.has(id)) clearTimeout(usipPttClearTimers.get(id));
+    usipPttClearTimers.set(id, setTimeout(function () {
+        usipPttClearTimers.delete(id);
+        emitPttRxState(id, false);
+    }, 1500));
+}
+
 function emitPttRxState(camId, active) {
+    const pulseId = String(camId || '').trim();
+    if (pulseId && usipPttClearTimers.has(pulseId)) {
+        clearTimeout(usipPttClearTimers.get(pulseId));
+        usipPttClearTimers.delete(pulseId);
+    }
     pttFieldGroupRelay.onPttRxState(camId, !!active);
     try {
         /* PTT-SOS-INCIDENT-AUDIO-V1 + PTT-GROUP-MANUAL-RECORD-V1 */
@@ -15721,9 +15929,7 @@ function sendVoiceBroadcastForCam(camId) {
 function releaseLiveBeforeVoicePhone(camId, done) {
     const finish = typeof done === 'function' ? done : function () {};
     if (!camId) return finish();
-    if (liveStreamPool.isDashboardWatchingCam(camId)) {
-        return finish();
-    }
+    /* USIP §4 — device single-channel: pure voice cannot share with live 图传 */
     releaseCamStreamWhenUnwatched(camId, { force: true }).finally(finish);
 }
 
@@ -15733,7 +15939,7 @@ function launchOutboundTalkCall(camId, socket) {
         emitBwcCallState(camId, false, 'BWC not registered');
         return;
     }
-    const profile = voiceIntercomProfile.resolve('phone-channel0');
+    const profile = voiceIntercomProfile.resolve('usip-pure-voice');
     const tel = getVoiceIntercomTelemetry();
     pttVoiceCallCamId = camId;
     pttVoiceCallOwnerSocketId = socket && socket.id ? socket.id : null;
@@ -15743,6 +15949,7 @@ function launchOutboundTalkCall(camId, socket) {
         label: profile.label,
         fallback: !!profile.fallback,
         video: false,
+        path: 'CALL-USIP-VOICE-RTP-NO-BROADCAST-V1',
     });
     tel.logPhase(camId, 'pre-invite', profile.id);
     tel.requestStatus(camId, 'pre-invite', profile.id);
@@ -15758,7 +15965,8 @@ function launchOutboundTalkCall(camId, socket) {
         onConnected: (id) => {
             tel.logPhase(id, 'invite-200', profile.id);
             tel.requestStatus(id, 'post-200', profile.id);
-            if (profile.stopRecordOnConnect && profile.id !== 'phone-channel0') {
+            /* CALL-USIP-VOICE-RTP-NO-BROADCAST-V1 — no Broadcast; HQ TX = dialog RTP after ACK */
+            if (profile.stopRecordOnConnect && profile.id !== 'phone-channel0' && profile.id !== 'usip-pure-voice') {
                 const stopResolved = resolveContactForCam(id);
                 deviceControl.sendDeviceControl(sip, {
                     cameraContactUri: (stopResolved && stopResolved.uri) || contact,
@@ -15772,9 +15980,9 @@ function launchOutboundTalkCall(camId, socket) {
                     log,
                 });
             }
-            emitBwcCallState(id, true, null, { via: 'sdk-audio-only-sip', profile: profile.id });
+            emitBwcCallState(id, true, null, { via: 'usip-pure-voice', profile: profile.id });
             auditLog.record('voice.call', Object.assign(
-                { target: id, mode: 'sdk-audio-only-sip', profile: profile.id },
+                { target: id, mode: 'usip-pure-voice', profile: profile.id },
                 auditVoiceCallActor(socket),
             ));
         },
@@ -15819,8 +16027,9 @@ function isLiveForVoiceCall(camId) {
 function startBwcVoiceCall(payload, socket) {
     const parsed = parseStartMediaPayload(payload);
     const camId = parsed.camId || connectedCameraId;
-    const audioOnly = !!(payload && payload.audioOnly);
-    log.media.info('start-bwc-call', { camId, audioOnly });
+    /* CALL-AUDIO-ONLY-NO-BWC-VIDEO-V1 — Call is always talk; never require / start live video */
+    const audioOnly = true;
+    log.media.info('start-bwc-call', { camId, audioOnly, path: 'CALL-AUDIO-ONLY-NO-BWC-VIDEO-V1' });
     if (!camId) {
         emitBwcCallState(null, false, 'No device selected');
         return;
@@ -15864,19 +16073,20 @@ function startBwcVoiceCall(payload, socket) {
         clearVoiceInviteWatch();
         emitBwcCallState(prev, false, null);
     }
-    if (!audioOnly && !isLiveForVoiceCall(camId)) {
-        emitBwcCallState(camId, false, 'Start live video before calling');
-        return;
-    }
     log.media.info('voice call path', {
         camId,
-        voicePath: 'sdk-audio-only-sip',
+        voicePath: 'usip-pure-voice',
         pureVoice: true,
-        audioOnly,
-        preserveVideo: true,
+        audioOnly: true,
+        preserveVideo: false,
         video: false,
+        sessionName: 'Phone',
+        path: 'CALL-USIP-VOICE-RTP-NO-BROADCAST-V1',
     });
-    launchOutboundTalkCall(camId, socket);
+    /* CALL-USIP-VOICE-RTP-NO-BROADCAST-V1: audio-only PCMA INVITE + dialog RTP — never m=video / never Broadcast */
+    releaseLiveBeforeVoicePhone(camId, () => {
+        launchOutboundTalkCall(camId, socket);
+    });
 }
 
 
@@ -17516,6 +17726,15 @@ function touchDeviceOnline(camId) {
     }
     fleetRegistry.markOnline(id);
     fleetRegistry.touch(id);
+    offlineStaleStrikes.delete(id);
+    if (deviceStaleAmber.has(id)) {
+        deviceStaleAmber.delete(id);
+        emitToDashboardSockets('device-stale', {
+            cameraId: id,
+            presence: 'green',
+            ageSec: 0,
+        }, id);
+    }
     offlineMapPinSession.delete(id);
     ensureBwcEntryForDevice(id);
     if (siteDb.isReady()) {
@@ -17523,6 +17742,8 @@ function touchDeviceOnline(camId) {
     }
     scheduleOfflineWatch();
     subscribeGpsForCam(id);
+    /* PTT-29201-ERROR-DROP-SESSION-V1 — radio up ⇒ PTT wake (group XML / 29201) */
+    if (PTT_ENABLED) schedulePttGroupRefreshForCam(id, 'presence-online');
 }
 
 /** mob-me8-online-notify — DevStatus push counts as live even when SIP REGISTER lags. */
@@ -17550,6 +17771,7 @@ function touchDevicePresenceFromTelemetry(camId, source) {
     } else {
         fleetRegistry.touch(camId);
     }
+    offlineStaleStrikes.delete(String(camId));
     if (connectedCameraId === camId) {
         lastDeviceSeenAt = Date.now();
         scheduleOfflineWatch();
@@ -17561,8 +17783,8 @@ function markDeviceOffline(camId, reason) {
     log.sip.info('device offline', { camId, reason });
     lastStatusQueryAtByCam.delete(String(camId));
     lastGpsQueryAtByCam.delete(String(camId));
-    sessionGpsByCam.delete(String(camId));
     lastGpsSubscribeAt.delete(String(camId));
+    deviceStaleAmber.delete(String(camId));
     fleetRegistry.markOffline(camId);
     if (siteDb.isReady()) {
         siteDb.touchRuntime(camId, { online: false, lastSeen: Date.now() });
@@ -17586,15 +17808,28 @@ function markDeviceOffline(camId, reason) {
     if (!deviceOnline) cameraContactUri = null;
     const id = String(camId);
     offlineMapPinSession.add(id);
-    const pin = offlineMapPinCoords(id);
+    let pin = offlineMapPinCoords(id);
+    if (!pin) {
+        const sess = sessionGpsByCam.get(id);
+        if (gpsHasCoords(sess)) pin = { lat: sess.lat, lon: sess.lon };
+    }
     emitToDashboardSockets('device-offline', {
         cameraId: camId,
         reason: reason || 'disconnected',
         lat: pin ? pin.lat : null,
         lon: pin ? pin.lon : null,
+        lastKnown: !!pin,
     }, camId);
     emitFleetRoster({ force: true });
     pushFleetRoster(camId, '66', false);
+    /* PRESENCE-GREEN-AMBER-GREY-V1 — hard grey severs WVP (amber must never reach here) */
+    try {
+        if (!sosIncidents.hasOpenAlarm(camId)) {
+            releaseCamStreamWhenUnwatched(camId, { force: true });
+        }
+    } catch (_) {
+        try { releaseCamStreamWhenUnwatched(camId, { force: true }); } catch (__) { /* ignore */ }
+    }
 }
 
 let lastFleetRosterEmitAt = 0;
@@ -18621,12 +18856,22 @@ sip.start({ address: BIND_HOST, port: SIP_PORT }, (request, remote) => {
                         preview: (request.content || '').replace(/\s+/g, ' ').trim().slice(0, 200),
                     });
                     const alarmMeta = alarmFromXml.classifyAlarmNotify(result.Notify, request.content);
+                    if (alarmMeta.alarmKind === 'ptt') {
+                        log.ptt.info('usip hardware ptt 107', {
+                            camId,
+                            alarmMethod: alarmMeta.alarmMethod,
+                            path: 'SDK-USIP-PTT-107-V1',
+                        });
+                        pulseUsipHardwarePtt(camId);
+                        return;
+                    }
                     if (alarmMeta.alarmKind !== 'sos' && alarmMeta.alarmKind !== 'fall') {
-                        log.sip.info('sip alarm ignored (not SOS/fall)', {
+                        log.sip.info('sip alarm ignored (not SOS/fall/PTT)', {
                             camId,
                             alarmMethod: alarmMeta.alarmMethod,
                             alarmType: alarmMeta.alarmType,
-                            path: 'SDK-USIP-UNDO-PTT-INVENTION-V1',
+                            hint: alarmMeta.rawHint,
+                            path: 'SDK-USIP-PTT-107-V1',
                         });
                         return;
                     }
@@ -18651,8 +18896,15 @@ sip.start({ address: BIND_HOST, port: SIP_PORT }, (request, remote) => {
                 const dCoords = resolveCoords(camId, result.Notify, request.content);
                 emitGpsIfValid(camId, dCoords.lat, dCoords.lon);
                 emitDeviceStatus(camId, result.Notify, request.content, 'notify');
+            } else if (cmdType === 'VideoTag') {
+                /* AES-USIP-VIDEOTAG-V1 — session key notice only; no file decrypt yet */
+                usipAesVideoTag.ingest({
+                    camId,
+                    xml: request.content,
+                    source: 'sip-notify',
+                });
             } else if (cmdType && cmdType !== 'Keepalive' && cmdType !== 'ReqOnlineList' && cmdType !== 'ReqGroupTalkList'
-                && cmdType !== 'LocationInfo' && cmdType !== 'Alarm') {
+                && cmdType !== 'LocationInfo' && cmdType !== 'Alarm' && cmdType !== 'MobilePosition') {
                 log.sip.info('sip notify other', { cmdType, camId });
             }
         });
