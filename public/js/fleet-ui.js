@@ -181,30 +181,7 @@
     }
 
     function resizeFleetTable() {
-        const wrap = document.getElementById('fleet-table-wrap');
-        const tbody = document.getElementById('fleet-tbody');
-        if (!wrap || !tbody) return;
-        const thead = wrap.querySelector('thead');
-        const headerH = thead ? thead.offsetHeight : 28;
-        const emptyRow = tbody.querySelector('.fleet-empty');
-        wrap.style.maxHeight = '';
-        wrap.classList.remove('fleet-scroll');
-        if (emptyRow) {
-            wrap.style.maxHeight = (headerH + (emptyRow.offsetHeight || 44)) + 'px';
-            return;
-        }
-        const allRows = Array.from(tbody.querySelectorAll('tr'));
-        if (!allRows.length) {
-            wrap.style.maxHeight = headerH + 'px';
-            return;
-        }
-        const cap = FLEET_MAX_VISIBLE_ROWS;
-        if (allRows.length <= cap) {
-            wrap.style.maxHeight = 'none';
-            return;
-        }
-        wrap.style.maxHeight = (headerH + sumRowHeights(allRows.slice(0, cap))) + 'px';
-        wrap.classList.add('fleet-scroll');
+        /* OPS-ROSTER-FLEX-SCROLL-V14 — list height is the flex column, not a fixed row count */
     }
 
     function scheduleFleetTableResize() {
@@ -409,9 +386,6 @@
         var statusTitle = pttRx ? tr('fleet.statusPtt') : (pttLinger ? tr('fleet.statusPttLinger') : (gpsTrack ? tr('fleet.statusGpsTrack') : (stale ? 'Stale link' : (on ? tr('fleet.statusOnline') : tr('fleet.statusOffline')))));
         if (lowBatt && on) statusTitle = tr('fleet.lowBatteryStatus') + ' · ' + statusTitle;
         if (telParts.recording && on) statusTitle = tr('fleet.rosterRecording') + ' · ' + statusTitle;
-        var pinChecked = selectedCamIds.has(m.id) ? ' checked' : '';
-        var atPinMax = selectedCamIds.size >= MAX_PIN_SELECT && !selectedCamIds.has(m.id);
-        var pinDisabled = on ? (atPinMax ? ' disabled' : '') : ' disabled';
         var pinColor = groupColorForDevice(m.id, m.mapGroup);
         /* OPS-ROSTER-TELEM-2LINE-V1 — line1 GB first4…last4; line2 bat% · dBm (never hover-only) */
         var idRaw = String(m.id || '');
@@ -430,9 +404,6 @@
         /* Online/stale/offline dot stays presence-only — low battery is red % + sticky, not the status icon */
         var dotClass = stale ? ' stale' : (on ? ' on' : '');
         return '<tr class="fleet-row' + active + focus + pttClass + gpsClass + (lowBatt ? ' fleet-row-low-batt' : '') + '" data-cam-id="' + esc(m.id) + '" tabindex="0" title="' + esc(statusTitle) + '">' +
-            '<td class="fleet-pin-cell">' +
-            '<input type="checkbox" class="fleet-pin-check" data-cam-id="' + esc(m.id) + '"' + pinChecked + pinDisabled +
-            ' title="Show live pin on map (max ' + MAX_PIN_SELECT + ')" aria-label="Pin on map"></td>' +
             '<td class="fleet-ptt-cell">' +
             (on ? '<button type="button" class="fleet-row-ptt-btn" data-cam-id="' + esc(m.id) + '" aria-label="' +
             esc(tr('fleet.pttTalkOnly', { name: m.name })) + '">🎙</button>' : '') +
@@ -466,7 +437,7 @@
         const rows = filteredFleet();
         if (!rows.length) {
             var emptyMsg = fleetList.length === 0 ? tr('fleet.emptyNone') : tr('fleet.emptyNoMatch');
-            paintFleetTbodies('<tr><td colspan="6" class="fleet-empty">' + esc(emptyMsg) + '</td></tr>');
+            paintFleetTbodies('<tr><td colspan="5" class="fleet-empty">' + esc(emptyMsg) + '</td></tr>');
             refreshLowBattStickyFromFleet();
             updateSummary();
             scheduleFleetTableResize();
@@ -475,7 +446,7 @@
         let html = '';
         buildGroupedFleetRows(rows).forEach(function (entry) {
             if (entry.type === 'header') {
-                html += '<tr class="fleet-group-header"><td colspan="6">' +
+                html += '<tr class="fleet-group-header"><td colspan="5">' +
                     '<span class="fleet-group-dot" style="background:' + esc(entry.color) + '"></span>' +
                     '<span class="fleet-group-name">' + esc(entry.groupName) + '</span></td></tr>';
                 return;
@@ -1143,18 +1114,30 @@
         }).catch(function () { /* ignore */ });
     }
 
-    function onFleetTbodyClick(e) {
-        const check = e.target.closest('.fleet-pin-check');
-        if (check) {
-            e.stopPropagation();
-            var camId = check.dataset.camId;
-            if (check.checked && selectedCamIds.size >= MAX_PIN_SELECT && !selectedCamIds.has(camId)) {
-                check.checked = false;
-                return;
+    function toastRosterCap() {
+        try {
+            if (global.AdminActionBus && AdminActionBus.toast) {
+                AdminActionBus.toast('8 cameras selected.', 4200);
             }
-            togglePinSelect(camId, check.checked);
+        } catch (_) { /* ignore */ }
+    }
+
+    function selectRosterRow(camId) {
+        if (!camId) return;
+        camId = String(camId).trim();
+        if (selectedCamIds.has(camId)) {
+            togglePinSelect(camId, false);
             return;
         }
+        if (!isDeviceOnline(camId)) return;
+        if (selectedCamIds.size >= MAX_PIN_SELECT) {
+            toastRosterCap();
+            return;
+        }
+        togglePinSelect(camId, true);
+    }
+
+    function onFleetTbodyClick(e) {
         if (e.target.closest('.fleet-row-ptt-btn')) {
             e.stopPropagation();
             return;
@@ -1176,19 +1159,17 @@
         }
         const row = e.target.closest('.fleet-row[data-cam-id]');
         if (!row) return;
-        pick(row.dataset.camId, {
-            keepMulti: false,
-            keepPinSelection: true,
-            skipVideo: !selectedCamIds.has(row.dataset.camId) && selectedCamIds.size >= 1,
-        });
+        selectRosterRow(row.dataset.camId);
     }
 
     function onFleetTbodyKeydown(e) {
         if (e.key !== 'Enter' && e.key !== ' ') return;
+        var active = document.activeElement;
+        if (active && active.closest && active.closest('.fleet-row-ptt-btn, .fleet-row-voice-btn, .fleet-row-track-btn')) return;
         const row = e.target.closest('.fleet-row[data-cam-id]');
         if (!row) return;
         e.preventDefault();
-        pick(row.dataset.camId, { keepMulti: false, keepPinSelection: true });
+        selectRosterRow(row.dataset.camId);
     }
 
     function bindFleetTbody(el) {

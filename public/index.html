@@ -6455,19 +6455,31 @@
             width: 300px; flex-shrink: 0; padding: 12px;
             background: var(--bg); border-right: none;
             display: flex; flex-direction: column; gap: 10px;
-            overflow-y: auto; overflow-x: hidden;
+            overflow: hidden;
             min-height: 0;
             scrollbar-width: thin;
             scrollbar-color: rgba(51, 65, 85, 0.45) transparent;
         }
         #sidebar-rest {
             display: flex; flex-direction: column; gap: 10px;
-            flex-shrink: 0;
+            flex: 0 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            margin-right: -6px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(51, 65, 85, 0.55) transparent;
+        }
+        #sidebar-rest::-webkit-scrollbar { width: 6px; }
+        #sidebar-rest::-webkit-scrollbar-thumb {
+            background: rgba(51, 65, 85, 0.55); border-radius: 3px;
         }
         .fleet-box {
-            flex-shrink: 0;
-            display: block;
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 auto;
+            min-height: 400px;
         }
+        .fleet-box > :not(#fleet-table-wrap) { flex-shrink: 0; }
         #sidebar::-webkit-scrollbar { width: 5px; }
         #sidebar::-webkit-scrollbar-track { background: transparent; }
         #sidebar::-webkit-scrollbar-thumb {
@@ -7132,8 +7144,10 @@
         }
         #fleet-summary { margin: 0 0 4px; font-size: 11px; color: var(--muted); flex-shrink: 0; }
         #fleet-table-wrap {
+            flex: 1 1 auto;
+            min-height: 0;
             overflow-x: hidden;
-            overflow-y: visible;
+            overflow-y: auto !important;
             border: 1px solid var(--border);
             border-radius: 6px;
             background: var(--bg);
@@ -7157,19 +7171,18 @@
         }
         /* FLEET-DROP-GPS-COL-V1 - Pin PTT Call | Device | Status */
         /* OPS-ROSTER-ICON-BREATHE-V1 — icons + gaps breathe; Device still wide enough for dBm */
-        .fleet-col-pin, .fleet-col-ptt, .fleet-col-call, .fleet-col-track { width: 34px; }
+        .fleet-col-ptt, .fleet-col-call, .fleet-col-track { width: 34px; }
         .fleet-col-status { width: 40px; }
         .fleet-table thead th:nth-child(1),
         .fleet-table thead th:nth-child(2),
-        .fleet-table thead th:nth-child(3),
-        .fleet-table thead th:nth-child(4) {
+        .fleet-table thead th:nth-child(3) {
             text-align: center; padding-left: 0; padding-right: 0; letter-spacing: 0.02em;
         }
-        /* Device (5) gets leftover width — Status (6) stays tight */
-        .fleet-table thead th:nth-child(5) {
+        /* Device (4) gets leftover width — Status (5) stays tight */
+        .fleet-table thead th:nth-child(4) {
             text-align: left; padding-left: 10px; padding-right: 6px; width: auto;
         }
-        .fleet-table thead th:nth-child(6) {
+        .fleet-table thead th:nth-child(5) {
             text-align: center; width: 40px; white-space: nowrap;
             letter-spacing: 0.03em; padding-left: 2px; padding-right: 2px;
         }
@@ -7385,6 +7398,7 @@
         .fleet-tel-sub {
             display: block; max-width: 100%; margin: 0; font-size: 9px; color: #94a3b8;
             font-family: ui-monospace, Consolas, monospace;
+            font-variant-numeric: tabular-nums;
             overflow: visible; text-overflow: clip; white-space: nowrap;
         }
         .fleet-tel-sub .fleet-batt-low { color: #f87171; font-weight: 600; }
@@ -10540,15 +10554,14 @@
                 <div id="fleet-table-wrap">
                     <table class="fleet-table">
                         <colgroup>
-                            <col class="fleet-col-pin" />
                             <col class="fleet-col-ptt" />
                             <col class="fleet-col-call" />
                             <col class="fleet-col-track" />
                             <col class="fleet-col-device" />
                             <col class="fleet-col-status" />
                         </colgroup>
-                        <thead><tr><th data-i18n="fleet.colPin" data-i18n-title="fleet.colPinTitle">PIN</th><th data-i18n-title="fleet.colPttTitle" data-i18n="fleet.colPtt">PTT</th><th data-i18n-title="fleet.colVoiceTitle" data-i18n="fleet.colVoice">Call</th><th data-i18n="fleet.colTrack">GPS</th><th data-i18n="fleet.colDevice">Device</th><th data-i18n="fleet.colStatus">Status</th></tr></thead>
-                        <tbody id="fleet-tbody"><tr><td colspan="6" class="fleet-empty" data-i18n="fleet.emptyNone">No Devices Yet</td></tr></tbody>
+                        <thead><tr><th data-i18n-title="fleet.colPttTitle" data-i18n="fleet.colPtt">PTT</th><th data-i18n-title="fleet.colVoiceTitle" data-i18n="fleet.colVoice">Call</th><th data-i18n="fleet.colTrack">GPS</th><th data-i18n="fleet.colDevice">Device</th><th data-i18n="fleet.colStatus">Status</th></tr></thead>
+                        <tbody id="fleet-tbody"><tr><td colspan="5" class="fleet-empty" data-i18n="fleet.emptyNone">No Devices Yet</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -10698,14 +10711,13 @@
                         <div id="fleet-popout-table-wrap">
                             <table class="fleet-table">
                                 <colgroup>
-                                    <col class="fleet-col-pin" />
                                     <col class="fleet-col-ptt" />
                                     <col class="fleet-col-call" />
                                     <col class="fleet-col-track" />
                                     <col class="fleet-col-device" />
                                     <col class="fleet-col-status" />
                                 </colgroup>
-                                <thead><tr><th data-i18n="fleet.colPin" data-i18n-title="fleet.colPinTitle">PIN</th><th data-i18n-title="fleet.colPttTitle" data-i18n="fleet.colPtt">PTT</th><th data-i18n-title="fleet.colVoiceTitle" data-i18n="fleet.colVoice">Call</th><th data-i18n="fleet.colTrack">GPS</th><th data-i18n="fleet.colDevice">Device</th><th data-i18n="fleet.colStatus">Status</th></tr></thead>
+                                <thead><tr><th data-i18n-title="fleet.colPttTitle" data-i18n="fleet.colPtt">PTT</th><th data-i18n-title="fleet.colVoiceTitle" data-i18n="fleet.colVoice">Call</th><th data-i18n="fleet.colTrack">GPS</th><th data-i18n="fleet.colDevice">Device</th><th data-i18n="fleet.colStatus">Status</th></tr></thead>
                                 <tbody id="fleet-popout-tbody"></tbody>
                             </table>
                         </div>
@@ -15140,7 +15152,7 @@
     <script src="/js/video-matrix.js?v=20260924-vms-main-matrix-ok-v1"></script>
     <script src="/js/global.js?v=20260917-health-gate-no-stale-flash-v1"></script>
     <script src="/js/global-device-presence.js?v=20260918-presence-green-amber-grey-v1"></script>
-    <script src="/js/fleet-ui.js?v=20260922-ops-map-grey-patch-v1"></script>
+    <script src="/js/fleet-ui.js?v=20260925-ops-roster-flex-scroll-v14"></script>
     <script src="/js/map-popout-sync.js?v=20260902-inv-tab-onhide-teardown-v1"></script>
     <script src="/js/voice-alerts.js?v=20260810-hq-alert-tone-presets-hold-v1"></script>
     <script src="/vendor/leaflet/leaflet.js?v=20260701-vendor-local"></script>
