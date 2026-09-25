@@ -158,8 +158,14 @@
 
     function refreshFleetLayout() {
         scheduleFleetTableResize();
-        if (typeof global.map !== 'undefined' && global.map && global.map.invalidateSize) {
-            requestAnimationFrame(function () { global.map.invalidateSize(); });
+        var opsMap = null;
+        try { opsMap = global.__me8OpsMap || global.map || null; } catch (_) { opsMap = null; }
+        if (opsMap && typeof opsMap.invalidateSize === 'function') {
+            requestAnimationFrame(function () {
+                try { opsMap.invalidateSize({ animate: false }); } catch (_) {
+                    try { opsMap.invalidateSize(); } catch (__) { /* ignore */ }
+                }
+            });
         }
     }
 

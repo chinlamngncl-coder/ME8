@@ -8690,6 +8690,7 @@ app.get('/api/fixed-cams/public', (req, res) => {
             id: c.id, name: c.name, lat: c.lat, lng: c.lng,
             zone: c.zone, mapIcon: c.mapIcon || 'fixed', streamSource: c.streamSource,
             ptzEnabled: c.ptzEnabled, enabled: c.enabled,
+            northOffsetDeg: Number.isFinite(Number(c.northOffsetDeg)) ? Number(c.northOffsetDeg) : 0,
             playable: c.streamSource === 'onvif'
                 ? !!((c.onvif && String(c.onvif.host || '').trim()) || String(c.rtspUrl || '').trim())
                 : !!String(c.rtspUrl || '').trim(),
@@ -8697,6 +8698,24 @@ app.get('/api/fixed-cams/public', (req, res) => {
         res.json({ ok: true, cams });
     } catch (err) { res.status(500).json(opErr(err)); }
 });
+
+/** VMS-PTZ-DIRECTION-MAP-V1 — pan space → compass heading (deg, 0=N clockwise). */
+function fixedCamPtzPanToHeadingDeg(panX, northOffsetDeg) {
+    const x = Number(panX);
+    const off = Number(northOffsetDeg);
+    const offset = Number.isFinite(off) ? off : 0;
+    if (!Number.isFinite(x)) return ((offset % 360) + 360) % 360;
+    const panDeg = Math.abs(x) > 1.5 ? x : (x * 180);
+    let h = (panDeg + offset) % 360;
+    if (h < 0) h += 360;
+    return Math.round(h * 10) / 10;
+}
+
+function fixedCamPtzCardinal(headingDeg) {
+    const h = ((Number(headingDeg) % 360) + 360) % 360;
+    const names = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    return names[Math.round(h / 45) % 8];
+}
 
 function fixedCamStreamKey(id) {
     return 'fixed:' + String(id || '').trim();
@@ -8902,8 +8921,25 @@ app.post('/api/fixed-cams/:id/zlm/stop', dashboardAuth.requireDashboardAuth, exp
     }
 });
 
+app.get('/api/ptz/ui-flags', dashboardAuth.requireDashboardAuth, function (req, res) {
+    const labMock = String(process.env.FM_PTZ_LAB_MOCK || '').trim() === '1';
+    res.json({ ok: true, labMock: labMock });
+});
+
 app.get('/api/fixed-cams/:id/ptz/presets', dashboardAuth.requireDashboardAuth, async (req, res) => {
     try {
+        const labMock = String(process.env.FM_PTZ_LAB_MOCK || '').trim() === '1';
+        if (labMock) {
+            return res.json({
+                ok: true,
+                cameraId: String(req.params.id || ''),
+                labMock: true,
+                presets: [1, 2, 3, 4, 5, 6, 7, 8].map(function (n) {
+                    return { token: String(n), name: 'Preset ' + n };
+                }),
+                profiles: null,
+            });
+        }
         const camera = fixedCamRegistry.getById(req.params.id);
         if (!camera || !camera.enabled || !camera.ptzEnabled || camera.streamSource !== 'onvif') {
             return res.status(400).json(opErr('Registered ONVIF PTZ camera required'));
@@ -8922,6 +8958,101 @@ app.get('/api/fixed-cams/:id/ptz/presets', dashboardAuth.requireDashboardAuth, a
             cameraId: camera.id,
             presets,
             profiles: session.profiles || null,
+        });
+    } catch (err) {
+        fixedCamOnvif.clearPtzSession(req.params.id);
+        res.status(400).json(opErr(err));
+    }
+});
+
+/* VMS-PTZ-DIRECTION-MAP-V1 — live pan/tilt + map heading (northOffsetDeg). */
+app.get('/api/fixed-cams/:id/ptz/status', dashboardAuth.requireDashboardAuth, licenseEntitlementsMw.requireFeature('ptzControl'), async (req, res) => {
+    try {
+        const labMock = String(process.env.FM_PTZ_LAB_MOCK || '').trim() === '1';
+        const camera = fixedCamRegistry.getById(req.params.id);
+        const northOffsetDeg = camera && Number.isFinite(Number(camera.northOffsetDeg))
+            ? Number(camera.northOffsetDeg) : 0;
+        if (labMock) {
+            const headingDeg = fixedCamPtzPanToHeadingDeg(0, northOffsetDeg);
+            return res.json({
+                ok: true,
+                cameraId: String((camera && camera.id) || req.params.id || ''),
+                labMock: true,
+                position: { x: 0, y: 0, zoom: 0 },
+                northOffsetDeg: northOffsetDeg,
+                headingDeg: headingDeg,
+                cardinal: fixedCamPtzCardinal(headingDeg),
+                moveStatus: null,
+            });
+        }
+        if (!camera || !camera.enabled || !camera.ptzEnabled || camera.streamSource !== 'onvif') {
+            return res.status(400).json(opErr('Registered ONVIF PTZ camera required'));
+        }
+        const session = await fixedCamPtzSession(camera);
+        const status = await fixedCamOnvif.getStatus(session.client, { profileToken: session.token });
+        const pos = (status && status.position) || {};
+        const headingDeg = fixedCamPtzPanToHeadingDeg(pos.x, northOffsetDeg);
+        res.json({
+            ok: true,
+            cameraId: camera.id,
+            position: {
+                x: Number.isFinite(Number(pos.x)) ? Number(pos.x) : 0,
+                y: Number.isFinite(Number(pos.y)) ? Number(pos.y) : 0,
+                zoom: Number.isFinite(Number(pos.zoom)) ? Number(pos.zoom) : 0,
+            },
+            northOffsetDeg: northOffsetDeg,
+            headingDeg: headingDeg,
+            cardinal: fixedCamPtzCardinal(headingDeg),
+            moveStatus: (status && status.moveStatus) || null,
+        });
+    } catch (err) {
+        fixedCamOnvif.clearPtzSession(req.params.id);
+        res.status(400).json(opErr(err));
+    }
+});
+
+/* VMS-PTZ-NORTH-CALIBRATE-V1 — current view = north; save offset (super-admin). */
+app.post('/api/fixed-cams/:id/ptz/set-north', dashboardAuth.requireSuperAdmin, licenseEntitlementsMw.requireFeature('ptzControl'), express.json(), async (req, res) => {
+    try {
+        const labMock = String(process.env.FM_PTZ_LAB_MOCK || '').trim() === '1';
+        const camera = fixedCamRegistry.getById(req.params.id);
+        if (!camera || !camera.enabled) {
+            return res.status(404).json(opErr('Enabled fixed camera not found'));
+        }
+        const previousNorthOffsetDeg = Number.isFinite(Number(camera.northOffsetDeg))
+            ? Number(camera.northOffsetDeg) : 0;
+        let panX = 0;
+        if (!labMock) {
+            if (!camera.ptzEnabled || camera.streamSource !== 'onvif') {
+                return res.status(400).json(opErr('Registered ONVIF PTZ camera required'));
+            }
+            const session = await fixedCamPtzSession(camera);
+            const status = await fixedCamOnvif.getStatus(session.client, { profileToken: session.token });
+            const pos = (status && status.position) || {};
+            panX = Number(pos.x);
+            if (!Number.isFinite(panX)) panX = 0;
+        }
+        const panDeg = Math.abs(panX) > 1.5 ? panX : (panX * 180);
+        let northOffsetDeg = (-panDeg) % 360;
+        if (northOffsetDeg < 0) northOffsetDeg += 360;
+        northOffsetDeg = Math.round(northOffsetDeg * 10) / 10;
+        const updated = fixedCamRegistry.update(camera.id, { northOffsetDeg: northOffsetDeg });
+        if (!updated) return res.status(404).json(opErr('Camera not found'));
+        const headingDeg = fixedCamPtzPanToHeadingDeg(panX, northOffsetDeg);
+        try {
+            auditLog.recordFromRequest(req, 'fixed-camera.ptz-set-north', {
+                target: camera.id,
+                detail: { northOffsetDeg: northOffsetDeg, previousNorthOffsetDeg: previousNorthOffsetDeg, labMock: labMock },
+            });
+        } catch (_) { /* ignore */ }
+        res.json({
+            ok: true,
+            cameraId: camera.id,
+            northOffsetDeg: northOffsetDeg,
+            previousNorthOffsetDeg: previousNorthOffsetDeg,
+            headingDeg: headingDeg,
+            cardinal: fixedCamPtzCardinal(headingDeg),
+            labMock: labMock,
         });
     } catch (err) {
         fixedCamOnvif.clearPtzSession(req.params.id);
@@ -9138,13 +9269,44 @@ app.get('/api/fixed-cams/onvif/events', dashboardAuth.requireSuperAdmin, (_req, 
 
 app.post('/api/fixed-cams/:id/ptz', dashboardAuth.requireDashboardAuth, licenseEntitlementsMw.requireFeature('ptzControl'), express.json(), async (req, res) => {
     try {
+        const labMock = String(process.env.FM_PTZ_LAB_MOCK || '').trim() === '1';
         const camera = fixedCamRegistry.getById(req.params.id);
+        const action = String(req.body && req.body.action || '').toLowerCase();
+        const allowed = [
+            'left', 'right', 'up', 'down',
+            'up-left', 'up-right', 'down-left', 'down-right',
+            'zoom-in', 'zoom-out', 'home', 'stop', 'goto-preset', 'set-preset',
+        ];
+        if (!allowed.includes(action)) {
+            return res.status(400).json(opErr('Unsupported PTZ command'));
+        }
+
+        /* VMS-PTZ-PRO-CONTROL-V1 — lab mock: UI smoke without ONVIF / BWC lens */
+        if (labMock) {
+            const targetId = String((camera && camera.id) || req.params.id || '').trim();
+            log.web && log.web.info && log.web.info('ptz lab mock', {
+                target: targetId,
+                action: action,
+                speed: req.body && req.body.speed,
+                preset: req.body && (req.body.presetToken || req.body.preset),
+            });
+            try {
+                auditLog.recordFromRequest(req, 'fixed-camera.ptz', {
+                    target: targetId,
+                    detail: { action: action, labMock: true, presetToken: (req.body && (req.body.presetToken || req.body.preset)) || null },
+                });
+            } catch (_) { /* ignore */ }
+            return res.json({
+                ok: true,
+                cameraId: targetId,
+                action: action,
+                labMock: true,
+                preset: null,
+            });
+        }
+
         if (!camera || !camera.enabled || !camera.ptzEnabled || camera.streamSource !== 'onvif') {
             return res.status(400).json(opErr('Registered ONVIF PTZ camera required'));
-        }
-        const action = String(req.body && req.body.action || '').toLowerCase();
-        if (!['left', 'right', 'up', 'down', 'zoom-in', 'zoom-out', 'home', 'stop', 'goto-preset', 'set-preset'].includes(action)) {
-            return res.status(400).json(opErr('Unsupported PTZ command'));
         }
         const session = await fixedCamPtzSession(camera);
         const now = Date.now();
@@ -9173,10 +9335,10 @@ app.post('/api/fixed-cams/:id/ptz', dashboardAuth.requireDashboardAuth, licenseE
         } else {
             const speed = Math.max(0.1, Math.min(0.8, Number(req.body && req.body.speed) || 0.45));
             const velocity = { profileToken: session.token, x: 0, y: 0, zoom: 0 };
-            if (action === 'left') velocity.x = -speed;
-            if (action === 'right') velocity.x = speed;
-            if (action === 'up') velocity.y = speed;
-            if (action === 'down') velocity.y = -speed;
+            if (action === 'left' || action === 'up-left' || action === 'down-left') velocity.x = -speed;
+            if (action === 'right' || action === 'up-right' || action === 'down-right') velocity.x = speed;
+            if (action === 'up' || action === 'up-left' || action === 'up-right') velocity.y = speed;
+            if (action === 'down' || action === 'down-left' || action === 'down-right') velocity.y = -speed;
             if (action === 'zoom-in') velocity.zoom = speed;
             if (action === 'zoom-out') velocity.zoom = -speed;
             await session.client.continuousMove({
@@ -15933,12 +16095,50 @@ function releaseLiveBeforeVoicePhone(camId, done) {
     releaseCamStreamWhenUnwatched(camId, { force: true }).finally(finish);
 }
 
+function sendUsipVideoTagOnCall(camId, contact) {
+    const prep = usipAesVideoTag.prepareSendOnCall(camId);
+    if (!prep || !prep.ok || !prep.xml) {
+        log.sip.info('usip videotag send skipped', {
+            camId,
+            error: (prep && prep.error) || 'skip',
+            path: 'AES-USIP-VIDEOTAG-SEND-ON-CALL-V1',
+        });
+        return;
+    }
+    sip.send({
+        method: 'MESSAGE',
+        uri: contact,
+        headers: {
+            to: { uri: `sip:${camId}@${REALM}` },
+            from: { uri: `sip:${SERVER_ID}@${REALM}`, params: { tag: createSipTag() } },
+            'call-id': createSipCallId(),
+            cseq: { method: 'MESSAGE', seq: 1 },
+            'content-type': 'Application/MANSCDP+xml',
+            'content-length': prep.xml.length,
+        },
+        content: prep.xml,
+    }, () => {});
+    log.sip.info('usip videotag sent', {
+        camId,
+        tagLen: prep.tagLen || 0,
+        path: 'AES-USIP-VIDEOTAG-SEND-ON-CALL-V1',
+    });
+}
+
+try {
+    require('./lib/wvpVideoHandoff').setOnBeforeStartPlay((camId) => {
+        const contact = getContactUriForCam(camId);
+        if (contact) sendUsipVideoTagOnCall(camId, contact);
+    });
+} catch (_) { /* handoff optional at boot */ }
+
 function launchOutboundTalkCall(camId, socket) {
     const contact = getContactUriForCam(camId);
     if (!contact) {
         emitBwcCallState(camId, false, 'BWC not registered');
         return;
     }
+    sendUsipVideoTagOnCall(camId, contact);
     const profile = voiceIntercomProfile.resolve('usip-pure-voice');
     const tel = getVoiceIntercomTelemetry();
     pttVoiceCallCamId = camId;
@@ -16312,16 +16512,18 @@ function releaseCamStreamWhenUnwatched(camId, opts) {
     const force = !!(opts && opts.force);
     /* PANEL-STOP-FORCE-BYE-V1 — operator Stop hangs up even if a pin still holds a viewer */
     if (!force && liveViewers.countForCam(camId) > 0) return Promise.resolve(false);
+    const nowStop = !!(opts && opts.now);
     if (force) {
         try { flvStartupUntil.delete(String(camId).trim()); } catch (_) { /* ignore */ }
-    } else {
+    } else if (!nowStop) {
         const until = flvStartupUntil.get(String(camId).trim()) || 0;
         if (until > Date.now()) {
-            log.media.info('last-viewer stop bypass — FLV startup grace', {
+            log.media.info('last-viewer stop deferred — FLV startup grace', {
                 camId: camId,
                 leftMs: until - Date.now(),
-                path: 'FLV-RETRY-CAMERA-LATENCY-V1',
+                path: 'BWC-LAST-VIEWER-PLAY-STOP-NOW-V1',
             });
+            scheduleLastViewerHardStop(camId);
             return Promise.resolve(false);
         }
     }
@@ -16892,7 +17094,8 @@ io.on('connection', (socket) => {
                         : (surface === 'analytics-weapon' ? beforeSurfaces.analyticsWeapon
                         : (surface === 'matrix-popout' ? beforeSurfaces.matrixPopout
                             : (surface === 'live-popout' ? beforeSurfaces.livePopout
-                                    : (surface === 'tactical' ? beforeSurfaces.tactical : beforeSurfaces.ops))))));
+                                    : (surface === 'tactical' ? beforeSurfaces.tactical
+                                        : (surface === 'vms-main' ? beforeSurfaces.vmsMain : beforeSurfaces.ops)))))));
             const viewers = liveViewers.addView(socket.id, camId, surface);
             if (viewers === 1) markFlvStartup(camId);
             const afterSurfaces = liveViewers.socketSurfacesForCam(socket.id, camId);
@@ -17075,6 +17278,7 @@ io.on('connection', (socket) => {
                 remainingMatrixPopout: refs.matrixPopout,
                 remainingLivePopout: refs.livePopout,
                 remainingTactical: refs.tactical,
+                remainingVmsMain: refs.vmsMain,
                 remainingConference: refs.conferenceRefs,
                 countForCam: refs.countForCam,
                 socketsWithRefs: refs.socketsWithRefs,
@@ -17085,6 +17289,13 @@ io.on('connection', (socket) => {
                     path: 'PANEL-STOP-FORCE-BYE-V1',
                 });
                 releaseCamStreamWhenUnwatched(camId, { force: true });
+            } else if (remaining === 0) {
+                log.media.info('last-viewer play-stop now', {
+                    camId,
+                    surface,
+                    path: 'BWC-LAST-VIEWER-PLAY-STOP-NOW-V1',
+                });
+                releaseCamStreamWhenUnwatched(camId, { now: true });
             } else {
                 releaseCamStreamWhenUnwatched(camId);
             }

@@ -5671,7 +5671,7 @@ function handoffPlayerAttaching(player) {
             || (isStreamInvited(camId) && streamingCamId === camId));
     }
 
-    function onSosAlarm(data) {
+    function onSosAlarmCore(data) {
         if (!data || !data.cameraId) return;
         const camId = data.cameraId;
         clearOpenAllWallStateForSos(camId);
@@ -5724,6 +5724,12 @@ function handoffPlayerAttaching(player) {
         scheduleSosPinVideoAfterWall(camId, slotIndex);
     }
 
+    function onSosAlarm(data) {
+        if (!data || !data.cameraId) return;
+        /* OPS-LEAVE-DESK-PHASE1-V1 — SOS = pre-V10 direct attach */
+        onSosAlarmCore(data);
+    }
+
     function bindRosterClick(handler) {
         if (document.getElementById('fleet-tbody') && typeof global.selectFleetDevice === 'function') return;
         const list = document.getElementById('roster-list');
@@ -5763,7 +5769,397 @@ function handoffPlayerAttaching(player) {
     }
 
     /** DEFER-SOCKET-KILL-AND-FIX-LOGIN-V1 — same-page reconnect: new socket.id re-claims live panels. */
+    /* ── OPS-LEAVE-DESK-SAFE-LEDGER-V10 ───────────────────────────────────── */
+    var leaveDeskState = 'awake';
+    var leaveDeskLedger = null;
+    var wakeEpochId = 0;
+    var priorityWakeComplete = false;
+    var priorityWakePromise = null;
+    var priorityWakeResolve = null;
+    var leaveDeskWakeCams = Object.create(null);
+    var leaveDeskEnsuring = false;
+    var leaveDeskWakeTimer = null;
+    var LEAVE_DESK_DEAD = {
+        evidence: 1, server: 1, 'audit-trail': 1, analytics: 1,
+        cad: 1, investigation: 1, playback: 1, conference: 1
+    };
+
+    function leaveDeskActiveSosCam() {
+        if (typeof global.isSosIncidentActive === 'function' && global.isSosIncidentActive()) {
+            var id = typeof global.getSosCamId === 'function' ? global.getSosCamId() : null;
+            return id ? String(id).trim() : '';
+        }
+        return '';
+    }
+
+    function leaveDeskIsSosCam(camId) {
+        var sos = leaveDeskActiveSosCam();
+        return !!(sos && camId && String(camId).trim() === sos);
+    }
+
+    function leaveDeskHasRealMapPin(camId) {
+        return !!(camId && mapPlayers.has(String(camId).trim()));
+    }
+
+    function leaveDeskFlagReset() {
+        priorityWakeComplete = false;
+        if (priorityWakeResolve) {
+            try { priorityWakeResolve(); } catch (_) { /* ignore */ }
+        }
+        priorityWakePromise = null;
+        priorityWakeResolve = null;
+        wakeEpochId += 1;
+        leaveDeskWakeCams = Object.create(null);
+    }
+
+    function leaveDeskEnter(/* state */) {
+        /* OPS-LEAVE-DESK-PHASE1-V1 — stay awake */
+        leaveDeskState = 'awake';
+    }
+
+    function leaveDeskShouldPipOps() {
+        return false;
+    }
+
+    function leaveDeskApplyPipClass(/* on */) {
+        /* OPS-LEAVE-DESK-PHASE1-V1 — PiP JS inert */
+        var ops = document.getElementById('app-view-ops');
+        if (!ops) return;
+        ops.classList.remove('ops-sos-pip-mode');
+        getSlots().forEach(function (slotEl) {
+            slotEl.classList.remove('ops-sos-pip-slot');
+        });
+        return;
+        if (on) {
+            ops.classList.add('ops-sos-pip-mode');
+            var sos = leaveDeskActiveSosCam();
+            getSlots().forEach(function (slotEl, idx) {
+                var cam = String(slotBoundCam(idx) || slotEl.dataset.camId || '').trim();
+                slotEl.classList.toggle('ops-sos-pip-slot', !!(sos && cam === sos));
+            });
+        } else {
+            ops.classList.remove('ops-sos-pip-mode');
+            getSlots().forEach(function (slotEl) {
+                slotEl.classList.remove('ops-sos-pip-slot');
+            });
+        }
+    }
+
+    function leaveDeskIdleRelease(/* camId, clientReason */) {
+        /* OPS-LEAVE-DESK-PHASE1-V1 — never idle-release / stop-video on tab */
+        return;
+    }
+
+    function leaveDeskSnapshotLedger() {
+        var slots = [];
+        getSlots().forEach(function (slotEl, idx) {
+            var camId = String(
+                slotBoundCam(idx) || activeStreams.get(idx) || slotEl.dataset.camId || pendingWallSlots[idx] || ''
+            ).trim();
+            if (!camId) return;
+            if (localDashboardStopCams.has(camId)) return;
+            var live = players.has(idx) || pendingWallSlots[idx] === camId
+                || slotEl.classList.contains('video-slot-has-live') || streamingCams.has(camId);
+            if (!live) return;
+            slots.push({ idx: idx, camId: camId, attachFailed: false });
+        });
+        var exclusiveAudioCamId = null;
+        camAudioMuted.forEach(function (muted, id) {
+            if (!muted) exclusiveAudioCamId = id;
+        });
+        leaveDeskLedger = {
+            bankPage: wallBankPage,
+            exclusiveAudioCamId: exclusiveAudioCamId,
+            slots: slots
+        };
+    }
+
+    function leaveDeskTearSlotLocal(idx, camId) {
+        destroyPlayer(idx, { forceHandoffDestroy: true, keepPending: true });
+        delete pendingWallSlots[idx];
+        var slotEl = getSlots()[idx];
+        if (slotEl) {
+            slotEl.classList.remove('video-slot-has-live');
+            if (camId) slotEl.dataset.camId = camId;
+        }
+    }
+
+    function leaveDeskTearFromAwake() {
+        /* OPS-LEAVE-DESK-PHASE1-V1 — auto-tear OFF */
+        return;
+        if (leaveDeskState !== 'awake') return;
+        leaveDeskSnapshotLedger();
+        leaveDeskEnter('tearing');
+        getSlots().forEach(function (slotEl, idx) {
+            var camId = String(
+                slotBoundCam(idx) || activeStreams.get(idx) || slotEl.dataset.camId || pendingWallSlots[idx] || ''
+            ).trim();
+            if (!camId) return;
+            if (leaveDeskIsSosCam(camId)) return;
+            leaveDeskTearSlotLocal(idx, camId);
+            leaveDeskIdleRelease(camId, 'leave-desk-tear');
+        });
+        leaveDeskEnter('sleeping');
+    }
+
+    function leaveDeskAbortWake() {
+        /* OPS-LEAVE-DESK-PHASE1-V1 — serial wake OFF */
+        return;
+        if (leaveDeskState !== 'waking') return;
+        var epochKill = wakeEpochId;
+        leaveDeskEnter('sleeping');
+        getSlots().forEach(function (slotEl, idx) {
+            var camId = String(
+                slotBoundCam(idx) || activeStreams.get(idx) || slotEl.dataset.camId || pendingWallSlots[idx] || ''
+            ).trim();
+            if (!camId || leaveDeskIsSosCam(camId)) return;
+            if (!leaveDeskWakeCams[camId] && !(players.has(idx))) return;
+            leaveDeskTearSlotLocal(idx, camId);
+            leaveDeskIdleRelease(camId, 'leave-desk-abort-wake');
+        });
+        void epochKill;
+    }
+
+    function leaveDeskMarkLedgerSuccess(camId) {
+        if (!leaveDeskLedger || !leaveDeskLedger.slots) return;
+        leaveDeskLedger.slots = leaveDeskLedger.slots.filter(function (row) {
+            return !(row && row.camId === camId);
+        });
+        if (leaveDeskLedger.slots.length === 0) leaveDeskLedger = null;
+    }
+
+    function leaveDeskMarkLedgerFailed(camId) {
+        if (!leaveDeskLedger || !leaveDeskLedger.slots) return;
+        leaveDeskLedger.slots.forEach(function (row) {
+            if (row && row.camId === camId) row.attachFailed = true;
+        });
+    }
+
+    function leaveDeskAttachOne(camId, idx, epoch) {
+        return new Promise(function (resolve) {
+            if (epoch !== wakeEpochId || leaveDeskState !== 'waking') return resolve(false);
+            if (!camId || localDashboardStopCams.has(camId)) return resolve(false);
+            if (players.has(idx) && (slotBoundCam(idx) === camId || activeStreams.get(idx) === camId)) {
+                leaveDeskMarkLedgerSuccess(camId);
+                return resolve(true);
+            }
+            leaveDeskWakeCams[camId] = 1;
+            var deadline = Date.now() + 6000;
+            function attempt() {
+                if (epoch !== wakeEpochId || leaveDeskState !== 'waking') return resolve(false);
+                if (localDashboardStopCams.has(camId)) return resolve(false);
+                if (players.has(idx) && (slotBoundCam(idx) === camId || activeStreams.get(idx) === camId)) {
+                    leaveDeskMarkLedgerSuccess(camId);
+                    if (leaveDeskLedger && leaveDeskLedger.exclusiveAudioCamId === camId) {
+                        try { unmuteListenForCam(camId); } catch (_) { /* ignore */ }
+                    }
+                    return resolve(true);
+                }
+                try {
+                    assignCamToSlot(camId, idx, { userPlay: true, forceInvite: true, leaveDeskWake: true });
+                } catch (_) { /* ignore */ }
+                if (Date.now() >= deadline) {
+                    leaveDeskMarkLedgerFailed(camId);
+                    return resolve(false);
+                }
+                setTimeout(attempt, 900);
+            }
+            attempt();
+        });
+    }
+
+    function leaveDeskRunWake(opts) {
+        /* OPS-LEAVE-DESK-PHASE1-V1 — serial wake OFF */
+        return Promise.resolve();
+        opts = opts || {};
+        if (leaveDeskState === 'awake') {
+            if (leaveDeskLedger && leaveDeskLedger.slots && leaveDeskLedger.slots.length) {
+                var failedOnly = leaveDeskLedger.slots.filter(function (r) { return r && r.attachFailed; });
+                if (failedOnly.length && opts.orphanRetry) {
+                    leaveDeskEnter('waking');
+                    return leaveDeskRunWakeBatches(failedOnly, wakeEpochId);
+                }
+            }
+            return Promise.resolve();
+        }
+        if (leaveDeskState === 'waking' && priorityWakePromise) return priorityWakePromise;
+        if (leaveDeskState !== 'sleeping' && leaveDeskState !== 'waking') return Promise.resolve();
+
+        leaveDeskState = 'waking';
+        var epoch = wakeEpochId;
+        priorityWakeComplete = false;
+        priorityWakePromise = new Promise(function (resolve) { priorityWakeResolve = resolve; });
+
+        var ops = document.getElementById('app-view-ops');
+        if (ops) {
+            ops.classList.remove('ops-sos-pip-mode');
+            try { ops.hidden = false; ops.removeAttribute('hidden'); } catch (_) { ops.hidden = false; }
+        }
+
+        return new Promise(function (resolveOuter) {
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    var w = ops ? ops.offsetWidth : 0;
+                    if (w <= 0) {
+                        requestAnimationFrame(function () { resolveOuter(leaveDeskRunWakeBatchesFromLedger(epoch)); });
+                    } else {
+                        resolveOuter(leaveDeskRunWakeBatchesFromLedger(epoch));
+                    }
+                });
+            });
+        });
+    }
+
+    function leaveDeskRunWakeBatchesFromLedger(epoch) {
+        var rows = (leaveDeskLedger && leaveDeskLedger.slots) ? leaveDeskLedger.slots.slice() : [];
+        if (leaveDeskLedger && leaveDeskLedger.bankPage) {
+            try { applyWallBankPage(leaveDeskLedger.bankPage); } catch (_) { /* ignore */ }
+        }
+        return leaveDeskRunWakeBatches(rows, epoch);
+    }
+
+    function leaveDeskRunWakeBatches(rows, epoch) {
+        var visible = [];
+        var hidden = [];
+        var bank = wallBankPage;
+        rows.forEach(function (row) {
+            if (!row || !row.camId) return;
+            if (localDashboardStopCams.has(row.camId)) return;
+            if (players.has(row.idx) && (slotBoundCam(row.idx) === row.camId || activeStreams.get(row.idx) === row.camId)) {
+                leaveDeskMarkLedgerSuccess(row.camId);
+                return;
+            }
+            if (slotBankForIndex(row.idx) === bank) visible.push(row);
+            else hidden.push(row);
+        });
+
+        function runList(list, i) {
+            if (epoch !== wakeEpochId || leaveDeskState !== 'waking') return Promise.resolve();
+            if (i >= list.length) return Promise.resolve();
+            return leaveDeskAttachOne(list[i].camId, list[i].idx, epoch).then(function () {
+                return runList(list, i + 1);
+            });
+        }
+
+        function runHiddenBatches(list, start) {
+            if (epoch !== wakeEpochId || leaveDeskState !== 'waking') return Promise.resolve();
+            if (start >= list.length) return Promise.resolve();
+            var chunk = list.slice(start, start + 4);
+            return runList(chunk, 0).then(function () {
+                return new Promise(function (r) { setTimeout(r, 200); }).then(function () {
+                    return runHiddenBatches(list, start + 4);
+                });
+            });
+        }
+
+        return runList(visible, 0).then(function () {
+            priorityWakeComplete = true;
+            if (priorityWakeResolve) {
+                try { priorityWakeResolve(); } catch (_) { /* ignore */ }
+                priorityWakeResolve = null;
+            }
+            return runHiddenBatches(hidden, 0);
+        }).then(function () {
+            if (epoch === wakeEpochId && leaveDeskState === 'waking') {
+                leaveDeskState = 'awake';
+                priorityWakeComplete = true;
+            }
+        }).catch(function () {
+            if (epoch === wakeEpochId && leaveDeskState === 'waking') {
+                leaveDeskState = 'awake';
+            }
+        });
+    }
+
+    function ensureOpsAwake() {
+        /* OPS-LEAVE-DESK-PHASE1-V1 — stay awake / no serial wake */
+        return Promise.resolve();
+        if (leaveDeskState === 'awake' || priorityWakeComplete) return Promise.resolve();
+        if (leaveDeskState === 'waking' && priorityWakePromise) return priorityWakePromise;
+        if (leaveDeskEnsuring) return priorityWakePromise || Promise.resolve();
+        leaveDeskEnsuring = true;
+        try {
+            if ((leaveDeskState === 'sleeping' || leaveDeskState === 'tearing')
+                && global.EvidenceManager && typeof EvidenceManager.showTab === 'function') {
+                EvidenceManager.showTab('ops', { force: true, leaveDeskEnsure: true });
+            }
+        } catch (_) { /* ignore */ }
+        leaveDeskEnsuring = false;
+        if (leaveDeskState === 'waking' && priorityWakePromise) return priorityWakePromise;
+        return leaveDeskRunWake({ orphanRetry: false }) || Promise.resolve();
+    }
+
+    function leaveDeskOnDeadTab() {
+        /* OPS-LEAVE-DESK-PHASE1-V1 — tab is not a power switch */
+        return;
+        if (leaveDeskState === 'waking') {
+            leaveDeskAbortWake();
+            return;
+        }
+        if (leaveDeskState === 'awake') {
+            leaveDeskTearFromAwake();
+        }
+    }
+
+    function leaveDeskOnShowOps() {
+        leaveDeskApplyPipClass(false);
+        return Promise.resolve();
+    }
+
+    function leaveDeskOnSosCleared(camId) {
+        /* OPS-LEAVE-DESK-PHASE1-V1 — SOS clear does not idle-release */
+        leaveDeskApplyPipClass(false);
+        return;
+        camId = String(camId || leaveDeskActiveSosCam() || '').trim();
+        if (leaveDeskState === 'sleeping' || leaveDeskState === 'tearing' || leaveDeskState === 'waking') {
+            if (camId) {
+                getSlots().forEach(function (slotEl, idx) {
+                    var bound = String(slotBoundCam(idx) || slotEl.dataset.camId || '').trim();
+                    if (bound !== camId) return;
+                    leaveDeskTearSlotLocal(idx, camId);
+                    if (!leaveDeskHasRealMapPin(camId)) {
+                        emitOpsStopVideo(camId, 'idle-release', 'leave-desk-sos-cleared');
+                    }
+                });
+            }
+        }
+        leaveDeskApplyPipClass(false);
+        var ops = document.getElementById('app-view-ops');
+        var btnOps = document.getElementById('nav-tab-ops');
+        var opsIsMain = !!(btnOps && btnOps.classList.contains('active'));
+        if (ops && !opsIsMain) {
+            try { ops.hidden = true; } catch (_) { /* ignore */ }
+        }
+    }
+
+    function leaveDeskAcceptStreamReady(camId) {
+        camId = String(camId || '').trim();
+        if (!camId) return false;
+        if (leaveDeskState === 'awake') return true;
+        if (leaveDeskState === 'sleeping' || leaveDeskState === 'tearing') {
+            return leaveDeskIsSosCam(camId);
+        }
+        if (leaveDeskState === 'waking') {
+            if (leaveDeskIsSosCam(camId)) return true;
+            if (leaveDeskWakeCams[camId]) return true;
+            if (leaveDeskLedger && leaveDeskLedger.slots) {
+                for (var i = 0; i < leaveDeskLedger.slots.length; i += 1) {
+                    if (leaveDeskLedger.slots[i] && leaveDeskLedger.slots[i].camId === camId) return true;
+                }
+            }
+            return false;
+        }
+        return true;
+    }
+
+    function leaveDeskGateChromeWipe(camId, reason) {
+        if (leaveDeskState === 'awake') return false;
+        if (reason === 'device_bye' && leaveDeskIsSosCam(camId)) return false;
+        return leaveDeskState === 'sleeping' || leaveDeskState === 'tearing' || leaveDeskState === 'waking';
+    }
+
     function reclaimLiveWallStartVideo() {
+        if (leaveDeskState === 'sleeping' || leaveDeskState === 'tearing' || leaveDeskState === 'waking') return;
         if (!socket) return;
         const seen = Object.create(null);
         getSlots().forEach(function (slotEl) {
@@ -5787,10 +6183,9 @@ function handoffPlayerAttaching(player) {
         socket.on('video-stream-ready', function (data) {
             var camId = data && data.camId;
             if (data && data.surface && data.surface !== OPS_VIEWER_SURFACE) return;
-            if (camId) {
-                camId = String(camId).trim();
-                streamingCams.add(camId);
-            }
+            if (camId) camId = String(camId).trim();
+            if (!leaveDeskAcceptStreamReady(camId)) return;
+            if (camId) streamingCams.add(camId);
             if (data && data.wvpVideoHandoff && data.flvUrl && camId) {
                 attachWvpHandoffFlvForCam(camId, data.flvUrl);
             }
@@ -5802,6 +6197,7 @@ function handoffPlayerAttaching(player) {
                 if (sosReconnectTimer) clearTimeout(sosReconnectTimer);
                 sosReconnectTimer = setTimeout(function () {
                     sosReconnectTimer = null;
+                    if (!leaveDeskAcceptStreamReady(sosCam)) return;
                     reconnectSosPlayers(sosCam);
                     unmuteAudioForSosCam(sosCam);
                 }, 30);
@@ -5824,6 +6220,16 @@ function handoffPlayerAttaching(player) {
             clearWvpHandoffFlv(camId);
             var reason = data && data.reason;
             if (signalLostCams.has(camId) && reason !== 'device_bye') return;
+            if (leaveDeskState !== 'awake') {
+                if (reason === 'device_bye' && leaveDeskIsSosCam(camId)) {
+                    markBwcStoppedOverlay(camId);
+                    leaveDeskOnSosCleared(camId);
+                    return;
+                }
+                if (leaveDeskState === 'sleeping' || leaveDeskState === 'tearing' || leaveDeskState === 'waking') {
+                    return;
+                }
+            }
             if (localDashboardStopCams.has(camId)) {
                 localDashboardStopCams.delete(camId);
                 teardownWallPin(camId, 'operator');
@@ -6205,6 +6611,16 @@ function handoffPlayerAttaching(player) {
         bindPttHoldButton: bindPttHoldButton,
         beginPttTalk: beginPttTalk,
         endPttTalk: endPttTalk,
+        ensureOpsAwake: ensureOpsAwake,
+        leaveDeskOnDeadTab: leaveDeskOnDeadTab,
+        leaveDeskOnShowOps: leaveDeskOnShowOps,
+        leaveDeskOnSosCleared: leaveDeskOnSosCleared,
+        leaveDeskShouldPipOps: leaveDeskShouldPipOps,
+        leaveDeskApplyPipClass: leaveDeskApplyPipClass,
+        leaveDeskIsDeadTab: function (tab) { return !!(tab && LEAVE_DESK_DEAD[tab]); },
+        getLeaveDeskState: function () { return leaveDeskState; },
     };
+
+    global.ensureOpsAwake = ensureOpsAwake;
 
 })(window);

@@ -57,15 +57,37 @@
 
     function applyFillAndZoom(map, packZ, offline) {
         packMaxZoom = offline ? packZ : null;
+        var mapMax = offline ? (packZ + 1) : 20;
         try {
-            if (typeof map.setMaxZoom === 'function') map.setMaxZoom(offline ? packZ + 1 : 20);
+            if (typeof map.setMaxZoom === 'function') map.setMaxZoom(mapMax);
         } catch (_) { /* ignore */ }
         try {
-            if (offline && map.getZoom && map.getZoom() > packZ + 1) map.setZoom(packZ);
+            if (map.options) map.options.maxZoom = mapMax;
+        } catch (_) { /* ignore */ }
+        try {
+            if (offline && map.getZoom && map.getZoom() > mapMax) map.setZoom(packZ);
         } catch (_) { /* ignore */ }
         if (global.MobilityMapGis && typeof MobilityMapGis.setPackMaxZoom === 'function') {
             try { MobilityMapGis.setPackMaxZoom(offline ? packZ : null); } catch (_) { /* ignore */ }
         }
+    }
+
+    /**
+     * OPS-MAP-TRUE-FIX-V1 — maxNativeZoom = real pack ceiling (lab tiles top at z14).
+     * maxZoom may be pack+1 for one step of stretch; never request missing z15–z20 PNGs.
+     */
+    function applyNativeZoomToLayer(layer, pick) {
+        if (!layer || !pick) return;
+        try {
+            layer.options.maxNativeZoom = pick.maxNative;
+            layer.options.maxZoom = pick.maxZ;
+        } catch (_) { /* ignore */ }
+        try {
+            if (typeof layer.options === 'object') {
+                layer.options.maxNativeZoom = pick.maxNative;
+                layer.options.maxZoom = pick.maxZ;
+            }
+        } catch (_) { /* ignore */ }
     }
 
     var attached = [];
@@ -129,8 +151,7 @@
     }
 
     function applyPickToLayer(map, layer, pick, opts) {
-        layer.options.maxNativeZoom = pick.maxNative;
-        layer.options.maxZoom = pick.maxZ;
+        applyNativeZoomToLayer(layer, pick);
         setLayerAttribution(map, layer, pick.attribution);
         var cur = '';
         try { cur = layer._url || (layer.options && layer.options.url) || ''; } catch (_) { cur = ''; }
@@ -138,14 +159,16 @@
             layer.setUrl(pick.url);
         }
         applyFillAndZoom(map, pick.packZ, pick.useOffline);
+        applyNativeZoomToLayer(layer, pick);
         remember(map, opts, layer);
         return { layer: layer, offline: pick.useOffline, online: pick.online, maxNativeZoom: pick.useOffline ? pick.packZ : null };
     }
 
     function layerOpts(opts) {
         return {
-            maxNativeZoom: opts.maxNativeZoom != null ? opts.maxNativeZoom : 19,
-            maxZoom: opts.maxZoom != null ? opts.maxZoom : 20,
+            /* OPS-MAP-TRUE-FIX-V1 — default native = lab pack ceiling (z14), never assume z19 */
+            maxNativeZoom: opts.maxNativeZoom != null ? opts.maxNativeZoom : 14,
+            maxZoom: opts.maxZoom != null ? opts.maxZoom : 15,
             keepBuffer: opts.keepBuffer != null ? opts.keepBuffer : 12,
             updateWhenIdle: opts.updateWhenIdle != null ? opts.updateWhenIdle : false,
             updateWhenZooming: opts.updateWhenZooming != null ? opts.updateWhenZooming : true,
@@ -176,6 +199,7 @@
                 }));
                 layer.addTo(map);
                 map._fmBaseTiles = layer;
+                applyNativeZoomToLayer(layer, pick);
                 applyFillAndZoom(map, pick.packZ, pick.useOffline);
                 remember(map, opts, layer);
                 return { layer: layer, offline: pick.useOffline, online: pick.online, maxNativeZoom: pick.useOffline ? pick.packZ : null };
@@ -188,16 +212,22 @@
                     attribution: blank ? 'Offline map unavailable' : OSM.attribution,
                     useOffline: false,
                     packZ: 20,
-                    maxNative: 19,
-                    maxZ: 20,
+                    maxNative: blank ? 14 : 19,
+                    maxZ: blank ? 15 : 20,
                     online: !blank,
                 };
                 if (existing) return applyPickToLayer(map, existing, pick, opts);
-                var layer = L.tileLayer(pick.url, Object.assign({}, baseOpts, { attribution: pick.attribution }));
+                var layer = L.tileLayer(pick.url, Object.assign({}, baseOpts, {
+                    attribution: pick.attribution,
+                    maxNativeZoom: pick.maxNative,
+                    maxZoom: pick.maxZ,
+                }));
                 layer.addTo(map);
                 map._fmBaseTiles = layer;
+                applyNativeZoomToLayer(layer, pick);
+                applyFillAndZoom(map, pick.packZ, pick.useOffline);
                 remember(map, opts, layer);
-                return { layer: layer, offline: false, online: !blank };
+                return { layer: layer, offline: false, online: !blank, maxNativeZoom: pick.maxNative };
             });
     }
 

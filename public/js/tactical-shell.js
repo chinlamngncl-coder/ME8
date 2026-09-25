@@ -662,6 +662,10 @@
             fadeAnimation: false,
         }).setView(center, zoom);
 
+        if (global.Me8MapNorthRose && typeof global.Me8MapNorthRose.attach === 'function') {
+            global.Me8MapNorthRose.attach(map);
+        }
+
         if (global.MobilityMapTiles && MobilityMapTiles.attachLeaflet) {
             MobilityMapTiles.attachLeaflet(map);
         } else {

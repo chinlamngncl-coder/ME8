@@ -261,19 +261,29 @@
         return TabLifecycle.shouldLoad(tab);
     }
 
-    /** mob-ops-map-resize-after-tab \u2014 refill Leaflet after hidden Ops / SOS strip height change */
+    /** mob-ops-map-resize-after-tab — Ops map is window.__me8OpsMap (not global.map). Gentle size only. */
+    function getOpsLeafletMap() {
+        try {
+            if (global.__me8OpsMap && global.__me8OpsMap.invalidateSize) return global.__me8OpsMap;
+        } catch (_) { /* ignore */ }
+        try {
+            if (typeof global.map !== 'undefined' && global.map && global.map.invalidateSize) return global.map;
+        } catch (_) { /* ignore */ }
+        return null;
+    }
+
     function invalidateOpsMapOnce() {
         try {
             if (global.FleetUi && FleetUi.refreshLayout) FleetUi.refreshLayout();
-            else if (typeof global.map !== 'undefined' && global.map && global.map.invalidateSize) {
-                global.map.invalidateSize();
-            }
         } catch (_) { /* ignore */ }
-        try {
-            if (typeof global.map !== 'undefined' && global.map && global.map.invalidateSize) {
-                global.map.invalidateSize();
+        var opsMap = getOpsLeafletMap();
+        if (opsMap) {
+            try {
+                opsMap.invalidateSize({ animate: false });
+            } catch (_) {
+                try { opsMap.invalidateSize(); } catch (__) { /* ignore */ }
             }
-        } catch (_) { /* ignore */ }
+        }
         try {
             if (global.MobilityMapGis && MobilityMapGis.invalidateSize) MobilityMapGis.invalidateSize();
         } catch (_) { /* ignore */ }
@@ -335,6 +345,7 @@
         const audit = document.getElementById('app-view-audit-trail');
         const srv = document.getElementById('app-view-server');
         const cw = document.getElementById('app-view-command-wall');
+        const vmsMain = document.getElementById('app-view-vms-main');
         const sc = document.getElementById('app-view-spatial-command');
         const cs = document.getElementById('app-view-centre-summary');
         const inv = document.getElementById('app-view-investigation');
@@ -348,7 +359,10 @@
         const btnAudit = document.getElementById('nav-tab-audit-trail');
         const btnSrv = document.getElementById('nav-tab-server');
         const btnCw = document.getElementById('nav-tab-command-wall');
+        const btnVmsMain = document.getElementById('nav-tab-vms-main');
         const btnSc = document.getElementById('nav-spatial-command');
+        const btnVms = document.getElementById('nav-tab-vms');
+        const vmsSub = document.getElementById('vms-subnav');
         const btnCs = document.getElementById('nav-tab-centre-summary');
         const navTools = document.getElementById('video-wall-nav-tools');
         if (navTools) navTools.hidden = tab !== 'ops';
@@ -356,7 +370,24 @@
         if (tab !== 'evidence') {
             try { document.documentElement.classList.remove('ev-storage-scroll-unlock'); } catch (_) { /* ignore */ }
         }
-        if (ops) ops.hidden = tab !== 'ops';
+        try {
+            if (global.VideoWall && VideoWall.leaveDeskIsDeadTab && VideoWall.leaveDeskIsDeadTab(tab)
+                && VideoWall.leaveDeskOnDeadTab) {
+                VideoWall.leaveDeskOnDeadTab(tab);
+            }
+        } catch (_) { /* ignore */ }
+        if (ops) {
+            if (tab === 'ops') {
+                try { ops.hidden = false; ops.removeAttribute('hidden'); } catch (_) { ops.hidden = false; }
+                try { if (VideoWall.leaveDeskApplyPipClass) VideoWall.leaveDeskApplyPipClass(false); } catch (_) { /* ignore */ }
+            } else if (global.VideoWall && VideoWall.leaveDeskShouldPipOps && VideoWall.leaveDeskShouldPipOps()) {
+                try { ops.hidden = false; ops.removeAttribute('hidden'); } catch (_) { ops.hidden = false; }
+                try { VideoWall.leaveDeskApplyPipClass(true); } catch (_) { /* ignore */ }
+            } else {
+                ops.hidden = true;
+                try { if (VideoWall.leaveDeskApplyPipClass) VideoWall.leaveDeskApplyPipClass(false); } catch (_) { /* ignore */ }
+            }
+        }
         if (ev) ev.hidden = tab !== 'evidence';
         if (ax) ax.hidden = tab !== 'analytics';
         if (cad) cad.hidden = tab !== 'cad';
@@ -365,6 +396,7 @@
         if (audit) audit.hidden = tab !== 'audit-trail';
         if (srv) srv.hidden = tab !== 'server';
         if (cw) cw.hidden = tab !== 'command-wall';
+        if (vmsMain) vmsMain.hidden = tab !== 'vms-main';
         if (sc) sc.hidden = tab !== 'spatial-command';
         if (cs) cs.hidden = tab !== 'centre-summary';
         if (inv) inv.hidden = tab !== 'playback' && tab !== 'investigation';
@@ -388,7 +420,7 @@
                 }
             }
         } catch (_) { /* ignore */ }
-        if (btnOps) btnOps.classList.toggle('active', tab === 'ops');
+        if (btnOps) btnOps.classList.toggle('active', tab === 'ops' || tab === 'command-wall');
         if (btnEv) btnEv.classList.toggle('active', tab === 'evidence');
         if (btnPlayback) btnPlayback.classList.toggle('active', tab === 'playback' || tab === 'investigation');
         if (btnAx) btnAx.classList.toggle('active', tab === 'analytics');
@@ -398,8 +430,32 @@
         if (btnAudit) btnAudit.classList.toggle('active', tab === 'audit-trail');
         if (btnSrv) btnSrv.classList.toggle('active', tab === 'server');
         if (btnCw) btnCw.classList.toggle('active', tab === 'command-wall');
+        if (btnVmsMain) btnVmsMain.classList.toggle('active', tab === 'vms-main');
         if (btnSc) btnSc.classList.toggle('active', tab === 'spatial-command');
         if (btnCs) btnCs.classList.toggle('active', tab === 'centre-summary');
+        var vmsOn = tab === 'vms-main' || tab === 'spatial-command';
+        var opsOn = tab === 'ops' || tab === 'command-wall';
+        var detOn = tab === 'tactical' || tab === 'analytics';
+        var btnDet = document.getElementById('nav-tab-detection');
+        var detSub = document.getElementById('detection-subnav');
+        if (btnVms) btnVms.classList.toggle('active', vmsOn);
+        if (vmsSub) vmsSub.hidden = !vmsOn;
+        if (btnDet) btnDet.classList.toggle('active', detOn);
+        if (detSub) detSub.hidden = !detOn;
+        var dispOn = tab === 'cad' || tab === 'conference';
+        var invOn = tab === 'playback' || tab === 'investigation' || tab === 'evidence';
+        var btnDisp = document.getElementById('nav-tab-dispatch');
+        var dispSub = document.getElementById('dispatch-subnav');
+        var btnInvRoot = document.getElementById('nav-tab-investigation-root');
+        var invSub = document.getElementById('investigation-subnav');
+        if (btnDisp) btnDisp.classList.toggle('active', dispOn);
+        if (dispSub) dispSub.hidden = !dispOn;
+        if (btnInvRoot) btnInvRoot.classList.toggle('active', invOn);
+        if (invSub) invSub.hidden = !invOn;
+        var opsSub = document.getElementById('ops-subnav');
+        var btnOpsMap = document.getElementById('nav-tab-ops-map');
+        if (opsSub) opsSub.hidden = !opsOn;
+        if (btnOpsMap) btnOpsMap.classList.toggle('active', tab === 'ops');
         if (tab === 'evidence') {
             if (loadData) {
                 refreshDockPanel();
@@ -461,6 +517,13 @@
             }
             if (global.TabLifecycle) TabLifecycle.markLoaded('command-wall');
         }
+        if (tab === 'vms-main' && global.VmsMainLive) {
+            if (global.VmsMainLive.init) global.VmsMainLive.init(global.__mobilityDashboardSocket);
+            if (global.VmsMainLive.onShow) global.VmsMainLive.onShow();
+            if (global.TabLifecycle) TabLifecycle.markLoaded('vms-main');
+        } else if (global.VmsMainLive && global.VmsMainLive.onHide) {
+            try { global.VmsMainLive.onHide(); } catch (_) { /* ignore */ }
+        }
         if (tab === 'centre-summary' && global.CentreSummary && global.CentreSummary.init) {
             global.CentreSummary.init({ force: loadData });
             if (typeof I18n !== 'undefined' && I18n.scheduleApply) {
@@ -487,6 +550,9 @@
         }
         /* mob-ops-map-resize-after-tab \u2014 Leaflet keeps stale size after Analytics/SOS chrome */
         if (tab === 'ops') scheduleOpsMapResize();
+        if (tab === 'ops' && global.VideoWall && VideoWall.leaveDeskOnShowOps) {
+            try { VideoWall.leaveDeskOnShowOps(); } catch (_) { /* ignore */ }
+        }
         if (tab === 'ops' && loadData && global.OpsCwAwareness && OpsCwAwareness.refresh) {
             OpsCwAwareness.refresh();
         }
@@ -501,7 +567,9 @@
         const btnTac = document.getElementById('nav-tab-tactical');
         const btnSrv = document.getElementById('nav-tab-server');
         const btnCw = document.getElementById('nav-tab-command-wall');
+        const btnVmsMain = document.getElementById('nav-tab-vms-main');
         const btnSc = document.getElementById('nav-spatial-command');
+        const btnVms = document.getElementById('nav-tab-vms');
         const btnCs = document.getElementById('nav-tab-centre-summary');
         const btnConf = document.getElementById('nav-tab-conference');
         const btnAudit = document.getElementById('nav-tab-audit-trail');
@@ -511,6 +579,8 @@
         const saveEvidenceLegacy = document.getElementById('ss-save-evidence-settings');
         const tbody = document.getElementById('evidence-tbody');
         if (btnOps) btnOps.addEventListener('click', function () { showTab('ops'); });
+        const btnOpsMap = document.getElementById('nav-tab-ops-map');
+        if (btnOpsMap) btnOpsMap.addEventListener('click', function () { showTab('ops'); });
         if (btnEv) btnEv.addEventListener('click', function () { showTab('evidence'); });
         const btnPlaybackNav = document.getElementById('nav-tab-playback');
         if (btnPlaybackNav) {
@@ -538,6 +608,14 @@
         if (btnAudit) btnAudit.addEventListener('click', function () { showTab('audit-trail'); });
         if (btnAuditServer) btnAuditServer.addEventListener('click', function () { showTab('audit-trail'); });
         if (btnSrv) btnSrv.addEventListener('click', function () { showTab('server'); });
+        if (btnVms) btnVms.addEventListener('click', function () { showTab('vms-main'); });
+        const btnDet = document.getElementById('nav-tab-detection');
+        if (btnDet) btnDet.addEventListener('click', function () { showTab('tactical'); });
+        const btnDisp = document.getElementById('nav-tab-dispatch');
+        if (btnDisp) btnDisp.addEventListener('click', function () { showTab('cad'); });
+        const btnInvRoot = document.getElementById('nav-tab-investigation-root');
+        if (btnInvRoot) btnInvRoot.addEventListener('click', function () { showTab('playback'); });
+        if (btnVmsMain) btnVmsMain.addEventListener('click', function () { showTab('vms-main'); });
         if (btnCw) btnCw.addEventListener('click', function () { showTab('command-wall'); });
         if (btnSc) btnSc.addEventListener('click', function () { showTab('spatial-command'); });
         if (btnCs) btnCs.addEventListener('click', function () { showTab('centre-summary'); });
@@ -604,6 +682,10 @@
         }
         if (document.documentElement.classList.contains('tactical-popout-mode')) {
             showTab('tactical', { force: true });
+        } else if (!document.documentElement.classList.contains('analytics-popout-mode')
+            && !document.documentElement.classList.contains('spatial-popout-mode')
+            && !document.documentElement.classList.contains('map-popout-mode')) {
+            showTab('ops');
         }
     }
 

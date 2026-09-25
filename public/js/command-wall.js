@@ -92,6 +92,14 @@
     let fleetById = Object.create(null);
     let fixedCameraById = Object.create(null);
     let selectedPtzSlot = -1;
+    let ptzPanelOpen = false;
+    let ptzPanelTab = 'digi';
+    /** @type {Record<number, {scale:number, panX:number, panY:number}>} */
+    const digiZoomBySlot = {};
+    const DIGI_PTZ_STEPS = [1, 1.5, 2, 3, 4, 6, 8];
+    /* VMS-DIGI-PTZ-INV-GESTURE-PARITY-V1 — Digi click arms cell; wheel/drag work without panel */
+    let digiArmedSlot = -1;
+    let digiPanDrag = null;
     let cwPtzJoystick = null;
     const fixedCameraOwner = 'command-wall:' + (function () {
         /* SEC-NONSIP-ID-CRYPTO-RANDOM-V1 - browser crypto, not Math.random */
@@ -125,6 +133,14 @@
     let spotlightPrevLayout = null;
     /** Background deck: streams stay up, no visible panel (layout overflow). */
     let deckEntries = [];
+    /* VMS-CW-WALL-PAGES-V1 — up to 4 planned sets (≤ layout count each) */
+    const WALL_PAGE_COUNT = 4;
+    const WALL_PAGE_DWELL_OPTIONS = [15000, 30000, 60000];
+    let wallPages = [[], [], [], []];
+    let wallPageIndex = 0;
+    let wallPageDwellMs = 30000;
+    let wallPageAuto = false;
+    let wallPageTimer = null;
 
     function c(name) { return EMBEDDED ? 'cw-' + name : name; }
 
@@ -273,6 +289,30 @@
         if (!bar || bar.dataset.built) return;
         bar.dataset.built = '1';
 
+        const rosterGroup = document.createElement('div');
+        rosterGroup.className = c('wall-bar-group');
+        const showRosterBtn = document.createElement('button');
+        showRosterBtn.type = 'button';
+        showRosterBtn.className = c('scheme-btn') + ' ' + c('roster-reopen');
+        showRosterBtn.id = EMBEDDED ? 'cw-roster-reopen' : 'roster-reopen';
+        showRosterBtn.setAttribute('data-i18n', 'commandWall.showRoster');
+        showRosterBtn.title = tr('commandWall.showRoster');
+        showRosterBtn.textContent = tr('commandWall.showRoster');
+        showRosterBtn.hidden = true;
+        rosterGroup.appendChild(showRosterBtn);
+        const fillAllBtn = document.createElement('button');
+        fillAllBtn.type = 'button';
+        fillAllBtn.className = c('scheme-btn');
+        fillAllBtn.setAttribute('data-i18n', 'commandWall.fillAllOnline');
+        fillAllBtn.title = tr('commandWall.fillAllOnlineHint');
+        fillAllBtn.textContent = tr('commandWall.fillAllOnline');
+        fillAllBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            fillAllOnlineWithPoll();
+        });
+        rosterGroup.appendChild(fillAllBtn);
+        bar.appendChild(rosterGroup);
+
         const layoutGroup = document.createElement('div');
         layoutGroup.className = c('wall-bar-group');
         const layoutLabel = document.createElement('span');
@@ -355,6 +395,50 @@
         pauseBtn.addEventListener('click', toggleRotatePaused);
         rotateGroup.appendChild(pauseBtn);
         bar.appendChild(rotateGroup);
+
+        const pageGroup = document.createElement('div');
+        pageGroup.className = c('wall-bar-group');
+        const pageLabel = document.createElement('span');
+        pageLabel.className = c('wall-bar-label');
+        pageLabel.setAttribute('data-i18n', 'commandWall.pages');
+        pageLabel.textContent = tr('commandWall.pages');
+        pageGroup.appendChild(pageLabel);
+        for (let p = 0; p < WALL_PAGE_COUNT; p += 1) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = c('scheme-btn');
+            btn.dataset.wallPage = String(p);
+            btn.textContent = String(p + 1);
+            btn.title = tr('commandWall.pageN', { n: p + 1 });
+            btn.addEventListener('click', function () {
+                applyWallPage(p, { manual: true });
+            });
+            pageGroup.appendChild(btn);
+        }
+        WALL_PAGE_DWELL_OPTIONS.forEach(function (ms) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = c('scheme-btn');
+            btn.dataset.wallPageDwell = String(ms);
+            btn.textContent = (ms / 1000) + 's';
+            btn.title = tr('commandWall.pageDwellHint');
+            btn.addEventListener('click', function () {
+                setWallPageDwell(ms);
+            });
+            pageGroup.appendChild(btn);
+        });
+        const pageAutoBtn = document.createElement('button');
+        pageAutoBtn.type = 'button';
+        pageAutoBtn.className = c('scheme-btn') + ' btn-wall-page-auto';
+        pageAutoBtn.setAttribute('data-i18n', 'commandWall.pageAuto');
+        pageAutoBtn.title = tr('commandWall.pageAutoHint');
+        pageAutoBtn.textContent = tr('commandWall.pageAuto');
+        pageAutoBtn.addEventListener('click', function () {
+            setWallPageAuto(!wallPageAuto);
+        });
+        pageGroup.appendChild(pageAutoBtn);
+        bar.appendChild(pageGroup);
+
         syncWallToolbarI18n();
     }
 
@@ -378,10 +462,37 @@
             pauseBtn.setAttribute('data-i18n', pauseKey);
             pauseBtn.textContent = tr(pauseKey);
         }
+        bar.querySelectorAll('[data-wall-page]').forEach(function (btn) {
+            const idx = Number(btn.dataset.wallPage);
+            const filled = !!(wallPages[idx] && wallPages[idx].length);
+            btn.classList.toggle('active', idx === wallPageIndex && filled);
+            btn.disabled = !filled;
+            btn.title = filled
+                ? (tr('commandWall.pageN', { n: idx + 1 }) + ' · ' + wallPages[idx].length)
+                : tr('commandWall.pageEmpty');
+        });
+        bar.querySelectorAll('[data-wall-page-dwell]').forEach(function (btn) {
+            btn.classList.toggle('active', Number(btn.dataset.wallPageDwell) === wallPageDwellMs);
+        });
+        const pageAutoBtn = bar.querySelector('.btn-wall-page-auto');
+        if (pageAutoBtn) {
+            pageAutoBtn.classList.toggle('active', wallPageAuto);
+            pageAutoBtn.disabled = wallPageFilledCount() < 2;
+        }
+    }
+
+    function wallPageFilledCount() {
+        let n = 0;
+        for (let i = 0; i < WALL_PAGE_COUNT; i += 1) {
+            if (wallPages[i] && wallPages[i].length) n += 1;
+        }
+        return n;
     }
 
     function canEnterSpotlight(slot) {
         if (spotlightActive || !slotCamId(slot) || !isSlotVisible(slot)) return false;
+        /* Digi PTZ owns the stage — never 1-up spotlight */
+        if (digiArmedSlot === slot || digiState(slot).scale > 1) return false;
         return players.has(slot) || connectingSlots.has(slot);
     }
 
@@ -435,7 +546,8 @@
                 }
             }
             if (stage) {
-                const canClick = !spotlightActive && canEnterSpotlight(i);
+                const canClick = !spotlightActive && canEnterSpotlight(i)
+                    && digiArmedSlot !== i && digiState(i).scale <= 1;
                 stage.classList.toggle(c('cell-stage-spotlight'), canClick);
                 stage.title = canClick ? tr('commandWall.clickSpotlight') : '';
             }
@@ -450,8 +562,11 @@
         if (!wall) return;
 
         if (spotlightActive && spotlightSlot >= 0) {
+            wall.dataset.layout = 'spotlight';
             wall.style.gridTemplateColumns = '1fr';
             wall.style.gridTemplateRows = '1fr';
+            wall.style.justifyContent = '';
+            wall.style.alignContent = '';
             for (let i = 0; i < MAX_SLOTS; i += 1) {
                 const cell = getCell(i);
                 if (!cell) continue;
@@ -469,9 +584,12 @@
 
         const scheme = LAYOUT_SCHEMES[currentLayout] || LAYOUT_SCHEMES['16'];
         const count = scheme.count;
-
+        wall.dataset.layout = currentLayout;
+        /* VMS-CW-LAYOUT-ASPECT-REVERT-FILL-V1 — enterprise fill: 1fr grid, no px tile shrink */
         wall.style.gridTemplateColumns = 'repeat(' + scheme.cols + ', 1fr)';
         wall.style.gridTemplateRows = 'repeat(' + scheme.rows + ', 1fr)';
+        wall.style.justifyContent = '';
+        wall.style.alignContent = '';
 
         for (let i = 0; i < MAX_SLOTS; i += 1) {
             const cell = getCell(i);
@@ -538,6 +656,7 @@
                 pinned: !!s.pinned,
                 homeSlot: s.homeSlot != null ? s.homeSlot : i,
                 fromSlot: i,
+                operatorStopped: !!s.operatorStopped,
             });
         }
         deckEntries.forEach(function (e) {
@@ -569,17 +688,27 @@
 
     function applySlotAssignment(slot, entry) {
         const homeSlot = entry.homeSlot != null ? entry.homeSlot : slot;
+        const operatorStopped = !!entry.operatorStopped;
         slots[slot] = {
             camId: entry.camId,
             name: entry.name || deviceName(entry.camId),
             pinned: !!entry.pinned,
             homeSlot: homeSlot,
+            operatorStopped: operatorStopped,
         };
         setCellName(slot, slots[slot].name);
         showStageHint(slot, false);
         updateCellControls(slot);
         updateOfflineOverlay(slot);
         syncCwAlarmUiForSlot(slot);
+        /* VMS-CW-LAYOUT-KEEP-STOPPED-V1 — layout repack must not restart operator Stop */
+        if (operatorStopped) {
+            showConnecting(slot, false);
+            showStageStopped(slot, true);
+            setCellStatus(slot, 'Stopped', '');
+            updateCellControls(slot);
+            return;
+        }
         if (deviceOnline(entry.camId)) {
             ensureCamStreamAlive(entry.camId);
             if (!players.has(slot)) attachLivePlayerForSlot(slot);
@@ -865,6 +994,13 @@
         if (rotatePaused && rotateIntervalMs) {
             meta.textContent += tr('commandWall.metaRotatePaused');
         }
+        if (wallPageFilledCount() > 0) {
+            meta.textContent += ' · ' + tr('commandWall.metaPages', {
+                page: wallPageIndex + 1,
+                pages: wallPageFilledCount(),
+                auto: wallPageAuto ? (wallPageDwellMs / 1000) + 's' : 'off',
+            });
+        }
     }
 
     function buildGrid() {
@@ -883,6 +1019,8 @@
                 '<button type="button" class="' + c('btn-sm') + ' btn-spotlight-exit" hidden>' + gridIconSvg() + '</button>' +
                 '<button type="button" class="' + c('btn-sm') + ' btn-play" title="' + tr('video.play') + '" disabled>▶</button>' +
                 '<button type="button" class="' + c('btn-sm') + ' btn-stop" title="' + tr('video.stop') + '" disabled>■</button>' +
+                '<button type="button" class="' + c('btn-sm') + ' btn-digi" title="Digi PTZ" hidden>Digi PTZ</button>' +
+                '<button type="button" class="' + c('btn-sm') + ' btn-ptz" title="PTZ Control" hidden>PTZ</button>' +
                 '<button type="button" class="' + c('btn-sm') + ' btn-audio" title="' + tr('audio.panelMutedHint') + '" disabled>🔇</button>' +
                 '</div></div>' +
                 '<div class="' + c('cell-stage') + '">' +
@@ -896,11 +1034,8 @@
             bindCellDrop(cell, i);
             bindCellControls(cell, i);
             bindCellSpotlight(cell, i);
-            cell.addEventListener('click', function (event) {
-                if (event.target && event.target.closest('button')) return;
-                selectedPtzSlot = i;
-                syncPtzPanel();
-            });
+            bindSlotDigiPtz(cell, i);
+            /* Do not bind cell click → PTZ (was hiding panel when clicking elsewhere) */
         }
         applyWallLayout();
     }
@@ -964,49 +1099,106 @@
             audioBtn.title = muted ? 'Listen to This Panel' : 'Mute This Panel';
             audioBtn.classList.toggle('listening', !muted && live);
         }
+        /* VMS-DIGI-ZOOM-TAB-V1 — Digi for all cams; PTZ only when capable */
+        const digiBtn = cell.querySelector('.btn-digi');
+        if (digiBtn) {
+            digiBtn.hidden = !camId;
+            digiBtn.disabled = !camId;
+            digiBtn.classList.toggle('is-active', !!camId && ptzPanelOpen && selectedPtzSlot === slot && ptzPanelTab === 'digi');
+        }
+        const ptzBtn = cell.querySelector('.btn-ptz');
+        if (ptzBtn) {
+            const camera = fixedCamera ? fixedCameraById[fixedCameraId(camId)] : null;
+            const canPtz = !!(camera && camera.ptzEnabled && camera.streamSource === 'onvif');
+            const lab = !!(cwPtzJoystick && typeof cwPtzJoystick.isLabMock === 'function' && cwPtzJoystick.isLabMock());
+            const showPtz = !!(camId && (canPtz || lab));
+            ptzBtn.hidden = !showPtz;
+            ptzBtn.disabled = !showPtz;
+            ptzBtn.classList.toggle('is-active', showPtz && ptzPanelOpen && selectedPtzSlot === slot && ptzPanelTab === 'ptz');
+        }
         cell.classList.toggle('has-cam', !!camId);
         cell.classList.toggle(c('ptz-selected'), selectedPtzSlot === slot);
         const overlay = cellQuery(cell, 'cell-offline-overlay');
         if (overlay) overlay.hidden = !(camId && !online);
         syncSpotlightUi();
         maybeExitSpotlightIfInvalid();
-        if (selectedPtzSlot === slot) syncPtzPanel();
+        /* Do NOT syncPtzPanel here — setTarget→setTab→onTabChange→updateCellControls was an infinite freeze */
+    }
+
+    let syncPtzPanelLock = false;
+
+    function showCwCamToolToast(msg) {
+        let elToast = document.getElementById('cw-cam-tool-toast');
+        if (!elToast) {
+            elToast = document.createElement('div');
+            elToast.id = 'cw-cam-tool-toast';
+            elToast.setAttribute('role', 'status');
+            elToast.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9500;padding:10px 16px;border-radius:8px;background:#0f172a;border:1px solid #38bdf8;color:#e2e8f0;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.45);pointer-events:none;';
+            document.body.appendChild(elToast);
+        }
+        elToast.textContent = String(msg || '');
+        elToast.hidden = false;
+        if (showCwCamToolToast._t) clearTimeout(showCwCamToolToast._t);
+        showCwCamToolToast._t = setTimeout(function () { elToast.hidden = true; }, 2200);
+    }
+
+    function refreshCamToolButtonActive() {
+        for (let i = 0; i < slots.length; i += 1) {
+            const cell = getCell(i);
+            if (!cell) continue;
+            const digiBtn = cell.querySelector('.btn-digi');
+            const ptzBtn = cell.querySelector('.btn-ptz');
+            if (digiBtn) {
+                digiBtn.classList.toggle('is-active',
+                    digiArmedSlot === i
+                    || digiState(i).scale > 1
+                    || (!!ptzPanelOpen && selectedPtzSlot === i && ptzPanelTab === 'digi'));
+            }
+            if (ptzBtn) {
+                ptzBtn.classList.toggle('is-active', !!ptzPanelOpen && selectedPtzSlot === i && ptzPanelTab === 'ptz');
+            }
+            cell.classList.toggle(c('ptz-selected'), ptzPanelOpen && selectedPtzSlot === i);
+        }
     }
 
     function ensurePtzPanel() {
         let panel = document.getElementById(c('ptz-panel'));
         if (!panel) {
-            if (!document.getElementById('cw-ptz-runtime-style')) {
-                const style = document.createElement('style');
-                style.id = 'cw-ptz-runtime-style';
-                style.textContent =
-                    '.' + c('ptz-panel') + '{flex-shrink:0;padding:10px;border-top:1px solid #334155;background:#0f172a}' +
-                    '.' + c('ptz-title') + '{color:#93c5fd;font-size:10px;font-weight:800;letter-spacing:.08em}' +
-                    '.' + c('ptz-camera') + '{min-height:30px;margin:5px 0 8px;color:#e2e8f0;font-size:11px;line-height:1.35}' +
-                    '.' + c('ptz-pad') + '{display:grid;grid-template-columns:repeat(3,34px);grid-template-areas:". up ." "left home right" ". down .";justify-content:center;gap:4px}' +
-                    '.' + c('ptz-pad') + ' [data-ptz=up]{grid-area:up}.' + c('ptz-pad') + ' [data-ptz=left]{grid-area:left}' +
-                    '.' + c('ptz-pad') + ' [data-ptz=home]{grid-area:home}.' + c('ptz-pad') + ' [data-ptz=right]{grid-area:right}' +
-                    '.' + c('ptz-pad') + ' [data-ptz=down]{grid-area:down}' +
-                    '.' + c('ptz-pad') + ' button,.' + c('ptz-zoom') + ' button{border:1px solid #475569;border-radius:5px;background:#1e293b;color:#e2e8f0;cursor:pointer;touch-action:none}' +
-                    '.' + c('ptz-pad') + ' button{width:34px;height:30px}.' + c('ptz-zoom') + '{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px}' +
-                    '.' + c('ptz-zoom') + ' button{height:28px;font-size:10px}.' + c('ptz-panel') + ' button:disabled{opacity:.35;cursor:not-allowed}' +
-                    '.' + c('ptz-status') + '{margin-top:7px;min-height:26px;color:#64748b;font-size:9px;line-height:1.35}' +
-                    '.' + c('cell') + '.' + c('ptz-selected') + '{border-color:#38bdf8;box-shadow:inset 0 0 0 1px #38bdf8}';
-                document.head.appendChild(style);
-            }
-            const rosterBody = el('roster-body');
-            if (!rosterBody || !rosterBody.parentElement) return null;
+            /* Floating HUD on document.body — fixed coords match mouse (Ops pin style) */
             panel = document.createElement('section');
             panel.id = c('ptz-panel');
-            panel.className = c('ptz-panel');
-            rosterBody.parentElement.appendChild(panel);
+            panel.className = c('ptz-panel') + ' is-pro';
+            panel.hidden = true;
+            document.body.appendChild(panel);
+        } else if (panel.parentElement !== document.body) {
+            document.body.appendChild(panel);
         }
-        /* VMS-PTZ-JOYSTICK-COMMAND-WALL-V1 - shared pad; selection model unchanged */
         if (!cwPtzJoystick && global.VmsPtzJoystick && typeof global.VmsPtzJoystick.create === 'function') {
             cwPtzJoystick = global.VmsPtzJoystick.create(panel, {
                 showNumpad: false,
-                isFloating: false,
-                classPrefix: EMBEDDED ? 'cw-' : '',
+                isFloating: true,
+                proChrome: true,
+                classPrefix: 'cw-',
+            }, {
+                onLabMock: function () {
+                    /* Never storm all cells — that made Digi open feel hung */
+                    refreshCamToolButtonActive();
+                },
+                onClose: function () {
+                    ptzPanelOpen = false;
+                    refreshCamToolButtonActive();
+                },
+                onMinimize: function () {
+                    /* chrome only — panel stays open */
+                },
+                onTabChange: function (tab) {
+                    ptzPanelTab = tab === 'ptz' ? 'ptz' : 'digi';
+                    refreshCamToolButtonActive();
+                },
+                onDigiZoom: function (level) {
+                    if (selectedPtzSlot < 0) return;
+                    setSlotDigiScale(selectedPtzSlot, level);
+                },
             });
         }
         return panel;
@@ -1017,16 +1209,170 @@
         return isFixedCameraId(camId) ? fixedCameraById[fixedCameraId(camId)] : null;
     }
 
+    function digiState(slot) {
+        const s = digiZoomBySlot[slot];
+        if (!s || typeof s !== 'object') return { scale: 1, panX: 0, panY: 0 };
+        return s;
+    }
+
+    function snapDigiStep(n) {
+        let best = 1;
+        let bestD = 99;
+        DIGI_PTZ_STEPS.forEach(function (step) {
+            const d = Math.abs(step - Number(n));
+            if (d < bestD) {
+                bestD = d;
+                best = step;
+            }
+        });
+        return best;
+    }
+
+    function setSlotDigiScale(slot, scale) {
+        const sc = snapDigiStep(scale);
+        const prev = digiState(slot);
+        digiZoomBySlot[slot] = sc <= 1
+            ? { scale: 1, panX: 0, panY: 0 }
+            : { scale: sc, panX: prev.panX || 0, panY: prev.panY || 0 };
+        applySlotDigiZoom(slot);
+        if (ptzPanelOpen && selectedPtzSlot === slot && cwPtzJoystick
+            && typeof cwPtzJoystick.setDigiLevel === 'function') {
+            cwPtzJoystick.setDigiLevel(sc, false);
+        }
+    }
+
+    function clampSlotDigiPan(slot, stage) {
+        const st = digiState(slot);
+        if (st.scale <= 1 || !stage) {
+            st.panX = 0;
+            st.panY = 0;
+            return;
+        }
+        const maxX = (stage.clientWidth * (st.scale - 1)) / 2;
+        const maxY = (stage.clientHeight * (st.scale - 1)) / 2;
+        st.panX = Math.max(-maxX, Math.min(maxX, st.panX || 0));
+        st.panY = Math.max(-maxY, Math.min(maxY, st.panY || 0));
+    }
+
+    function applySlotDigiZoom(slot) {
+        try {
+            const cell = getCell(slot);
+            if (!cell) return;
+            const stage = cellQuery(cell, 'cell-stage');
+            if (!stage) return;
+            const st = digiState(slot);
+            clampSlotDigiPan(slot, stage);
+            const scale = st.scale > 1 ? st.scale : 1;
+            stage.classList.toggle('has-digi-zoom', scale > 1);
+            stage.classList.toggle('is-dptz', scale > 1);
+            /* VMS-DIGI-PTZ-VISIBLE-PARITY-V1 — same as Investigation: transform the picture */
+            const media = stage.querySelector('video, canvas');
+            if (!media) return;
+            stage.style.transform = '';
+            stage.style.transformOrigin = '';
+            if (scale <= 1) {
+                media.style.transform = '';
+                media.style.transformOrigin = '';
+                return;
+            }
+            media.style.transformOrigin = 'center center';
+            media.style.transform = 'translate(' + st.panX + 'px,' + st.panY + 'px) scale(' + scale + ')';
+        } catch (_) { /* never break live */ }
+    }
+
+    function ensureDigiPanListeners() {
+        if (ensureDigiPanListeners.done) return;
+        ensureDigiPanListeners.done = true;
+        document.addEventListener('mousemove', function (e) {
+            if (!digiPanDrag) return;
+            const st = digiState(digiPanDrag.slot);
+            const dx = e.clientX - digiPanDrag.x;
+            const dy = e.clientY - digiPanDrag.y;
+            if (Math.abs(dx) > 2 || Math.abs(dy) > 2) digiPanDrag.moved = true;
+            st.panX = digiPanDrag.panX + dx;
+            st.panY = digiPanDrag.panY + dy;
+            applySlotDigiZoom(digiPanDrag.slot);
+        });
+        document.addEventListener('mouseup', function () {
+            if (!digiPanDrag) return;
+            if (digiPanDrag.moved && digiPanDrag.stage) {
+                digiPanDrag.stage._digiSuppressSpotlightClick = true;
+            }
+            if (digiPanDrag.stage) digiPanDrag.stage.classList.remove('is-dptz-panning');
+            digiPanDrag = null;
+            document.body.classList.remove('cw-digi-ptz-panning');
+        });
+    }
+
+    function bindSlotDigiPtz(cell, slot) {
+        const stage = cellQuery(cell, 'cell-stage');
+        if (!stage || stage._digiPtzBound) return;
+        stage._digiPtzBound = true;
+        ensureDigiPanListeners();
+        stage.addEventListener('wheel', function (e) {
+            if (!slotCamId(slot)) return;
+            /* Inv parity: armed cell or already zoomed — panel not required */
+            if (digiArmedSlot !== slot && digiState(slot).scale <= 1) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const cur = digiState(slot).scale;
+            let idx = DIGI_PTZ_STEPS.indexOf(cur);
+            if (idx < 0) idx = 0;
+            idx = e.deltaY < 0
+                ? Math.min(DIGI_PTZ_STEPS.length - 1, idx + 1)
+                : Math.max(0, idx - 1);
+            setSlotDigiScale(slot, DIGI_PTZ_STEPS[idx]);
+        }, { passive: false });
+        stage.addEventListener('mousedown', function (e) {
+            if (e.button !== 0) return;
+            if (digiState(slot).scale <= 1) return;
+            if (e.target && e.target.closest && e.target.closest('button')) return;
+            const st = digiState(slot);
+            digiPanDrag = {
+                slot: slot,
+                stage: stage,
+                x: e.clientX,
+                y: e.clientY,
+                panX: st.panX || 0,
+                panY: st.panY || 0,
+                moved: false,
+            };
+            stage.classList.add('is-dptz-panning');
+            document.body.classList.add('cw-digi-ptz-panning');
+            /* VMS-DIGI-SPOTLIGHT-CLICK-GUARD-V1 — block click→spotlight after pan */
+            stage._digiSuppressSpotlightClick = true;
+            e.preventDefault();
+            e.stopPropagation();
+        });
+    }
+
     function syncPtzPanel() {
+        if (syncPtzPanelLock) return;
+        syncPtzPanelLock = true;
+        try {
         ensurePtzPanel();
         if (!cwPtzJoystick) return;
+        if (!ptzPanelOpen) {
+            cwPtzJoystick.setVisible(false);
+            refreshCamToolButtonActive();
+            return;
+        }
         const camId = selectedPtzSlot >= 0 ? slotCamId(selectedPtzSlot) : null;
         if (!camId) {
-            cwPtzJoystick.setTarget(null, { hasPtz: false, label: 'Empty' });
+            cwPtzJoystick.setTarget(null, {
+                hasPtz: false,
+                label: 'Empty',
+                ptzTabEnabled: false,
+                digiLevel: 1,
+                tab: 'digi',
+            });
+            cwPtzJoystick.setVisible(true);
+            refreshCamToolButtonActive();
             return;
         }
         const camera = isFixedCameraId(camId) ? fixedCameraById[fixedCameraId(camId)] : null;
         const hasPtz = !!(camera && camera.ptzEnabled && camera.streamSource === 'onvif');
+        const labMockOk = !!(cwPtzJoystick.isLabMock && cwPtzJoystick.isLabMock());
         let label = 'Camera';
         if (camera && camera.name) label = String(camera.name);
         else if (global.FleetDisplay && typeof global.FleetDisplay.friendlyDeviceName === 'function') {
@@ -1034,12 +1380,24 @@
         } else {
             label = deviceName(camId);
         }
-        const apiId = isFixedCameraId(camId) ? fixedCameraId(camId) : null;
-        /* Only fixed cams are PTZ API targets; BWC/other -> dead pad */
+        const apiId = isFixedCameraId(camId) ? fixedCameraId(camId) : (labMockOk ? camId : null);
+        const digiLevel = digiState(selectedPtzSlot).scale;
+        const wantTab = ptzPanelTab === 'ptz' && (hasPtz || labMockOk) ? 'ptz' : 'digi';
+        ptzPanelTab = wantTab;
         cwPtzJoystick.setTarget(apiId, {
             hasPtz: !!(apiId && hasPtz),
+            labMock: labMockOk && !hasPtz,
             label: label,
+            ptzTabEnabled: !!(hasPtz || labMockOk),
+            digiLevel: digiLevel,
+            tab: wantTab,
         });
+        cwPtzJoystick.setVisible(true);
+        applySlotDigiZoom(selectedPtzSlot);
+        refreshCamToolButtonActive();
+        } finally {
+            syncPtzPanelLock = false;
+        }
     }
 
     function showStageHint(slot, show) {
@@ -1258,6 +1616,7 @@
                 showConnecting(slot, false);
                 setCellStatus(slot, 'Live', 'live');
                 updateCellControls(slot);
+                applySlotDigiZoom(slot);
                 clearPttForCwLive(camId);
             },
             onFail: function () {
@@ -3601,6 +3960,7 @@
         if (!isSlotVisible(slot)) return;
         const camId = slotCamId(slot);
         if (!camId) return;
+        if (slots[slot]) slots[slot].operatorStopped = false;
         showStageStopped(slot, false);
         showStageHint(slot, false);
         if (!deviceOnline(camId)) {
@@ -3658,8 +4018,12 @@
             if (empty) empty.hidden = true;
         }
         setCellStatus(slot, keepAssignment ? 'Stopped' : '\u2014', '');
-        if (keepAssignment) showStageStopped(slot, true);
-        else showStageHint(slot, true);
+        if (keepAssignment) {
+            if (slots[slot]) slots[slot].operatorStopped = true;
+            showStageStopped(slot, true);
+        } else {
+            showStageHint(slot, true);
+        }
         updateCellControls(slot);
         if (!keepAssignment) clearSlotAssignment(slot, false);
     }
@@ -3750,6 +4114,54 @@
         cell.querySelector('.btn-audio').addEventListener('click', function () {
             toggleSlotAudio(slot);
         });
+        const digiBtn = cell.querySelector('.btn-digi');
+        if (digiBtn) {
+            digiBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                try {
+                    /* Inv tlToggleDptz: arm + step zoom ladder; HUD optional */
+                    selectedPtzSlot = slot;
+                    digiArmedSlot = slot;
+                    ptzPanelTab = 'digi';
+                    ptzPanelOpen = true;
+                    const cur = digiState(slot).scale;
+                    let idx = DIGI_PTZ_STEPS.indexOf(cur);
+                    if (idx < 0) idx = 0;
+                    setSlotDigiScale(slot, DIGI_PTZ_STEPS[(idx + 1) % DIGI_PTZ_STEPS.length]);
+                    if (cwPtzJoystick && typeof cwPtzJoystick.setMinimized === 'function') {
+                        cwPtzJoystick.setMinimized(false);
+                    }
+                    syncPtzPanel();
+                    refreshCamToolButtonActive();
+                    showCwCamToolToast('Digi PTZ ' + digiState(slot).scale + '\u00d7');
+                } catch (err) {
+                    try { console.error('[cw-digi]', err); } catch (_) { /* ignore */ }
+                    ptzPanelOpen = false;
+                    refreshCamToolButtonActive();
+                }
+            });
+        }
+        const ptzBtn = cell.querySelector('.btn-ptz');
+        if (ptzBtn) {
+            ptzBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                try {
+                    selectedPtzSlot = slot;
+                    ptzPanelOpen = true;
+                    ptzPanelTab = 'ptz';
+                    if (cwPtzJoystick && typeof cwPtzJoystick.setMinimized === 'function') {
+                        cwPtzJoystick.setMinimized(false);
+                    }
+                    syncPtzPanel();
+                    refreshCamToolButtonActive();
+                    showCwCamToolToast('PTZ — panel ' + (slot + 1));
+                } catch (err) {
+                    try { console.error('[cw-ptz]', err); } catch (_) { /* ignore */ }
+                    ptzPanelOpen = false;
+                    refreshCamToolButtonActive();
+                }
+            });
+        }
         const exitBtn = cell.querySelector('.btn-spotlight-exit');
         if (exitBtn) {
             exitBtn.addEventListener('click', function (e) {
@@ -3762,11 +4174,22 @@
     function bindCellSpotlight(cell, slot) {
         const stage = cellQuery(cell, 'cell-stage');
         if (!stage) return;
+        /* Capture: kill click before bubble spotlight (Digi pan ends as click) */
         stage.addEventListener('click', function (e) {
+            if (stage._digiSuppressSpotlightClick
+                || digiArmedSlot === slot
+                || digiState(slot).scale > 1
+                || stage.classList.contains('is-dptz')
+                || stage.classList.contains('has-digi-zoom')) {
+                stage._digiSuppressSpotlightClick = false;
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                return;
+            }
             if (e.target.closest('button') || e.target.closest('.' + c('cell-ptt-comm'))) return;
             if (!canEnterSpotlight(slot)) return;
             enterSpotlight(slot);
-        });
+        }, true);
     }
 
     function bindDeviceChip(chip) {
@@ -3816,6 +4239,165 @@
         return ids;
     }
 
+    function fillWallFromCamIds(camIds, label) {
+        /* VMS-CW-FILL-FROM-GROUP-V1 — online cams not already on wall → free slots */
+        if (spotlightActive) exitSpotlight();
+        const toPlace = [];
+        const seen = Object.create(null);
+        (camIds || []).forEach(function (raw) {
+            const camId = normalizeCamId(raw);
+            if (!camId || seen[camId]) return;
+            seen[camId] = true;
+            if (!deviceOnline(camId)) return;
+            if (wallHasCamAssigned(camId)) return;
+            toPlace.push(camId);
+        });
+        if (!toPlace.length) {
+            showCwCamToolToast((label || 'Group') + ' — nothing new to place');
+            return;
+        }
+        let free = listFreeVisibleSlots();
+        let expanded = null;
+        if (free.length < toPlace.length) {
+            const need = Math.min(MAX_SLOTS, occupiedVisibleCount() + toPlace.length);
+            const next = nextLayoutForNeed(need);
+            if (next && next !== currentLayout && LAYOUT_SCHEMES[next].count >= need) {
+                setLayoutScheme(next);
+                expanded = next;
+                free = listFreeVisibleSlots();
+            }
+        }
+        const n = Math.min(toPlace.length, free.length);
+        for (let i = 0; i < n; i += 1) {
+            assignCamToSlot(free[i], toPlace[i], deviceName(toPlace[i]), true, { pinned: false });
+        }
+        const left = toPlace.length - n;
+        let msg = (label || 'Group') + ' — placed ' + n;
+        if (expanded) msg += ' · layout ' + layoutToastLabel(expanded);
+        if (left > 0) msg += ' · ' + left + ' left (wall full)';
+        showCwCamToolToast(msg);
+        renderRoster();
+        updateWallMeta();
+    }
+
+    function layoutForOnlineCount(n) {
+        const order = ['1', '4', '9', '16', '32'];
+        const need = Math.max(1, Math.min(MAX_SLOTS, n | 0));
+        for (let i = 0; i < order.length; i += 1) {
+            if (LAYOUT_SCHEMES[order[i]].count >= need) return order[i];
+        }
+        return '32';
+    }
+
+    function buildWallPagesFromCamIds(camIds) {
+        const list = Array.isArray(camIds) ? camIds.slice() : [];
+        const per = Math.max(1, Math.min(MAX_SLOTS, activeSlotCount() || 16));
+        wallPages = [[], [], [], []];
+        let page = 0;
+        for (let i = 0; i < list.length && page < WALL_PAGE_COUNT; i += 1) {
+            if (wallPages[page].length >= per) {
+                page += 1;
+                if (page >= WALL_PAGE_COUNT) break;
+            }
+            wallPages[page].push(list[i]);
+        }
+        return wallPageFilledCount();
+    }
+
+    function stopWallPageTimer() {
+        if (wallPageTimer) {
+            clearInterval(wallPageTimer);
+            wallPageTimer = null;
+        }
+    }
+
+    function setWallPageDwell(ms) {
+        const n = Number(ms) || 30000;
+        wallPageDwellMs = WALL_PAGE_DWELL_OPTIONS.indexOf(n) >= 0 ? n : 30000;
+        if (wallPageAuto) setWallPageAuto(true);
+        else syncToolbarActive();
+    }
+
+    function nextFilledWallPage(fromIdx) {
+        if (wallPageFilledCount() < 1) return fromIdx;
+        let i = fromIdx;
+        for (let step = 0; step < WALL_PAGE_COUNT; step += 1) {
+            i = (i + 1) % WALL_PAGE_COUNT;
+            if (wallPages[i] && wallPages[i].length) return i;
+        }
+        return fromIdx;
+    }
+
+    function setWallPageAuto(on) {
+        wallPageAuto = !!on && wallPageFilledCount() >= 2;
+        stopWallPageTimer();
+        if (wallPageAuto) {
+            if (rotateIntervalMs) setRotateInterval(0);
+            if (pollIntervalMs) setPollInterval(0);
+            wallPageTimer = setInterval(function () {
+                applyWallPage(nextFilledWallPage(wallPageIndex), { fromAuto: true });
+            }, wallPageDwellMs);
+        }
+        syncToolbarActive();
+        updateWallMeta();
+    }
+
+    function applyWallPage(idx, opts) {
+        opts = opts || {};
+        const page = Math.max(0, Math.min(WALL_PAGE_COUNT - 1, idx | 0));
+        const cams = wallPages[page] || [];
+        if (!cams.length) {
+            if (opts.manual) showCwCamToolToast(tr('commandWall.pageEmpty'));
+            return;
+        }
+        if (spotlightActive) exitSpotlight();
+        wallPageIndex = page;
+        clearCwPttComm();
+        deckEntries = [];
+        for (let i = 0; i < MAX_SLOTS; i += 1) {
+            if (slots[i]) stopSlot(i, false);
+        }
+        const layoutId = layoutForOnlineCount(cams.length);
+        if (layoutId !== currentLayout) setLayoutScheme(layoutId);
+        const n = Math.min(cams.length, activeSlotCount());
+        for (let i = 0; i < n; i += 1) {
+            assignCamToSlot(i, cams[i], deviceName(cams[i]), true, { pinned: false });
+        }
+        syncToolbarActive();
+        renderRoster();
+        updateWallMeta();
+        if (opts.manual && !opts.fromAuto) {
+            showCwCamToolToast(tr('commandWall.pageApplied', { n: page + 1, count: n }));
+        }
+    }
+
+    function fillAllOnlineWithPoll() {
+        /* Fill All → build Pages 1–4; Auto pages when overflow (safer than Poll thrash) */
+        if (spotlightActive) exitSpotlight();
+        const online = rosterCamList().filter(function (id) { return deviceOnline(id); });
+        if (!online.length) {
+            showCwCamToolToast('No online cameras');
+            return;
+        }
+        const layoutId = layoutForOnlineCount(Math.min(online.length, MAX_SLOTS));
+        if (layoutId !== currentLayout) setLayoutScheme(layoutId);
+        const pagesUsed = buildWallPagesFromCamIds(online);
+        applyWallPage(0, { fromAuto: true });
+        if (pagesUsed > 1) {
+            if (rotateIntervalMs) setRotateInterval(0);
+            if (pollIntervalMs) setPollInterval(0);
+            setWallPageAuto(true);
+            showCwCamToolToast(
+                'All online — ' + pagesUsed + ' pages · Auto ' + (wallPageDwellMs / 1000) + 's'
+            );
+        } else {
+            setWallPageAuto(false);
+            showCwCamToolToast('All online — ' + (wallPages[0] || []).length + ' live');
+        }
+        renderRoster();
+        updateWallMeta();
+    }
+
     function renderRoster() {
         const body = el('roster-body');
         const wallIds = inWallCamIds();
@@ -3824,21 +4406,40 @@
             body.innerHTML = '<div class="' + c('roster-empty') + '">No devices registered</div>';
             return;
         }
+        function appendGroupBlock(titleHtml, camIds, fillLabel) {
+            const block = document.createElement('div');
+            block.className = c('group-block');
+            const title = document.createElement('div');
+            title.className = c('group-title');
+            title.innerHTML = titleHtml;
+            const fillBtn = document.createElement('button');
+            fillBtn.type = 'button';
+            fillBtn.className = c('btn-sm') + ' ' + c('group-fill');
+            fillBtn.setAttribute('data-i18n', 'commandWall.fillGroup');
+            fillBtn.textContent = tr('commandWall.fillGroup');
+            fillBtn.title = tr('commandWall.fillGroupHint');
+            fillBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                fillWallFromCamIds(camIds, fillLabel);
+            });
+            title.appendChild(fillBtn);
+            block.appendChild(title);
+            return block;
+        }
         rosterData.groups.forEach(function (g) {
             const members = (g.members || []).filter(function (m) {
                 return m.deviceId && matchesFilter(m.nickname || deviceName(m.deviceId), m.deviceId);
             });
             if (!members.length) return;
             const onlineCount = members.filter(function (m) { return deviceOnline(m.deviceId); }).length;
-            const block = document.createElement('div');
-            block.className = c('group-block');
-            const title = document.createElement('div');
-            title.className = c('group-title');
-            title.innerHTML =
+            const label = g.name || 'Group';
+            const block = appendGroupBlock(
                 '<span class="' + c('group-dot') + '" style="background:' + escHtml(g.color || '#64748b') + '"></span>' +
-                '<span>' + escHtml(g.name || 'Group') + '</span>' +
-                '<span class="' + c('group-meta') + '">' + onlineCount + '/' + members.length + ' online</span>';
-            block.appendChild(title);
+                '<span class="' + c('group-name') + '">' + escHtml(label) + '</span>' +
+                '<span class="' + c('group-meta') + '">' + onlineCount + '/' + members.length + ' online</span>',
+                members.map(function (m) { return m.deviceId; }),
+                label
+            );
             members.forEach(function (m) {
                 const camId = m.deviceId;
                 const name = m.nickname || deviceName(camId);
@@ -3852,15 +4453,13 @@
             });
             if (!list.length) return;
             const onlineCount = list.filter(function (d) { return d.online; }).length;
-            const block = document.createElement('div');
-            block.className = c('group-block');
-            const title = document.createElement('div');
-            title.className = c('group-title');
-            title.innerHTML =
+            const block = appendGroupBlock(
                 '<span class="' + c('group-dot') + '" style="background:#64748b"></span>' +
-                '<span>' + escHtml(groupName) + '</span>' +
-                '<span class="' + c('group-meta') + '">' + onlineCount + '/' + list.length + ' online</span>';
-            block.appendChild(title);
+                '<span class="' + c('group-name') + '">' + escHtml(groupName) + '</span>' +
+                '<span class="' + c('group-meta') + '">' + onlineCount + '/' + list.length + ' online</span>',
+                list.map(function (d) { return d.id; }),
+                groupName
+            );
             list.forEach(function (d) {
                 block.appendChild(renderDeviceChip(d.id, d.name, d.online, !!wallIds[d.id]));
             });
@@ -4030,6 +4629,9 @@
         }
         clearCwPttComm();
         deckEntries = [];
+        setWallPageAuto(false);
+        wallPages = [[], [], [], []];
+        wallPageIndex = 0;
         rotatePaused = false;
         rotateQueueIndex = 0;
         if (rotateTimer) {
@@ -4044,6 +4646,7 @@
         pollQueueIndex = 0;
         syncToolbarActive();
         renderRoster();
+        updateWallMeta();
     }
 
     function ingestFleetRoster(fleet) {
@@ -4180,6 +4783,53 @@
         });
     }
 
+    function bindRosterCollapse() {
+        /* VMS-CW-ROSTER-COLLAPSE-V1 — hide left roster; wall gains width */
+        const panel = EMBEDDED
+            ? document.getElementById('cw-panel-live')
+            : document.getElementById('panel-live');
+        const hideBtn = EMBEDDED
+            ? document.getElementById('cw-roster-collapse')
+            : document.getElementById('roster-collapse');
+        if (!panel || !hideBtn) return;
+        if (hideBtn._cwRosterCollapseBound) return;
+        hideBtn._cwRosterCollapseBound = true;
+        const KEY = 'me8-cw-roster-collapsed';
+        function showBtnEl() {
+            return EMBEDDED
+                ? document.getElementById('cw-roster-reopen')
+                : document.getElementById('roster-reopen');
+        }
+        function applyCollapsed(on) {
+            panel.classList.toggle('is-roster-collapsed', !!on);
+            const showBtn = showBtnEl();
+            if (showBtn) showBtn.hidden = !on;
+            try { sessionStorage.setItem(KEY, on ? '1' : '0'); } catch (_) { /* ignore */ }
+            try {
+                requestAnimationFrame(function () { applyWallLayout(); });
+            } catch (_) { /* ignore */ }
+        }
+        let startOn = false;
+        try { startOn = sessionStorage.getItem(KEY) === '1'; } catch (_) { /* ignore */ }
+        applyCollapsed(startOn);
+        hideBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            applyCollapsed(true);
+        });
+        const bar = el('wall-bar');
+        if (bar && !bar._cwRosterReopenBound) {
+            bar._cwRosterReopenBound = true;
+            bar.addEventListener('click', function (e) {
+                const t = e.target && e.target.closest
+                    ? e.target.closest('#' + (EMBEDDED ? 'cw-roster-reopen' : 'roster-reopen'))
+                    : null;
+                if (!t) return;
+                e.stopPropagation();
+                applyCollapsed(false);
+            });
+        }
+    }
+
     function startApp(sharedSocket) {
         buildWallToolbar();
         whenI18nReady(syncWallToolbarI18n);
@@ -4188,6 +4838,7 @@
             window.addEventListener('fm-i18n-changed', syncWallToolbarI18n);
         }
         buildGrid();
+        bindRosterCollapse();
         bindAlarmRailUi();
         loadWallNudgeLocks();
         // Pop-out: re-apply after paint so grid columns win (avoids one-column row list).

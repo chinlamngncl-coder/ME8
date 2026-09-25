@@ -278,6 +278,145 @@
             </tr>`).join('');
     }
 
+    function syncCalibrateNorthRow() {
+        const row = document.getElementById('fc-calibrate-north-row');
+        const btn = document.getElementById('fc-calibrate-north-btn');
+        const hint = document.getElementById('fc-calibrate-north-hint');
+        const ptz = document.getElementById('fc-f-ptz');
+        if (!row) return;
+        const ptzOn = ptz && ptz.value === 'true';
+        row.hidden = !ptzOn;
+        if (btn) {
+            btn.disabled = !ptzOn;
+            btn.textContent = 'Open Map to Set North';
+            btn.title = 'Open Operations map to set north for this camera';
+        }
+        if (hint) {
+            hint.textContent = 'Opens Operations map. Pan to face north, then Set North.';
+        }
+    }
+
+    function validateFormPayload(payload) {
+        if (!payload.name) { showToast('Camera name is required.', 'err'); return false; }
+        if (payload.placementMode === 'outdoor') {
+            const hasLat = payload.lat != null && !isNaN(payload.lat);
+            const hasLng = payload.lng != null && !isNaN(payload.lng);
+            if ((hasLat && !hasLng) || (!hasLat && hasLng)) {
+                showToast('Provide both latitude and longitude, or leave both blank.', 'err');
+                return false;
+            }
+        }
+        if (payload.placementMode === 'indoor' && !payload.zone_id) {
+            showToast('Floor / Zone ID is required for indoor placement.', 'err');
+            return false;
+        }
+        return true;
+    }
+
+    function payloadHasOpsMapPin(payload) {
+        const lat = payload && payload.lat;
+        const lng = payload && payload.lng;
+        return lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng));
+    }
+
+    async function saveCurrentForm() {
+        const payload = readForm();
+        if (!validateFormPayload(payload)) return { ok: false };
+        const r = editingId
+            ? await api('PUT', '/api/fixed-cams/' + editingId, payload)
+            : await api('POST', '/api/fixed-cams', payload);
+        if (!r.ok) {
+            if (r.error !== 'limit_reached') showToast(r.error || 'Save failed.', 'err');
+            return { ok: false, error: r.error };
+        }
+        const cam = r.cam || null;
+        const id = cam && cam.id ? String(cam.id) : (editingId || '');
+        if (id) editingId = id;
+        if (window.reloadFixedCameraMapPins) window.reloadFixedCameraMapPins();
+        loadTable();
+        return { ok: true, cam: cam, id: id, payload: payload };
+    }
+
+    function tryStartOpsNorthCalibrate(camId, attempt) {
+        const id = String(camId || '').trim();
+        const n = attempt || 0;
+        if (!id) return;
+        if (n > 25) {
+            showToast('Operations map PTZ tools did not open. Open Operations, Geo Tools → PTZ, pick this camera.', 'err');
+            try { sessionStorage.removeItem('me8CalibrateNorthCamId'); } catch (_) { /* ignore */ }
+            return;
+        }
+        const mapEl = document.getElementById('map');
+        const geoReady = window.GeoTools && typeof window.GeoTools.startNorthCalibrate === 'function';
+        if (!geoReady || (mapEl && mapEl.offsetParent === null && n < 10)) {
+            setTimeout(function () { tryStartOpsNorthCalibrate(id, n + 1); }, 160);
+            return;
+        }
+        try {
+            if (window.__me8OpsMap && typeof window.__me8OpsMap.invalidateSize === 'function') {
+                window.__me8OpsMap.invalidateSize();
+            }
+        } catch (_) { /* ignore */ }
+        if (typeof window.reloadFixedCameraMapPins === 'function') {
+            try { window.reloadFixedCameraMapPins(); } catch (_) { /* ignore */ }
+        }
+        setTimeout(function () {
+            try {
+                window.GeoTools.startNorthCalibrate(id);
+                sessionStorage.removeItem('me8CalibrateNorthCamId');
+            } catch (_) {
+                setTimeout(function () { tryStartOpsNorthCalibrate(id, n + 1); }, 200);
+            }
+        }, 280);
+    }
+
+    function jumpToNorthCalibrate(camId) {
+        const id = String(camId || editingId || '').trim();
+        if (!id) {
+            showToast('Camera id missing after save.', 'err');
+            return;
+        }
+        try {
+            sessionStorage.setItem('me8CalibrateNorthCamId', id);
+        } catch (_) { /* ignore */ }
+        dlg.close();
+        const opsBtn = document.getElementById('nav-tab-ops');
+        if (!opsBtn) {
+            showToast('Operations tab not found.', 'err');
+            return;
+        }
+        opsBtn.click();
+        setTimeout(function () { tryStartOpsNorthCalibrate(id, 0); }, 200);
+    }
+
+    async function startCalibrateNorthFromForm() {
+        const ptz = document.getElementById('fc-f-ptz');
+        if (!ptz || ptz.value !== 'true') {
+            showToast('Enable PTZ Capable before calibrating.', 'err');
+            return;
+        }
+        const preview = readForm();
+        if (!payloadHasOpsMapPin(preview)) {
+            showToast('Set latitude and longitude first (Pick on Map), so the camera has a pin on Operations map.', 'err');
+            return;
+        }
+        if (preview.placementMode === 'indoor') {
+            showToast('Set North calibrate uses Operations outdoor map. Use outdoor lat/lng for this step.', 'err');
+            return;
+        }
+        const wasNew = !editingId;
+        const saved = await saveCurrentForm();
+        if (!saved.ok || !saved.id) return;
+        if (!payloadHasOpsMapPin(saved.payload || preview)) {
+            showToast('Camera saved, but needs a map pin (lat/lng) before Set North.', 'err');
+            showForm(wasNew ? 'Edit Camera' : formTitle.textContent);
+            syncCalibrateNorthRow();
+            return;
+        }
+        syncCalibrateNorthRow();
+        jumpToNorthCalibrate(saved.id);
+    }
+
     // ── Form helpers ──────────────────────────────────────────────────────────
     function onSourceChange() {
         onPathChange(document.getElementById('fc-f-source').value);
@@ -298,6 +437,9 @@
         document.getElementById('fc-f-map-icon').value = 'fixed';
         document.getElementById('fc-f-ptz').value     = 'false';
         document.getElementById('fc-f-enabled').value = 'true';
+        const northEl = document.getElementById('fc-f-north-offset');
+        if (northEl) northEl.value = '0';
+        syncCalibrateNorthRow();
         onPlacementChange('outdoor');
         onPathChange('onvif');
         fillRoleSelects([], {});
@@ -346,6 +488,11 @@
             },
             rtspUrl:    document.getElementById('fc-f-rtsp').value.trim(),
             ptzEnabled: document.getElementById('fc-f-ptz').value === 'true',
+            northOffsetDeg: (function () {
+                const el = document.getElementById('fc-f-north-offset');
+                const n = el ? parseFloat(el.value) : 0;
+                return Number.isFinite(n) ? n : 0;
+            })(),
             enabled:    document.getElementById('fc-f-enabled').value === 'true',
             notes:      document.getElementById('fc-f-notes').value.trim(),
             streamProfiles: formStreamProfiles.slice(),
@@ -396,7 +543,10 @@
         document.getElementById('fc-f-rtsp').value    = cam.rtspUrl || '';
         document.getElementById('fc-f-ptz').value     = String(!!cam.ptzEnabled);
         document.getElementById('fc-f-enabled').value = String(cam.enabled !== false);
+        const northEl = document.getElementById('fc-f-north-offset');
+        if (northEl) northEl.value = Number.isFinite(Number(cam.northOffsetDeg)) ? String(cam.northOffsetDeg) : '0';
         document.getElementById('fc-f-notes').value   = cam.notes || '';
+        syncCalibrateNorthRow();
         const zoneId = document.getElementById('fc-f-zone-id');
         if (zoneId) zoneId.value = cam.zone_id || '';
         const mx = document.getElementById('fc-f-map-x');
@@ -479,6 +629,11 @@
 
     formCancel.addEventListener('click', hideForm);
 
+    const ptzSelect = document.getElementById('fc-f-ptz');
+    if (ptzSelect) ptzSelect.addEventListener('change', syncCalibrateNorthRow);
+    const calNorthBtn = document.getElementById('fc-calibrate-north-btn');
+    if (calNorthBtn) calNorthBtn.addEventListener('click', startCalibrateNorthFromForm);
+
     if (mapPickBtn) {
         mapPickBtn.addEventListener('click', async () => {
             if (typeof window.beginFixedCameraMapPick !== 'function') {
@@ -500,34 +655,17 @@
     }
 
     formSave.addEventListener('click', async () => {
-        const payload = readForm();
-        if (!payload.name) { showToast('Camera name is required.', 'err'); return; }
-        /* GPS optional — required only when outdoor AND user typed one of lat/lng incomplete */
-        if (payload.placementMode === 'outdoor') {
-            const hasLat = payload.lat != null && !isNaN(payload.lat);
-            const hasLng = payload.lng != null && !isNaN(payload.lng);
-            if ((hasLat && !hasLng) || (!hasLat && hasLng)) {
-                showToast('Provide both latitude and longitude, or leave both blank.', 'err');
-                return;
-            }
-        }
-        if (payload.placementMode === 'indoor' && !payload.zone_id) {
-            showToast('Floor / Zone ID is required for indoor placement.', 'err');
+        const wasNew = !editingId;
+        const saved = await saveCurrentForm();
+        if (!saved.ok) return;
+        if (wasNew && saved.id) {
+            showToast('Camera added. You can Calibrate Direction now.');
+            showForm('Edit Camera');
+            syncCalibrateNorthRow();
             return;
         }
-
-        const r = editingId
-            ? await api('PUT', '/api/fixed-cams/' + editingId, payload)
-            : await api('POST', '/api/fixed-cams', payload);
-
-        if (!r.ok) {
-            if (r.error === 'limit_reached') return;
-            showToast(r.error || 'Save failed.', 'err'); return;
-        }
-        showToast(editingId ? 'Camera updated.' : 'Camera added.');
+        showToast('Camera updated.');
         hideForm();
-        loadTable();
-        if (window.reloadFixedCameraMapPins) window.reloadFixedCameraMapPins();
     });
 
     csvBtn.addEventListener('click', () => {

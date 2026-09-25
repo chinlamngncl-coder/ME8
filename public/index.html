@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -10147,7 +10147,7 @@
         .sos-detail-actions button { flex: 1; min-width: 100px; padding: 10px; font-size: 12px; border-radius: 6px; border: 1px solid #475569; cursor: pointer; font-weight: 600; background: #334155; color: #e2e8f0; }
         .sos-detail-actions .sos-detail-secondary { flex: 0 1 auto; background: transparent; color: #94a3b8; font-weight: 500; font-size: 11px; }
     </style>
-    <link rel="stylesheet" href="/css/global.css?v=20260920-presence-offline-ungrouped-v1">
+    <link rel="stylesheet" href="/css/global.css?v=20260925-dispatch-invest-tabs-v1">
     <link rel="stylesheet" href="/css/settings-theme-unify.css?v=20260821-fc-toolbar-pad-v1">
 </head>
 <body>
@@ -10424,15 +10424,11 @@
 
     <nav id="app-top-nav" aria-label="Main sections">
         <button type="button" id="nav-tab-ops" class="active" data-i18n="nav.operations">Operations</button>
-        <button type="button" id="nav-tab-command-wall" data-i18n="nav.commandWall">Command Wall</button>
-        <button type="button" id="nav-spatial-command" data-i18n="nav.commandSpatial">Spatial Map</button>
-        <button type="button" id="nav-tab-tactical" data-i18n="nav.tactical">Tactical</button>
+        <button type="button" id="nav-tab-vms" data-i18n="nav.vms">VMS</button>
+        <button type="button" id="nav-tab-detection" data-i18n="nav.detection">Detection</button>
         <button type="button" id="nav-tab-centre-summary" class="nav-group-gap" data-i18n="nav.centreSummary">Centre</button>
-        <button type="button" id="nav-tab-conference" class="nav-group-gap" data-i18n="nav.videoConference">Video Conference</button>
-        <button type="button" id="nav-tab-playback" data-i18n="nav.investigation" onclick="if(window.EvidenceManager&amp;&amp;EvidenceManager.showTab)EvidenceManager.showTab('playback')">Investigation</button>
-        <button type="button" id="nav-tab-evidence" data-i18n="nav.evidence">Evidence</button>
-        <button type="button" id="nav-tab-cad" class="nav-group-gap" data-i18n="nav.cadRms">CAD/RMS</button>
-        <button type="button" id="nav-tab-analytics" data-i18n="nav.analytics">Analytics</button>
+        <button type="button" id="nav-tab-dispatch" data-i18n="nav.dispatch">Dispatch</button>
+        <button type="button" id="nav-tab-investigation-root" data-i18n="nav.investigation">Investigation</button>
         <button type="button" id="nav-tab-server" data-i18n="nav.settings">Settings</button>
         <div id="video-wall-nav-tools" class="video-wall-toolbar">
             <label id="video-wall-poll-wrap" class="video-wall-poll-wrap">
@@ -10442,6 +10438,26 @@
             <button type="button" id="video-matrix-open" data-i18n="video.popoutMatrix">Pop out</button>
             <button type="button" id="video-config-open" data-i18n="video.config" data-i18n-title="video.configTitle" title="Assign cameras to panels">Assign panels</button>
         </div>
+    </nav>
+    <nav id="ops-subnav" hidden aria-label="Operations">
+        <button type="button" id="nav-tab-ops-map" data-i18n="nav.operationsMap">Map</button>
+        <button type="button" id="nav-tab-command-wall" data-i18n="nav.commandWall">Command Wall</button>
+    </nav>
+    <nav id="vms-subnav" hidden aria-label="VMS">
+        <button type="button" id="nav-tab-vms-main" data-i18n="nav.vmsMain">Live View</button>
+        <button type="button" id="nav-spatial-command" data-i18n="nav.commandSpatial">Spatial Map</button>
+    </nav>
+    <nav id="detection-subnav" hidden aria-label="Detection">
+        <button type="button" id="nav-tab-tactical" data-i18n="nav.tactical">Tactical</button>
+        <button type="button" id="nav-tab-analytics" data-i18n="nav.analytics">Analytics</button>
+    </nav>
+    <nav id="dispatch-subnav" hidden aria-label="Dispatch">
+        <button type="button" id="nav-tab-cad" data-i18n="nav.cadRms">CAD/RMS</button>
+        <button type="button" id="nav-tab-conference" data-i18n="nav.videoConference">Video Conference</button>
+    </nav>
+    <nav id="investigation-subnav" hidden aria-label="Investigation">
+        <button type="button" id="nav-tab-playback" data-i18n="nav.investigation" onclick="if(window.EvidenceManager&amp;&amp;EvidenceManager.showTab)EvidenceManager.showTab('playback')">Investigation</button>
+        <button type="button" id="nav-tab-evidence" data-i18n="nav.evidence">Evidence</button>
     </nav>
 
     <!-- mob-sos-banner-nonblocking-nav: strip under tabs so Operations/Analytics stay reachable -->
@@ -12280,6 +12296,54 @@
                         <button type="button" class="btn btn-action btn-sm" id="spatial-tq-push" disabled data-i18n="spatial.launchInvestigation">Launch Investigation</button>
                     </div>
                     <p class="spatial-tq-hint" id="spatial-tq-hint"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-view-vms-main" class="enterprise-scope" hidden>
+        <div class="vms-main-toolbar">
+            <div class="vms-main-toolbar-title">
+                <h2 data-i18n="vmsMain.title">Live View</h2>
+                <p class="vms-main-meta" id="vms-main-meta" hidden></p>
+            </div>
+            <div class="vms-main-toolbar-actions">
+                <div id="vms-main-layout" class="vms-main-layout" role="group" aria-label="Layout">
+                    <button type="button" class="btn-secondary" data-vms-layout="hotspot" data-i18n="vmsMain.layoutHotspot">Hotspot</button>
+                    <button type="button" class="btn-secondary" data-vms-layout="1" data-i18n="vmsMain.layout1">1</button>
+                    <button type="button" class="btn-secondary active" data-vms-layout="4" data-i18n="vmsMain.layout4">4</button>
+                    <button type="button" class="btn-secondary" data-vms-layout="9" data-i18n="vmsMain.layout9">9</button>
+                    <button type="button" class="btn-secondary" data-vms-layout="16" data-i18n="vmsMain.layout16">16</button>
+                </div>
+                <button type="button" class="btn-secondary" id="vms-main-open-online" data-i18n="vmsMain.openOnline">Open Online</button>
+                <button type="button" class="btn-secondary" id="vms-main-clear" data-i18n="vmsMain.clear">Clear View</button>
+                <button type="button" class="btn-secondary" id="vms-main-matrix" data-i18n="video.popoutMatrix">Pop out</button>
+            </div>
+        </div>
+        <div id="vms-main-pick-bar" hidden>
+            <span id="vms-main-pick-hint" data-i18n="vmsMain.pickHint">Click panels, then OK</span>
+            <div class="vms-main-pick-actions">
+                <button type="button" class="btn-secondary" id="vms-main-pick-cancel" data-i18n="common.cancel">Cancel</button>
+                <button type="button" class="btn-primary" id="vms-main-pick-ok" data-i18n="vmsMain.pickOk">OK</button>
+            </div>
+        </div>
+        <div class="vms-main-body">
+            <aside class="vms-main-tree-pane" id="vms-main-tree-pane">
+                <div class="vms-main-tree-head">
+                    <h3 data-i18n="vmsMain.cameras">Cameras</h3>
+                    <input type="search" id="vms-main-tree-search" class="vms-main-tree-search" data-i18n-placeholder="vmsMain.search" placeholder="Search Cameras" autocomplete="off" maxlength="80">
+                </div>
+                <div class="vms-main-tree-body" id="vms-main-tree"></div>
+            </aside>
+            <div class="vms-main-wall-wrap">
+                <div id="vms-main-wall" class="vms-main-wall" data-layout="4"></div>
+                <div id="vms-main-ptz-overlay" hidden>
+                    <div class="vms-main-ptz-overlay-bar">
+                        <span data-i18n="vmsMain.cameraControl">Camera Control</span>
+                        <button type="button" id="vms-main-ptz-pin" class="btn-secondary" aria-pressed="false" data-i18n="vmsMain.keep">Keep</button>
+                        <button type="button" id="vms-main-ptz-close" aria-label="Close">×</button>
+                    </div>
+                    <div id="vms-main-ptz"></div>
                 </div>
             </div>
         </div>
@@ -15015,7 +15079,7 @@
     <script src="/js/session-bus.js?v=20260902-airgap-geocode-fetch-timeout-v1"></script>
     <script src="/js/license-entitlements-ui.js?v=20260826-license-banner-copy-v1"></script>
     <script src="/js/mobility-map-gis.js?v=20260903-ops-local-zoom-fill-v1"></script>
-    <script src="/js/map-offline-tiles.js?v=20260903-map-source-toggle-v1"></script>
+    <script src="/js/map-offline-tiles.js?v=20260922-ops-map-true-fix-v1"></script>
     <script src="/js/display-names.js"></script>
     <script src="/js/dispatch-groups-admin.js?v=20260920-presence-offline-ungrouped-v1"></script>
     <script src="/js/firmware-ota-admin.js?v=20260817-ss-fleet-chrome-v1"></script>
@@ -15070,21 +15134,22 @@
     <script src="/js/evidence-hub.js?v=20260920-aes-unlock-copy-c-v1"></script>
     <script src="/js/system-health-plain.js?v=20260917-health-gate-no-stale-flash-v1"></script>
     <script src="/js/missed-activity.js?v=20260824-ma-nudge-click-copy-v1"></script>
-    <script src="/js/evidence-manager.js?v=20260903-inv-live-refresh-and-cache-v1"></script>
+    <script src="/js/evidence-manager.js?v=20260925-dispatch-invest-tabs-v1"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260918-flv-honest-ui-reconnect-banner-v1"></script>
-    <script src="/js/video-matrix.js?v=20260721-ops10-v1"></script>
+    <script src="/js/video-wall.js?v=20260923-ops-leave-desk-p1"></script>
+    <script src="/js/video-matrix.js?v=20260924-vms-main-matrix-ok-v1"></script>
     <script src="/js/global.js?v=20260917-health-gate-no-stale-flash-v1"></script>
     <script src="/js/global-device-presence.js?v=20260918-presence-green-amber-grey-v1"></script>
-    <script src="/js/fleet-ui.js?v=20260920-presence-offline-ungrouped-v1"></script>
+    <script src="/js/fleet-ui.js?v=20260922-ops-map-grey-patch-v1"></script>
     <script src="/js/map-popout-sync.js?v=20260902-inv-tab-onhide-teardown-v1"></script>
     <script src="/js/voice-alerts.js?v=20260810-hq-alert-tone-presets-hold-v1"></script>
     <script src="/vendor/leaflet/leaflet.js?v=20260701-vendor-local"></script>
+    <script src="/js/map-north-rose.js?v=20260922-vms-map-north-rose-spatial-tactical-v1"></script>
     <script src="/vendor/leaflet-draw/leaflet.draw.js?v=20260724-tactical-leaflet-draw-v1"></script>
     <script src="/vendor/markercluster/leaflet.markercluster.js?v=20260701-vendor-local"></script>
-    <script src="/js/vms-ptz-joystick.js?v=20260825-ar-ptz-noclip-v1"></script>
-    <script src="/js/geo-tools.js?v=20260825-ascii-safe-v1"></script>
-    <script src="/js/tactical-shell.js?v=20260902-airgap-map-offline-default-v1"></script>
+    <script src="/js/vms-ptz-joystick.js?v=20260922-ops-leave-desk-ptz-cache-v1"></script>
+    <script src="/js/geo-tools.js?v=20260922-ops-leave-desk-ptz-cache-v1"></script>
+    <script src="/js/tactical-shell.js?v=20260922-vms-map-north-rose-spatial-tactical-v1"></script>
     <script src="/js/tactical-poi.js?v=20260820-tactical-idle-status-off-v1"></script>
     <script src="/js/tactical-blueprint-ui.js?v=20260816-blueprint-manage-v1"></script>
     <script src="/js/tactical-ar.js?v=20260826-ar-case-v1"></script>
@@ -15094,6 +15159,7 @@
     <script src="/js/cw-display-room.js?v=20260821-screen-cards-v1"></script>
     <script src="/js/live-surface-hint.js?v=20260709-duplicate-surface-warn"></script>
     <script src="/js/command-wall.js?v=20260825-ptz-joystick-cw-v1"></script>
+    <script src="/js/vms-main-live.js?v=20260925-vms-live-keep-edge-v1"></script>
     <script src="/js/ops-cw-awareness.js?v=20260622-ops-cw-awareness"></script>
     <script src="/js/command-centre.js?v=20260819-date-dmy-v1"></script>
     <script>
@@ -15105,13 +15171,19 @@
             attributionControl: false,
             zoomControl: true,
             minZoom: 2,
-            maxZoom: 20,
+            /* OPS-MAP-TRUE-FIX-V1 — start at pack+1; MobilityMapTiles.attachLeaflet sets real ceiling */
+            maxZoom: 15,
             inertia: true,
             fadeAnimation: false,
             zoomAnimation: true,
             markerZoomAnimation: false,
         }).setView(mapBoot.pos, mapBoot.zoom);
         window.__me8OpsMap = map;
+        try {
+            if (window.Me8MapNorthRose && typeof window.Me8MapNorthRose.attach === 'function') {
+                window.Me8MapNorthRose.attach(map);
+            }
+        } catch (_) { /* ignore */ }
 
         const fixedCameraMapMarkers = new Map();
         window.__me8FixedCameraMapMarkers = fixedCameraMapMarkers;
@@ -15381,18 +15453,25 @@
             try { map.invalidateSize(); } catch (_) { /* ignore */ }
         }
         if (typeof MobilityMapTiles !== 'undefined' && MobilityMapTiles.attachLeaflet) {
-            MobilityMapTiles.attachLeaflet(map);
+            /* OPS-MAP-TRUE-FIX-V1 — await pack maxNativeZoom before deep zoom */
+            MobilityMapTiles.attachLeaflet(map).then(function () {
+                try { map.invalidateSize({ animate: false }); } catch (_) { /* ignore */ }
+                setTimeout(function () {
+                    try { map.invalidateSize(); } catch (_) { /* ignore */ }
+                }, 80);
+            }).catch(function () { /* offline helper already applied safe limits */ });
         } else {
-            /* AIRGAP-MAP-OFFLINE-DEFAULT-V1 â€” helper missing: blank, never public internet */
+            /* AIRGAP-MAP-OFFLINE-DEFAULT-V1 — helper missing: blank, never public internet */
             L.tileLayer('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', {
                 attribution: 'Offline map pack not installed',
-                maxNativeZoom: 19,
-                maxZoom: 20,
+                maxNativeZoom: 14,
+                maxZoom: 15,
                 keepBuffer: 12,
                 updateWhenIdle: false,
                 updateWhenZooming: true,
                 crossOrigin: true,
             }).addTo(map);
+            try { map.setMaxZoom(15); } catch (_) { /* ignore */ }
         }
         if (typeof MobilityMapGis !== 'undefined' && MobilityMapGis.init) MobilityMapGis.init(map);
         if (typeof MapPinLayer !== 'undefined' && MapPinLayer.init) MapPinLayer.init(map);
@@ -22795,6 +22874,14 @@
                 body: '{}',
             }).catch(function () { /* ignore */ });
             document.getElementById('sos-banner').style.display = 'none';
+            try {
+                var leaveSosCam = focusedSosCamId
+                    || (pendingSosAck && pendingSosAck.cameraId)
+                    || (typeof getSosCamId === 'function' ? getSosCamId() : null);
+                if (global.VideoWall && VideoWall.leaveDeskOnSosCleared) {
+                    VideoWall.leaveDeskOnSosCleared(leaveSosCam);
+                }
+            } catch (_) { /* ignore */ }
             sosIncidentActive = false;
             syncSosAudioPriorityUi();
             activeAlarmKind = 'sos';
@@ -24373,10 +24460,10 @@
         })();
     </script>
     <script defer src="/js/vc-lazy.js?v=20260901-vc-focus-ptz-v1"></script>
-    <script defer src="/js/fixed-cams-ui.js?v=20260919-oem-ban-scrub-v1"></script>
+    <script defer src="/js/fixed-cams-ui.js?v=20260922-ops-leave-desk-ptz-cache-v1"></script>
     <script defer src="/js/settings-nvr.js?v=20260828-consolidation-v1"></script>
     <script defer src="/js/vms-sos-payload.js?v=20260825-sos-site-ack-a3-v1"></script>
-    <script defer src="/js/vms-command-shell.js?v=20260903-vms-play-gesture-hygiene-v1"></script>
+    <script defer src="/js/vms-command-shell.js?v=20260922-vms-map-north-rose-spatial-tactical-v1"></script>
     <script defer src="/js/vms-investigation-ui.js?v=20260905-inv-sos-radio-audio-v1"></script>
     <script defer src="/js/vms-spatial-floorplan.js?v=20260825-operator-voice-v1"></script>
 

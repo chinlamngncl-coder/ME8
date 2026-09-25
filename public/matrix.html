@@ -194,7 +194,8 @@
             if (!surface) return true;
             var s = String(surface).trim().toLowerCase();
             return s === SURFACE || s === 'ops' || s === 'command-wall'
-                || s === 'cw' || s === 'commandwall';
+                || s === 'cw' || s === 'commandwall'
+                || s === 'vms-main' || s === 'vms';
         }
 
         function getOpenerFlvUrl(slotIndex) {

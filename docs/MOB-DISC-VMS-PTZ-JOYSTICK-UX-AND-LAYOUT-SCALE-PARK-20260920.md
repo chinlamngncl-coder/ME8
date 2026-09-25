@@ -1,9 +1,10 @@
-# MOB DISC — VMS PTZ joystick UX + layout scale (PARKED)
+# MOB DISC — VMS PTZ joystick UX + layout scale
 
-**Status:** PARKED — paper only. **No code** until a named `MOB-APPLY`.  
-**Date:** 2026-08-20 brainstorm + **2026-09-20** operator lock-to-park  
-**Related:** `docs/MOB-DISC-VMS-COMMAND-SPATIAL-SHELL-BRAINSTORM-20260820.md` (Operator + Cursor + **Google AI**)  
-**Also parked earlier this session:** PTZ direction (ONVIF GetStatus), mast auto up/down, BWC pin heading (needs device course)
+**Status:** `VMS-PTZ-JOYSTICK-UX-V1` done → **`VMS-PTZ-PRO-CONTROL-V1` APPLIED** (2026-09-21) — 8-way pad, speed, presets 1–8, `FM_PTZ_LAB_MOCK=1` for BWC UI smoke.  
+**Still parked:** PTZ direction map / mast / layout scale / roster virtualize.  
+**Date:** 2026-08-20 brainstorm + **2026-09-20** park + **2026-09-21** joystick UX apply  
+**Related:** `docs/MOB-DISC-VMS-COMMAND-SPATIAL-SHELL-BRAINSTORM-20260820.md`  
+**Also parked:** PTZ direction (ONVIF GetStatus), mast auto up/down, BWC pin heading (needs device course)
 
 ---
 
@@ -17,39 +18,31 @@ Tactical / Command Wall / geo-tools already have **PTZ move logic** (`VmsPtzJoys
 
 ---
 
-## Parked work (order when we start)
+## Work order
 
-| Priority | Name | Intent |
-|----------|------|--------|
-| 1 | `VMS-PTZ-JOYSTICK-UX-V1` | Pro virtual joystick chrome on VMS (reuse Tactical logic) |
-| 2 | PTZ direction cue | ONVIF `GetStatus` + per-cam north offset; map/status arrow |
-| 3 | Mast auto up / down | After gear/API path is named |
-| 4 | Layout / nav scale-down | Fewer top options; Ops not a tab dump |
-| 5 | Roster + SOS scale | Search / groups / virtualize — not a 200-row wall |
-
-**Gate before this genre:** finish AES unlock path + map offline last-known / pin presence work + other named important MOBs. Then start with **`MOB-APPLY VMS-PTZ-JOYSTICK-UX-V1`**.
+| Priority | Name | Intent | Status |
+|----------|------|--------|--------|
+| 1 | `VMS-PTZ-JOYSTICK-UX-V1` | Pro virtual joystick chrome (reuse Tactical logic) | **DONE** |
+| 2 | PTZ direction cue | ONVIF `GetStatus` + per-cam north offset; map/status arrow | **APPLIED** direction-map + **`VMS-PTZ-NORTH-CALIBRATE-V1`** (Edit → Calibrate Direction → Set North) |
+| 3 | Mast auto up / down | After gear/API path is named | Parked |
+| 4 | Layout / nav scale-down | Fewer top options; Ops not a tab dump | Parked |
+| 5 | Roster + SOS scale | Search / groups / virtualize — not a 200-row wall | Parked |
 
 ---
 
 ## Locked product facts (do not invent opposite)
 
 1. **WVP / Fleet stay** — finish frontends; do not park video base or start a second app.  
-2. **One Axiom** — BWC ops + fixed-cam VMS share evidence/incident spine (see Aug 20 brainstorm).  
+2. **One Axiom** — BWC ops + fixed-cam VMS share evidence/incident spine.  
 3. **Reuse PTZ path** — UX revamp, not a second joystick stack.  
 4. **Agent:** no daily nag of this park. Remind only when operator says VMS / PTZ / mast / layout scale / ship-pack related.
 
 ---
 
-## Google / Aug 20 carry-forward (short)
-
-Already on paper in the Command Spatial Shell brainstorm: two maps (Ops GIS vs VMS floor), VMS Command tab shape, no indoor pin-storm on Ops, multi-select / batch live as open debate with Google. **This disc adds:** joystick UX, direction, mast, and **explicit scale-down** of top nav + long roster/SOS lists.
-
----
-
-## APPLY (when ready — not now)
+## APPLY next (do not guess)
 
 ```
-MOB-APPLY VMS-PTZ-JOYSTICK-UX-V1
+MOB-APPLY VMS-PTZ-DIRECTION-MAP-V1
 ```
 
-Later named APPLYs for direction, mast, layout scale, roster virtualize — one at a time.
+Or layout: `MOB-APPLY VMS-LAYOUT-SCALE-DOWN-V1`

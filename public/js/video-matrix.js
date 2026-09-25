@@ -19,7 +19,17 @@
         return matrixSource === 'cw';
     }
 
+    function isVmsSource() {
+        return matrixSource === 'vms';
+    }
+
     function currentSlotCount() {
+        if (isVmsSource()) {
+            if (global.VmsMainLive && typeof VmsMainLive.getMatrixSlotCount === 'function') {
+                return VmsMainLive.getMatrixSlotCount();
+            }
+            return 6;
+        }
         if (isCwSource()) {
             if (global.CommandWall && typeof CommandWall.getMatrixSlotCount === 'function') {
                 return CommandWall.getMatrixSlotCount();
@@ -34,6 +44,7 @@
     }
 
     function getSlotCanvas(slotIndex) {
+        if (isVmsSource()) return null;
         if (isCwSource()) {
             if (global.CommandWall && typeof CommandWall.getMatrixSlotCanvas === 'function') {
                 return CommandWall.getMatrixSlotCanvas(slotIndex);
@@ -60,6 +71,12 @@
     }
 
     function getSlotLiveVideo(slotIndex) {
+        if (isVmsSource()) {
+            if (global.VmsMainLive && typeof VmsMainLive.getMatrixSlotVideo === 'function') {
+                return VmsMainLive.getMatrixSlotVideo(slotIndex);
+            }
+            return null;
+        }
         if (isCwSource()) {
             if (global.CommandWall && typeof CommandWall.getMatrixSlotVideo === 'function') {
                 return CommandWall.getMatrixSlotVideo(slotIndex);
@@ -80,6 +97,12 @@
 
     function flvUrlForCamId(camId) {
         if (!camId) return null;
+        if (isVmsSource()) {
+            if (global.VmsMainLive && typeof VmsMainLive.getHandoffFlvUrlForCam === 'function') {
+                return VmsMainLive.getHandoffFlvUrlForCam(camId);
+            }
+            return null;
+        }
         if (isCwSource()) {
             if (global.CommandWall && typeof CommandWall.getHandoffFlvUrlForCam === 'function') {
                 return CommandWall.getHandoffFlvUrlForCam(camId);
@@ -92,6 +115,12 @@
 
     function getSlotFlvUrl(slotIndex) {
         var camId = '';
+        if (isVmsSource()) {
+            if (global.VmsMainLive && typeof VmsMainLive.getMatrixSlotInfo === 'function') {
+                camId = VmsMainLive.getMatrixSlotInfo(slotIndex).camId || '';
+            }
+            return flvUrlForCamId(camId);
+        }
         if (isCwSource()) {
             if (global.CommandWall && typeof CommandWall.getMatrixSlotInfo === 'function') {
                 camId = CommandWall.getMatrixSlotInfo(slotIndex).camId || '';
@@ -104,6 +133,20 @@
     }
 
     function getSlotMatrixInfo(slotIndex) {
+        if (isVmsSource()) {
+            if (global.VmsMainLive && typeof VmsMainLive.getMatrixSlotInfo === 'function') {
+                return VmsMainLive.getMatrixSlotInfo(slotIndex);
+            }
+            return {
+                slotIndex: slotIndex,
+                panelNum: slotIndex + 1,
+                camId: '',
+                label: '',
+                status: '',
+                hasLive: false,
+                audioMuted: true,
+            };
+        }
         if (isCwSource()) {
             if (global.CommandWall && typeof CommandWall.getMatrixSlotInfo === 'function') {
                 return CommandWall.getMatrixSlotInfo(slotIndex);
@@ -141,6 +184,12 @@
     }
 
     function playSlotByIndex(slotIndex) {
+        if (isVmsSource()) {
+            if (global.VmsMainLive && typeof VmsMainLive.playMatrixSlot === 'function') {
+                return VmsMainLive.playMatrixSlot(slotIndex);
+            }
+            return true;
+        }
         if (isCwSource()) {
             if (global.CommandWall && typeof CommandWall.playMatrixSlot === 'function') {
                 return CommandWall.playMatrixSlot(slotIndex);
@@ -154,6 +203,9 @@
     }
 
     function stopSlotByIndex(slotIndex) {
+        if (isVmsSource()) {
+            return false;
+        }
         if (isCwSource()) {
             if (global.CommandWall && typeof CommandWall.stopMatrixSlot === 'function') {
                 return CommandWall.stopMatrixSlot(slotIndex);
@@ -167,6 +219,12 @@
     }
 
     function toggleSlotAudioByIndex(slotIndex) {
+        if (isVmsSource()) {
+            if (global.VmsMainLive && typeof VmsMainLive.toggleMatrixSlotAudio === 'function') {
+                return VmsMainLive.toggleMatrixSlotAudio(slotIndex);
+            }
+            return false;
+        }
         if (isCwSource()) {
             if (global.CommandWall && typeof CommandWall.toggleMatrixSlotAudio === 'function') {
                 CommandWall.toggleMatrixSlotAudio(slotIndex);
@@ -212,6 +270,7 @@
         var count = currentSlotCount();
         picksEl.innerHTML = '';
         picksEl.classList.toggle('cw-picks', isCwSource());
+        picksEl.classList.toggle('vms-picks', isVmsSource());
         for (var i = 0; i < count; i += 1) {
             var label = document.createElement('label');
             label.className = 'video-matrix-pick';
@@ -229,6 +288,7 @@
     function bindMatrixPopoutUi() {
         var openBtn = document.getElementById('video-matrix-open');
         var cwOpenBtn = document.getElementById('cw-matrix-open');
+        var vmsOpenBtn = document.getElementById('vms-main-matrix');
         var backdrop = document.getElementById('video-matrix-backdrop');
         var picksEl = document.getElementById('video-matrix-picks');
         var hintEl = document.querySelector('#video-matrix-dialog .hint');
@@ -243,11 +303,11 @@
         }
 
         function openDialog(source) {
-            matrixSource = source === 'cw' ? 'cw' : 'ops';
+            matrixSource = source === 'cw' ? 'cw' : (source === 'vms' ? 'vms' : 'ops');
             if (hintEl) {
-                hintEl.textContent = isCwSource()
-                    ? tr('video.matrix.hintCw')
-                    : tr('video.matrix.hint');
+                hintEl.textContent = isVmsSource()
+                    ? tr('video.matrix.hintVms')
+                    : (isCwSource() ? tr('video.matrix.hintCw') : tr('video.matrix.hint'));
             }
             rebuildPicks(picksEl);
             if (errEl) errEl.hidden = true;
@@ -263,6 +323,13 @@
                     CommandWall.init(global.__mobilityDashboardSocket);
                 }
                 openDialog('cw');
+            });
+        }
+        if (vmsOpenBtn) {
+            vmsOpenBtn.addEventListener('click', function () {
+                if (global.VmsMainLive && typeof VmsMainLive.enterPickMode === 'function') {
+                    VmsMainLive.enterPickMode();
+                }
             });
         }
         if (cancelBtn) cancelBtn.addEventListener('click', closeDialog);
@@ -296,6 +363,10 @@
         stopSlotByIndex: stopSlotByIndex,
         toggleSlotAudioByIndex: toggleSlotAudioByIndex,
         openMatrixPopout: openMatrixPopout,
+        openFromVms: function (indices) {
+            matrixSource = 'vms';
+            return openMatrixPopout(indices);
+        },
         init: bindMatrixPopoutUi,
     };
 

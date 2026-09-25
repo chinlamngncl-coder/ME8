@@ -343,7 +343,7 @@
         if (tool === 'ptz') {
             if (ptzPad) ptzPad.hidden = false;
             loadPtzCameras();
-            setStatus('Choose a camera, then use the pad', 0);
+            setStatus('Choose a camera, then use PTZ Control', 0);
             return;
         }
         if (ptzPad) ptzPad.hidden = true;
@@ -375,7 +375,20 @@
         geoPtzJoystick = global.VmsPtzJoystick.create(host, {
             showNumpad: false,
             isFloating: false,
+            proChrome: true,
             classPrefix: 'cw-',
+        }, {
+            onCalibrateMsg: function (text, isErr, opts) {
+                toast(text, isErr ? 5000 : 4500);
+                if (calibrateBannerEl) {
+                    var msg = calibrateBannerEl.querySelector('[data-cal-msg]');
+                    if (msg && text) msg.textContent = text;
+                    if (calibrateUndoBtn) {
+                        calibrateUndoBtn.hidden = !(opts && typeof opts.undo === 'function');
+                        calibrateUndoBtn._undoFn = opts && opts.undo;
+                    }
+                }
+            },
         });
         return geoPtzJoystick;
     }
@@ -412,6 +425,26 @@
         ensureGeoPtzJoystick();
         var sel = el('geo-tools-ptz-cam');
         var resolved = resolvePtzSource(sourceId);
+        var lab = !!(geoPtzJoystick && geoPtzJoystick.isLabMock && geoPtzJoystick.isLabMock());
+        if (resolved.kind === 'empty') {
+            if (sel) sel.value = '';
+            if (geoPtzJoystick) {
+                geoPtzJoystick.setTarget(null, { hasPtz: false, label: 'Empty' });
+            }
+            return;
+        }
+        if (resolved.kind === 'bwc') {
+            var bwcId = String(sourceId || '').replace(/^bwc:/i, '').trim() || String(sourceId || '').trim();
+            if (geoPtzJoystick) {
+                geoPtzJoystick.setTarget(bwcId, {
+                    hasPtz: false,
+                    labMock: lab,
+                    label: bwcId || 'Camera',
+                });
+            }
+            /* internal mock — no operator toast */
+            return;
+        }
         if (resolved.kind !== 'fixed' || !resolved.raw) {
             if (sel) sel.value = '';
             if (geoPtzJoystick) {
@@ -435,7 +468,7 @@
         var hasPtz = inList || !!(cam && cam.ptzEnabled && cam.streamSource === 'onvif');
         var label = (cam && cam.name) ? String(cam.name) : friendlyFixedName(raw);
         if (geoPtzJoystick) {
-            geoPtzJoystick.setTarget(raw, { hasPtz: !!hasPtz, label: label });
+            geoPtzJoystick.setTarget(raw, { hasPtz: !!hasPtz, labMock: lab && !hasPtz, label: label });
         }
         if (announce && hasPtz) toast('Ready - ' + label, 4500);
     }
@@ -467,48 +500,148 @@
         applyGeoPtzTarget(raw, announce);
     }
 
-    function notifyMapPin(sourceId) {
-        if (activeTool !== 'ptz') return;
-        applyGeoPtzTarget(sourceId, true);
+    var calibrateBannerEl = null;
+    var calibrateUndoBtn = null;
+
+    function hideCalibrateBanner() {
+        if (calibrateBannerEl) calibrateBannerEl.hidden = true;
+        if (geoPtzJoystick && typeof geoPtzJoystick.setCalibrateMode === 'function') {
+            geoPtzJoystick.setCalibrateMode(false);
+        }
+    }
+
+    function showCalibrateBanner(camName) {
+        if (!calibrateBannerEl) {
+            calibrateBannerEl = document.createElement('div');
+            calibrateBannerEl.id = 'fixed-camera-north-calibrate-bar';
+            calibrateBannerEl.innerHTML =
+                '<span data-cal-msg="1">Pan the live view to face north, then press Set North.</span>' +
+                '<button type="button" data-cal-set-north="1" class="fc-cal-set-north">Set North</button>' +
+                '<button type="button" data-cal-undo="1" hidden>Undo</button>' +
+                '<button type="button" data-cal-done="1">Done</button>';
+            document.body.appendChild(calibrateBannerEl);
+            calibrateBannerEl.querySelector('[data-cal-done]').addEventListener('click', function () {
+                hideCalibrateBanner();
+            });
+            calibrateBannerEl.querySelector('[data-cal-set-north]').addEventListener('click', function () {
+                if (geoPtzJoystick && typeof geoPtzJoystick.setNorth === 'function') {
+                    geoPtzJoystick.setNorth();
+                }
+            });
+            calibrateUndoBtn = calibrateBannerEl.querySelector('[data-cal-undo]');
+            calibrateUndoBtn.addEventListener('click', function () {
+                if (typeof calibrateUndoBtn._undoFn === 'function') {
+                    try { calibrateUndoBtn._undoFn(); } catch (_) { /* ignore */ }
+                } else if (geoPtzJoystick && typeof geoPtzJoystick.undoSetNorth === 'function') {
+                    geoPtzJoystick.undoSetNorth();
+                }
+                calibrateUndoBtn.hidden = true;
+            });
+        }
+        var msg = calibrateBannerEl.querySelector('[data-cal-msg]');
+        if (msg) {
+            msg.textContent = (camName ? (camName + ' — ') : '') +
+                'Pan the live view to face north, then press Set North.';
+        }
+        if (calibrateUndoBtn) calibrateUndoBtn.hidden = true;
+        calibrateBannerEl.hidden = false;
     }
 
     function loadPtzCameras() {
         var sel = el('geo-tools-ptz-cam');
-        if (!sel) return;
+        if (!sel) return Promise.resolve();
         var prev = sel.value;
-        fetch('/api/fixed-cams', { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                var cams = Array.isArray(data && data.cams) ? data.cams : [];
-                var ptzCams = cams.filter(function (c) {
-                    return c && c.enabled && c.ptzEnabled && c.streamSource === 'onvif';
+        ensureGeoPtzJoystick();
+        var labP = (global.VmsPtzJoystick && global.VmsPtzJoystick.fetchLabMockFlag)
+            ? global.VmsPtzJoystick.fetchLabMockFlag()
+            : Promise.resolve(false);
+        return labP.then(function (lab) {
+            return fetch('/api/fixed-cams', { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var cams = Array.isArray(data && data.cams) ? data.cams : [];
+                    var ptzCams = cams.filter(function (c) {
+                        return c && c.enabled && c.ptzEnabled && c.streamSource === 'onvif';
+                    });
+                    sel.innerHTML = '';
+                    if (!ptzCams.length && lab) {
+                        var optLab = document.createElement('option');
+                        optLab.value = '';
+                        optLab.textContent = '\u2014';
+                        sel.appendChild(optLab);
+                        applyGeoPtzTarget(null, false);
+                        setStatus('', 0);
+                        return;
+                    }
+                    if (!ptzCams.length) {
+                        var opt = document.createElement('option');
+                        opt.value = '';
+                        opt.textContent = 'No cameras with pan-tilt';
+                        sel.appendChild(opt);
+                        applyGeoPtzTarget(null, false);
+                        return;
+                    }
+                    ptzCams.forEach(function (c) {
+                        var o = document.createElement('option');
+                        o.value = c.id;
+                        o.textContent = c.name || 'Camera';
+                        sel.appendChild(o);
+                    });
+                    if (prev && ptzCams.some(function (c) { return c.id === prev; })) {
+                        sel.value = prev;
+                    } else {
+                        sel.value = ptzCams[0].id;
+                    }
+                    applyGeoPtzTarget(sel.value, false);
                 });
-                sel.innerHTML = '';
-                if (!ptzCams.length) {
-                    var opt = document.createElement('option');
-                    opt.value = '';
-                    opt.textContent = 'No cameras with pan-tilt';
-                    sel.appendChild(opt);
-                    applyGeoPtzTarget(null, false);
-                    return;
+        }).catch(function () {
+            sel.innerHTML = '<option value="">Camera list unavailable</option>';
+            applyGeoPtzTarget(null, false);
+        });
+    }
+
+    function startNorthCalibrate(cameraId) {
+        var raw = String(cameraId || '').replace(/^fixed:/i, '').trim();
+        if (!raw) return;
+        ensureGeoPtzJoystick();
+        setExpanded(true);
+        var sel = el('geo-tools-ptz-cam');
+        loadPtzCameras().then(function () {
+            if (sel) {
+                var found = false;
+                for (var i = 0; i < sel.options.length; i += 1) {
+                    if (sel.options[i].value === raw) { found = true; break; }
                 }
-                ptzCams.forEach(function (c) {
+                if (!found) {
                     var o = document.createElement('option');
-                    o.value = c.id;
-                    o.textContent = c.name || 'Camera';
+                    o.value = raw;
+                    o.textContent = 'Camera';
                     sel.appendChild(o);
-                });
-                if (prev && ptzCams.some(function (c) { return c.id === prev; })) {
-                    sel.value = prev;
-                } else {
-                    sel.value = ptzCams[0].id;
                 }
-                applyGeoPtzTarget(sel.value, false);
-            })
-            .catch(function () {
-                sel.innerHTML = '<option value="">Camera list unavailable</option>';
-                applyGeoPtzTarget(null, false);
-            });
+                sel.value = raw;
+            }
+            setPtzCamera(raw, true);
+            if (geoPtzJoystick) {
+                if (typeof geoPtzJoystick.setCalibrateMode === 'function') {
+                    geoPtzJoystick.setCalibrateMode(true);
+                }
+                if (typeof geoPtzJoystick.setTab === 'function') geoPtzJoystick.setTab('ptz');
+            }
+            var name = '';
+            if (sel && sel.selectedOptions && sel.selectedOptions[0]) {
+                name = sel.selectedOptions[0].textContent || '';
+            }
+            showCalibrateBanner(name);
+            if (typeof global.focusFixedCameraMapPin === 'function') {
+                try { global.focusFixedCameraMapPin(raw); } catch (_) { /* host */ }
+            }
+            setStatus('Set North', 0);
+        });
+    }
+
+    function notifyMapPin(sourceId) {
+        if (activeTool !== 'ptz') return;
+        applyGeoPtzTarget(sourceId, true);
     }
 
     function bindMapPinBridge() {
@@ -544,6 +677,8 @@
                 oy: e.clientY - rect.top,
                 parentLeft: parentRect.left,
                 parentTop: parentRect.top,
+                parentW: parentRect.width,
+                panelW: rect.width,
             };
             palette.style.right = 'auto';
             palette.style.bottom = 'auto';
@@ -552,7 +687,8 @@
             if (!dragState) return;
             var left = e.clientX - dragState.parentLeft - dragState.ox;
             var top = e.clientY - dragState.parentTop - dragState.oy;
-            palette.style.left = Math.max(4, left) + 'px';
+            var maxLeft = Math.max(4, (dragState.parentW || 0) - (dragState.panelW || 248) - 8);
+            palette.style.left = Math.min(maxLeft, Math.max(4, left)) + 'px';
             palette.style.top = Math.max(4, top) + 'px';
         });
         document.addEventListener('mouseup', function () {
@@ -610,6 +746,14 @@
             if (tries < 40) setTimeout(bindWhenChipReady, 100);
         }
         bindWhenChipReady();
+        /* VMS-PTZ-NORTH-CALIBRATE-OPS-LINK-V1 — resume if Settings handed off via sessionStorage */
+        setTimeout(function () {
+            var pending = '';
+            try { pending = String(sessionStorage.getItem('me8CalibrateNorthCamId') || '').trim(); } catch (_) { pending = ''; }
+            if (!pending) return;
+            try { sessionStorage.removeItem('me8CalibrateNorthCamId'); } catch (_) { /* ignore */ }
+            startNorthCalibrate(pending);
+        }, 600);
     }
 
     if (document.readyState === 'loading') {
@@ -623,5 +767,7 @@
         setExpanded: setExpanded,
         setPtzCamera: setPtzCamera,
         notifyMapPin: notifyMapPin,
+        startNorthCalibrate: startNorthCalibrate,
+        hideNorthCalibrate: hideCalibrateBanner,
     };
 })(window);

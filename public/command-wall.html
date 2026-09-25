@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Command Wall &mdash; Mobility Axiom</title>
-    <link rel="stylesheet" href="/css/global.css?v=20260824-wall-alarm-fr-hud-dock-v1">
+    <link rel="stylesheet" href="/css/global.css?v=20260922-vms-ptz-set-north-findable-v1">
     <style>
         * { box-sizing: border-box; }
         html, body { margin: 0; height: 100%; background: #0b1220; color: #e2e8f0; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
@@ -32,16 +32,24 @@
         .cw-hub-panel[hidden] { display: none !important; }
         #panel-live { flex-direction: row; }
         .layout { flex: 1; min-height: 0; display: flex; width: 100%; }
-        #roster { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid #334155; background: #111827; }
-        .roster-head { padding: 10px 12px; border-bottom: 1px solid #334155; }
-        .roster-head h2 { margin: 0 0 8px; font-size: 12px; font-weight: 700; color: #e2e8f0; }
-        .roster-search { width: 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #f1f5f9; font-size: 12px; }
+        #roster { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid #334155; background: #111827; overflow: hidden; transition: width 0.15s ease; }
+        #panel-live.is-roster-collapsed #roster { width: 0; min-width: 0; border-right-color: transparent; pointer-events: none; }
+        .roster-head { padding: 10px 12px; border-bottom: 1px solid #334155; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .roster-head h2 { margin: 0; flex: 1 1 auto; min-width: 0; font-size: 12px; font-weight: 700; color: #e2e8f0; }
+        .roster-collapse { flex-shrink: 0; padding: 2px 8px; font-size: 11px; }
+        .roster-search { width: 100%; max-width: 240px; flex: 1 1 100%; padding: 7px 10px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #f1f5f9; font-size: 12px; }
         .roster-body { flex: 1; overflow-y: auto; padding: 8px 0; }
         .roster-empty { padding: 16px 12px; font-size: 11px; color: #64748b; line-height: 1.45; }
         .group-block { margin-bottom: 4px; }
-        .group-title { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; }
+        .group-title { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: none; letter-spacing: 0; }
+        .group-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .group-meta { margin-left: auto; font-size: 9px; font-weight: 600; color: #64748b; flex-shrink: 0; }
+        .group-fill {
+            flex-shrink: 0; margin-left: 4px; padding: 2px 8px; font-size: 10px; font-weight: 600;
+            border: 1px solid #475569; border-radius: 4px; background: #1e293b; color: #93c5fd; cursor: pointer;
+        }
+        .group-fill:hover { border-color: #38bdf8; background: rgba(56, 189, 248, 0.12); color: #e0f2fe; }
         .group-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-        .group-meta { margin-left: auto; font-size: 9px; font-weight: 600; color: #64748b; text-transform: none; letter-spacing: 0; }
         .device-chip { display: flex; align-items: center; gap: 8px; margin: 2px 8px; padding: 8px 10px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; font-size: 11px; cursor: grab; user-select: none; color: #e2e8f0; }
         .device-chip:active { cursor: grabbing; }
         .device-chip.in-wall { border-color: #2563eb; background: #172554; }
@@ -52,7 +60,8 @@
         .device-chip .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
         .device-chip .id { font-size: 9px; color: #64748b; font-family: ui-monospace, Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
         .device-chip-inner { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-        #wall-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        #wall-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+        .roster-reopen[hidden] { display: none !important; }
         .wall-bar { flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 6px 10px; background: #111827; border-bottom: 1px solid #334155; }
         .wall-bar-group { display: flex; align-items: center; gap: 5px; }
         .wall-bar-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin-right: 2px; }
@@ -66,7 +75,7 @@
         #wall { flex: 1; min-height: 0; display: grid; gap: 4px; padding: 4px; background: #0f172a; }
         /* Must beat .cell { display:flex } — without this, all 32 panels stay visible as a row list. */
         #wall .cell[hidden] { display: none !important; }
-        .cell { display: flex; flex-direction: column; border: 1px solid #334155; border-radius: 4px; overflow: hidden; background: #000; min-height: 0; transition: border-color 0.15s, box-shadow 0.15s; }
+        .cell { display: flex; flex-direction: column; border: 1px solid #334155; border-radius: 4px; overflow: hidden; background: #000; min-height: 0; min-width: 0; transition: border-color 0.15s, box-shadow 0.15s; }
         .cell.drop-target { border-color: #2563eb; box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.45); }
         .cell.has-cam { border-color: #475569; }
         .cell.alarm { border-color: #ef4444; }
@@ -206,9 +215,9 @@
         .dr-group-check { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #cbd5e1; cursor: pointer; padding: 4px 8px; border: 1px solid #475569; border-radius: 6px; background: #0f172a; }
         .dr-group-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .dr-group-meta { font-size: 9px; color: #64748b; }
-        .cell-stage { flex: 1; min-height: 0; position: relative; background: #000; }
-        .cell-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; z-index: 1; }
-        .cell-stage video.me8-zlm-primary { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover !important; background: #000; z-index: 1; }
+        .cell-stage { flex: 1 1 auto; min-height: 0; position: relative; background: #000; }
+        .cell-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain !important; background: #000; z-index: 1; }
+        .cell-stage video.me8-zlm-primary { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain !important; background: #000; z-index: 1; }
         .cell-empty { position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 11px; font-weight: 600; text-align: center; pointer-events: none; }
         .cell-empty[hidden] { display: none !important; }
         .cell-drop-hint { position: absolute; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #475569; pointer-events: none; }
@@ -301,11 +310,15 @@
         <aside id="roster">
             <div class="roster-head">
                 <h2 data-i18n="commandWall.devices">Devices</h2>
+                <button type="button" class="btn btn-sm roster-collapse" id="roster-collapse" data-i18n="commandWall.hideRoster" title="Hide roster">Hide</button>
                 <input type="search" class="roster-search" id="roster-search" autocomplete="off">
             </div>
             <div class="roster-body" id="roster-body"><div class="roster-empty" data-i18n="commandWall.loadingRoster">Loading&hellip;</div></div>
         </aside>
-        <div id="wall-wrap"><div class="wall-bar" id="wall-bar"></div><div id="wall"></div></div>
+        <div id="wall-wrap">
+            <div class="wall-bar" id="wall-bar"></div>
+            <div id="wall"></div>
+        </div>
         <aside id="alarm-rail" class="alarm-rail" hidden>
             <div class="alarm-rail-head">
                 <h2 data-i18n="commandWall.alarmsTitle">Alarms</h2>
@@ -376,7 +389,7 @@
     <script src="/js/live-player-factory.js?v=20260903-inv-live-refresh-and-cache-v1"></script>
     <script src="/js/live-surface-hint.js?v=20260709-duplicate-surface-warn"></script>
     <script src="/js/cw-display-room.js?v=20260712-launch-all-profile"></script>
-    <script src="/js/vms-ptz-joystick.js?v=20260825-ptz-joystick-cw-v1"></script>
-    <script src="/js/command-wall.js?v=20260825-ptz-joystick-cw-v1"></script>
+    <script src="/js/vms-ptz-joystick.js?v=20260922-vms-ptz-set-north-findable-v1"></script>
+    <script src="/js/command-wall.js?v=20260922-vms-cw-wall-pages-v1"></script>
 </body>
 </html>

@@ -156,6 +156,9 @@
             zoomControl: true,
             attributionControl: false,
         });
+        if (global.Me8MapNorthRose && typeof global.Me8MapNorthRose.attach === 'function') {
+            global.Me8MapNorthRose.attach(gisMap);
+        }
         /* AIRGAP-MAP-OFFLINE-DEFAULT-V1 — offline pack first, no public tiles without opt-in */
         if (global.MobilityMapTiles && MobilityMapTiles.attachLeaflet) {
             MobilityMapTiles.attachLeaflet(gisMap, { maxNativeZoom: 19, maxZoom: 19 });
