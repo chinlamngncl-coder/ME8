@@ -18653,7 +18653,17 @@ const pttGroupPushLastAt = new Map();
 function pushPttGroupForCameraNow(camId, snid) {
     if (!PTT_ENABLED || !camId) return;
     syncFleetDeviceMeta();
-    const fleet = fleetRoster.getFleetRoster(camId);
+    let fleet = fleetRoster.getFleetRoster(camId);
+    const team = pttFieldGroupRelay.activeTeamForSource(camId);
+    const grouped = !!(team && team.members && team.members.length >= 2);
+    const allow = Object.create(null);
+    if (grouped) team.members.forEach((id) => { allow[String(id)] = true; });
+    const picked = fleet.filter((d) => {
+        if (!d) return false;
+        if (d.ertId === '11100000002') return true;
+        return grouped ? !!allow[d.id] : d.id === camId;
+    });
+    if (picked.some((d) => d.id === camId)) fleet = picked;
     const groupOpts = {
         camId: camId,
         realm: REALM,

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -21814,6 +21814,7 @@
                             : [];
                         updateSosResponseSummary();
                         syncSosResponseCircleGeometry();
+                        opsTacticalPopNearbyPins();
                         if (document.getElementById('sos-ack-backdrop')
                             && !document.getElementById('sos-ack-backdrop').hidden) {
                             renderSosAckHelpers(alarmCamId);
@@ -21825,6 +21826,7 @@
                         sosResponseFixed = [];
                         updateSosResponseSummary();
                         syncSosResponseCircleGeometry();
+                        opsTacticalPopNearbyPins();
                     });
                 return;
             }
@@ -21832,6 +21834,7 @@
             sosResponseFixed = [];
             updateSosResponseSummary();
             syncSosResponseCircleGeometry();
+            opsTacticalPopNearbyPins();
         }
 
         function fetchMapPositionsForSos(cb) {
@@ -22148,6 +22151,7 @@
         function opsTacticalAbortKeepBanner() {
             var queued = opsTacticalQueue.splice(0);
             opsTacticalLock = false;
+            opsTacticalPinsPopped = {};
             opsTacticalTransitioning = false;
             opsTacticalTagsApplied = false;
             opsTacticalFirstData = null;
@@ -22187,6 +22191,7 @@
                 opsTacticalTagsApplied = true;
                 opsTacticalDrain();
                 opsTacticalNearbyFill();
+                opsTacticalPopNearbyPins();
             });
         }
         var opsTacticalPickSlot = -1;
@@ -22262,6 +22267,32 @@
         }
         window.opsTacticalPlacePick = opsTacticalPlacePick;
         var opsTacticalMoveFrom = null;
+        var opsTacticalPinsPopped = {};
+        function opsTacticalPopNearbyPins() {
+            if (!opsTacticalLock || !opsTacticalTagsApplied) return;
+            try { opsTacticalNearbyFill(); } catch (_) {}
+            var ids = [];
+            var seen = {};
+            var focus = normalizeCamId(focusedSosCamId);
+            (sosResponseNearby || []).forEach(function (d) {
+                if (!d || d.online === false) return;
+                var id = normalizeCamId(d.cameraId);
+                if (!id || seen[id] || id === focus) return;
+                seen[id] = true;
+                ids.push(id);
+            });
+            if (!ids.length) return;
+            var prevMulti = !!window.mapPinPopupAllowMulti;
+            window.mapPinPopupAllowMulti = true;
+            ids.forEach(function (id) {
+                if (opsTacticalPinsPopped[id]) return;
+                opsTacticalPinsPopped[id] = true;
+                try {
+                    if (typeof syncMapPinForCam === 'function') syncMapPinForCam(id, { openPopup: true });
+                } catch (_) {}
+            });
+            window.mapPinPopupAllowMulti = prevMulti;
+        }
         var opsTacticalSosHere = null;
         function opsTacticalNoteSosPos(lat, lon) {
             if (!isFinite(lat) || !isFinite(lon)) return;
@@ -22320,14 +22351,8 @@
                 if (sid) used[sid.replace(/^fixed:/i, '')] = true;
                 if (sid) used[sid] = true;
             }
-            var east = 0;
-            var north = 0;
-            var hasHead = false;
-            if (opsTacticalMoveFrom) {
-                north = lat - opsTacticalMoveFrom.lat;
-                east = (lon - opsTacticalMoveFrom.lon) * Math.cos(lat * Math.PI / 180);
-                if ((north * north + east * east) > 0) hasHead = opsTacticalMeters(opsTacticalMoveFrom.lat, opsTacticalMoveFrom.lon, lat, lon) > 20;
-            }
+            /* OPS-TACTICAL-NEARBY-RINGS-V1 — 0–25 m is with the officer. Beyond that, up to the response radius, is backup. */
+            var WITH_THEM_M = 25;
             var hits = [];
             Object.keys(deviceMarkers).forEach(function (id) {
                 var key = normalizeCamId(id);
@@ -22336,14 +22361,8 @@
                 if (!m || !m.getLatLng) return;
                 var pll = m.getLatLng();
                 var dist = opsTacticalMeters(lat, lon, pll.lat, pll.lng);
-                if (dist > radius || dist < 8) return;
-                var ahead = true;
-                if (hasHead) {
-                    var cn = pll.lat - lat;
-                    var ce = (pll.lng - lon) * Math.cos(lat * Math.PI / 180);
-                    ahead = (cn * north + ce * east) > 0;
-                }
-                hits.push({ id: key, d: dist, ahead: ahead });
+                if (dist > radius) return;
+                hits.push({ id: key, d: dist });
             });
             var fixedMap = window.__me8FixedCameraMapMarkers;
             if (fixedMap && fixedMap.forEach) {
@@ -22354,19 +22373,26 @@
                     var fll = fm.getLatLng();
                     var fdist = opsTacticalMeters(lat, lon, fll.lat, fll.lng);
                     if (fdist > radius) return;
-                    var fahead = true;
-                    if (hasHead) {
-                        var fn = fll.lat - lat;
-                        var fe = (fll.lng - lon) * Math.cos(lat * Math.PI / 180);
-                        fahead = (fn * north + fe * east) > 0;
-                    }
-                    hits.push({ id: 'fixed:' + raw, d: fdist, ahead: fahead });
+                    hits.push({ id: 'fixed:' + raw, d: fdist });
                 });
             }
-            hits.sort(function (a, b) {
-                if (a.ahead !== b.ahead) return a.ahead ? -1 : 1;
-                return a.d - b.d;
+            var withThem = [];
+            var backup = [];
+            hits.forEach(function (h) {
+                if (h.d <= WITH_THEM_M) withThem.push(h);
+                else backup.push(h);
             });
+            withThem.sort(function (a, b) { return a.d - b.d; });
+            backup.sort(function (a, b) { return a.d - b.d; });
+            var queue = [];
+            if (withThem.length && backup.length) {
+                queue.push(withThem[0]);
+                backup.forEach(function (h) { queue.push(h); });
+            } else if (withThem.length) {
+                queue = withThem;
+            } else {
+                queue = backup;
+            }
             var roles = ['ops-tac-side-a', 'ops-tac-side-b', 'ops-tac-foot-a', 'ops-tac-foot-b', 'ops-tac-foot-c'];
             var empties = [];
             roles.forEach(function (role) {
@@ -22375,8 +22401,8 @@
             });
             var hi = 0;
             empties.forEach(function (el) {
-                while (hi < hits.length) {
-                    var hit = hits[hi];
+                while (hi < queue.length) {
+                    var hit = queue[hi];
                     hi += 1;
                     opsTacticalPickSlot = parseInt(el.dataset.slot, 10);
                     if (opsTacticalPlacePick(hit.id)) break;
@@ -22489,6 +22515,7 @@
                 var first = opsTacticalFirstData;
                 var queued = opsTacticalQueue.splice(0);
                 opsTacticalLock = false;
+                opsTacticalPinsPopped = {};
                 opsTacticalTransitioning = false;
                 opsTacticalTagsApplied = false;
                 opsTacticalFirstData = null;
@@ -22509,6 +22536,7 @@
             var cur = wall ? (wall.getAttribute('data-bank') || 'a') : 'a';
             var focusBank = focusIdx >= 5 ? 'b' : 'a';
             opsTacticalLock = false;
+            opsTacticalPinsPopped = {};
             if (wall && window.VideoWall && typeof VideoWall.applyWallBankPage === 'function') {
                 VideoWall.applyWallBankPage(focusIdx >= 0 && focusBank !== cur ? focusBank : cur);
             }

@@ -368,6 +368,23 @@ You can locate the alarmed unit, communicate with nearby responders, and record 
 1. Nearby units depend on online state and GPS availability.
 2. Some organizations may require a case file or evidence follow-up after SOS.
 
+### SOP — who appears on the SOS wall
+
+This is the standard for every operator. There is no Nearby button.
+
+When a live officer SOS opens the half-map layout, empty small cells fill by themselves. The large cell stays the officer who raised the SOS. A cell that already has a picture is left as it is. People who are not placed stay on the map only. Their live picture does not start.
+
+**Response Radius** on the red banner is the outer limit. Cameras past that distance are not placed.
+
+Two rings decide the order:
+
+1. **With the officer (0–25 metres).** This is about the width of a junction, including someone standing 5–8 metres away. If anyone is also further out, only the closest camera in this ring is placed. The rest of that close group stays on the map.
+2. **Backup (beyond 25 metres, up to the Response Radius).** The remaining empty cells take the nearest cameras in this ring, closest first.
+
+If everyone is inside 25 metres, the empty cells fill from that close group, closest first. If nobody is inside 25 metres, every empty cell fills from the backup ring, closest first.
+
+Fixed cameras use the same two rings. **+ Team Member** is the radio only. The automatic fill does not call anyone and does not add anyone to the talk group. Add a person to the radio only when you choose **+ Team Member**.
+
 ### Common problems
 
 - No nearby helpers listed
