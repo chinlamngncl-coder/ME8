@@ -50,6 +50,8 @@
         if (meta.forceUpdate) return true;
         if (camId && selectedCamIds[camId]) return true;
         if (camId && popupOpenCamIds[camId]) return true;
+        /* PIN-STAY-VISIBLE-UNGROUP-COLOR-V1 — online + GPS always draws. Do not hold it until a map touch. */
+        if (meta.online !== false && lat != null && lon != null && !isNaN(lat) && !isNaN(lon)) return true;
         return isInExpandedBounds(lat, lon);
     }
 
@@ -74,7 +76,7 @@
             disableClusteringAtZoom: 16,
             spiderfyOnMaxZoom: true,
             showCoverageOnHover: false,
-            removeOutsideVisibleBounds: true,
+            removeOutsideVisibleBounds: false,
             animate: false,
             chunkedLoading: true,
             chunkInterval: 200,
@@ -133,11 +135,15 @@
     function attachMarker(marker, isSos, alarmKind, camId) {
         if (!marker || !mapRef) return;
         camId = camId ? String(camId).trim() : '';
+        var onCluster = !!(clusterGroup && clusterGroup.hasLayer && clusterGroup.hasLayer(marker));
         if (isClusterEligible(isSos, alarmKind, camId)) {
+            /* Already in the cluster. Removing it here drops the icon, and addLayer then no-ops. Pan was the only redraw. */
+            if (onCluster) return;
             try { mapRef.removeLayer(marker); } catch (_) { /* ignore */ }
             try { clusterGroup.addLayer(marker); } catch (_) { /* ignore */ }
         } else {
-            try { clusterGroup.removeLayer(marker); } catch (_) { /* ignore */ }
+            if (!onCluster && mapRef.hasLayer(marker)) return;
+            try { if (clusterGroup) clusterGroup.removeLayer(marker); } catch (_) { /* ignore */ }
             if (!mapRef.hasLayer(marker)) {
                 marker.addTo(mapRef);
             }

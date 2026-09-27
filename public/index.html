@@ -6750,6 +6750,69 @@
             flex: 0 0 calc((100% - 12px) / 5);
             max-height: calc((100% - 12px) / 5);
         }
+        /* OPS-TACTICAL-SOS-LAYOUT-V1 */
+        #video-wall-bank-end-incident,
+        #video-wall-bank-tv { display: none; }
+        #app-view-ops.ops-tactical-split #sidebar,
+        #app-view-ops.ops-tactical-split #layout-gutter,
+        #app-view-ops.ops-tactical-split #video-wall-gutter { display: none !important; }
+        #app-view-ops.ops-tactical-split #map-wrapper {
+            flex: 1 1 50% !important; min-width: 0 !important;
+        }
+        #app-view-ops.ops-tactical-split #video-wall {
+            flex: 1 1 50% !important; width: auto !important; min-width: 0 !important;
+            max-width: none !important; opacity: 1 !important; pointer-events: auto !important;
+            padding: 4px 4px 5px !important; overflow: hidden !important;
+            border-left: 1px solid var(--border) !important;
+        }
+        #app-view-ops.ops-tactical-split #video-wall-bank-end-incident,
+        #app-view-ops.ops-tactical-split #video-wall-bank-tv {
+            display: inline-flex; align-items: center; flex-shrink: 0; margin: 0; padding: 3px 7px;
+            font-size: 9px; font-weight: 600; border-radius: 5px; cursor: pointer; white-space: nowrap; line-height: 1.2;
+        }
+        #app-view-ops.ops-tactical-split #video-wall-bank-tv {
+            border: 1px solid #475569; background: #1e293b; color: #e2e8f0;
+        }
+        #app-view-ops.ops-tactical-split #video-wall-bank-end-incident {
+            border: 1px solid #b91c1c; background: #7f1d1d; color: #fee2e2;
+        }
+        #video-wall.ops-tactical-grid #video-wall-slots {
+            display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-rows: repeat(3, minmax(0, 1fr));
+            flex: 1 1 auto; min-height: 0; overflow: hidden; gap: 3px;
+        }
+        #video-wall.ops-tactical-grid #video-wall-slots > .video-slot.ops-tac-show {
+            position: relative !important; left: auto !important; top: auto !important;
+            width: auto !important; height: 100% !important; max-height: none !important;
+            opacity: 1 !important; pointer-events: auto !important; z-index: 1 !important;
+            flex: 1 1 auto !important; min-width: 0 !important; min-height: 0 !important;
+            overflow: hidden !important; margin: 0 !important; align-self: stretch !important;
+        }
+        #video-wall.ops-tactical-grid #video-wall-slots > .video-slot.ops-tac-focus {
+            grid-column: 1 / 3; grid-row: 1 / 3;
+            z-index: 2 !important;
+        }
+        #video-wall.ops-tactical-grid #video-wall-slots > .video-slot.ops-tac-focus::after {
+            content: ""; position: absolute; inset: 0; z-index: 6;
+            border: 3px solid #ef4444; pointer-events: none;
+        }
+        #video-wall.ops-tactical-grid #video-wall-slots > .video-slot.ops-tac-pick::after {
+            content: ""; position: absolute; inset: 0; z-index: 6;
+            border: 2px solid #38bdf8; pointer-events: none;
+        }
+        #video-wall.ops-tactical-grid #video-wall-slots > .video-slot.ops-tac-side-a { grid-column: 3; grid-row: 1; }
+        #video-wall.ops-tactical-grid #video-wall-slots > .video-slot.ops-tac-side-b { grid-column: 3; grid-row: 2; }
+        #video-wall.ops-tactical-grid #video-wall-slots > .video-slot.ops-tac-foot-a { grid-column: 1; grid-row: 3; }
+        #video-wall.ops-tactical-grid #video-wall-slots > .video-slot.ops-tac-foot-b { grid-column: 2; grid-row: 3; }
+        #video-wall.ops-tactical-grid #video-wall-slots > .video-slot.ops-tac-foot-c { grid-column: 3; grid-row: 3; }
+        #video-wall.ops-tactical-grid .video-slot.ops-tac-show .video-slot-box,
+        #video-wall.ops-tactical-grid .video-slot.ops-tac-show .video-slot-stage {
+            min-height: 0 !important; flex: 1 1 auto !important; height: auto !important;
+        }
+        #video-wall.ops-tactical-grid .video-slot.ops-tac-show video.me8-zlm-primary,
+        #video-wall.ops-tactical-grid .video-slot.ops-tac-show video.me8-zlm-soft-overlay {
+            width: 100% !important; height: 100% !important;
+        }
         #video-matrix-backdrop {
             position: fixed; inset: 0; z-index: 10000; background: rgba(15, 23, 42, 0.94);
             display: flex; align-items: center; justify-content: center; padding: 10px;
@@ -7464,7 +7527,7 @@
         #chat-box .chat-who { color: #e2e8f0; }
         #sos-banner {
             display: none; flex-shrink: 0; color: #fff;
-            padding: 10px 14px 12px; font-size: 14px; font-weight: 600;
+            padding: 6px 12px; font-size: 14px; font-weight: 600;
             width: 100%; box-sizing: border-box;
         }
         #sos-banner.kind-sos {
@@ -7479,11 +7542,15 @@
         }
         #sos-banner-body {
             display: flex; flex-direction: column; align-items: stretch;
-            width: 100%; min-width: 0; gap: 6px;
+            width: 100%; min-width: 0; gap: 4px;
         }
         .sos-banner-top-row {
             display: flex; align-items: center; justify-content: space-between;
-            gap: 14px; width: 100%; min-width: 0;
+            gap: 10px; width: 100%; min-width: 0;
+        }
+        .sos-banner-lead {
+            display: flex; align-items: center; gap: 8px;
+            flex: 1 1 auto; min-width: 0;
         }
         .sos-banner-actions { display: flex; flex-shrink: 0; gap: 8px; align-items: center; }
         .sos-ptt-btn { background: #1e293b !important; color: #fbbf24 !important; border-color: #f59e0b !important; }
@@ -7527,15 +7594,18 @@
         #sos-banner-nav-hint[hidden],
         #sos-banner-live-hint[hidden] { display: none !important; }
         #sos-response-strip {
-            display: grid;
-            grid-template-columns: auto minmax(0, 1fr);
-            align-items: center; gap: 10px 16px;
-            width: 100%; box-sizing: border-box; font-size: 12px; font-weight: 600;
-            padding: 8px 12px; border-radius: 8px;
-            background: rgba(0, 0, 0, 0.22); border: 1px solid rgba(255, 255, 255, 0.28);
+            display: flex; align-items: center; gap: 8px;
+            width: auto; min-width: 0; flex: 1 1 auto; box-sizing: border-box;
+            font-size: 12px; font-weight: 600;
+            padding: 0; border: 0; background: transparent;
         }
+        #sos-response-summary {
+            min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            font-size: 11px; font-weight: 500;
+        }
+        #sos-response-radius { max-width: 110px; }
         #sos-ptt-add-strip {
-            display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+            display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px;
             width: 100%; box-sizing: border-box;
         }
         #sos-ptt-add-strip[hidden] { display: none !important; }
@@ -7562,7 +7632,7 @@
         .sos-ptt-add-member-btn:hover { background: #334155; }
         .sos-ptt-add-member-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         #sos-ptt-member-panel {
-            width: 100%; box-sizing: border-box; padding: 6px 8px;
+            flex: 1 0 100%; width: 100%; box-sizing: border-box; padding: 6px 8px;
             border-radius: 8px; background: rgba(0, 0, 0, 0.2);
             border: 1px solid rgba(251, 191, 36, 0.35);
         }
@@ -10478,30 +10548,32 @@
     <div id="sos-banner" class="kind-sos">
         <div id="sos-banner-body">
             <div class="sos-banner-top-row">
-                <span id="sos-banner-text"><span id="sos-banner-prefix" data-i18n="sos.banner.distress">OFFICER IN DISTRESS</span> &middot; <span id="sos-cam"></span> &middot; <span id="sos-time"></span></span>
+                <div class="sos-banner-lead">
+                    <span id="sos-banner-text"><span id="sos-banner-prefix" data-i18n="sos.banner.distress">OFFICER IN DISTRESS</span> &middot; <span id="sos-cam"></span> &middot; <span id="sos-time"></span></span>
+                    <div id="sos-response-strip">
+                        <label for="sos-response-radius"><span data-i18n="sos.response.radiusLabel">Response radius</span>
+                            <select id="sos-response-radius" data-i18n-aria="sos.response.radiusAria" aria-label="Response radius metres">
+                                <option value="200">200 m</option>
+                                <option value="300">300 m</option>
+                                <option value="400">400 m</option>
+                                <option value="500" selected>500 m</option>
+                                <option value="1000">1000 m</option>
+                            </select>
+                        </label>
+                        <span id="sos-response-summary" data-i18n="sos.response.scanning">Scanning for nearby units&hellip;</span>
+                    </div>
+                </div>
                 <div class="sos-banner-actions">
                     <button id="sos-ptt-team-btn" class="dismiss-btn sos-ptt-btn" type="button" onclick="pushSosPttTeamNow()" data-i18n="sos.banner.pttTeam" data-i18n-title="sos.banner.pttTeamTitle" aria-pressed="false">PTT team</button>
                     <button id="sos-group-call-btn" class="dismiss-btn sos-call-btn" type="button" onclick="toggleSosGroupCall()" aria-pressed="false">Call team</button>
+                    <button type="button" id="sos-ptt-member-btn" class="sos-ptt-add-member-btn">+ Team Member</button>
                     <button class="dismiss-btn" type="button" onclick="openSosAcknowledge()" data-i18n="sos.acknowledge">Acknowledge</button>
                 </div>
             </div>
             <span id="sos-banner-nav-hint" data-i18n="sos.banner.navHint" hidden></span>
             <span id="sos-banner-live-hint" data-i18n="sos.banner.liveHint" hidden></span>
-            <div id="sos-response-strip">
-                <label for="sos-response-radius"><span data-i18n="sos.response.radiusLabel">Response radius</span>
-                    <select id="sos-response-radius" data-i18n-aria="sos.response.radiusAria" aria-label="Response radius metres">
-                        <option value="200">200 m</option>
-                        <option value="300">300 m</option>
-                        <option value="400">400 m</option>
-                        <option value="500" selected>500 m</option>
-                        <option value="1000">1000 m</option>
-                    </select>
-                </label>
-                <span id="sos-response-summary" data-i18n="sos.response.scanning">Scanning for nearby units&hellip;</span>
-            </div>
             <div id="sos-ptt-add-strip" hidden>
                 <div id="sos-ptt-team-chips" class="sos-ptt-team-chips" hidden></div>
-                <button type="button" id="sos-ptt-member-btn" class="sos-ptt-add-member-btn">+ Team Member</button>
                 <div id="sos-ptt-member-panel" hidden>
                     <div id="sos-ptt-add-list"></div>
                 </div>
@@ -10782,6 +10854,8 @@
             <aside id="video-wall" data-bank="a" data-i18n-aria="video.title" aria-label="Live video channels">
                 <div id="video-wall-bank-tabs">
                     <span id="video-wall-bank-current">Panels 1&ndash;5</span>
+                    <button type="button" id="video-wall-bank-tv" onclick="window.openOpsTacticalTv && window.openOpsTacticalTv()">External Display</button>
+                    <button type="button" id="video-wall-bank-end-incident" onclick="window.endOpsTacticalLayout && window.endOpsTacticalLayout()">End Incident</button>
                     <button type="button" id="video-wall-bank-next">Next Panels 6&ndash;10</button>
                 </div>
                 <div id="video-wall-slots">                </div>
@@ -15148,7 +15222,7 @@
     <script src="/js/missed-activity.js?v=20260824-ma-nudge-click-copy-v1"></script>
     <script src="/js/evidence-manager.js?v=20260925-dispatch-invest-tabs-v1"></script>
     <script src="/js/chat-ui.js"></script>
-    <script src="/js/video-wall.js?v=20260923-ops-leave-desk-p1"></script>
+    <script src="/js/video-wall.js?v=20260927-ops-tactical-cell-select-v1"></script>
     <script src="/js/video-matrix.js?v=20260924-vms-main-matrix-ok-v1"></script>
     <script src="/js/global.js?v=20260917-health-gate-no-stale-flash-v1"></script>
     <script src="/js/global-device-presence.js?v=20260918-presence-green-amber-grey-v1"></script>
@@ -15160,13 +15234,13 @@
     <script src="/vendor/leaflet-draw/leaflet.draw.js?v=20260724-tactical-leaflet-draw-v1"></script>
     <script src="/vendor/markercluster/leaflet.markercluster.js?v=20260701-vendor-local"></script>
     <script src="/js/vms-ptz-joystick.js?v=20260922-ops-leave-desk-ptz-cache-v1"></script>
-    <script src="/js/geo-tools.js?v=20260922-ops-leave-desk-ptz-cache-v1"></script>
+    <script src="/js/geo-tools.js?v=20260927-ops-tactical-sos-layout-v1"></script>
     <script src="/js/tactical-shell.js?v=20260922-vms-map-north-rose-spatial-tactical-v1"></script>
     <script src="/js/tactical-poi.js?v=20260820-tactical-idle-status-off-v1"></script>
     <script src="/js/tactical-blueprint-ui.js?v=20260816-blueprint-manage-v1"></script>
     <script src="/js/tactical-ar.js?v=20260826-ar-case-v1"></script>
     <script src="/js/tactical-overwatch.js?v=20260825-ascii-safe-v1"></script>
-    <script src="/js/map-pin-layer.js?v=20260920-presence-cluster-v1"></script>
+    <script src="/js/map-pin-layer.js?v=20260927-pin-stay-visible-v2"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/cw-display-room.js?v=20260821-screen-cards-v1"></script>
     <script src="/js/live-surface-hint.js?v=20260709-duplicate-surface-warn"></script>
@@ -15387,6 +15461,8 @@
                         if (!marker._geoPtzClickBound) {
                             marker._geoPtzClickBound = true;
                             marker.on('click', function () {
+                                if (marker._fixedCamera && typeof window.opsTacticalPlacePick === 'function'
+                                    && window.opsTacticalPlacePick('fixed:' + marker._fixedCamera.id, 'fixed')) return;
                                 if (window.GeoTools && typeof window.GeoTools.notifyMapPin === 'function' && marker._fixedCamera) {
                                     window.GeoTools.notifyMapPin('fixed:' + marker._fixedCamera.id);
                                 }
@@ -15593,6 +15669,17 @@
         var pinClusterActiveCam = {};
         var popoutMirrorSelectedCamId = null;
         var sosIncidentActive = false;
+        /* OPS-TACTICAL-SOS-LAYOUT-V1 — separate from sosIncidentActive so Ack does not close the layout. */
+        var opsTacticalLock = false;
+        var opsTacticalTvWin = null;
+        var opsTacticalTvRaf = 0;
+        var opsTacticalTransitioning = false;
+        var opsTacticalTagsApplied = false;
+        var opsTacticalQueue = [];
+        var opsTacticalFrame = 0;
+        var opsTacticalSnap = [];
+        var opsTacticalFirstData = null;
+        window.isOpsTacticalLayoutActive = function () { return opsTacticalLock; };
         var activeAlarmKind = 'sos';
         var geofenceLayers = {};
         var geofenceOutsideByCam = {};
@@ -16486,6 +16573,18 @@
 
         var UNGROUPED_PIN_COLOR = '#c026d3';
 
+        function isUngroupedPinColor(hex) {
+            var n = parseInt(String(hex || '').replace('#', ''), 16);
+            if (!isFinite(n)) return false;
+            var r = (n >> 16) & 255;
+            var g = (n >> 8) & 255;
+            var b = n & 255;
+            var dr = r - 192;
+            var dg = g - 38;
+            var db = b - 211;
+            return Math.sqrt(dr * dr + dg * dg + db * db) < 48;
+        }
+
         function dispatchColorForCam(camId, mapGroup) {
             var lk = window.dispatchGroupLookup || {};
             var raw = null;
@@ -16497,8 +16596,10 @@
                     raw = lk.byName[gk].color;
                 }
             }
-            if (raw && !isBlockedTeamColor(raw)) return raw;
-            return null;
+            if (!raw) return null;
+            /* Group keeps its own colour. Never paint a group with the ungrouped magenta. */
+            if (isUngroupedPinColor(raw)) return '#3b82f6';
+            return raw;
         }
 
         window.onDispatchGroupsUpdated = function () {
@@ -19238,6 +19339,10 @@
                         return;
                     }
                     if (geofenceDrawActive) return;
+                    if (typeof window.opsTacticalPlacePick === 'function' && window.opsTacticalPlacePick(camId, 'bwc')) {
+                        if (L && L.DomEvent && L.DomEvent.stopPropagation) L.DomEvent.stopPropagation(e);
+                        return;
+                    }
                     if (L && L.DomEvent && L.DomEvent.stopPropagation) L.DomEvent.stopPropagation(e);
                     clearMapPinPopupSuppression(camId);
                     clearPinVideoUserStop(camId);
@@ -21376,6 +21481,9 @@
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
                     if (applySosPttTeamResult(data, { silentToast: true })) {
+                        if (window.isOpsTacticalLayoutActive && window.isOpsTacticalLayoutActive()) {
+                            showSosPttTeamToast('Removed ' + rmName + ' from the radio team.', 12000);
+                        } else {
                         showSosPttTeamToast('Removed ' + rmName
                             + ' \u2014 live stopped; SD Record clears in ~6s.', 12000);
                         /* SOS-HELPER-REMOVE-SHUT-LIVE-V1 â€” pin + wall stop for helper only. */
@@ -21387,6 +21495,7 @@
                                 FleetUi.togglePinSelect(helperCamId, false);
                             }
                         } catch (_) { /* never break remove */ }
+                        }
                     } else {
                         showSosPttTeamToast((data && data.error) || 'Remove failed.', 8000);
                         alert((data && data.error) || 'Remove from PTT failed.');
@@ -21516,8 +21625,10 @@
                             showSosPttTeamToast('Added ' + addName + ' \u2014 team now '
                                 + data.pttTeam.team.length + ' unit(s).', 12000);
                         }
-                        /* SOS-STOPRECORD-AND-HELPER-LIVE-V1 â€” +team â†’ pin + wall (any cam). */
-                        try {
+                        /* OPS-TACTICAL-SOS-LAYOUT-V1 — radio only while the six-panel layout is on. */
+                        if (window.isOpsTacticalLayoutActive && window.isOpsTacticalLayoutActive()) {
+                            /* picture stays until End Incident */
+                        } else try {
                             var pack = (data.pttTeam && Array.isArray(data.pttTeam.team))
                                 ? data.pttTeam.team.slice()
                                 : [alarm.cameraId, helperCamId];
@@ -21801,6 +21912,7 @@
             fetchMapPositionsForSos(function () {
                 drawSosResponseCircle();
                 schedulePinPopupReposition();
+                if (opsTacticalLock && opsTacticalTagsApplied) opsTacticalNearbyFill();
             });
         }
 
@@ -21868,6 +21980,547 @@
             window._sosToastTimer = setTimeout(function () { el.hidden = true; }, 8000);
         }
 
+        function opsTacticalSlotNodes() {
+            return document.querySelectorAll('#video-wall-slots .video-slot');
+        }
+        function opsTacticalReadVisible() {
+            var nodes = opsTacticalSlotNodes();
+            var vis = [];
+            for (var i = 0; i < nodes.length; i++) {
+                if (!nodes[i].classList.contains('is-bank-hidden')) vis.push(i);
+            }
+            return vis;
+        }
+        function opsTacticalFindSlot(camId) {
+            var nodes = opsTacticalSlotNodes();
+            var want = normalizeCamId(camId);
+            for (var i = 0; i < nodes.length; i++) {
+                var id = normalizeCamId(nodes[i].dataset.camId || nodes[i].getAttribute('data-cam-id') || '');
+                if (id && id === want) return i;
+            }
+            return -1;
+        }
+        function opsTacticalFirstFreeVisible() {
+            var nodes = opsTacticalSlotNodes();
+            var i;
+            for (i = 0; i < opsTacticalSnap.length; i++) {
+                var idx = opsTacticalSnap[i];
+                var el = nodes[idx];
+                if (!el) continue;
+                var id = String(el.dataset.camId || el.getAttribute('data-cam-id') || '').trim();
+                if (!id && !el.classList.contains('video-slot-has-live')) return idx;
+            }
+            return -1;
+        }
+        function opsTacticalMapRefresh() {
+            var mapEl = document.getElementById('map');
+            if (mapEl) { void mapEl.offsetWidth; }
+            try { if (typeof map !== 'undefined' && map && map.invalidateSize) map.invalidateSize(); } catch (_) {}
+            try { schedulePinPopupReposition(); } catch (_) {}
+        }
+        function opsTacticalStripTags() {
+            var nodes = opsTacticalSlotNodes();
+            for (var i = 0; i < nodes.length; i++) {
+                nodes[i].classList.remove('ops-tac-show', 'ops-tac-focus', 'ops-tac-pick', 'ops-tac-mid', 'ops-tac-bot', 'ops-tac-side-a', 'ops-tac-side-b', 'ops-tac-foot-a', 'ops-tac-foot-b', 'ops-tac-foot-c');
+            }
+            var wall = document.getElementById('video-wall');
+            if (wall) wall.classList.remove('ops-tactical-grid');
+            var ops = document.getElementById('app-view-ops');
+            if (ops) ops.classList.remove('ops-tactical-split');
+        }
+        function opsTacticalApplyTags(focusIdx) {
+            var nodes = opsTacticalSlotNodes();
+            var companions = (opsTacticalSnap || []).slice();
+            var pos = companions.indexOf(focusIdx);
+            if (pos >= 0) {
+                companions.splice(pos, 1);
+                var hidden = [];
+                var h;
+                for (h = 0; h < nodes.length; h++) {
+                    if (h === focusIdx) continue;
+                    if (nodes[h].classList.contains('is-bank-hidden')) hidden.push(h);
+                }
+                hidden.sort(function (a, b) { return a - b; });
+                if (hidden.length) companions.push(hidden[0]);
+            }
+            companions.sort(function (a, b) { return a - b; });
+            var roles = ['ops-tac-side-a', 'ops-tac-side-b', 'ops-tac-foot-a', 'ops-tac-foot-b', 'ops-tac-foot-c'];
+            var show = {};
+            show[focusIdx] = 'ops-tac-focus';
+            companions.slice(0, 5).forEach(function (idx, n) { show[idx] = roles[n]; });
+            var i;
+            for (i = 0; i < nodes.length; i++) {
+                var el = nodes[i];
+                el.classList.remove('ops-tac-show', 'ops-tac-focus', 'ops-tac-mid', 'ops-tac-bot', 'ops-tac-side-a', 'ops-tac-side-b', 'ops-tac-foot-a', 'ops-tac-foot-b', 'ops-tac-foot-c');
+                if (show[i]) {
+                    el.classList.add('ops-tac-show', show[i]);
+                    el.classList.remove('is-bank-hidden');
+                } else {
+                    el.classList.add('is-bank-hidden');
+                }
+            }
+            var wall = document.getElementById('video-wall');
+            if (wall) wall.classList.add('ops-tactical-grid');
+        }
+        function opsTacticalShouldBegin(data) {
+            if (opsTacticalLock || opsTacticalTransitioning) return false;
+            if (!data || data.alarmKind === 'fall') return false;
+            if (data.refresh || data.replay || data.fromLiveBye) return false;
+            var ops = document.getElementById('app-view-ops');
+            if (!ops || ops.hidden) return false;
+            return true;
+        }
+        function opsTacticalStartSplit(data) {
+            opsTacticalLock = true;
+            opsTacticalTransitioning = true;
+            opsTacticalTagsApplied = false;
+            opsTacticalFirstData = data;
+            opsTacticalSnap = opsTacticalReadVisible();
+            var ops = document.getElementById('app-view-ops');
+            if (ops) ops.classList.add('ops-tactical-split');
+        }
+        function opsTacticalUpsertFrom(data, camId) {
+            upsertActiveSosAlarm({
+                cameraId: camId,
+                time: data.time || '',
+                lat: data.lat,
+                lon: data.lon,
+                incidentId: data.incidentId || null,
+                alarmKind: data.alarmKind === 'fall' ? 'fall' : 'sos',
+            });
+        }
+        function opsTacticalGpsOnly(data) {
+            var camId = normalizeCamId(data.cameraId);
+            opsTacticalUpsertFrom(data, camId);
+            var lat = data.lat != null && data.lat !== '' ? parseFloat(data.lat) : NaN;
+            var lon = data.lon != null && data.lon !== '' ? parseFloat(data.lon) : NaN;
+            if (!isNaN(lat) && !isNaN(lon)) {
+                try { upsertDeviceMarker(camId, lat, lon, null, false); } catch (_) {}
+                if (normalizeCamId(camId) === normalizeCamId(focusedSosCamId)) opsTacticalNoteSosPos(lat, lon);
+            }
+        }
+        function opsTacticalRescueOfficer(data) {
+            if (!data || !data.cameraId) return;
+            var camId = normalizeCamId(data.cameraId);
+            opsTacticalUpsertFrom(data, camId);
+            if (!focusedSosCamId) focusedSosCamId = camId;
+            refreshSosStormBanner();
+            try { flashSosReceivedToast(camId); } catch (_) {}
+            try { paintSosMapPin(camId, data, true); } catch (_) {}
+            try { if (window.VideoWall && VideoWall.onSosAlarm) VideoWall.onSosAlarm(data); } catch (_) {}
+            try { renderSosAlarmStrip(); } catch (_) {}
+            try { refreshSosLedger(); } catch (_) {}
+        }
+        function opsTacticalPickCompanion() {
+            var nodes = document.querySelectorAll('#video-wall-slots .video-slot.ops-tac-show:not(.ops-tac-focus)');
+            var last = -1;
+            for (var i = 0; i < nodes.length; i++) {
+                var el = nodes[i];
+                var id = normalizeCamId(el.dataset.camId || el.getAttribute('data-cam-id') || '');
+                if (id && activeSosAlarms[id]) continue;
+                if (el.classList.contains('alarm')) continue;
+                var idx = parseInt(el.dataset.slot, 10);
+                if (!isFinite(idx)) continue;
+                last = idx;
+            }
+            return last;
+        }
+        function opsTacticalLater(data) {
+            var camId = normalizeCamId(data.cameraId);
+            opsTacticalUpsertFrom(data, camId);
+            refreshSosStormBanner();
+            try { flashSosReceivedToast(camId); } catch (_) {}
+            try { paintSosMapPin(camId, data, true); } catch (_) {}
+            var slot = opsTacticalPickCompanion();
+            if (slot < 0) window.__opsTacticalSkipWall = true;
+            else window.__opsTacticalForceSlot = slot;
+            try { if (window.VideoWall && VideoWall.onSosAlarm) VideoWall.onSosAlarm(data); } catch (_) {}
+            try {
+                if (window.VideoWall && VideoWall.unmuteAudioForSosCam) VideoWall.unmuteAudioForSosCam(camId);
+            } catch (_) {}
+            try { renderSosAlarmStrip(); } catch (_) {}
+            try { refreshSosLedger(); } catch (_) {}
+        }
+        function opsTacticalDrain() {
+            var queued = opsTacticalQueue.splice(0);
+            queued.forEach(opsTacticalLater);
+        }
+        function opsTacticalAbortKeepBanner() {
+            var queued = opsTacticalQueue.splice(0);
+            opsTacticalLock = false;
+            opsTacticalTransitioning = false;
+            opsTacticalTagsApplied = false;
+            opsTacticalFirstData = null;
+            opsTacticalStripTags();
+            opsTacticalMapRefresh();
+            queued.forEach(opsTacticalRescueOfficer);
+        }
+        function opsTacticalScheduleFrame(camId, data) {
+            opsTacticalFrame = requestAnimationFrame(function () {
+                opsTacticalFrame = 0;
+                if (!opsTacticalLock) return;
+                opsTacticalMapRefresh();
+                var stored = (activeSosAlarms && activeSosAlarms[camId]) || data;
+                try { paintSosMapPin(camId, stored, true); } catch (_) {}
+                try { drawSosResponseCircleFromServer(); } catch (_) {}
+                try {
+                    if (window.VideoWall && VideoWall.onSosAlarm) VideoWall.onSosAlarm(data);
+                } catch (err) {
+                    if (typeof console !== 'undefined' && console.error) console.error('[SOS] tactical onSosAlarm', err);
+                }
+                var landed = opsTacticalFindSlot(camId);
+                if (landed < 0) {
+                    var free = opsTacticalFirstFreeVisible();
+                    if (free >= 0) {
+                        window.__opsTacticalForceSlot = free;
+                        try { if (window.VideoWall && VideoWall.onSosAlarm) VideoWall.onSosAlarm(data); } catch (_) {}
+                        landed = opsTacticalFindSlot(camId);
+                    }
+                }
+                if (landed < 0) {
+                    opsTacticalAbortKeepBanner();
+                    return;
+                }
+                try { opsTacticalApplyTags(landed); } catch (_) {}
+                try { if (typeof resyncPinVideoAfterSosAck === 'function') resyncPinVideoAfterSosAck(camId); } catch (_) {}
+                opsTacticalTransitioning = false;
+                opsTacticalTagsApplied = true;
+                opsTacticalDrain();
+                opsTacticalNearbyFill();
+            });
+        }
+        var opsTacticalPickSlot = -1;
+        function opsTacticalClearPick() {
+            opsTacticalPickSlot = -1;
+            var nodes = document.querySelectorAll('#video-wall-slots .video-slot.ops-tac-pick');
+            for (var i = 0; i < nodes.length; i++) nodes[i].classList.remove('ops-tac-pick');
+        }
+        function opsTacticalArmSlot(slotEl) {
+            if (!opsTacticalLock || !opsTacticalTagsApplied || !slotEl) return false;
+            if (!slotEl.classList.contains('ops-tac-show') || slotEl.classList.contains('ops-tac-focus')) return false;
+            if (slotEl.classList.contains('alarm')) return false;
+            var idx = parseInt(slotEl.dataset.slot, 10);
+            if (!isFinite(idx)) return false;
+            if (idx === opsTacticalPickSlot) {
+                opsTacticalClearPick();
+                return true;
+            }
+            opsTacticalClearPick();
+            opsTacticalPickSlot = idx;
+            slotEl.classList.add('ops-tac-pick');
+            return true;
+        }
+        window.opsTacticalArmSlot = opsTacticalArmSlot;
+        function opsTacticalPlacePick(camId) {
+            if (!opsTacticalLock || !opsTacticalTagsApplied || opsTacticalPickSlot < 0) return false;
+            camId = String(camId || '').trim();
+            if (!camId) return false;
+            var nodes = document.querySelectorAll('#video-wall-slots .video-slot');
+            var slotEl = null;
+            var i;
+            for (i = 0; i < nodes.length; i++) {
+                if (parseInt(nodes[i].dataset.slot, 10) === opsTacticalPickSlot) slotEl = nodes[i];
+            }
+            if (!slotEl || !slotEl.classList.contains('ops-tac-show') || slotEl.classList.contains('ops-tac-focus')) return false;
+            if (slotEl.classList.contains('alarm')) return false;
+            var focus = document.querySelector('#video-wall-slots .video-slot.ops-tac-focus');
+            var focusCam = focus ? String(focus.dataset.camId || focus.getAttribute('data-cam-id') || '').trim() : '';
+            var bare = camId.replace(/^fixed:/i, '');
+            if (focusCam && (focusCam === camId || focusCam === bare || focusCam === ('fixed:' + bare))) return false;
+            for (i = 0; i < nodes.length; i++) {
+                if (nodes[i] === slotEl || nodes[i].classList.contains('ops-tac-focus')) continue;
+                var id = String(nodes[i].dataset.camId || nodes[i].getAttribute('data-cam-id') || '').trim();
+                if (!id || (id !== camId && id !== bare && id !== ('fixed:' + bare))) continue;
+                if (nodes[i].classList.contains('alarm')) return false;
+                if (window.VideoWall && VideoWall.stopSlot) VideoWall.stopSlot(nodes[i]);
+            }
+            if (window.VideoWall && VideoWall.stopSlot) VideoWall.stopSlot(slotEl);
+            var fixed = /^fixed:/i.test(camId);
+            if (fixed) {
+                slotEl.dataset.camId = camId;
+                slotEl.setAttribute('data-cam-id', camId);
+                if (window.VideoWall && VideoWall.playSlot) VideoWall.playSlot(slotEl);
+                var raw = bare;
+                var markerMap = window.__me8FixedCameraMapMarkers;
+                var marker = markerMap && markerMap.get && markerMap.get(raw);
+                var cam = marker && marker._fixedCamera;
+                if (cam && cam.ptzEnabled && window.GeoTools && typeof GeoTools.setPtzCamera === 'function') {
+                    GeoTools.setPtzCamera(raw, true);
+                }
+            } else {
+                window.__opsTacticalAllowAssign = true;
+                try {
+                    if (window.VideoWall && VideoWall.assignCamToSlot) {
+                        VideoWall.assignCamToSlot(camId, opsTacticalPickSlot, { forceInvite: true, userPlay: true });
+                    }
+                } finally {
+                    window.__opsTacticalAllowAssign = false;
+                }
+            }
+            opsTacticalClearPick();
+            return true;
+        }
+        window.opsTacticalPlacePick = opsTacticalPlacePick;
+        var opsTacticalMoveFrom = null;
+        var opsTacticalSosHere = null;
+        function opsTacticalNoteSosPos(lat, lon) {
+            if (!isFinite(lat) || !isFinite(lon)) return;
+            if (opsTacticalSosHere) {
+                var moved = opsTacticalMeters(opsTacticalSosHere.lat, opsTacticalSosHere.lon, lat, lon);
+                if (moved > 20) opsTacticalMoveFrom = { lat: opsTacticalSosHere.lat, lon: opsTacticalSosHere.lon };
+            }
+            opsTacticalSosHere = { lat: lat, lon: lon };
+        }
+        function opsTacticalMeters(aLat, aLon, bLat, bLon) {
+            var p1 = aLat * Math.PI / 180;
+            var p2 = bLat * Math.PI / 180;
+            var dphi = (bLat - aLat) * Math.PI / 180;
+            var dl = (bLon - aLon) * Math.PI / 180;
+            var x = Math.sin(dphi / 2) * Math.sin(dphi / 2)
+                + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+            return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(x)));
+        }
+        function opsTacticalCellEmpty(el) {
+            if (!el || !el.classList.contains('ops-tac-show') || el.classList.contains('ops-tac-focus')) return false;
+            if (el.classList.contains('alarm')) return false;
+            var id = String(el.dataset.camId || el.getAttribute('data-cam-id') || '').trim();
+            if (id) return false;
+            if (el.classList.contains('video-slot-has-live')) return false;
+            return true;
+        }
+        function opsTacticalNearbyFill() {
+            if (!opsTacticalLock || !opsTacticalTagsApplied || !focusedSosCamId) return;
+            var camId = normalizeCamId(focusedSosCamId);
+            var lat = NaN;
+            var lon = NaN;
+            var marker = deviceMarkers[camId];
+            if (marker && marker.getLatLng) {
+                var ll = marker.getLatLng();
+                lat = ll.lat;
+                lon = ll.lng;
+            }
+            if (!isFinite(lat) || !isFinite(lon)) {
+                var alarm = activeSosAlarms[camId];
+                if (alarm) {
+                    lat = parseFloat(alarm.lat);
+                    lon = parseFloat(alarm.lon);
+                }
+            }
+            if (!isFinite(lat) || !isFinite(lon)) return;
+            opsTacticalNoteSosPos(lat, lon);
+            var radiusEl = document.getElementById('sos-response-radius');
+            var radius = radiusEl ? parseInt(radiusEl.value, 10) : 500;
+            if (!isFinite(radius) || radius <= 0) radius = 500;
+            var used = {};
+            used[camId] = true;
+            var shown = document.querySelectorAll('#video-wall-slots .video-slot.ops-tac-show');
+            var s;
+            for (s = 0; s < shown.length; s++) {
+                var sid = String(shown[s].dataset.camId || shown[s].getAttribute('data-cam-id') || '').trim();
+                if (sid) used[sid.replace(/^fixed:/i, '')] = true;
+                if (sid) used[sid] = true;
+            }
+            var east = 0;
+            var north = 0;
+            var hasHead = false;
+            if (opsTacticalMoveFrom) {
+                north = lat - opsTacticalMoveFrom.lat;
+                east = (lon - opsTacticalMoveFrom.lon) * Math.cos(lat * Math.PI / 180);
+                if ((north * north + east * east) > 0) hasHead = opsTacticalMeters(opsTacticalMoveFrom.lat, opsTacticalMoveFrom.lon, lat, lon) > 20;
+            }
+            var hits = [];
+            Object.keys(deviceMarkers).forEach(function (id) {
+                var key = normalizeCamId(id);
+                if (!key || used[key]) return;
+                var m = deviceMarkers[id];
+                if (!m || !m.getLatLng) return;
+                var pll = m.getLatLng();
+                var dist = opsTacticalMeters(lat, lon, pll.lat, pll.lng);
+                if (dist > radius || dist < 8) return;
+                var ahead = true;
+                if (hasHead) {
+                    var cn = pll.lat - lat;
+                    var ce = (pll.lng - lon) * Math.cos(lat * Math.PI / 180);
+                    ahead = (cn * north + ce * east) > 0;
+                }
+                hits.push({ id: key, d: dist, ahead: ahead });
+            });
+            var fixedMap = window.__me8FixedCameraMapMarkers;
+            if (fixedMap && fixedMap.forEach) {
+                fixedMap.forEach(function (fm, fid) {
+                    var raw = String(fid);
+                    if (used[raw] || used['fixed:' + raw]) return;
+                    if (!fm || !fm.getLatLng) return;
+                    var fll = fm.getLatLng();
+                    var fdist = opsTacticalMeters(lat, lon, fll.lat, fll.lng);
+                    if (fdist > radius) return;
+                    var fahead = true;
+                    if (hasHead) {
+                        var fn = fll.lat - lat;
+                        var fe = (fll.lng - lon) * Math.cos(lat * Math.PI / 180);
+                        fahead = (fn * north + fe * east) > 0;
+                    }
+                    hits.push({ id: 'fixed:' + raw, d: fdist, ahead: fahead });
+                });
+            }
+            hits.sort(function (a, b) {
+                if (a.ahead !== b.ahead) return a.ahead ? -1 : 1;
+                return a.d - b.d;
+            });
+            var roles = ['ops-tac-side-a', 'ops-tac-side-b', 'ops-tac-foot-a', 'ops-tac-foot-b', 'ops-tac-foot-c'];
+            var empties = [];
+            roles.forEach(function (role) {
+                var el = document.querySelector('#video-wall-slots .video-slot.' + role);
+                if (opsTacticalCellEmpty(el)) empties.push(el);
+            });
+            var hi = 0;
+            empties.forEach(function (el) {
+                while (hi < hits.length) {
+                    var hit = hits[hi];
+                    hi += 1;
+                    opsTacticalPickSlot = parseInt(el.dataset.slot, 10);
+                    if (opsTacticalPlacePick(hit.id)) break;
+                }
+            });
+        }
+        function opsTacticalTvClose() {
+            if (opsTacticalTvRaf) cancelAnimationFrame(opsTacticalTvRaf);
+            opsTacticalTvRaf = 0;
+            if (opsTacticalTvWin && !opsTacticalTvWin.closed) {
+                try { opsTacticalTvWin.close(); } catch (_) {}
+            }
+            opsTacticalTvWin = null;
+        }
+        function opsTacticalTvPaint(media, canvas) {
+            if (!media || !canvas) return;
+            var rect = canvas.getBoundingClientRect();
+            var pw = Math.max(2, Math.round(rect.width));
+            var ph = Math.max(2, Math.round(rect.height));
+            if (canvas.width !== pw || canvas.height !== ph) {
+                canvas.width = pw;
+                canvas.height = ph;
+            }
+            var ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            var vw = media.videoWidth || media.width || 0;
+            var vh = media.videoHeight || media.height || 0;
+            try {
+                if (vw > 0 && vh > 0) {
+                    var scale = Math.max(pw / vw, ph / vh);
+                    var sw = pw / scale;
+                    var sh = ph / scale;
+                    ctx.drawImage(media, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, pw, ph);
+                } else {
+                    ctx.drawImage(media, 0, 0, pw, ph);
+                }
+            } catch (_) {}
+        }
+        function opsTacticalTvDraw() {
+            opsTacticalTvRaf = 0;
+            var tv = opsTacticalTvWin;
+            if (!tv || tv.closed || !opsTacticalLock) {
+                opsTacticalTvClose();
+                return;
+            }
+            var roles = [
+                ['ops-tac-focus', 'focus'],
+                ['ops-tac-side-a', 'side-a'],
+                ['ops-tac-side-b', 'side-b'],
+                ['ops-tac-foot-a', 'foot-a'],
+                ['ops-tac-foot-b', 'foot-b'],
+                ['ops-tac-foot-c', 'foot-c']
+            ];
+            for (var i = 0; i < roles.length; i++) {
+                var slot = document.querySelector('#video-wall-slots .video-slot.' + roles[i][0]);
+                var canvas = tv.document.querySelector('canvas[data-role="' + roles[i][1] + '"]');
+                var media = slot && (slot.querySelector('video.me8-zlm-primary') || slot.querySelector('video') || slot.querySelector('canvas'));
+                if (media && media.readyState != null && media.readyState < 2) media = null;
+                opsTacticalTvPaint(media, canvas);
+            }
+            opsTacticalTvRaf = requestAnimationFrame(opsTacticalTvDraw);
+        }
+        function openOpsTacticalTv() {
+            if (!opsTacticalLock) return;
+            if (opsTacticalTvWin && !opsTacticalTvWin.closed) {
+                opsTacticalTvWin.focus();
+                if (!opsTacticalTvRaf) opsTacticalTvDraw();
+                return;
+            }
+            var tv = window.open('', 'me8-ops-tactical-tv', 'popup,width=1280,height=720');
+            if (!tv) return;
+            opsTacticalTvWin = tv;
+            tv.document.open();
+            tv.document.write('<!DOCTYPE html><html><head><title>Mobility Axiom</title><style>'
+                + 'html,body{margin:0;height:100%;background:#000;overflow:hidden}'
+                + '#ops-tv-bar{position:absolute;top:8px;right:8px;z-index:3}'
+                + '#ops-tv-fill{border:1px solid #475569;background:#1e293b;color:#e2e8f0;border-radius:5px;padding:6px 10px;font:600 12px sans-serif;cursor:pointer}'
+                + '#ops-tv-grid{display:grid;width:100vw;height:100vh;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));gap:3px;background:#000}'
+                + 'canvas{width:100%;height:100%;background:#000;display:block}'
+                + '#ops-tv-focus{grid-column:1/3;grid-row:1/3;position:relative}'
+                + '#ops-tv-focus:after{content:"";position:absolute;inset:0;border:3px solid #ef4444;pointer-events:none}'
+                + '#ops-tv-side-a{grid-column:3;grid-row:1}#ops-tv-side-b{grid-column:3;grid-row:2}'
+                + '#ops-tv-foot-a{grid-column:1;grid-row:3}#ops-tv-foot-b{grid-column:2;grid-row:3}#ops-tv-foot-c{grid-column:3;grid-row:3}'
+                + '</style></head><body><div id="ops-tv-bar"><button type="button" id="ops-tv-fill">Full Screen</button></div>'
+                + '<div id="ops-tv-grid"><div id="ops-tv-focus"><canvas data-role="focus"></canvas></div>'
+                + '<div id="ops-tv-side-a"><canvas data-role="side-a"></canvas></div>'
+                + '<div id="ops-tv-side-b"><canvas data-role="side-b"></canvas></div>'
+                + '<div id="ops-tv-foot-a"><canvas data-role="foot-a"></canvas></div>'
+                + '<div id="ops-tv-foot-b"><canvas data-role="foot-b"></canvas></div>'
+                + '<div id="ops-tv-foot-c"><canvas data-role="foot-c"></canvas></div></div></body></html>');
+            tv.document.close();
+            var fill = tv.document.getElementById('ops-tv-fill');
+            if (fill) {
+                fill.addEventListener('click', function () {
+                    var root = tv.document.documentElement;
+                    if (!tv.document.fullscreenElement && root.requestFullscreen) root.requestFullscreen();
+                    else if (tv.document.exitFullscreen) tv.document.exitFullscreen();
+                });
+            }
+            opsTacticalTvDraw();
+        }
+        window.openOpsTacticalTv = openOpsTacticalTv;
+        function endOpsTacticalLayout() {
+            if (!opsTacticalLock && !opsTacticalTransitioning) return;
+            opsTacticalClearPick();
+            opsTacticalTvClose();
+            if (opsTacticalTransitioning && !opsTacticalTagsApplied) {
+                if (opsTacticalFrame) cancelAnimationFrame(opsTacticalFrame);
+                opsTacticalFrame = 0;
+                var first = opsTacticalFirstData;
+                var queued = opsTacticalQueue.splice(0);
+                opsTacticalLock = false;
+                opsTacticalTransitioning = false;
+                opsTacticalTagsApplied = false;
+                opsTacticalFirstData = null;
+                var ops = document.getElementById('app-view-ops');
+                if (ops) ops.classList.remove('ops-tactical-split');
+                opsTacticalMapRefresh();
+                if (first && first.cameraId) {
+                    try { paintSosMapPin(normalizeCamId(first.cameraId), first, true); } catch (_) {}
+                    try { if (window.VideoWall && VideoWall.onSosAlarm) VideoWall.onSosAlarm(first); } catch (_) {}
+                }
+                queued.forEach(opsTacticalRescueOfficer);
+                return;
+            }
+            var focus = document.querySelector('#video-wall-slots .video-slot.ops-tac-focus');
+            var focusIdx = focus ? parseInt(focus.dataset.slot, 10) : -1;
+            if (!isFinite(focusIdx) || focusIdx < 0) focusIdx = -1;
+            var wall = document.getElementById('video-wall');
+            var cur = wall ? (wall.getAttribute('data-bank') || 'a') : 'a';
+            var focusBank = focusIdx >= 5 ? 'b' : 'a';
+            opsTacticalLock = false;
+            if (wall && window.VideoWall && typeof VideoWall.applyWallBankPage === 'function') {
+                VideoWall.applyWallBankPage(focusIdx >= 0 && focusBank !== cur ? focusBank : cur);
+            }
+            opsTacticalTransitioning = false;
+            opsTacticalTagsApplied = false;
+            opsTacticalQueue = [];
+            opsTacticalFirstData = null;
+            opsTacticalStripTags();
+            opsTacticalMapRefresh();
+        }
+        window.endOpsTacticalLayout = endOpsTacticalLayout;
+
         /** Every sos-alarm event runs full UI \u2014 no sameSos early return (replay-only bypass caused cold-start silence). */
         function onDashboardSosAlarm(data) {
             try {
@@ -21880,6 +22533,23 @@
                         replay: !!data.replay,
                         fromLiveBye: !!data.fromLiveBye,
                     });
+                }
+                if (opsTacticalLock && data.alarmKind !== 'fall' && (data.refresh || data.replay || data.fromLiveBye)) {
+                    opsTacticalGpsOnly(data);
+                    return;
+                }
+                if (opsTacticalTransitioning && data.alarmKind !== 'fall' && !data.refresh && !data.replay && !data.fromLiveBye) {
+                    opsTacticalQueue.push(data);
+                    return;
+                }
+                if (opsTacticalLock && opsTacticalTagsApplied && data.alarmKind !== 'fall' && !data.refresh && !data.replay && !data.fromLiveBye) {
+                    opsTacticalLater(data);
+                    return;
+                }
+                var opsTacticalDeferMedia = false;
+                if (opsTacticalShouldBegin(data)) {
+                    opsTacticalDeferMedia = true;
+                    opsTacticalStartSplit(data);
                 }
                 upsertActiveSosAlarm({
                     cameraId: camId,
@@ -21909,10 +22579,14 @@
                     if (sosSnapEarly && activeSosAlarms[camId]) activeSosAlarms[camId].stashSnapshot = sosSnapEarly;
                 }
                 if (global.VideoWall && VideoWall.syncWallStopDuringSos) VideoWall.syncWallStopDuringSos();
-        flashSosReceivedToast(camId);
-        var openPopup = true; // Force the pin video pop-out window to open instantly
-        paintSosMapPin(camId, data, openPopup);
-                VideoWall.onSosAlarm(data);
+                flashSosReceivedToast(camId);
+                if (opsTacticalDeferMedia) {
+                    opsTacticalScheduleFrame(camId, data);
+                } else {
+                    var openPopup = true;
+                    paintSosMapPin(camId, data, openPopup);
+                    VideoWall.onSosAlarm(data);
+                }
                 if (global.VideoWall && VideoWall.unmuteAudioForSosCam) {
                     getActiveSosCamIds().forEach(function (id) {
                         if (typeof clearSosAckMuteHold === 'function') clearSosAckMuteHold(id);
@@ -21922,10 +22596,12 @@
                 stashSosAckSnapshot(camId);
                 setTimeout(function () { stashSosAckSnapshot(camId); }, 800);
                 setTimeout(function () { stashSosAckSnapshot(camId); }, 2000);
-                resyncPinVideoAfterSosAck(camId);
-                setTimeout(function () {
-                    assignColocatedPinPopupDocks('sos-ack');
-                }, 450);
+                if (!opsTacticalDeferMedia) {
+                    resyncPinVideoAfterSosAck(camId);
+                    setTimeout(function () {
+                        assignColocatedPinPopupDocks('sos-ack');
+                    }, 450);
+                }
                 if (data.refresh || data.fromLiveBye) {
                     schedulePinPopupReposition();
                 }
@@ -21952,10 +22628,12 @@
                         }
                     } catch (_) { /* A1 must never break SOS UI */ }
                 }
-                requestAnimationFrame(function () {
-                    drawSosResponseCircleFromServer();
-                    schedulePinPopupReposition();
-                });
+                if (!opsTacticalDeferMedia) {
+                    requestAnimationFrame(function () {
+                        drawSosResponseCircleFromServer();
+                        schedulePinPopupReposition();
+                    });
+                }
                 renderSosAlarmStrip();
                 refreshSosLedger();
             } catch (err) {

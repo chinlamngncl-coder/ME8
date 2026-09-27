@@ -121,6 +121,10 @@
     }
 
     function openHits(hits) {
+        if (typeof global.isOpsTacticalLayoutActive === 'function' && global.isOpsTacticalLayoutActive()) {
+            toast('Area marked. Videos stay on the current panels.', 4000);
+            return;
+        }
         var bwcAll = hits.bwc || [];
         var fixedAll = hits.fixed || [];
         var bwc = bwcAll.slice(0, BWC_OPEN_CAP);

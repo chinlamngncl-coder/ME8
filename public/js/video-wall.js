@@ -1914,7 +1914,13 @@
         if (wall) wall.setAttribute('data-bank', wallBankPage);
     }
 
+    function opsTacticalLayoutOn() {
+        return typeof global.isOpsTacticalLayoutActive === 'function' && global.isOpsTacticalLayoutActive();
+    }
+
     function applyWallBankPage(page) {
+        /* OPS-TACTICAL-SOS-LAYOUT-V1 — frozen bank while the six-panel layout is on. */
+        if (opsTacticalLayoutOn()) return;
         if (page === 'a' || page === 'b') wallBankPage = page;
         getSlots().forEach(function (el) {
             const idx = parseInt(el.dataset.slot, 10);
@@ -1955,6 +1961,7 @@
     }
 
     function layoutWallSixteenNineFit() {
+        if (opsTacticalLayoutOn()) return;
         const wall = document.getElementById('video-wall');
         const slotsEl = document.getElementById('video-wall-slots');
         if (!wall || !slotsEl) return;
@@ -4170,6 +4177,17 @@ function handoffPlayerAttaching(player) {
         if (!slotEl || !camId) return;
         camId = String(camId).trim();
         opts = opts || {};
+        /* OPS-TACTICAL-SOS-LAYOUT-V1 — do not replace the SOS cell or a parked panel. */
+        if (opsTacticalLayoutOn()) {
+            if (slotEl.classList.contains('is-bank-hidden') && !slotEl.classList.contains('ops-tac-show')) return;
+            if (slotEl.classList.contains('ops-tac-focus')) {
+                const focusCam = String(slotEl.dataset.camId || slotEl.getAttribute('data-cam-id') || '').trim();
+                if (focusCam && focusCam !== camId) return;
+            }
+            const gridOn = !!document.getElementById('video-wall')
+                && document.getElementById('video-wall').classList.contains('ops-tactical-grid');
+            if (gridOn && !global.__opsTacticalAllowAssign) return;
+        }
         const existingLiveSlot = slots.findIndex(function (candidate, index) {
             if (index === slotIndex) return false;
             if (activeStreams.get(index) === camId) return true;
@@ -4929,6 +4947,7 @@ function handoffPlayerAttaching(player) {
 
     /** Open All: Video Config panel N \u2192 wall slot N; map popups use dock layout separately. */
     function openAllLivePins(camIds) {
+        if (opsTacticalLayoutOn()) return;
         const ids = (camIds || []).map(function (id) { return String(id || '').trim(); }).filter(Boolean).slice(0, PIN_SLOT_COUNT);
         if (!ids.length) return;
         isBatchOpening = true;
@@ -5471,6 +5490,8 @@ function handoffPlayerAttaching(player) {
 
                 if (e.target.closest('button')) return;
 
+                if (typeof global.opsTacticalArmSlot === 'function' && global.opsTacticalArmSlot(slotEl)) return;
+
                 selectSlot(slotEl);
 
                 const idx = findSlotIndex(slotEl);
@@ -5574,6 +5595,7 @@ function handoffPlayerAttaching(player) {
     }
 
     function healOpenAllWallStreams() {
+        if (opsTacticalLayoutOn()) return;
         if (!openAllSlotByCam) return;
         Object.keys(openAllSlotByCam).forEach(function (camId) {
             const slot = openAllSlotByCam[camId];
@@ -5608,6 +5630,11 @@ function handoffPlayerAttaching(player) {
     }
 
     function resolveSlotIndexForCam(camId) {
+        if (typeof global.__opsTacticalForceSlot === 'number' && global.__opsTacticalForceSlot >= 0) {
+            const forced = global.__opsTacticalForceSlot;
+            global.__opsTacticalForceSlot = null;
+            return forced;
+        }
         let slotIndex = 0;
         if (global.VideoConfig) {
             const ch = VideoConfig.findChannelByDeviceId(camId);
@@ -5726,8 +5753,17 @@ function handoffPlayerAttaching(player) {
 
     function onSosAlarm(data) {
         if (!data || !data.cameraId) return;
+        if (global.__opsTacticalSkipWall) {
+            global.__opsTacticalSkipWall = false;
+            return;
+        }
         /* OPS-LEAVE-DESK-PHASE1-V1 — SOS = pre-V10 direct attach */
-        onSosAlarmCore(data);
+        global.__opsTacticalAllowAssign = true;
+        try {
+            onSosAlarmCore(data);
+        } finally {
+            global.__opsTacticalAllowAssign = false;
+        }
     }
 
     function bindRosterClick(handler) {
