@@ -4425,7 +4425,8 @@ function handoffPlayerAttaching(player) {
         }
     }
 
-    function stopSlot(slotEl) {
+    function stopSlot(slotEl, opts) {
+        opts = opts || {};
         const idx = findSlotIndex(slotEl);
         let camId = '';
         if (typeof idx === 'number' && pendingWallSlots[idx]) camId = String(pendingWallSlots[idx] || '').trim();
@@ -4437,13 +4438,14 @@ function handoffPlayerAttaching(player) {
         if (camId) clearVideoSignalLostForCam(camId);
         if (camId) clearBwcDeviceStoppedForCam(camId);
         slotEl.classList.remove('video-slot-signal-lost');
-        if (typeof global.isSosIncidentActive === 'function' && global.isSosIncidentActive()) {
+        if (opts.forceCellClear && typeof global.isSosIncidentActive === 'function' && global.isSosIncidentActive()) {
+            const sosCam = typeof global.getSosCamId === 'function' ? global.getSosCamId() : activeCamId;
+            if (sosCam && camId && String(sosCam) === String(camId)) opts.slotOnly = true;
+        }
+        if (!opts.forceCellClear && typeof global.isSosIncidentActive === 'function' && global.isSosIncidentActive()) {
             const sosCam = typeof global.getSosCamId === 'function' ? global.getSosCamId() : activeCamId;
             if (sosCam && camId && String(sosCam) === String(camId)) return;
-        }
-        if (typeof global.isSosIncidentActive === 'function' && global.isSosIncidentActive()
-            && slotEl.classList.contains('alarm')) {
-            return;
+            if (slotEl.classList.contains('alarm')) return;
         }
         if (slotRenderTimers.has(idx)) {
             clearTimeout(slotRenderTimers.get(idx));
@@ -4486,16 +4488,18 @@ function handoffPlayerAttaching(player) {
             if (openAllReservedIds && openAllReservedIds.indexOf(camId) >= 0) {
                 openAllReservedIds = openAllReservedIds.filter(function (id) { return id !== camId; });
             }
-            if (voiceCallCamId === camId && socket) {
+            if (!opts.slotOnly && !opts.keepCall && voiceCallCamId === camId && socket) {
                 socket.emit('end-bwc-call', { camId: camId });
             }
-            destroyMapPlayer(camId);
-            if (socket) {
+            if (!opts.slotOnly) destroyMapPlayer(camId);
+            if (!opts.slotOnly && socket) {
                 emitOpsStopVideo(camId, 'operator', 'stopSlot:panel-stop');
             }
-            streamingCams.delete(camId);
-            if (streamingCamId === camId) {
-                streamingCamId = streamingCams.values().next().value || null;
+            if (!opts.slotOnly) {
+                streamingCams.delete(camId);
+                if (streamingCamId === camId) {
+                    streamingCamId = streamingCams.values().next().value || null;
+                }
             }
         }
         const stage = slotEl.querySelector('.video-slot-stage');
@@ -4503,9 +4507,11 @@ function handoffPlayerAttaching(player) {
             stage.innerHTML = '<span class="video-slot-empty">' + tr('video.stopped') + '</span>';
         }
         setSlotMeta(slotEl, cfgCam || null, 'Stopped');
-        if (camId) {
+        if (camId && !opts.keepMapPin) {
             resetMapPopupVideo(camId);
             dismissMapPinPopup(camId);
+        } else if (camId && opts.forceCellClear && !opts.slotOnly) {
+            resetMapPopupVideo(camId);
         }
     }
 
